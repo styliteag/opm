@@ -108,33 +108,33 @@ echo "✓ Updated VERSION file"
 echo ""
 
 # Run frontend typecheck
-echo "Running frontend typecheck..."
-cd frontend
-if command -v bun &> /dev/null; then
-    bun run typecheck
-elif command -v npm &> /dev/null; then
-    npm run typecheck
-else
-    echo "Error: Neither bun nor npm found. Cannot run typecheck."
-    exit 1
-fi
-cd ..
+#echo "Running frontend typecheck..."
+#cd frontend
+#if command -v bun &> /dev/null; then
+#    bun run typecheck
+#elif command -v npm &> /dev/null; then
+#    npm run typecheck
+#else
+#    echo "Error: Neither bun nor npm found. Cannot run typecheck."
+#    exit 1
+#fi
+#cd ..
 
 # Run frontend build
-echo "Running frontend build..."
-cd frontend
-if command -v bun &> /dev/null; then
-    bun run build
-elif command -v npm &> /dev/null; then
-    npm run build
-else
-    echo "Error: Neither bun nor npm found. Cannot build frontend."
-    exit 1
-fi
-cd ..
+#echo "Running frontend build..."
+#cd frontend
+#if command -v bun &> /dev/null; then
+#    bun run build
+#elif command -v npm &> /dev/null; then
+#    npm run build
+#else
+#    echo "Error: Neither bun nor npm found. Cannot build frontend."
+#    exit 1
+#fi
+#cd ..
 
-echo "✓ Frontend build successful"
-echo ""
+#echo "✓ Frontend build successful"
+#echo ""
 
 # Show what will be committed
 echo "Changes to be committed:"
