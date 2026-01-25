@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     netcat-openbsd \
     curl \
     wget \
+    procps \
+    psmisc \
+    socat \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install uv

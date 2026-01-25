@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     netcat-openbsd \
     curl \
     wget \
+    procps \
+    psmisc \
+    socat \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast Python package management
