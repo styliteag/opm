@@ -57,7 +57,9 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: docker.io/styliteag/open-port-monitor:${{ steps.version.outputs.version }}
+          tags: |
+            docker.io/styliteag/open-port-monitor:${{ steps.version.outputs.version }}
+            docker.io/styliteag/open-port-monitor:latest
           provenance: false
           sbom: false
           cache-from: type=registry,ref=docker.io/styliteag/open-port-monitor:buildcache
@@ -72,7 +74,9 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/styliteag/open-port-monitor:${{ steps.version.outputs.version }}
+          tags: |
+            ghcr.io/styliteag/open-port-monitor:${{ steps.version.outputs.version }}
+            ghcr.io/styliteag/open-port-monitor:latest
           provenance: false
           sbom: false
           cache-from: type=registry,ref=ghcr.io/styliteag/open-port-monitor:buildcache
@@ -87,7 +91,9 @@ jobs:
           file: ./scanner/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: docker.io/styliteag/open-port-monitor-scanner:${{ steps.version.outputs.version }}
+          tags: |
+            docker.io/styliteag/open-port-monitor-scanner:${{ steps.version.outputs.version }}
+            docker.io/styliteag/open-port-monitor-scanner:latest
           provenance: false
           sbom: false
           cache-from: type=registry,ref=docker.io/styliteag/open-port-monitor-scanner:buildcache
@@ -102,7 +108,9 @@ jobs:
           file: ./scanner/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/styliteag/open-port-monitor-scanner:${{ steps.version.outputs.version }}
+          tags: |
+            ghcr.io/styliteag/open-port-monitor-scanner:${{ steps.version.outputs.version }}
+            ghcr.io/styliteag/open-port-monitor-scanner:latest
           provenance: false
           sbom: false
           cache-from: type=registry,ref=ghcr.io/styliteag/open-port-monitor-scanner:buildcache
