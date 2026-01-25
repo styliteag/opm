@@ -203,7 +203,6 @@ async def submit_scanner_results(
 
     Updates scan record with status and completed_at timestamp.
     Creates open_ports records, updating first_seen_at (if new) and last_seen_at.
-    Filters out excluded ports before storing.
 
     Returns 404 if scan doesn't exist or is not assigned to this scanner's site.
     Returns 400 if scan is not in RUNNING or CANCELLED status.

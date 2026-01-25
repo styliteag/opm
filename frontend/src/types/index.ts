@@ -1,16 +1,19 @@
 // Alert types
 export type AlertType = 'new_port' | 'not_allowed' | 'blocked'
+export type Severity = 'critical' | 'high' | 'medium' | 'info'
 
 export type Alert = {
   id: number
   type: AlertType
-  network_id: number
-  network_name: string
+  network_id: number | null
+  network_name: string | null
+  global_open_port_id: number | null
   ip: string
   port: number
   message: string
   acknowledged: boolean
   created_at: string
+  severity: Severity
 }
 
 export type AlertListResponse = {
@@ -206,21 +209,6 @@ export type PortRuleCreatePayload = {
   description?: string | null
 }
 
-// Excluded port types
-export type ExcludedPort = {
-  id: number
-  network_id: number
-  ip: string | null
-  port: number
-  reason: string
-  created_by: number
-  created_at: string
-}
-
-export type ExcludedPortListResponse = {
-  excluded_ports: ExcludedPort[]
-}
-
 // User types
 export type UserRole = 'admin' | 'viewer'
 
@@ -235,4 +223,79 @@ export type User = {
 
 export type UserListResponse = {
   users: User[]
+}
+
+// Global Open Port types
+export type GlobalOpenPort = {
+  id: number
+  ip: string
+  port: number
+  protocol: string
+  banner: string | null
+  service_guess: string | null
+  mac_address: string | null
+  mac_vendor: string | null
+  first_seen_at: string
+  last_seen_at: string
+  seen_by_networks: number[]
+}
+
+export type GlobalOpenPortListResponse = {
+  ports: GlobalOpenPort[]
+}
+
+// Global Port Rule types
+export type GlobalRuleType = 'allow' | 'block'
+
+export type GlobalPortRule = {
+  id: number
+  ip: string | null
+  port: string
+  rule_type: GlobalRuleType
+  description: string | null
+  created_by: number | null
+  created_at: string
+}
+
+export type GlobalPortRuleListResponse = {
+  rules: GlobalPortRule[]
+}
+
+export type GlobalPortRuleCreatePayload = {
+  ip?: string | null
+  port: string
+  rule_type?: GlobalRuleType
+  description?: string | null
+}
+
+// Policy types
+export type PolicyRule = {
+  id: number
+  network_id: number | null
+  network_name: string | null
+  ip: string | null
+  port: string
+  rule_type: 'allow' | 'block'
+  description: string | null
+  created_at?: string | null
+  created_by?: number | null
+}
+
+export type PolicyListResponse = {
+  rules: PolicyRule[]
+}
+
+export type PolicyCreatePayload = {
+  network_id?: number | null
+  ip?: string | null
+  port: string
+  rule_type: 'allow' | 'block'
+  description?: string | null
+}
+
+export type PolicyUpdatePayload = {
+  ip?: string | null
+  port?: string | null
+  rule_type?: 'allow' | 'block'
+  description?: string | null
 }

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Iterable
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert, AlertType
@@ -11,25 +11,29 @@ from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.port_rule import PortRule, RuleType
 from app.models.scan import Scan, ScanStatus
-from app.services.email_alerts import queue_alert_emails
+from app.services.email_alerts import queue_alert_emails, queue_global_alert_emails
+from app.services.global_open_ports import upsert_global_open_port
+from app.services.global_port_rules import is_port_whitelisted
 
 PortKey = tuple[str, int]
 AlertKey = tuple[AlertType, str, int]
+GlobalAlertKey = tuple[str, int, str]  # (ip, port, protocol)
 
 
 async def get_alert_with_network_name(
     db: AsyncSession, alert_id: int
-) -> tuple[Alert, str] | None:
-    """Get an alert with its network name."""
+) -> tuple[Alert, str | None] | None:
+    """Get an alert with its network name (may be None for global alerts)."""
     result = await db.execute(
         select(Alert, Network.name)
-        .join(Network, Alert.network_id == Network.id)
+        .outerjoin(Network, Alert.network_id == Network.id)
         .where(Alert.id == alert_id)
     )
     row = result.first()
     if row is None:
         return None
-    return row[0], str(row[1])
+    network_name = str(row[1]) if row[1] is not None else None
+    return row[0], network_name
 
 
 async def get_alerts_by_ids(
@@ -52,9 +56,9 @@ async def get_alerts(
     end_date: datetime | None = None,
     offset: int = 0,
     limit: int = 50,
-) -> list[tuple[Alert, str]]:
+) -> list[tuple[Alert, str | None]]:
     """List alerts with optional filters and pagination."""
-    query = select(Alert, Network.name).join(
+    query = select(Alert, Network.name).outerjoin(
         Network, Alert.network_id == Network.id
     )
     filters = []
@@ -79,7 +83,7 @@ async def get_alerts(
         .limit(limit)
     )
     result = await db.execute(query)
-    return [(row[0], str(row[1])) for row in result.all()]
+    return [(row[0], str(row[1]) if row[1] is not None else None) for row in result.all()]
 
 
 async def acknowledge_alert(db: AsyncSession, alert: Alert) -> Alert:
@@ -315,6 +319,10 @@ async def generate_alerts_for_scan(
     created_alerts: list[Alert] = []
 
     for ip, port in current_ports:
+        # Check global whitelist first
+        if await is_port_whitelisted(db, ip, port):
+            continue
+
         allow_ranges = allow_range_cache.get(ip)
         if allow_ranges is None:
             allow_ranges = _combine_ranges(
@@ -382,5 +390,127 @@ async def generate_alerts_for_scan(
 
     if created_alerts:
         await queue_alert_emails(created_alerts, network_name, alert_config, scan.id)
+
+    return created_count
+
+
+async def _get_unacknowledged_global_alerts(
+    db: AsyncSession,
+) -> set[GlobalAlertKey]:
+    """Get all unacknowledged global alerts as a set of (ip, port, protocol) tuples."""
+    result = await db.execute(
+        select(Alert.ip, Alert.port)
+        .where(
+            Alert.acknowledged.is_(False),
+            Alert.global_open_port_id.isnot(None),
+        )
+    )
+    # Default protocol to tcp for legacy alerts
+    return {(row[0], int(row[1]), "tcp") for row in result.all()}
+
+
+async def generate_global_alerts_for_scan(
+    db: AsyncSession,
+    scan: Scan,
+    open_ports_data: list[tuple[str, int, str, str | None, str | None, str | None, str | None]] | None = None,
+) -> int:
+    """
+    Generate global alerts for a completed scan.
+
+    This function:
+    1. Upserts each open port into global_open_ports
+    2. If the port is new (never seen globally) AND not in global whitelist -> create alert
+
+    Args:
+        db: Database session
+        scan: The completed scan
+        open_ports_data: Optional list of tuples (ip, port, protocol, banner, service_guess, mac_address, mac_vendor)
+                        If None, will fetch from database
+
+    Returns:
+        Number of alerts created
+    """
+    if scan.status != ScanStatus.COMPLETED:
+        return 0
+
+    # Fetch open ports data from database if not provided
+    if open_ports_data is None:
+        result = await db.execute(
+            select(
+                OpenPort.ip,
+                OpenPort.port,
+                OpenPort.protocol,
+                OpenPort.banner,
+                OpenPort.service_guess,
+                OpenPort.mac_address,
+                OpenPort.mac_vendor,
+            ).where(OpenPort.scan_id == scan.id)
+        )
+        open_ports_data = [
+            (row[0], int(row[1]), row[2], row[3], row[4], row[5], row[6])
+            for row in result.all()
+        ]
+
+    if not open_ports_data:
+        return 0
+
+    # Get network info for context (optional, used for email notifications)
+    network_result = await db.execute(
+        select(Network.alert_config, Network.name).where(Network.id == scan.network_id)
+    )
+    network_row = network_result.first()
+    alert_config = network_row[0] if network_row else None
+    network_name = str(network_row[1]) if network_row and network_row[1] else None
+
+    # Get existing unacknowledged global alerts to avoid duplicates
+    existing_global_alerts = await _get_unacknowledged_global_alerts(db)
+    created_alert_keys: set[GlobalAlertKey] = set()
+    created_count = 0
+    created_alerts: list[Alert] = []
+
+    for ip, port, protocol, banner, service_guess, mac_address, mac_vendor in open_ports_data:
+        # Upsert into global_open_ports
+        global_port, is_new = await upsert_global_open_port(
+            db,
+            ip=ip,
+            port=port,
+            protocol=protocol,
+            network_id=scan.network_id,
+            banner=banner,
+            service_guess=service_guess,
+            mac_address=mac_address,
+            mac_vendor=mac_vendor,
+        )
+
+        # Only create alert if this is a NEW global port
+        if not is_new:
+            continue
+
+        # Check if port is in global whitelist
+        if await is_port_whitelisted(db, ip, port):
+            continue
+
+        # Check if we already have an unacknowledged alert for this
+        key: GlobalAlertKey = (ip, port, protocol)
+        if key in existing_global_alerts or key in created_alert_keys:
+            continue
+
+        # Create the alert
+        alert = Alert(
+            scan_id=scan.id,
+            network_id=scan.network_id,
+            global_open_port_id=global_port.id,
+            alert_type=AlertType.NEW_PORT,
+            ip=ip,
+            port=port,
+            message=f"New open port detected globally: {ip}:{port}",
+        )
+        db.add(alert)
+        created_alerts.append(alert)
+        created_alert_keys.add(key)
+        created_count += 1
+
+    if created_alerts:
+        await queue_global_alert_emails(created_alerts, network_name, alert_config, scan.id)
 
     return created_count

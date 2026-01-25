@@ -14,37 +14,38 @@ def validate_port_or_range(value: str) -> str:
     - Single ports: 80, 443
     - Port ranges: 80-443
     """
-    if not value:
-        raise ValueError("port cannot be empty")
+    if not value or value.strip() == "" or value.strip() == "*" or value.strip().upper() == "ALL":
+        return "*"
 
+    cleaned = value.strip()
     # Check for range
-    if "-" in value:
-        parts = value.split("-")
+    if "-" in cleaned:
+        parts = cleaned.split("-")
         if len(parts) != 2:
-            raise ValueError(f"Invalid port range format: {value}")
+            raise ValueError(f"Invalid port range format: {cleaned}")
         try:
             start = int(parts[0])
             end = int(parts[1])
             if not (1 <= start <= 65535 and 1 <= end <= 65535):
-                raise ValueError(f"Port out of range (1-65535): {value}")
+                raise ValueError(f"Port out of range (1-65535): {cleaned}")
             if start > end:
-                raise ValueError(f"Invalid port range (start > end): {value}")
+                raise ValueError(f"Invalid port range (start > end): {cleaned}")
         except ValueError as e:
             if "invalid literal" in str(e):
-                raise ValueError(f"Invalid port number in range: {value}") from e
+                raise ValueError(f"Invalid port number in range: {cleaned}") from e
             raise
     else:
         # Single port
         try:
-            port = int(value)
+            port = int(cleaned)
             if not (1 <= port <= 65535):
-                raise ValueError(f"Port out of range (1-65535): {value}")
+                raise ValueError(f"Port out of range (1-65535): {cleaned}")
         except ValueError as e:
             if "invalid literal" in str(e):
-                raise ValueError(f"Invalid port number: {value}") from e
+                raise ValueError(f"Invalid port number: {cleaned}") from e
             raise
 
-    return value
+    return cleaned
 
 
 def validate_ip_address(value: str | None) -> str | None:

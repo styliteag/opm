@@ -137,7 +137,6 @@ class ScannerResultResponse(BaseModel):
     scan_id: int
     status: str
     ports_recorded: int
-    ports_excluded: int
     message: str = "Results submitted successfully"
 
 

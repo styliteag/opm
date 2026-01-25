@@ -2,7 +2,8 @@
 
 from app.models.alert import Alert
 from app.models.base import Base
-from app.models.excluded_port import ExcludedPort
+from app.models.global_open_port import GlobalOpenPort
+from app.models.global_port_rule import GlobalPortRule
 from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.port_rule import PortRule
@@ -17,9 +18,10 @@ __all__ = [
     "Scanner",
     "Network",
     "PortRule",
-    "ExcludedPort",
     "Scan",
     "ScanLog",
     "OpenPort",
     "Alert",
+    "GlobalOpenPort",
+    "GlobalPortRule",
 ]

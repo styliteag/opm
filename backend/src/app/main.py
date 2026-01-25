@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from .core.config import settings
 from .core.database import async_session_factory
 from .core.version import get_version
-from .routers import alerts, auth, networks, ports, scanner, scanners, scans, users, version
+from .routers import alerts, auth, global_ports, networks, policy, ports, scanner, scanners, scans, users, version
 from .services.auth import create_admin_user, get_user_by_email
 from .services.scheduler import shutdown_scheduler, start_scheduler
 
@@ -82,7 +82,9 @@ app.add_middleware(
 # Register routers
 app.include_router(auth.router)
 app.include_router(alerts.router)
+app.include_router(global_ports.router)
 app.include_router(networks.router)
+app.include_router(policy.router)
 app.include_router(ports.router)
 app.include_router(scanner.router)
 app.include_router(scans.router)

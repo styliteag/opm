@@ -16,6 +16,8 @@ import Alerts from './pages/Alerts.tsx'
 import Scanners from './pages/Scanners.tsx'
 import Users from './pages/Users.tsx'
 import OpenPorts from './pages/OpenPorts.tsx'
+import Policy from './pages/Policy.tsx'
+import RiskOverview from './pages/RiskOverview.tsx'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -53,12 +55,20 @@ const router = createBrowserRouter([
         element: <ScanDetail />,
       },
       {
+        path: 'risk-overview',
+        element: <RiskOverview />,
+      },
+      {
         path: 'alerts',
         element: <Alerts />,
       },
       {
         path: 'ports',
         element: <OpenPorts />,
+      },
+      {
+        path: 'policy',
+        element: <Policy />,
       },
       {
         path: 'scanners',

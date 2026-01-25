@@ -11,7 +11,6 @@ from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.alert import Alert
-    from app.models.excluded_port import ExcludedPort
     from app.models.port_rule import PortRule
     from app.models.scan import Scan
     from app.models.scanner import Scanner
@@ -53,9 +52,6 @@ class Network(Base):
     scanner: Mapped["Scanner"] = relationship("Scanner", back_populates="networks")
     port_rules: Mapped[list["PortRule"]] = relationship(
         "PortRule", back_populates="network", cascade="all, delete-orphan"
-    )
-    excluded_ports: Mapped[list["ExcludedPort"]] = relationship(
-        "ExcludedPort", back_populates="network", cascade="all, delete-orphan"
     )
     scans: Mapped[list["Scan"]] = relationship(
         "Scan", back_populates="network", cascade="all, delete-orphan"

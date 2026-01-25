@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 if TYPE_CHECKING:
+    from app.models.global_open_port import GlobalOpenPort
     from app.models.network import Network
     from app.models.scan import Scan
 
@@ -29,9 +30,14 @@ class Alert(Base):
     __tablename__ = "alerts"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    scan_id: Mapped[int] = mapped_column(ForeignKey("scans.id"), nullable=False, index=True)
-    network_id: Mapped[int] = mapped_column(
-        ForeignKey("networks.id"), nullable=False, index=True
+    scan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("scans.id"), nullable=True, index=True
+    )
+    network_id: Mapped[int | None] = mapped_column(
+        ForeignKey("networks.id"), nullable=True, index=True
+    )
+    global_open_port_id: Mapped[int | None] = mapped_column(
+        ForeignKey("global_open_ports.id"), nullable=True, index=True
     )
     alert_type: Mapped[AlertType] = mapped_column(
         SQLEnum(AlertType, values_callable=lambda x: [e.value for e in x]), nullable=False
@@ -45,5 +51,6 @@ class Alert(Base):
     )
 
     # Relationships
-    scan: Mapped["Scan"] = relationship("Scan", back_populates="alerts")
-    network: Mapped["Network"] = relationship("Network", back_populates="alerts")
+    scan: Mapped["Scan | None"] = relationship("Scan", back_populates="alerts")
+    network: Mapped["Network | None"] = relationship("Network", back_populates="alerts")
+    global_open_port: Mapped["GlobalOpenPort | None"] = relationship("GlobalOpenPort")

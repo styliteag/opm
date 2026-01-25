@@ -30,6 +30,7 @@ prod-mysql.env
 .vscode/
 .cursor/
 .ralph/
+.grok/
 *.swp
 *.swo
 *~

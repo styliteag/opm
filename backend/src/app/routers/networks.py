@@ -9,7 +9,6 @@ from app.schemas.network import (
     NetworkResponse,
     NetworkUpdateRequest,
 )
-from app.schemas.port import ExcludedPortListResponse, ExcludedPortResponse
 from app.schemas.port_rule import (
     PortRuleBulkRequest,
     PortRuleCreateRequest,
@@ -22,7 +21,6 @@ from app.schemas.scan import (
     ScanSummaryResponse,
     ScanTriggerResponse,
 )
-from app.services import excluded_ports as excluded_ports_service
 from app.services import networks as networks_service
 from app.services import port_rules as port_rules_service
 from app.services import scanners as scanners_service
@@ -299,60 +297,6 @@ async def delete_port_rule(
         )
 
     await port_rules_service.delete_rule(db, rule)
-    await db.commit()
-
-
-# Excluded Ports Endpoints
-
-
-@router.get("/{network_id}/excluded", response_model=ExcludedPortListResponse)
-async def list_excluded_ports(
-    admin: AdminUser,
-    db: DbSession,
-    network_id: int,
-) -> ExcludedPortListResponse:
-    """Get list of excluded ports for a network (admin only)."""
-    network = await networks_service.get_network_by_id(db, network_id)
-    if network is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Network not found",
-        )
-
-    exclusions = await excluded_ports_service.get_exclusions_by_network_id(db, network_id)
-    return ExcludedPortListResponse(
-        excluded_ports=[
-            ExcludedPortResponse.model_validate(exclusion) for exclusion in exclusions
-        ]
-    )
-
-
-@router.delete(
-    "/{network_id}/excluded/{exclusion_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_excluded_port(
-    admin: AdminUser,
-    db: DbSession,
-    network_id: int,
-    exclusion_id: int,
-) -> None:
-    """Remove an excluded port entry from a network (admin only)."""
-    network = await networks_service.get_network_by_id(db, network_id)
-    if network is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Network not found",
-        )
-
-    exclusion = await excluded_ports_service.get_exclusion_by_id(db, exclusion_id)
-    if exclusion is None or exclusion.network_id != network_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Excluded port not found",
-        )
-
-    await excluded_ports_service.delete_exclusion(db, exclusion)
     await db.commit()
 
 

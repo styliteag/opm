@@ -21,9 +21,9 @@ BATCH_WINDOW_SECONDS = 300
 
 @dataclass(frozen=True)
 class AlertEmailItem:
-    network_id: int
-    network_name: str
-    scan_id: int
+    network_id: int | None
+    network_name: str | None
+    scan_id: int | None
     alert_type: str
     ip: str
     port: int
@@ -132,8 +132,14 @@ def _build_email_body(
     lines.append("Affected IPs/ports:")
 
     for item in items:
+        context_parts = []
+        if item.network_name:
+            context_parts.append(item.network_name)
+        if item.scan_id:
+            context_parts.append(f"scan {item.scan_id}")
+        context = f" ({', '.join(context_parts)})" if context_parts else ""
         lines.append(
-            f"- {item.network_name} (scan {item.scan_id}) {item.alert_type} "
+            f"- {item.alert_type}{context} "
             f"{item.ip}:{item.port} - {item.message}"
         )
 
@@ -214,3 +220,40 @@ async def _enqueue_items(
 
         if _flush_task is None or _flush_task.done():
             _flush_task = asyncio.create_task(_flush_after_delay())
+
+
+async def queue_global_alert_emails(
+    alerts: Iterable[Alert],
+    network_name: str | None,
+    alert_config: dict[str, Any] | None,
+    scan_id: int | None,
+) -> None:
+    """Queue global alert emails for batched delivery."""
+    if not settings.smtp_host or not settings.smtp_from_address:
+        logger.info("Email alerts skipped: SMTP not configured.")
+        return
+
+    recipients = resolve_recipients(alert_config)
+    if not recipients:
+        logger.info("Email alerts skipped: no recipients configured.")
+        return
+
+    now = datetime.now(timezone.utc)
+    items = [
+        AlertEmailItem(
+            network_id=alert.network_id,
+            network_name=network_name,
+            scan_id=scan_id,
+            alert_type=alert.alert_type.value,
+            ip=alert.ip,
+            port=alert.port,
+            message=alert.message,
+            created_at=now,
+        )
+        for alert in alerts
+    ]
+
+    if not items:
+        return
+
+    await _enqueue_items(items, recipients)

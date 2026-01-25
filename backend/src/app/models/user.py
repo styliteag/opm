@@ -11,7 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 if TYPE_CHECKING:
-    from app.models.excluded_port import ExcludedPort
+    pass
 
 
 class UserRole(str, Enum):
@@ -55,6 +55,3 @@ class User(Base):
     )
 
     # Relationships
-    excluded_ports: Mapped[list["ExcludedPort"]] = relationship(
-        "ExcludedPort", back_populates="created_by_user"
-    )

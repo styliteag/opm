@@ -5,33 +5,11 @@ from datetime import datetime, timezone
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.excluded_port import ExcludedPort
 from app.models.open_port import OpenPort
 from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
 from app.schemas.scanner import ScannerResultRequest, ScannerResultResponse
-from app.services.alerts import generate_alerts_for_scan
-
-
-async def get_excluded_ports_for_scan(
-    db: AsyncSession, scan: Scan
-) -> tuple[set[tuple[str, int]], set[int]]:
-    """
-    Get excluded ports for the scan's network.
-
-    Returns:
-    - ip-specific exclusions as (ip, port) tuples
-    - network-wide exclusions as a set of ports
-    """
-    result = await db.execute(
-        select(ExcludedPort).where(ExcludedPort.network_id == scan.network_id)
-    )
-    excluded = result.scalars().all()
-
-    ip_specific = {(ep.ip, ep.port) for ep in excluded if ep.ip is not None}
-    network_wide = {ep.port for ep in excluded if ep.ip is None}
-
-    return ip_specific, network_wide
+from app.services.alerts import generate_global_alerts_for_scan
 
 
 async def find_existing_port(
@@ -91,11 +69,6 @@ async def submit_scan_results(
     if scan.status not in {ScanStatus.RUNNING, ScanStatus.CANCELLED}:
         return None
 
-    # Get excluded ports for this network
-    excluded_ports, excluded_network_ports = await get_excluded_ports_for_scan(
-        db, scan
-    )
-
     is_cancelled = scan.status == ScanStatus.CANCELLED
 
     # Determine the final scan status
@@ -114,19 +87,11 @@ async def submit_scan_results(
 
     # Process open ports
     ports_recorded = 0
-    ports_excluded = 0
     now = datetime.now(timezone.utc)
-    recorded_ports: list[tuple[str, int]] = []
+    # Format: (ip, port, protocol, banner, service_guess, mac_address, mac_vendor)
+    recorded_ports_data: list[tuple[str, int, str, str | None, str | None, str | None, str | None]] = []
 
     for port_data in request.open_ports:
-        # Check if this port should be excluded
-        if (
-            port_data.port in excluded_network_ports
-            or (port_data.ip, port_data.port) in excluded_ports
-        ):
-            ports_excluded += 1
-            continue
-
         # Find first_seen_at from previous scans
         existing_port = await find_existing_port(
             db, scan.network_id, port_data.ip, port_data.port
@@ -148,15 +113,22 @@ async def submit_scan_results(
             last_seen_at=now,
         )
         db.add(new_port)
-        recorded_ports.append((port_data.ip, port_data.port))
+        recorded_ports_data.append((
+            port_data.ip,
+            port_data.port,
+            port_data.protocol,
+            port_data.banner,
+            None,  # service_guess not in scan results
+            port_data.mac_address,
+            port_data.mac_vendor,
+        ))
         ports_recorded += 1
 
     if scan.status == ScanStatus.COMPLETED:
-        await generate_alerts_for_scan(db, scan, recorded_ports)
+        await generate_global_alerts_for_scan(db, scan, recorded_ports_data)
 
     return ScannerResultResponse(
         scan_id=scan.id,
         status=scan.status.value,
         ports_recorded=ports_recorded,
-        ports_excluded=ports_excluded,
     )
