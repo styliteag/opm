@@ -86,18 +86,14 @@ if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
     fi
 fi
 
-# Replace [Unreleased] with new version section
+# Insert new version section after [Unreleased]
 if [[ "$(uname)" == "Darwin" ]]; then
-    sed -i '' "s/^## \[Unreleased\]/## [$NEW_VERSION] - $TODAY/" CHANGELOG.md
-    # Add new [Unreleased] section after the version line
-    sed -i '' "/^## \[$NEW_VERSION\]/a\\
+    sed -i '' "/^## \[Unreleased\]/a\\
 \\
-## [Unreleased]
+## [$NEW_VERSION] - $TODAY
 " CHANGELOG.md
 else
-    sed -i "s/^## \[Unreleased\]/## [$NEW_VERSION] - $TODAY/" CHANGELOG.md
-    # Add new [Unreleased] section after the version line
-    sed -i "/^## \[$NEW_VERSION\]/a\\\n## [Unreleased]" CHANGELOG.md
+    sed -i "/^## \[Unreleased\]/a\\\n## [$NEW_VERSION] - $TODAY" CHANGELOG.md
 fi
 
 # Update VERSION file
