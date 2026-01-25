@@ -55,6 +55,8 @@ async def get_all_scans(
             cancelled_by_email=scan.cancelled_by_email,
             error_message=scan.error_message,
             trigger_type=scan.trigger_type.value,
+            progress_percent=scan.progress_percent,
+            progress_message=scan.progress_message,
             port_count=port_count,
             hidden=scan.hidden,
         )

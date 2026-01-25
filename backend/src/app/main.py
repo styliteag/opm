@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     if attempt < 4:
                         wait = (attempt + 1) * 0.5
                         logger.info(
-                            f"Race condition or deadlock during admin creation (attempt {attempt + 1}), "
+                            f"Race condition during admin creation (attempt {attempt + 1}), "
                             f"retrying in {wait}s..."
                         )
                         await asyncio.sleep(wait)

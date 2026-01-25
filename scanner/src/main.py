@@ -208,17 +208,18 @@ class ProgressReporter(Thread):
         self._interval = interval
         self._stop_event = Event()
         self._lock = Lock()
-        self._current_percent: int = 0
+        self._current_percent: float = 0.0
         self._current_message: str | None = None
-        self._last_reported_percent: int = -1
+        self._last_reported_percent: float = -1.0
+        self._last_reported_message: str | None = None
 
     def stop(self) -> None:
         self._stop_event.set()
 
-    def update(self, percent: int, message: str | None = None) -> None:
+    def update(self, percent: float, message: str | None = None) -> None:
         """Update the current progress values (thread-safe)."""
         with self._lock:
-            self._current_percent = max(0, min(100, percent))
+            self._current_percent = max(0.0, min(100.0, float(percent)))
             self._current_message = message
 
     def run(self) -> None:
@@ -235,12 +236,13 @@ class ProgressReporter(Thread):
             message = self._current_message
 
         # Only report if progress changed or we haven't reported yet
-        if percent == self._last_reported_percent:
+        if percent == self._last_reported_percent and message == self._last_reported_message:
             return
 
         try:
             self._client.submit_progress(self._scan_id, percent, message)
             self._last_reported_percent = percent
+            self._last_reported_message = message
         except Exception:
             # Silently ignore progress report failures to not disrupt scan
             pass
@@ -484,7 +486,7 @@ class ScannerClient:
         response.raise_for_status()
 
     def submit_progress(
-        self, scan_id: int, progress_percent: int, progress_message: str | None = None
+        self, scan_id: int, progress_percent: float, progress_message: str | None = None
     ) -> None:
         payload: dict[str, Any] = {
             "scan_id": scan_id,
@@ -629,7 +631,7 @@ NMAP_PROGRESS_PATTERN = re.compile(
 )
 
 
-def _parse_masscan_progress(line: str) -> int | None:
+def _parse_masscan_progress(line: str) -> float | None:
     """Parse masscan stderr to extract progress percentage.
 
     Masscan outputs progress like:
@@ -638,13 +640,13 @@ def _parse_masscan_progress(line: str) -> int | None:
     match = MASSCAN_PROGRESS_PATTERN.search(line)
     if match:
         try:
-            return int(float(match.group(1)))
+            return float(match.group(1))
         except (ValueError, TypeError):
             pass
     return None
 
 
-def _parse_nmap_progress(line: str) -> int | None:
+def _parse_nmap_progress(line: str) -> float | None:
     """Parse nmap stderr to extract progress percentage.
 
     Nmap with --stats-every outputs progress like:
@@ -654,7 +656,7 @@ def _parse_nmap_progress(line: str) -> int | None:
     match = NMAP_PROGRESS_PATTERN.search(line)
     if match:
         try:
-            return int(float(match.group(1)))
+            return float(match.group(1))
         except (ValueError, TypeError):
             pass
     return None
@@ -820,16 +822,16 @@ def _run_masscan(
         cancel_watcher.start()
 
         stderr_lines: list[str] = []
-        # Read stderr line by line to extract progress
-        if process.stderr:
-            for line in process.stderr:
+        # Read stdout (stderr is merged into stdout) line by line to extract progress
+        if process.stdout:
+            for line in process.stdout:
                 line = line.strip()
                 if not line:
                     continue
                 logger.info("Masscan: %s", line)
                 stderr_lines.append(line)
 
-                # Try to parse progress from stderr
+                # Try to parse progress from stdout
                 if progress_reporter:
                     progress = _parse_masscan_progress(line)
                     if progress is not None:
@@ -1053,7 +1055,7 @@ def _run_nmap(
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
         )
         timeout_watcher = ProcessTimeoutWatcher(

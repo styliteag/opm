@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -57,7 +57,7 @@ class Scan(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    progress_percent: Mapped[int | None] = mapped_column(nullable=True)
+    progress_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     progress_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     trigger_type: Mapped[TriggerType] = mapped_column(
         SQLEnum(TriggerType, values_callable=lambda x: [e.value for e in x]),

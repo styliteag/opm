@@ -57,7 +57,7 @@ class ScanResponse(BaseModel):
     error_message: str | None
     trigger_type: str
     hidden: bool = False
-    progress_percent: int | None = None
+    progress_percent: float | None = None
     progress_message: str | None = None
 
     model_config = {"from_attributes": True}
@@ -123,7 +123,7 @@ class ScanWithNamesResponse(BaseModel):
     cancelled_by_email: str | None = None
     error_message: str | None
     trigger_type: str
-    progress_percent: int | None = None
+    progress_percent: float | None = None
     progress_message: str | None = None
     hidden: bool = False
     port_count: int

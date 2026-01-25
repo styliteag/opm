@@ -306,13 +306,37 @@ const ScanDetailPage = () => {
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Status</p>
                   <div className="mt-2">
                     <span
-                      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${
-                        statusStyles[scan.status] ?? statusStyles.planned
-                      }`}
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${statusStyles[scan.status] ?? statusStyles.planned
+                        }`}
                     >
+                      {scan.status === 'running' ? (
+                        <span className="mr-2 inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-500" />
+                      ) : null}
                       {statusLabels[scan.status] ?? 'Unknown'}
                     </span>
                   </div>
+                  {scan.status === 'running' && (
+                    <div className="mt-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-sky-400 to-cyan-400 transition-all duration-500"
+                              style={{ width: `${scan.progress_percent ?? 0}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="min-w-[2.5rem] text-right text-xs font-bold text-sky-600 dark:text-sky-300">
+                          {(scan.progress_percent ?? 0).toFixed(1)}%
+                        </span>
+                      </div>
+                      {scan.progress_message && (
+                        <p className="mt-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                          {scan.progress_message}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-2xl border border-slate-200/70 bg-slate-50/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/40">
@@ -390,21 +414,19 @@ const ScanDetailPage = () => {
                 <div className="flex overflow-hidden rounded-full bg-slate-50/60 dark:bg-slate-900/40">
                   <button
                     onClick={() => setActiveTab('ports')}
-                    className={`px-6 py-3 text-sm font-semibold transition ${
-                      activeTab === 'ports'
-                        ? 'border-b-2 border-cyan-500 text-cyan-600 dark:text-cyan-400'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                    }`}
+                    className={`px-6 py-3 text-sm font-semibold transition ${activeTab === 'ports'
+                      ? 'border-b-2 border-cyan-500 text-cyan-600 dark:text-cyan-400'
+                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
                   >
                     Ports ({scan.open_ports.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('logs')}
-                    className={`px-6 py-3 text-sm font-semibold transition ${
-                      activeTab === 'logs'
-                        ? 'border-b-2 border-cyan-500 text-cyan-600 dark:text-cyan-400'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                    }`}
+                    className={`px-6 py-3 text-sm font-semibold transition ${activeTab === 'logs'
+                      ? 'border-b-2 border-cyan-500 text-cyan-600 dark:text-cyan-400'
+                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
                   >
                     Logs ({logs.length})
                   </button>
@@ -523,13 +545,12 @@ const ScanDetailPage = () => {
                             <div className="flex items-center gap-2">
                               {isDiffMode ? (
                                 <span
-                                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
-                                    changeType === 'added'
-                                      ? 'bg-emerald-500 text-white'
-                                      : changeType === 'removed'
-                                        ? 'bg-rose-500 text-white'
-                                        : 'bg-slate-300 text-slate-700 dark:bg-slate-600 dark:text-slate-200'
-                                  }`}
+                                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${changeType === 'added'
+                                    ? 'bg-emerald-500 text-white'
+                                    : changeType === 'removed'
+                                      ? 'bg-rose-500 text-white'
+                                      : 'bg-slate-300 text-slate-700 dark:bg-slate-600 dark:text-slate-200'
+                                    }`}
                                 >
                                   {changeType === 'added'
                                     ? '+'

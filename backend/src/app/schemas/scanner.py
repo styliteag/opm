@@ -176,12 +176,12 @@ class ScannerProgressRequest(BaseModel):
     """Request to update scan progress."""
 
     scan_id: int
-    progress_percent: int  # 0-100
+    progress_percent: float  # 0-100
     progress_message: str | None = None
 
     @field_validator("progress_percent")
     @classmethod
-    def validate_progress_percent(cls, v: int) -> int:
+    def validate_progress_percent(cls, v: float) -> float:
         """Validate progress percent is within 0-100 range."""
         if v < 0 or v > 100:
             raise ValueError("progress_percent must be between 0 and 100")
@@ -192,7 +192,7 @@ class ScannerProgressResponse(BaseModel):
     """Response after updating scan progress."""
 
     scan_id: int
-    progress_percent: int
+    progress_percent: float
     message: str = "Progress updated successfully"
 
 

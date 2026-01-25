@@ -148,6 +148,8 @@ export type ScanDetail = {
   error_message: string | null
   trigger_type: string
   hidden: boolean
+  progress_percent: number | null
+  progress_message: string | null
   open_ports: OpenPort[]
 }
 
