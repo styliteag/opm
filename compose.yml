@@ -2,68 +2,46 @@ services:
   db:
     image: mariadb:11
     restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+    env_file: prod-mysql.env
     volumes:
-      - opm-db-data:/var/lib/mysql
+      - ./data/db:/var/lib/mysql
+    networks:
+      - opm-network
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$$DB_ROOT_PASSWORD"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  backend:
+  app:
+    # Build from source (default)
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    # Alternatively, use a pre-built image from a registry:
+    # image: styliteag/open-port-monitor:latest
+    # image: ghcr.io/styliteag/open-port-monitor:latest
     restart: unless-stopped
-    env_file: .env.production
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS}
-      SMTP_USE_TLS: ${SMTP_USE_TLS}
-      ALERT_EMAIL_RECIPIENTS: ${ALERT_EMAIL_RECIPIENTS}
-      WEB_UI_URL: ${WEB_UI_URL}
-      CORS_ORIGINS: ${CORS_ORIGINS}
     ports:
-      - "8000:8000"
+      - "80:80"
+    volumes:
+      # Only on dev we need to mount the VERSION file, on prod it is set in the Dockerfile
+      - ./VERSION:/app/VERSION:ro
+    env_file: prod-app.env
+    networks:
+      - opm-network
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/health >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    depends_on:
-      backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost/ >/dev/null 2>&1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  opm-db-data:
+networks:
+  opm-network:
+    driver: bridge

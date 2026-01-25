@@ -7,7 +7,8 @@ services:
       args:
         VERSION: ${VERSION:-unknown}
     # Alternatively, use a pre-built image from a registry:
-    # image: your-registry/open-port-monitor-scanner:latest
+    # image: styliteag/open-port-monitor-scanner:latest
+    # image: ghcr.io/styliteag/open-port-monitor-scanner:latest
     environment:
       BACKEND_URL: ${BACKEND_URL}
       API_KEY: ${API_KEY}
