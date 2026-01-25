@@ -56,7 +56,7 @@ case "$BUMP_TYPE" in
 esac
 
 NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-TAG_NAME="v${NEW_VERSION}"
+TAG_NAME="${NEW_VERSION}"
 
 echo "Current version: $CURRENT_VERSION"
 echo "New version: $NEW_VERSION"
