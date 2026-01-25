@@ -1,0 +1,43 @@
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    env_file: prod-mysql.env
+    volumes:
+      - ./data/db:/var/lib/mysql
+    networks:
+      - opm-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      # Only on dev we need to mount the VERSION file, on prod it is set in the Dockerfile
+      - ./VERSION:/app/VERSION:ro
+    env_file: prod-app.env
+    networks:
+      - opm-network
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  opm-network:
+    driver: bridge

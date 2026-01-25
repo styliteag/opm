@@ -1,0 +1,30 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install uv for fast Python package management
+RUN pip install uv
+
+# Copy project configuration
+COPY pyproject.toml ./
+COPY uv.lock* ./
+
+# Install dependencies
+RUN uv sync --frozen || uv sync
+
+# Copy source (will be overridden by bind mount in dev)
+COPY src ./src
+
+# Copy Alembic configuration (migrations are now in src/migrations)
+COPY alembic.ini ./
+
+# Copy dev entrypoint script and wait-for-db script
+COPY scripts/dev-entrypoint.sh ./scripts/dev-entrypoint.sh
+COPY scripts/wait-for-db.py ./scripts/wait-for-db.py
+RUN chmod +x ./scripts/wait-for-db.py
+
+# Expose port
+EXPOSE 8000
+
+# Run with hot-reload for development
+CMD ["sh", "/app/scripts/dev-entrypoint.sh"]

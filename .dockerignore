@@ -1,0 +1,64 @@
+# Git
+.git
+.gitignore
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.cursor
+.ralph
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Data directories
+data/
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend build artifacts (will be built in container)
+frontend/node_modules
+frontend/dist
+frontend/.next
+frontend/.nuxt
+
+# Backend build artifacts
+backend/__pycache__
+backend/*.pyc
+backend/*.pyo
+backend/.venv
+backend/.pytest_cache
+
+# Docker
+docker-compose*.yml
+!compose-prod.yml
+Caddyfile*
+compose-dev.yml
+compose-revproxy.yml
+compose-traefik.yml
+
+# Scripts
+scripts/
+tasks/
+push-to-registry.sh
+
+# Other
+prd.json
+progress.txt
+RALPH_TASK.md

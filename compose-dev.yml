@@ -1,0 +1,92 @@
+services:
+  db:
+    image: mariadb:11
+    container_name: opm-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-openportmonitor}
+      MYSQL_USER: ${DB_USER:-opm}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-opmpassword}
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/db:/var/lib/mysql
+    networks:
+      - opm-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: opm-backend
+    environment:
+      DATABASE_URL: mysql+aiomysql://${DB_USER:-opm}:${DB_PASSWORD:-opmpassword}@db:3306/${DB_NAME:-openportmonitor}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/src:/app/src
+      - ./VERSION:/app/VERSION:ro
+    networks:
+      - opm-network
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: opm-frontend
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./VERSION:/app/VERSION:ro
+    networks:
+      - opm-network
+    depends_on:
+      - backend
+
+  scanner:
+    build:
+      context: ./scanner
+      dockerfile: Dockerfile.dev
+    container_name: opm-scanner
+    environment:
+      BACKEND_URL: ${SCANNER_BACKEND_URL:-http://backend:8000}
+      API_KEY: ${SCANNER_API_KEY:-}
+      POLL_INTERVAL: ${SCANNER_POLL_INTERVAL:-60}
+      LOG_LEVEL: ${SCANNER_LOG_LEVEL:-INFO}
+    volumes:
+      - ./scanner/src:/app/src
+      - ./VERSION:/app/VERSION:ro
+    networks:
+      - opm-network
+    depends_on:
+      - backend
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+networks:
+  opm-network:
+    name: opm-network
+    driver: bridge
+

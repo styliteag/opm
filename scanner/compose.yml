@@ -1,0 +1,19 @@
+services:
+  scanner:
+    # Build from source (default)
+    build:
+      context: ..
+      dockerfile: scanner/Dockerfile
+      args:
+        VERSION: ${VERSION:-unknown}
+    # Alternatively, use a pre-built image from a registry:
+    # image: your-registry/open-port-monitor-scanner:latest
+    environment:
+      BACKEND_URL: ${BACKEND_URL}
+      API_KEY: ${API_KEY}
+      POLL_INTERVAL: ${POLL_INTERVAL:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    restart: unless-stopped
