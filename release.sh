@@ -134,7 +134,7 @@ echo ""
 
 # Show the Version and CHANGELOG.md changes
 echo "Version and CHANGELOG.md changes:"
-git diff VERSION CHANGELOG.md
+git --no-pager diff VERSION CHANGELOG.md
 echo ""
 
 # Prompt for confirmation
