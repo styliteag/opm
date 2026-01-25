@@ -132,9 +132,9 @@ echo ""
 #echo "✓ Frontend build successful"
 #echo ""
 
-# Show what will be committed
-echo "Changes to be committed:"
-git diff --stat
+# Show the Version and CHANGELOG.md changes
+echo "Version and CHANGELOG.md changes:"
+git diff VERSION CHANGELOG.md
 echo ""
 
 # Prompt for confirmation
