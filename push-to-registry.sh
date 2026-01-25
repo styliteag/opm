@@ -46,7 +46,7 @@ esac
 # Read version from VERSION file
 if [ -f "VERSION" ]; then
     VERSION=$(cat "VERSION" | tr -d '\n\r ')
-    VERSION_TAG="v${VERSION}"
+    VERSION_TAG="${VERSION}"
 else
     VERSION="unknown"
     VERSION_TAG="latest"
