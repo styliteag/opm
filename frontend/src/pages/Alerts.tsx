@@ -41,9 +41,12 @@ const alertTypeLabels: Record<AlertType, string> = {
 }
 
 const alertTypeStyles: Record<AlertType, string> = {
-  new_port: 'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200',
-  not_allowed: 'border-orange-300/50 bg-orange-500/15 text-orange-700 dark:border-orange-400/40 dark:bg-orange-500/20 dark:text-orange-200',
-  blocked: 'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
+  new_port:
+    'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200',
+  not_allowed:
+    'border-orange-300/50 bg-orange-500/15 text-orange-700 dark:border-orange-400/40 dark:bg-orange-500/20 dark:text-orange-200',
+  blocked:
+    'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
 }
 
 type ActionModalState = {
@@ -161,8 +164,10 @@ const Alerts = () => {
     if (allowedSets.globalIpKeys.has(`${alert.ip}:${alert.port}`)) return true
     if (allowedSets.globalPortKeys.has(String(alert.port))) return true
     if (alert.network_id === null) return false
-    return allowedSets.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`) ||
+    return (
+      allowedSets.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`) ||
       allowedSets.networkKeys.has(`${alert.network_id}:${alert.port}`)
+    )
   }
 
   const acknowledgeMutation = useMutation({
@@ -221,7 +226,12 @@ const Alerts = () => {
       const response = await fetch(`${API_BASE_URL}/api/policy`, {
         method: 'POST',
         headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ network_id: null, ip: alert.ip, port: String(alert.port), description: reason }),
+        body: JSON.stringify({
+          network_id: null,
+          ip: alert.ip,
+          port: String(alert.port),
+          description: reason,
+        }),
       })
       if (!response.ok) throw new Error(await extractErrorMessage(response))
       await fetch(`${API_BASE_URL}/api/alerts/${alert.id}/acknowledge`, {
@@ -263,12 +273,13 @@ const Alerts = () => {
   }
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) setSelectedIds(new Set(alerts.filter(a => !a.acknowledged).map(a => a.id)))
+    if (e.target.checked)
+      setSelectedIds(new Set(alerts.filter((a) => !a.acknowledged).map((a) => a.id)))
     else setSelectedIds(new Set())
   }
 
   const handleSelectOne = (alertId: number, checked: boolean) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev)
       if (checked) next.add(alertId)
       else next.delete(alertId)
@@ -276,8 +287,9 @@ const Alerts = () => {
     })
   }
 
-  const unacknowledgedAlerts = alerts.filter(a => !a.acknowledged)
-  const allUnacknowledgedSelected = unacknowledgedAlerts.length > 0 && unacknowledgedAlerts.every(a => selectedIds.has(a.id))
+  const unacknowledgedAlerts = alerts.filter((a) => !a.acknowledged)
+  const allUnacknowledgedSelected =
+    unacknowledgedAlerts.length > 0 && unacknowledgedAlerts.every((a) => selectedIds.has(a.id))
 
   return (
     <div className="relative">
@@ -288,14 +300,22 @@ const Alerts = () => {
         <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-8 shadow-[0_20px_80px_rgba(15,23,42,0.12)] backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/70">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Security Alerts</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Security Alerts
+              </p>
               <h2 className="mt-3 font-display text-3xl text-slate-900 dark:text-white">Alerts</h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-                Investigate security alerts, acknowledge findings, and track resolution across your monitored networks.
+                Investigate security alerts, acknowledge findings, and track resolution across your
+                monitored networks.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Link to="/" className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900">Back to dashboard</Link>
+              <Link
+                to="/"
+                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+              >
+                Back to dashboard
+              </Link>
             </div>
           </div>
 
@@ -304,8 +324,8 @@ const Alerts = () => {
               { id: 'unack', label: 'Not Acknowledged', color: 'bg-amber-500' },
               { id: 'all', label: 'All', color: 'bg-cyan-500' },
               { id: 'ack', label: 'Acknowledged', color: 'bg-emerald-500' },
-              { id: 'lastrun', label: 'Last Scan', color: 'bg-violet-500' }
-            ].map(preset => (
+              { id: 'lastrun', label: 'Last Scan', color: 'bg-violet-500' },
+            ].map((preset) => (
               <button
                 key={preset.id}
                 onClick={() => handlePresetChange(preset.id)}
@@ -317,15 +337,27 @@ const Alerts = () => {
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <select value={typeFilter ?? ''} onChange={e => updateFilter('type', e.target.value)} className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+            <select
+              value={typeFilter ?? ''}
+              onChange={(e) => updateFilter('type', e.target.value)}
+              className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+            >
               <option value="">All types</option>
               <option value="new_port">New Port</option>
               <option value="not_allowed">Not Allowed</option>
               <option value="blocked">Blocked</option>
             </select>
-            <select value={networkIdFilter ?? ''} onChange={e => updateFilter('network_id', e.target.value)} className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+            <select
+              value={networkIdFilter ?? ''}
+              onChange={(e) => updateFilter('network_id', e.target.value)}
+              className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+            >
               <option value="">All networks</option>
-              {networks.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+              {networks.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.name}
+                </option>
+              ))}
             </select>
             {isAdmin && selectedIds.size > 0 && (
               <button
@@ -333,18 +365,34 @@ const Alerts = () => {
                 disabled={bulkAcknowledgeMutation.isPending}
                 className="ml-auto rounded-full border border-emerald-200 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 disabled:opacity-50 dark:border-emerald-500/40 dark:text-emerald-300"
               >
-                {bulkAcknowledgeMutation.isPending ? 'Acknowledging...' : `Acknowledge (${selectedIds.size})`}
+                {bulkAcknowledgeMutation.isPending
+                  ? 'Acknowledging...'
+                  : `Acknowledge (${selectedIds.size})`}
               </button>
             )}
           </div>
 
-          {actionMessage && <div className="mt-4 rounded-2xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-100">{actionMessage}</div>}
+          {actionMessage && (
+            <div className="mt-4 rounded-2xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-100">
+              {actionMessage}
+            </div>
+          )}
 
           <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800/70">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200/70 bg-slate-50/80 text-left text-xs font-semibold text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-300">
-                  {isAdmin && <th className="w-10 px-4 py-3"><input type="checkbox" checked={allUnacknowledgedSelected} onChange={handleSelectAll} className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 dark:border-slate-600 dark:bg-slate-800" title="Select all unacknowledged" /></th>}
+                  {isAdmin && (
+                    <th className="w-10 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={allUnacknowledgedSelected}
+                        onChange={handleSelectAll}
+                        className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 dark:border-slate-600 dark:bg-slate-800"
+                        title="Select all unacknowledged"
+                      />
+                    </th>
+                  )}
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Network</th>
                   <th className="px-4 py-3">IP</th>
@@ -355,33 +403,101 @@ const Alerts = () => {
               </thead>
               <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
                 {isLoading ? (
-                  <tr><td colSpan={isAdmin ? 7 : 6} className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">Loading alerts...</td></tr>
+                  <tr>
+                    <td
+                      colSpan={isAdmin ? 7 : 6}
+                      className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400"
+                    >
+                      Loading alerts...
+                    </td>
+                  </tr>
                 ) : alerts.length === 0 ? (
-                  <tr><td colSpan={isAdmin ? 7 : 6} className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">No alerts found.</td></tr>
+                  <tr>
+                    <td
+                      colSpan={isAdmin ? 7 : 6}
+                      className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400"
+                    >
+                      No alerts found.
+                    </td>
+                  </tr>
                 ) : (
                   alerts.map((alert) => {
                     const alertDate = parseUtcDate(alert.created_at)
                     return (
-                      <tr key={alert.id} className={`text-sm transition hover:bg-slate-50/80 dark:hover:bg-slate-900/40 ${alert.acknowledged ? 'bg-white/60 dark:bg-slate-950/40' : 'bg-amber-50/50 dark:bg-amber-950/20'}`}>
-                        {isAdmin && <td className="px-4 py-3"><input type="checkbox" checked={selectedIds.has(alert.id)} onChange={e => handleSelectOne(alert.id, e.target.checked)} disabled={alert.acknowledged} className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 disabled:opacity-30 dark:border-slate-600 dark:bg-slate-800" /></td>}
-                        <td className="px-4 py-3"><span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${alertTypeStyles[alert.type] || 'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300'}`}>{alertTypeLabels[alert.type] || alert.type}</span></td>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-900 dark:text-white">{alert.network_name ?? <span className="text-slate-400 dark:text-slate-500">Global</span>}</td>
-                        <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{alert.ip}</td>
-                        <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{alert.port}</td>
-                        <td className="whitespace-nowrap px-4 py-3"><p className="text-slate-700 dark:text-slate-200">{formatRelativeTime(alertDate, now)}</p><p className="text-xs text-slate-500 dark:text-slate-400">{formatDateTime(alertDate)}</p></td>
+                      <tr
+                        key={alert.id}
+                        className={`text-sm transition hover:bg-slate-50/80 dark:hover:bg-slate-900/40 ${alert.acknowledged ? 'bg-white/60 dark:bg-slate-950/40' : 'bg-amber-50/50 dark:bg-amber-950/20'}`}
+                      >
+                        {isAdmin && (
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(alert.id)}
+                              onChange={(e) => handleSelectOne(alert.id, e.target.checked)}
+                              disabled={alert.acknowledged}
+                              className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 disabled:opacity-30 dark:border-slate-600 dark:bg-slate-800"
+                            />
+                          </td>
+                        )}
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${alertTypeStyles[alert.type] || 'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300'}`}
+                          >
+                            {alertTypeLabels[alert.type] || alert.type}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-900 dark:text-white">
+                          {alert.network_name ?? (
+                            <span className="text-slate-400 dark:text-slate-500">Global</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
+                          {alert.ip}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
+                          {alert.port}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <p className="text-slate-700 dark:text-slate-200">
+                            {formatRelativeTime(alertDate, now)}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {formatDateTime(alertDate)}
+                          </p>
+                        </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {isAllowed(alert) && <span className="inline-flex items-center rounded-full border border-emerald-300/60 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/20 dark:text-emerald-200">Whitelisted</span>}
+                            {isAllowed(alert) && (
+                              <span className="inline-flex items-center rounded-full border border-emerald-300/60 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/20 dark:text-emerald-200">
+                                Whitelisted
+                              </span>
+                            )}
                             {alert.acknowledged ? (
                               isAdmin ? (
-                                <button onClick={() => unacknowledgeMutation.mutate(alert.id)} disabled={unacknowledgeMutation.isPending} title="Click to reopen" className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500/25 disabled:opacity-60 dark:border-emerald-400/40 dark:text-emerald-200">Acknowledged ✓</button>
+                                <button
+                                  onClick={() => unacknowledgeMutation.mutate(alert.id)}
+                                  disabled={unacknowledgeMutation.isPending}
+                                  title="Click to reopen"
+                                  className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500/25 disabled:opacity-60 dark:border-emerald-400/40 dark:text-emerald-200"
+                                >
+                                  Acknowledged ✓
+                                </button>
                               ) : (
-                                <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200">Acknowledged ✓</span>
+                                <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200">
+                                  Acknowledged ✓
+                                </span>
                               )
                             ) : isAdmin ? (
-                              <button onClick={() => setActionModal({ alert })} className="rounded-full border border-amber-300 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-500/20 dark:border-amber-500/50 dark:text-amber-200">Resolve</button>
+                              <button
+                                onClick={() => setActionModal({ alert })}
+                                className="rounded-full border border-amber-300 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-500/20 dark:border-amber-500/50 dark:text-amber-200"
+                              >
+                                Resolve
+                              </button>
                             ) : (
-                              <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200">Pending</span>
+                              <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200">
+                                Pending
+                              </span>
                             )}
                           </div>
                         </td>
@@ -400,13 +516,34 @@ const Alerts = () => {
           <div className="mx-4 w-full max-w-md rounded-2xl border border-slate-200/70 bg-white p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-900">
             <div className="mb-4 flex items-start justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Resolve Alert</p>
-                <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{actionModal.alert.ip}:{actionModal.alert.port}</h3>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Resolve Alert
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                  {actionModal.alert.ip}:{actionModal.alert.port}
+                </h3>
               </div>
-              <button onClick={() => { setActionModal(null); setWhitelistReason(''); }} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"><svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+              <button
+                onClick={() => {
+                  setActionModal(null)
+                  setWhitelistReason('')
+                }}
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
             </div>
             <div className="mb-6 space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Justification / Reason</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                Justification / Reason
+              </label>
               <input
                 type="text"
                 autoFocus
@@ -424,13 +561,21 @@ const Alerts = () => {
                     ✅
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-emerald-700 dark:text-emerald-200">Whitelist Globally</p>
-                    <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">Clear alert and allow on all networks</p>
+                    <p className="font-medium text-emerald-700 dark:text-emerald-200">
+                      Whitelist Globally
+                    </p>
+                    <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">
+                      Clear alert and allow on all networks
+                    </p>
                   </div>
                 </div>
                 <button
                   onClick={handleWhitelist}
-                  disabled={!whitelistReason.trim() || acknowledgeMutation.isPending || whitelistMutation.isPending}
+                  disabled={
+                    !whitelistReason.trim() ||
+                    acknowledgeMutation.isPending ||
+                    whitelistMutation.isPending
+                  }
                   className="mt-3 w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-emerald-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
                 >
                   {whitelistMutation.isPending ? 'Processing...' : 'Whitelist'}
@@ -438,8 +583,14 @@ const Alerts = () => {
               </div>
 
               <div className="relative py-2">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-800"></div></div>
-                <div className="relative flex justify-center"><span className="bg-white px-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:bg-slate-900">Alternative</span></div>
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-100 dark:border-slate-800"></div>
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-white px-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:bg-slate-900">
+                    Alternative
+                  </span>
+                </div>
               </div>
 
               <button
@@ -451,8 +602,12 @@ const Alerts = () => {
                   👁️
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Just Acknowledge</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Mark as reviewed without whitelist</p>
+                  <p className="font-medium text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                    Just Acknowledge
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Mark as reviewed without whitelist
+                  </p>
                 </div>
               </button>
             </div>

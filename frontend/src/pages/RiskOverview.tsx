@@ -1,14 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
-import type {
-    Alert,
-    AlertListResponse,
-    NetworkListResponse,
-    PolicyListResponse,
-} from '../types'
+import type { Alert, AlertListResponse, NetworkListResponse, PolicyListResponse } from '../types'
 
 const formatDateTime = (value: Date) =>
     new Intl.DateTimeFormat(undefined, {
@@ -16,8 +11,7 @@ const formatDateTime = (value: Date) =>
         timeStyle: 'short',
     }).format(value)
 
-const parseUtcDate = (dateStr: string) =>
-    new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
+const parseUtcDate = (dateStr: string) => new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
 
 const formatRelativeTime = (value: Date, now: Date) => {
     const diffMs = now.getTime() - value.getTime()
@@ -61,7 +55,9 @@ const RiskOverview = () => {
     const [actionMessage, setActionMessage] = useState<string | null>(null)
     const [severityFilter, setSeverityFilter] = useState<Severity | ''>('')
     const [networkFilter, setNetworkFilter] = useState<number | null>(null)
-    const [statusFilter, setStatusFilter] = useState<'all' | 'blocked' | 'pending' | 'approved' | 'monitoring'>('all')
+    const [statusFilter, setStatusFilter] = useState<
+        'all' | 'blocked' | 'pending' | 'approved' | 'monitoring'
+    >('all')
     const now = new Date()
 
     const isAdmin = user?.role === 'admin'
@@ -88,19 +84,18 @@ const RiskOverview = () => {
         enabled: Boolean(token),
     })
 
-    const alerts = alertsQuery.data?.alerts ?? []
-    const networks = networksQuery.data?.networks ?? []
-    const policyRules = policyQuery.data?.rules ?? []
-
+    const alerts = useMemo(() => alertsQuery.data?.alerts ?? [], [alertsQuery.data?.alerts])
+    const networks = useMemo(() => networksQuery.data?.networks ?? [], [networksQuery.data?.networks])
     // Build allowed/blocked sets
     const allowedSets = useMemo(() => {
+        const rules = policyQuery.data?.rules ?? []
         const sets = {
             ipKeys: new Set<string>(),
             networkKeys: new Set<string>(),
             globalIpKeys: new Set<string>(),
             globalPortKeys: new Set<string>(),
         }
-        policyRules.forEach((rule) => {
+        rules.forEach((rule) => {
             if (rule.rule_type !== 'allow') return
             if (rule.network_id === null) {
                 if (rule.ip) sets.globalIpKeys.add(`${rule.ip}:${rule.port}`)
@@ -111,15 +106,20 @@ const RiskOverview = () => {
             }
         })
         return sets
-    }, [policyRules])
+    }, [policyQuery.data?.rules])
 
-    const isAlertAllowed = (alert: Alert) => {
-        if (allowedSets.globalIpKeys.has(`${alert.ip}:${alert.port}`)) return true
-        if (allowedSets.globalPortKeys.has(String(alert.port))) return true
-        if (alert.network_id === null) return false
-        return allowedSets.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`) ||
-            allowedSets.networkKeys.has(`${alert.network_id}:${alert.port}`)
-    }
+    const isAlertAllowed = useCallback(
+        (alert: Alert) => {
+            if (allowedSets.globalIpKeys.has(`${alert.ip}:${alert.port}`)) return true
+            if (allowedSets.globalPortKeys.has(String(alert.port))) return true
+            if (alert.network_id === null) return false
+            return (
+                allowedSets.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`) ||
+                allowedSets.networkKeys.has(`${alert.network_id}:${alert.port}`)
+            )
+        },
+        [allowedSets],
+    )
 
     // Filter alerts
     const filteredAlerts = useMemo(() => {
@@ -133,11 +133,12 @@ const RiskOverview = () => {
             if (statusFilter === 'approved') {
                 if (!isAlertAllowed(alert)) return false
             }
-            if (statusFilter === 'monitoring' && (!alert.acknowledged || alert.severity === 'critical')) return false
+            if (statusFilter === 'monitoring' && (!alert.acknowledged || alert.severity === 'critical'))
+                return false
 
             return true
         })
-    }, [alerts, severityFilter, networkFilter, statusFilter, allowedSets])
+    }, [alerts, severityFilter, networkFilter, statusFilter, isAlertAllowed])
 
     // Policy mutations
     const bulkWhitelistGlobalMutation = useMutation({
@@ -256,7 +257,9 @@ const RiskOverview = () => {
     }
 
     const unacknowledgedCount = filteredAlerts.filter((a) => !a.acknowledged).length
-    const allUnackSelected = unacknowledgedCount > 0 && filteredAlerts.filter((a) => !a.acknowledged).every((a) => selectedIds.has(a.id))
+    const allUnackSelected =
+        unacknowledgedCount > 0 &&
+        filteredAlerts.filter((a) => !a.acknowledged).every((a) => selectedIds.has(a.id))
 
     return (
         <div className="relative">
@@ -270,7 +273,9 @@ const RiskOverview = () => {
                             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                                 Security Overview
                             </p>
-                            <h2 className="mt-3 font-display text-3xl text-slate-900 dark:text-white">Risk Overview</h2>
+                            <h2 className="mt-3 font-display text-3xl text-slate-900 dark:text-white">
+                                Risk Overview
+                            </h2>
                             <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
                                 Unified view of all security alerts and open ports across your monitored networks.
                             </p>
@@ -498,17 +503,25 @@ const RiskOverview = () => {
                                 className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                             >
                                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
                                 </svg>
                             </button>
                         </div>
 
                         <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-                            Choose how to handle {actionModal.mode === 'bulk' ? 'these ports' : 'this port'}. A justification is required for adding new rules:
+                            Choose how to handle {actionModal.mode === 'bulk' ? 'these ports' : 'this port'}. A
+                            justification is required for adding new rules:
                         </p>
 
                         <div className="mb-6 space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Justification / Reason</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                Justification / Reason
+                            </label>
                             <input
                                 type="text"
                                 autoFocus
@@ -571,8 +584,14 @@ const RiskOverview = () => {
                             </div>
 
                             <div className="relative py-2">
-                                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-800"></div></div>
-                                <div className="relative flex justify-center"><span className="bg-white px-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:bg-slate-900">Alternative</span></div>
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-slate-100 dark:border-slate-800"></div>
+                                </div>
+                                <div className="relative flex justify-center">
+                                    <span className="bg-white px-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:bg-slate-900">
+                                        Alternative
+                                    </span>
+                                </div>
                             </div>
 
                             {/* Just Reviewed */}
@@ -585,7 +604,9 @@ const RiskOverview = () => {
                                     👁️
                                 </div>
                                 <div className="flex-1">
-                                    <p className="font-medium text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Just Acknowledge</p>
+                                    <p className="font-medium text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                                        Just Acknowledge
+                                    </p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
                                         Mark as reviewed without any rule updates
                                     </p>

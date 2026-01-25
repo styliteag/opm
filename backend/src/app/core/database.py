@@ -101,7 +101,9 @@ async def init_db() -> None:
             async with engine.begin() as conn:
                 # Use checkfirst=True to avoid errors if tables already exist
                 # This is safe even with multiple workers starting simultaneously
-                await conn.run_sync(lambda sync_conn: Base.metadata.create_all(sync_conn, checkfirst=True))
+                await conn.run_sync(
+                    lambda sync_conn: Base.metadata.create_all(sync_conn, checkfirst=True)
+                )
             logger.info("Database schema initialized from models")
         except Exception as e:
             # If tables already exist (e.g., from migrations or previous run), that's okay

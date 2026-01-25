@@ -84,4 +84,3 @@ class GlobalPortRuleUpdateRequest(BaseModel):
     @classmethod
     def validate_ip_format(cls, v: str | None) -> str | None:
         return validate_ip_address(v)
-

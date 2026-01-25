@@ -53,9 +53,7 @@ async def submit_scan_results(
     Otherwise processes the results and returns a response.
     """
     # Find the scan and verify ownership
-    scan_result = await db.execute(
-        select(Scan).where(Scan.id == request.scan_id)
-    )
+    scan_result = await db.execute(select(Scan).where(Scan.id == request.scan_id))
     scan = scan_result.scalar_one_or_none()
 
     if scan is None:
@@ -89,13 +87,13 @@ async def submit_scan_results(
     ports_recorded = 0
     now = datetime.now(timezone.utc)
     # Format: (ip, port, protocol, banner, service_guess, mac_address, mac_vendor)
-    recorded_ports_data: list[tuple[str, int, str, str | None, str | None, str | None, str | None]] = []
+    recorded_ports_data: list[
+        tuple[str, int, str, str | None, str | None, str | None, str | None]
+    ] = []
 
     for port_data in request.open_ports:
         # Find first_seen_at from previous scans
-        existing_port = await find_existing_port(
-            db, scan.network_id, port_data.ip, port_data.port
-        )
+        existing_port = await find_existing_port(db, scan.network_id, port_data.ip, port_data.port)
 
         first_seen = existing_port.first_seen_at if existing_port else now
 
@@ -113,15 +111,17 @@ async def submit_scan_results(
             last_seen_at=now,
         )
         db.add(new_port)
-        recorded_ports_data.append((
-            port_data.ip,
-            port_data.port,
-            port_data.protocol,
-            port_data.banner,
-            None,  # service_guess not in scan results
-            port_data.mac_address,
-            port_data.mac_vendor,
-        ))
+        recorded_ports_data.append(
+            (
+                port_data.ip,
+                port_data.port,
+                port_data.protocol,
+                port_data.banner,
+                None,  # service_guess not in scan results
+                port_data.mac_address,
+                port_data.mac_vendor,
+            )
+        )
         ports_recorded += 1
 
     if scan.status == ScanStatus.COMPLETED:

@@ -121,9 +121,7 @@ async def acknowledge_alert(
     alert_id: int,
 ) -> AlertResponse:
     """Acknowledge a single alert (admin only)."""
-    alert_with_network = await alerts_service.get_alert_with_network_name(
-        db, alert_id
-    )
+    alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
     if alert_with_network is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -190,9 +188,7 @@ async def unacknowledge_alert(
     alert_id: int,
 ) -> AlertResponse:
     """Unacknowledge (reopen) a single alert (admin only)."""
-    alert_with_network = await alerts_service.get_alert_with_network_name(
-        db, alert_id
-    )
+    alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
     if alert_with_network is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -319,7 +315,9 @@ async def bulk_whitelist_network(
 
     for alert in alerts:
         if alert.network_id is None:
-            errors.append(f"Alert {alert.id} has no network_id, cannot create network-specific rule")
+            errors.append(
+                f"Alert {alert.id} has no network_id, cannot create network-specific rule"
+            )
             continue
         if alert.network_id not in alerts_by_network:
             alerts_by_network[alert.network_id] = []

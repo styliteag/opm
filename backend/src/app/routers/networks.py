@@ -188,9 +188,7 @@ async def list_port_rules(
         )
 
     rules = await port_rules_service.get_rules_by_network_id(db, network_id)
-    return PortRuleListResponse(
-        rules=[PortRuleResponse.model_validate(rule) for rule in rules]
-    )
+    return PortRuleListResponse(rules=[PortRuleResponse.model_validate(rule) for rule in rules])
 
 
 @router.post(
@@ -246,9 +244,7 @@ async def bulk_update_port_rules(
         )
 
     # Convert request to tuples for service
-    rules_data = [
-        (rule.port, rule.rule_type, rule.description, rule.ip) for rule in request.rules
-    ]
+    rules_data = [(rule.port, rule.rule_type, rule.description, rule.ip) for rule in request.rules]
 
     new_rules = await port_rules_service.bulk_replace_rules(
         db=db,
@@ -257,9 +253,7 @@ async def bulk_update_port_rules(
     )
     await db.commit()
 
-    return PortRuleListResponse(
-        rules=[PortRuleResponse.model_validate(rule) for rule in new_rules]
-    )
+    return PortRuleListResponse(rules=[PortRuleResponse.model_validate(rule) for rule in new_rules])
 
 
 @router.delete(

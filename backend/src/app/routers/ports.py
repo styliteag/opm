@@ -5,16 +5,13 @@ from ipaddress import ip_address, ip_network
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
-from app.models.global_port_rule import GlobalRuleType
 from app.models.port_rule import RuleType
-from app.schemas.global_port_rule import GlobalPortRuleResponse, GlobalWhitelistRequest
 from app.schemas.port import (
     OpenPortListItem,
     OpenPortListResponse,
     PortWhitelistRequest,
 )
 from app.schemas.port_rule import PortRuleResponse
-from app.services import global_port_rules as global_rules_service
 from app.services import networks as networks_service
 from app.services import port_rules as port_rules_service
 from app.services import ports as ports_service
@@ -153,7 +150,4 @@ async def whitelist_port(
 
     return PortRuleResponse.model_validate(rule)
 
-
     return PortRuleResponse.model_validate(rule)
-
-

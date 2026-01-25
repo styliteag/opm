@@ -30,7 +30,9 @@ async def create_global_rule(
 ) -> GlobalPortRule:
     """Create a new global port rule."""
     if not description or not description.strip():
-        raise ValueError("A reason/description is required for transparency in global security rules.")
+        raise ValueError(
+            "A reason/description is required for transparency in global security rules."
+        )
 
     rule = GlobalPortRule(
         ip=ip,
@@ -177,6 +179,8 @@ async def get_blocklist_rules(db: AsyncSession) -> list[GlobalPortRule]:
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
 async def update_global_rule(
     db: AsyncSession,
     rule: GlobalPortRule,
@@ -188,16 +192,19 @@ async def update_global_rule(
     """Update a global port rule."""
     if description is not None:
         if not description.strip():
-            raise ValueError("A reason/description is required for transparency in global security rules.")
+            raise ValueError(
+                "A reason/description is required for transparency in global security rules."
+            )
         rule.description = description.strip()
-    
+
     if ip is not None:
         rule.ip = ip if ip.strip() else None
-        
+
     if port is not None:
-        # Port normalization is handled by the schema/router validation calling validate_port_or_range
+        # Port normalization is handled by schema/router validation
+        # calling validate_port_or_range
         rule.port = port
-        
+
     if rule_type is not None:
         rule.rule_type = rule_type
 

@@ -138,10 +138,7 @@ def _build_email_body(
         if item.scan_id:
             context_parts.append(f"scan {item.scan_id}")
         context = f" ({', '.join(context_parts)})" if context_parts else ""
-        lines.append(
-            f"- {item.alert_type}{context} "
-            f"{item.ip}:{item.port} - {item.message}"
-        )
+        lines.append(f"- {item.alert_type}{context} {item.ip}:{item.port} - {item.message}")
 
     lines.append("")
     lines.append(f"View alerts: {alerts_url}")

@@ -34,9 +34,10 @@ function App() {
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>
-                    `rounded-full border px-3 py-1 transition ${isActive
-                      ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
-                      : 'border-slate-200/70 bg-white/60 text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-slate-700'
+                    `rounded-full border px-3 py-1 transition ${
+                      isActive
+                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                        : 'border-slate-200/70 bg-white/60 text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-slate-700'
                     }`
                   }
                 >

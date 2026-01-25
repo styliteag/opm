@@ -24,9 +24,7 @@ async def submit_scan_logs(
     Otherwise stores the logs and returns a response.
     """
     # Find the scan and verify ownership
-    scan_result = await db.execute(
-        select(Scan).where(Scan.id == request.scan_id)
-    )
+    scan_result = await db.execute(select(Scan).where(Scan.id == request.scan_id))
     scan = scan_result.scalar_one_or_none()
 
     if scan is None:

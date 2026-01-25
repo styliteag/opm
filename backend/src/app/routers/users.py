@@ -21,9 +21,7 @@ async def list_users(
 ) -> UserListResponse:
     """Get list of all users (admin only)."""
     users = await users_service.get_all_users(db)
-    return UserListResponse(
-        users=[UserResponse.model_validate(user) for user in users]
-    )
+    return UserListResponse(users=[UserResponse.model_validate(user) for user in users])
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

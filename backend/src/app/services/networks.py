@@ -32,9 +32,7 @@ async def get_network_by_name(db: AsyncSession, name: str) -> Network | None:
 async def get_networks_by_scanner_id(db: AsyncSession, scanner_id: int) -> list[Network]:
     """Get all networks for a specific scanner."""
     stmt = (
-        select(Network)
-        .where(Network.scanner_id == scanner_id)
-        .order_by(Network.created_at.desc())
+        select(Network).where(Network.scanner_id == scanner_id).order_by(Network.created_at.desc())
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())

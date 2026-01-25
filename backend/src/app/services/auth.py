@@ -8,9 +8,7 @@ from app.models.user import User, UserRole
 from app.schemas.auth import TokenResponse
 
 
-async def authenticate_user(
-    db: AsyncSession, email: str, password: str
-) -> User | None:
+async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
     """Authenticate a user by email and password."""
     stmt = select(User).where(User.email == email)
     result = await db.execute(stmt)
@@ -50,9 +48,7 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def create_admin_user(
-    db: AsyncSession, email: str, password: str
-) -> User:
+async def create_admin_user(db: AsyncSession, email: str, password: str) -> User:
     """Create an admin user."""
     hashed_password = hash_password(password)
     user = User(

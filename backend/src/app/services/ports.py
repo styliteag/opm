@@ -59,9 +59,7 @@ async def get_latest_open_ports(
     if ip_range is not None:
         version, start_ip, end_ip = ip_range
         if version == 4:
-            filters.append(
-                func.inet_aton(OpenPort.ip).between(int(start_ip), int(end_ip))
-            )
+            filters.append(func.inet_aton(OpenPort.ip).between(int(start_ip), int(end_ip)))
         else:
             filters.append(
                 func.inet6_aton(OpenPort.ip).between(

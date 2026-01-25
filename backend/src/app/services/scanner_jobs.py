@@ -41,12 +41,8 @@ async def get_pending_jobs_for_scanner(
             port_spec=network.port_spec,
             rate=network.scan_rate,
             scanner_type=network.scanner_type or "masscan",
-            scan_timeout=network.scan_timeout
-            if network.scan_timeout is not None
-            else 3600,
-            port_timeout=network.port_timeout
-            if network.port_timeout is not None
-            else 1500,
+            scan_timeout=network.scan_timeout if network.scan_timeout is not None else 3600,
+            port_timeout=network.port_timeout if network.port_timeout is not None else 1500,
             scan_protocol=network.scan_protocol or "tcp",
             is_ipv6=network.is_ipv6,
         )
@@ -71,9 +67,7 @@ async def claim_job(
     """
     # Check if network exists and belongs to this scanner
     network_result = await db.execute(
-        select(Network).where(
-            and_(Network.id == network_id, Network.scanner_id == scanner.id)
-        )
+        select(Network).where(and_(Network.id == network_id, Network.scanner_id == scanner.id))
     )
     network = network_result.scalar_one_or_none()
 

@@ -410,8 +410,9 @@ const Networks = () => {
                       <div className="flex flex-wrap items-center gap-2 text-slate-600 dark:text-slate-300">
                         <span>{network.cidr}</span>
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-wide ${ipVersionStyles[ipVersionKey]
-                            }`}
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-wide ${
+                            ipVersionStyles[ipVersionKey]
+                          }`}
                         >
                           {ipVersionLabels[ipVersionKey]}
                         </span>
@@ -426,16 +427,18 @@ const Networks = () => {
                       </div>
                       <div className="flex items-center">
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold tracking-wide ${scannerTypeStyles[network.scanner_type] ?? scannerTypeStyles.masscan
-                            }`}
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold tracking-wide ${
+                            scannerTypeStyles[network.scanner_type] ?? scannerTypeStyles.masscan
+                          }`}
                         >
                           {scannerTypeLabels[network.scanner_type] ?? 'Masscan'}
                         </span>
                       </div>
                       <div className="flex items-center">
                         <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold tracking-wide ${scanProtocolStyles[network.scan_protocol] ?? scanProtocolStyles.tcp
-                            }`}
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold tracking-wide ${
+                            scanProtocolStyles[network.scan_protocol] ?? scanProtocolStyles.tcp
+                          }`}
                         >
                           {scanProtocolLabels[network.scan_protocol] ?? 'TCP'}
                         </span>
@@ -446,9 +449,10 @@ const Networks = () => {
                       </div>
                       <div className="flex items-center">
                         <span
-                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${statusStyle ??
+                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${
+                            statusStyle ??
                             'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300'
-                            }`}
+                          }`}
                         >
                           {statusLabel}
                         </span>

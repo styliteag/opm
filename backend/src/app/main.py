@@ -11,7 +11,19 @@ from sqlalchemy.exc import IntegrityError
 from .core.config import settings
 from .core.database import async_session_factory
 from .core.version import get_version
-from .routers import alerts, auth, global_ports, networks, policy, ports, scanner, scanners, scans, users, version
+from .routers import (
+    alerts,
+    auth,
+    global_ports,
+    networks,
+    policy,
+    ports,
+    scanner,
+    scanners,
+    scans,
+    users,
+    version,
+)
 from .services.auth import create_admin_user, get_user_by_email
 from .services.scheduler import shutdown_scheduler, start_scheduler
 
@@ -43,7 +55,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 # If user was created by another worker between check and create, that's okay
                 await db.rollback()
                 if "Duplicate entry" in str(e.orig) or "1062" in str(e.orig):
-                    logger.info(f"Admin user already exists (created by another worker): {settings.admin_email}")
+                    logger.info(
+                        "Admin user already exists (created by another worker): "
+                        f"{settings.admin_email}"
+                    )
                 else:
                     logger.error(f"Failed to create admin user: {e}")
                     raise

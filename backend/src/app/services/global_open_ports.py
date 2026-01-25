@@ -128,9 +128,7 @@ async def get_global_open_ports(
     if ip_range is not None:
         version, start_ip, end_ip = ip_range
         if version == 4:
-            filters.append(
-                func.inet_aton(GlobalOpenPort.ip).between(int(start_ip), int(end_ip))
-            )
+            filters.append(func.inet_aton(GlobalOpenPort.ip).between(int(start_ip), int(end_ip)))
         else:
             filters.append(
                 func.inet6_aton(GlobalOpenPort.ip).between(
@@ -167,11 +165,7 @@ async def get_global_open_ports(
     return list(result.scalars().all())
 
 
-async def get_global_open_port_by_id(
-    db: AsyncSession, port_id: int
-) -> GlobalOpenPort | None:
+async def get_global_open_port_by_id(db: AsyncSession, port_id: int) -> GlobalOpenPort | None:
     """Get a global open port by its ID."""
-    result = await db.execute(
-        select(GlobalOpenPort).where(GlobalOpenPort.id == port_id)
-    )
+    result = await db.execute(select(GlobalOpenPort).where(GlobalOpenPort.id == port_id))
     return result.scalar_one_or_none()

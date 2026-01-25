@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Iterable
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert, AlertType
@@ -36,9 +36,7 @@ async def get_alert_with_network_name(
     return row[0], network_name
 
 
-async def get_alerts_by_ids(
-    db: AsyncSession, alert_ids: list[int]
-) -> list[Alert]:
+async def get_alerts_by_ids(db: AsyncSession, alert_ids: list[int]) -> list[Alert]:
     """Fetch alerts by IDs."""
     if not alert_ids:
         return []
@@ -58,9 +56,7 @@ async def get_alerts(
     limit: int = 50,
 ) -> list[tuple[Alert, str | None]]:
     """List alerts with optional filters and pagination."""
-    query = select(Alert, Network.name).outerjoin(
-        Network, Alert.network_id == Network.id
-    )
+    query = select(Alert, Network.name).outerjoin(Network, Alert.network_id == Network.id)
     filters = []
 
     if alert_type is not None:
@@ -77,11 +73,7 @@ async def get_alerts(
     if filters:
         query = query.where(and_(*filters))
 
-    query = (
-        query.order_by(Alert.created_at.desc(), Alert.id.desc())
-        .offset(offset)
-        .limit(limit)
-    )
+    query = query.order_by(Alert.created_at.desc(), Alert.id.desc()).offset(offset).limit(limit)
     result = await db.execute(query)
     return [(row[0], str(row[1]) if row[1] is not None else None) for row in result.all()]
 
@@ -94,9 +86,7 @@ async def acknowledge_alert(db: AsyncSession, alert: Alert) -> Alert:
     return alert
 
 
-async def acknowledge_alerts(
-    db: AsyncSession, alerts: list[Alert]
-) -> list[Alert]:
+async def acknowledge_alerts(db: AsyncSession, alerts: list[Alert]) -> list[Alert]:
     """Mark multiple alerts as acknowledged."""
     if not alerts:
         return []
@@ -207,19 +197,13 @@ def _get_enabled_alert_types(alert_config: dict[str, Any] | None) -> set[AlertTy
     disabled_types = alert_config.get("disabled_types")
     if isinstance(disabled_types, list):
         disabled_set = {str(item) for item in disabled_types}
-        return {
-            alert_type
-            for alert_type in AlertType
-            if alert_type.value not in disabled_set
-        }
+        return {alert_type for alert_type in AlertType if alert_type.value not in disabled_set}
 
     return all_types
 
 
 async def _get_open_ports_for_scan(db: AsyncSession, scan_id: int) -> set[PortKey]:
-    result = await db.execute(
-        select(OpenPort.ip, OpenPort.port).where(OpenPort.scan_id == scan_id)
-    )
+    result = await db.execute(select(OpenPort.ip, OpenPort.port).where(OpenPort.scan_id == scan_id))
     return {(row[0], int(row[1])) for row in result.all()}
 
 
@@ -241,9 +225,7 @@ async def _get_previous_scan_ports(db: AsyncSession, scan: Scan) -> set[PortKey]
     return await _get_open_ports_for_scan(db, previous_scan_id)
 
 
-async def _get_unacknowledged_alerts(
-    db: AsyncSession, network_id: int
-) -> set[AlertKey]:
+async def _get_unacknowledged_alerts(db: AsyncSession, network_id: int) -> set[AlertKey]:
     result = await db.execute(
         select(Alert.alert_type, Alert.ip, Alert.port).where(
             Alert.network_id == network_id,
@@ -290,9 +272,7 @@ async def generate_alerts_for_scan(
     if not enabled_types:
         return 0
 
-    rules_result = await db.execute(
-        select(PortRule).where(PortRule.network_id == scan.network_id)
-    )
+    rules_result = await db.execute(select(PortRule).where(PortRule.network_id == scan.network_id))
     rules = list(rules_result.scalars().all())
     allow_global_ranges = _build_port_ranges(
         rule for rule in rules if rule.rule_type == RuleType.ALLOW and rule.ip is None
@@ -325,16 +305,12 @@ async def generate_alerts_for_scan(
 
         allow_ranges = allow_range_cache.get(ip)
         if allow_ranges is None:
-            allow_ranges = _combine_ranges(
-                allow_global_ranges, allow_ranges_by_ip.get(ip)
-            )
+            allow_ranges = _combine_ranges(allow_global_ranges, allow_ranges_by_ip.get(ip))
             allow_range_cache[ip] = allow_ranges
 
         block_ranges = block_range_cache.get(ip)
         if block_ranges is None:
-            block_ranges = _combine_ranges(
-                block_global_ranges, block_ranges_by_ip.get(ip)
-            )
+            block_ranges = _combine_ranges(block_global_ranges, block_ranges_by_ip.get(ip))
             block_range_cache[ip] = block_ranges
 
         allowlist_exists = len(allow_ranges) > 0
@@ -399,8 +375,7 @@ async def _get_unacknowledged_global_alerts(
 ) -> set[GlobalAlertKey]:
     """Get all unacknowledged global alerts as a set of (ip, port, protocol) tuples."""
     result = await db.execute(
-        select(Alert.ip, Alert.port)
-        .where(
+        select(Alert.ip, Alert.port).where(
             Alert.acknowledged.is_(False),
             Alert.global_open_port_id.isnot(None),
         )
@@ -412,7 +387,8 @@ async def _get_unacknowledged_global_alerts(
 async def generate_global_alerts_for_scan(
     db: AsyncSession,
     scan: Scan,
-    open_ports_data: list[tuple[str, int, str, str | None, str | None, str | None, str | None]] | None = None,
+    open_ports_data: list[tuple[str, int, str, str | None, str | None, str | None, str | None]]
+    | None = None,
 ) -> int:
     """
     Generate global alerts for a completed scan.
@@ -424,7 +400,8 @@ async def generate_global_alerts_for_scan(
     Args:
         db: Database session
         scan: The completed scan
-        open_ports_data: Optional list of tuples (ip, port, protocol, banner, service_guess, mac_address, mac_vendor)
+        open_ports_data: Optional list of tuples
+                        (ip, port, protocol, banner, service_guess, mac_address, mac_vendor)
                         If None, will fetch from database
 
     Returns:
@@ -447,8 +424,7 @@ async def generate_global_alerts_for_scan(
             ).where(OpenPort.scan_id == scan.id)
         )
         open_ports_data = [
-            (row[0], int(row[1]), row[2], row[3], row[4], row[5], row[6])
-            for row in result.all()
+            (row[0], int(row[1]), row[2], row[3], row[4], row[5], row[6]) for row in result.all()
         ]
 
     if not open_ports_data:

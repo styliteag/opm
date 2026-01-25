@@ -129,15 +129,9 @@ async def get_scan_diff(
     removed_keys = sorted(compare_keys - scan_keys)
     unchanged_keys = sorted(scan_keys & compare_keys)
 
-    added_ports = [
-        OpenPortResponse.model_validate(scan_ports[key]) for key in added_keys
-    ]
-    removed_ports = [
-        OpenPortResponse.model_validate(compare_ports[key]) for key in removed_keys
-    ]
-    unchanged_ports = [
-        OpenPortResponse.model_validate(scan_ports[key]) for key in unchanged_keys
-    ]
+    added_ports = [OpenPortResponse.model_validate(scan_ports[key]) for key in added_keys]
+    removed_ports = [OpenPortResponse.model_validate(compare_ports[key]) for key in removed_keys]
+    unchanged_ports = [OpenPortResponse.model_validate(scan_ports[key]) for key in unchanged_keys]
 
     return ScanDiffResponse(
         scan_id=scan.id,
@@ -164,12 +158,8 @@ async def get_scan_logs(
             detail="Scan not found",
         )
 
-    logs = await scans_service.get_scan_logs(
-        db, scan_id, offset=offset, limit=limit
-    )
-    return ScanLogListResponse(
-        logs=[ScanLogResponse.model_validate(log) for log in logs]
-    )
+    logs = await scans_service.get_scan_logs(db, scan_id, offset=offset, limit=limit)
+    return ScanLogListResponse(logs=[ScanLogResponse.model_validate(log) for log in logs])
 
 
 @router.post("/{scan_id}/cancel", response_model=ScanCancelResponse)

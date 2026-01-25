@@ -74,7 +74,7 @@ const Home = () => {
 
   // Try to get version from runtime injection (production) or build-time env (dev)
   const frontendVersion =
-    ((window as unknown) as { __APP_VERSION__?: string }).__APP_VERSION__ ||
+    (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__ ||
     import.meta.env.VITE_APP_VERSION ||
     'unknown'
   const backendVersion = backendVersionQuery.data ?? 'unknown'
@@ -290,7 +290,10 @@ const Home = () => {
           <section className="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm dark:border-slate-800/70 dark:bg-slate-950/70">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-xl text-slate-900 dark:text-white">Recent alerts</h3>
-              <Link to="/risk-overview" className="text-xs font-semibold text-cyan-600 dark:text-cyan-300">
+              <Link
+                to="/risk-overview"
+                className="text-xs font-semibold text-cyan-600 dark:text-cyan-300"
+              >
                 View all
               </Link>
             </div>
@@ -311,8 +314,9 @@ const Home = () => {
                   >
                     <div className="flex flex-wrap items-center gap-3">
                       <span
-                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${alertStyles[alert.type]
-                          }`}
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${
+                          alertStyles[alert.type]
+                        }`}
                       >
                         {alertLabels[alert.type]}
                       </span>
@@ -370,10 +374,11 @@ const Home = () => {
                         </p>
                       </div>
                       <span
-                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${isOnline
-                          ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
-                          : 'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300'
-                          }`}
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${
+                          isOnline
+                            ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
+                            : 'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300'
+                        }`}
                       >
                         {isOnline ? 'Online' : 'Offline'}
                       </span>

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
-from app.models.global_port_rule import GlobalPortRule, GlobalRuleType
+from app.models.global_port_rule import GlobalRuleType
 from app.models.network import Network
 from app.models.port_rule import PortRule, RuleType
 from app.schemas.policy import (
@@ -161,7 +161,9 @@ async def update_policy_rule(
     if scope == "global":
         rule = await global_rules_service.get_global_rule_by_id(db, rule_id)
         if not rule:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Global rule not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Global rule not found"
+            )
 
         updated = await global_rules_service.update_global_rule(
             db=db,
@@ -186,7 +188,9 @@ async def update_policy_rule(
     elif scope == "network":
         rule = await network_rules_service.get_rule_by_id(db, rule_id)
         if not rule:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network rule not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Network rule not found"
+            )
 
         if request.ip is not None:
             rule.ip = request.ip if request.ip.strip() else None
@@ -234,12 +238,16 @@ async def delete_policy_rule(
     if scope == "global":
         rule = await global_rules_service.get_global_rule_by_id(db, rule_id)
         if not rule:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Global rule not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Global rule not found"
+            )
         await global_rules_service.delete_global_rule(db, rule)
     elif scope == "network":
         rule = await network_rules_service.get_rule_by_id(db, rule_id)
         if not rule:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network rule not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Network rule not found"
+            )
         await network_rules_service.delete_rule(db, rule)
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid scope.")

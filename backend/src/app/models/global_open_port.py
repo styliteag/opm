@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, DateTime, Index, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -27,9 +27,7 @@ class GlobalOpenPort(Base):
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
-    seen_by_networks: Mapped[list[int]] = mapped_column(
-        JSON, nullable=False, default=list
-    )
+    seen_by_networks: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
 
     __table_args__ = (
         UniqueConstraint("ip", "port", "protocol", name="uq_global_open_ports_ip_port_protocol"),

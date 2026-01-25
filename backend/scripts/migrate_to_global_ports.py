@@ -165,7 +165,7 @@ async def main() -> None:
         "mysql+aiomysql://opm:opm_password@localhost:3306/open_port_monitor",
     )
 
-    print(f"Connecting to database...")
+    print("Connecting to database...")
     engine = create_async_engine(database_url, echo=False)
 
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

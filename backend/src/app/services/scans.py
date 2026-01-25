@@ -73,9 +73,7 @@ async def get_scans_by_network_id(
     return [(row[0], int(row[1])) for row in result.all()]
 
 
-async def get_scan_with_ports(
-    db: AsyncSession, scan_id: int
-) -> Scan | None:
+async def get_scan_with_ports(db: AsyncSession, scan_id: int) -> Scan | None:
     """Get a scan by ID with open ports loaded."""
     result = await db.execute(
         select(Scan)
@@ -138,12 +136,7 @@ async def get_all_scans(
     if not include_hidden:
         query = query.where(Scan.hidden.is_(False))
 
-    query = (
-        query.group_by(Scan.id)
-        .order_by(Scan.id.desc())
-        .offset(offset)
-        .limit(limit)
-    )
+    query = query.group_by(Scan.id).order_by(Scan.id.desc()).offset(offset).limit(limit)
 
     result = await db.execute(query)
     return [(row[0], int(row[1])) for row in result.all()]

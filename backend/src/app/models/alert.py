@@ -30,9 +30,7 @@ class Alert(Base):
     __tablename__ = "alerts"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    scan_id: Mapped[int | None] = mapped_column(
-        ForeignKey("scans.id"), nullable=True, index=True
-    )
+    scan_id: Mapped[int | None] = mapped_column(ForeignKey("scans.id"), nullable=True, index=True)
     network_id: Mapped[int | None] = mapped_column(
         ForeignKey("networks.id"), nullable=True, index=True
     )
