@@ -1,12 +1,13 @@
 """Open Port Monitor Backend - FastAPI Application."""
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from .core.config import settings
 from .core.database import async_session_factory
@@ -34,8 +35,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan handler for startup and shutdown events."""
     # Log version at startup
-    version = get_version()
-    logger.info(f"Open Port Monitor Backend v{version} starting...")
+    version_str = get_version()
+    logger.info(f"Open Port Monitor Backend v{version_str} starting...")
 
     # Initialize database schema from models
     from .core.database import init_db
@@ -45,30 +46,41 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup: Create initial admin user if not exists
     # Handle race condition where multiple workers might try to create the user simultaneously
     async with async_session_factory() as db:
-        existing_admin = await get_user_by_email(db, settings.admin_email)
-        if existing_admin is None:
+        # Use a retry loop with exponential backoff for robustness against deadlocks/race conditions
+        for attempt in range(5):
             try:
-                await create_admin_user(db, settings.admin_email, settings.admin_password)
-                await db.commit()
-                logger.info(f"Created initial admin user: {settings.admin_email}")
-            except IntegrityError as e:
-                # If user was created by another worker between check and create, that's okay
-                await db.rollback()
-                if "Duplicate entry" in str(e.orig) or "1062" in str(e.orig):
-                    logger.info(
-                        "Admin user already exists (created by another worker): "
-                        f"{settings.admin_email}"
-                    )
+                existing_admin = await get_user_by_email(db, settings.admin_email)
+                if existing_admin is None:
+                    await create_admin_user(db, settings.admin_email, settings.admin_password)
+                    await db.commit()
+                    logger.info(f"Created initial admin user: {settings.admin_email}")
                 else:
-                    logger.error(f"Failed to create admin user: {e}")
+                    logger.info(f"Admin user already exists: {settings.admin_email}")
+                break
+            except (IntegrityError, OperationalError) as e:
+                await db.rollback()
+                # 1062 = Duplicate entry, 1213 = Deadlock/Lock wait timeout
+                error_str = str(e.orig) if hasattr(e, "orig") else str(e)
+                if "1062" in error_str or "1213" in error_str:
+                    if attempt < 4:
+                        wait = (attempt + 1) * 0.5
+                        logger.info(
+                            f"Race condition or deadlock during admin creation (attempt {attempt + 1}), "
+                            f"retrying in {wait}s..."
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    else:
+                        logger.info("Admin user already exists (created by another worker).")
+                        break
+                else:
+                    logger.error(f"Unexpected database error during admin creation: {e}")
                     raise
             except Exception as e:
                 # Catch any other errors
                 await db.rollback()
                 logger.error(f"Failed to create admin user: {e}")
                 raise
-        else:
-            logger.info(f"Admin user already exists: {settings.admin_email}")
 
     start_scheduler()
 
