@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Scan progress tracking with percentage and message, displayed in the UI
+
 ## [1.0.1] - 2026-01-25
+
+### Fixed
+- Enhanced admin user creation with retry logic and exponential backoff to handle race conditions and deadlocks
 
 ## [1.0.0] - 2026-01-25
 
