@@ -627,7 +627,8 @@ MASSCAN_PROGRESS_PATTERN = re.compile(
     r"(\d+(?:\.\d+)?)\s*%"  # capture percentage
 )
 NMAP_PROGRESS_PATTERN = re.compile(
-    r"(\d+(?:\.\d+)?)\s*%\s*done"  # e.g., "45.23% done"
+    r"(?:About\s+)?(\d+(?:\.\d+)?)\s*%\s*done",  # e.g., "About 45.23% done" or "45.23% done"
+    re.IGNORECASE,
 )
 
 
