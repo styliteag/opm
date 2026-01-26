@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.schemas.host import (
+    BulkDeleteHostsRequest,
+    BulkDeleteHostsResponse,
     HostListResponse,
     HostOpenPortListResponse,
     HostOpenPortResponse,
@@ -92,6 +94,14 @@ async def list_hosts(
             detail=str(exc),
         ) from exc
 
+    # Get total counts (with same filters but without pagination)
+    total_count, pingable_count = await hosts_service.get_host_counts(
+        db,
+        network_id=network_id,
+        ip_range=parsed_ip_range,
+        ip_search=ip_search,
+    )
+
     # Build response with open port counts
     host_responses = []
     for host in hosts:
@@ -100,7 +110,11 @@ async def list_hosts(
         response.open_port_count = port_count
         host_responses.append(response)
 
-    return HostListResponse(hosts=host_responses)
+    return HostListResponse(
+        hosts=host_responses,
+        total_count=total_count,
+        pingable_count=pingable_count,
+    )
 
 
 @router.get("/{host_id}", response_model=HostResponse)
@@ -160,3 +174,34 @@ async def update_host(
     response = HostResponse.model_validate(host)
     response.open_port_count = port_count
     return response
+
+
+@router.delete("/{host_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_host(
+    admin: AdminUser,
+    db: DbSession,
+    host_id: int,
+) -> None:
+    """Delete a single host (admin only)."""
+    deleted = await hosts_service.delete_host(db, host_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Host not found",
+        )
+    await db.commit()
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteHostsResponse)
+async def bulk_delete_hosts(
+    admin: AdminUser,
+    db: DbSession,
+    request: BulkDeleteHostsRequest,
+) -> BulkDeleteHostsResponse:
+    """Delete multiple hosts by ID (admin only)."""
+    deleted_ids = await hosts_service.delete_hosts_bulk(db, request.host_ids)
+    await db.commit()
+    return BulkDeleteHostsResponse(
+        deleted_ids=deleted_ids,
+        deleted_count=len(deleted_ids),
+    )

@@ -116,6 +116,37 @@ class ScanRunResult:
     cancelled: bool
 
 
+@dataclass(frozen=True)
+class HostDiscoveryJob:
+    """A pending host discovery job from the backend."""
+
+    scan_id: int
+    network_id: int
+    cidr: str
+    is_ipv6: bool = False
+
+
+@dataclass(frozen=True)
+class HostResult:
+    """Discovered host data from nmap ping scan."""
+
+    ip: str
+    hostname: str | None
+    is_pingable: bool
+    mac_address: str | None
+    mac_vendor: str | None
+
+    def to_payload(self) -> dict[str, Any]:
+        """Convert to JSON-serializable payload."""
+        return {
+            "ip": self.ip,
+            "hostname": self.hostname,
+            "is_pingable": self.is_pingable,
+            "mac_address": self.mac_address,
+            "mac_vendor": self.mac_vendor,
+        }
+
+
 def _format_command(command: list[str]) -> str:
     """Return a shell-safe representation of the command for logging."""
     return shlex.join(command)
@@ -514,6 +545,68 @@ class ScannerClient:
         if not isinstance(status_value, str):
             raise RuntimeError("Invalid scan status response")
         return status_value
+
+    def get_host_discovery_jobs(self) -> list[HostDiscoveryJob]:
+        """Get pending host discovery jobs for this scanner."""
+        response = self._request("GET", "/api/scanner/host-discovery-jobs", auth_required=True)
+        response.raise_for_status()
+        payload = response.json()
+        jobs: list[HostDiscoveryJob] = []
+        for job in payload.get("jobs", []):
+            try:
+                jobs.append(
+                    HostDiscoveryJob(
+                        scan_id=int(job["scan_id"]),
+                        network_id=int(job["network_id"]),
+                        cidr=str(job["cidr"]),
+                        is_ipv6=bool(job.get("is_ipv6", False)),
+                    )
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                self._logger.warning("Skipping invalid host discovery job payload: %s", exc)
+        return jobs
+
+    def claim_host_discovery_job(self, scan_id: int) -> HostDiscoveryJob | None:
+        """Claim a host discovery job."""
+        response = self._request(
+            "POST",
+            f"/api/scanner/host-discovery-jobs/{scan_id}/claim",
+            auth_required=True,
+        )
+        if response.status_code in {404, 409}:
+            self._logger.info(
+                "Unable to claim host discovery job %s (status %s)",
+                scan_id,
+                response.status_code,
+            )
+            return None
+        response.raise_for_status()
+        payload = response.json()
+        return HostDiscoveryJob(
+            scan_id=int(payload["scan_id"]),
+            network_id=int(payload["network_id"]),
+            cidr=str(payload["cidr"]),
+            is_ipv6=bool(payload.get("is_ipv6", False)),
+        )
+
+    def submit_host_discovery_results(
+        self,
+        scan_id: int,
+        status: str,
+        hosts: list[HostResult],
+        error_message: str | None = None,
+    ) -> None:
+        """Submit host discovery results."""
+        payload = {
+            "scan_id": scan_id,
+            "status": status,
+            "hosts": [host.to_payload() for host in hosts],
+            "error_message": error_message,
+        }
+        response = self._request(
+            "POST", "/api/scanner/host-discovery-results", json=payload, auth_required=True
+        )
+        response.raise_for_status()
 
     def _request(
         self,
@@ -990,92 +1083,47 @@ def _parse_nmap_xml(xml_content: str, logger: logging.Logger) -> list[OpenPortRe
     return results
 
 
-def _run_nmap(
+def _run_nmap_phase(
     client: ScannerClient,
     scan_id: int,
-    cidr: str,
-    port_spec: str,
+    command: list[str],
+    output_path: str,
     scan_timeout: int,
-    port_timeout: int,
-    scan_protocol: str,
-    is_ipv6: bool,
+    phase_name: str,
     logger: logging.Logger,
     progress_reporter: ProgressReporter | None = None,
-) -> ScanRunResult:
-    """Run nmap scan and return list of open ports.
+    progress_offset: float = 0.0,
+    progress_scale: float = 1.0,
+) -> tuple[str, bool, bool, int]:
+    """Run a single nmap phase and return (xml_content, cancelled, timed_out, exit_status).
 
-    Uses pty.fork() to run nmap with a pseudo-TTY, which is required for nmap
-    to output progress statistics. Without a TTY, nmap suppresses progress output.
+    Uses pty.fork() to run nmap with a pseudo-TTY for progress output.
+    Progress is scaled: actual_pct = progress_offset + (nmap_pct * progress_scale)
     """
-    include_ports, exclude_ports = _split_port_spec(port_spec)
+    logger.info("Nmap %s command: %s", phase_name, _format_command(command))
 
-    # Build port specification for nmap
-    # Nmap doesn't have direct port exclusion, so we only scan included ports
-    # If there are exclusions, log a warning since nmap handles this differently
-    if exclude_ports:
-        logger.warning(
-            "Nmap does not support port exclusions in the same way as masscan. "
-            "Excluded ports (%s) will not be scanned if included in the port spec.",
-            exclude_ports,
-        )
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as output_file:
-        output_path = output_file.name
-
-    # Build scan type flags based on protocol
-    # -sS: TCP SYN scan (requires root/cap_net_raw)
-    # -sU: UDP scan (requires root)
-    scan_flags: list[str] = []
-    if scan_protocol == "tcp":
-        scan_flags = ["-sS"]
-    elif scan_protocol == "udp":
-        scan_flags = ["-sU"]
-    else:  # both
-        scan_flags = ["-sS", "-sU"]
-
-    # Use -oX <file> to write XML directly to file
-    # PTY output will contain progress stats which we parse for reporting
-    command = [
-        "nmap",
-        *(["-6"] if is_ipv6 else []),
-        *scan_flags,
-        "-sV",  # Service/version detection for banner info
-        f"-p{include_ports}",
-        "--host-timeout",
-        f"{int(scan_timeout) * 1000}ms",
-        "--max-rtt-timeout",
-        f"{int(port_timeout)}ms",
-        "-oX", output_path,  # XML output to file
-        "--open",  # Only show open ports
-        "-T4",  # Aggressive timing (faster scan)
-        "--stats-every", "5s",  # Print stats every 5 seconds for progress monitoring
-        cidr,
-    ]
-
-    protocol_label = scan_protocol.upper() if scan_protocol != "both" else "TCP+UDP"
-    logger.info("Running nmap for %s with ports %s (%s)", cidr, include_ports, protocol_label)
-    logger.info("Nmap command: %s", _format_command(command))
-    if is_ipv6:
-        logger.info("Nmap IPv6 mode enabled (-6)")
-
-    # Use pty.fork() to run nmap with a pseudo-TTY
-    # This is required because nmap only outputs progress stats when running in a TTY
     pid, master_fd = pty.fork()
 
     if pid == 0:
-        # Child process - exec nmap
         try:
             os.execvp(command[0], command)
         except Exception as e:
             sys.stderr.write(f"Failed to exec nmap: {e}\n")
             os._exit(1)
 
-    # Parent process - read output and manage child
+    # Parent process
     timed_out = False
     cancelled = False
     child_exited = False
     exit_status = 0
     output_lines: list[str] = []
+
+    # Track nmap host progress for accurate overall percentage
+    hosts_completed = 0
+    total_hosts_up = 0
+    hosts_in_progress = 0
+    last_total_hosts = 0  # Track when nmap discovers more hosts
+    max_scaled_pct = 0.0  # Never let progress go backwards
 
     try:
         start_time = time.time()
@@ -1085,13 +1133,9 @@ def _run_nmap(
         while True:
             elapsed = time.time() - start_time
 
-            # Check for timeout
             if scan_timeout > 0 and elapsed >= scan_timeout:
                 if not timed_out:
-                    logger.error(
-                        "Nmap scan exceeded timeout (%s seconds); terminating",
-                        scan_timeout,
-                    )
+                    logger.error("Nmap %s exceeded max runtime (%s seconds); terminating", phase_name, scan_timeout)
                     timed_out = True
                     try:
                         os.kill(pid, signal.SIGTERM)
@@ -1099,12 +1143,10 @@ def _run_nmap(
                         pass
                 break
 
-            # Issue warning at 90% of timeout
             if scan_timeout > 0 and not warning_issued and elapsed >= scan_timeout * 0.9:
-                logger.warning("Nmap scan approaching timeout (90%% elapsed)")
+                logger.warning("Nmap %s approaching max runtime (90%% elapsed)", phase_name)
                 warning_issued = True
 
-            # Check for cancellation (poll backend)
             try:
                 status = client.get_scan_status(scan_id)
                 if status == "cancelled":
@@ -1118,7 +1160,6 @@ def _run_nmap(
             except Exception as exc:
                 logger.warning("Failed to check scan status: %s", exc)
 
-            # Check if child has exited
             try:
                 wait_pid, wait_status = os.waitpid(pid, os.WNOHANG)
                 if wait_pid != 0:
@@ -1132,60 +1173,75 @@ def _run_nmap(
                 child_exited = True
                 break
 
-            # Read from PTY with select timeout
             try:
                 readable, _, _ = select.select([master_fd], [], [], 1.0)
                 if master_fd in readable:
                     try:
                         data = os.read(master_fd, 4096)
                         if not data:
-                            continue
+                            child_exited = True
+                            break
                         text = data.decode("utf-8", errors="replace")
                         buffer += text
-
-                        # Process complete lines
-                        while "\n" in buffer:
-                            line, buffer = buffer.split("\n", 1)
-                            # Remove ANSI escape sequences
-                            line = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", line)
+                        while "\n" in buffer or "\r" in buffer:
+                            line, sep, buffer = buffer.partition("\n") if "\n" in buffer else buffer.partition("\r")
                             line = line.strip()
-                            if not line:
-                                continue
+                            if line:
+                                output_lines.append(line)
+                                if any(x in line for x in ["Stats:", "Timing:", "elapsed", "remaining", "done"]):
+                                    logger.info("Nmap: %s", line)
 
-                            output_lines.append(line)
-                            uppercase_line = line.upper()
-
-                            # Log the line appropriately
-                            if "WARNING" in uppercase_line or "RTTVAR" in uppercase_line:
-                                logger.warning("Nmap: %s", line)
-                            elif "ERROR" in uppercase_line or "FAILED" in uppercase_line:
-                                logger.error("Nmap: %s", line)
-                            else:
-                                logger.info("Nmap: %s", line)
-
-                            # Parse progress
-                            if progress_reporter:
-                                progress = _parse_nmap_progress(line)
-                                if progress is not None:
-                                    logger.info(
-                                        "Parsed nmap progress: %.2f%% from line: %s",
-                                        progress,
-                                        line,
+                                    # Parse host completion stats: "8 hosts completed (32 up), 24 undergoing"
+                                    stats_match = re.search(
+                                        r"(\d+)\s+hosts?\s+completed\s+\((\d+)\s+up\)(?:,\s+(\d+)\s+undergoing)?",
+                                        line, re.IGNORECASE
                                     )
-                                    progress_reporter.update(
-                                        progress, f"Scanning: {progress}% complete"
-                                    )
+                                    if stats_match:
+                                        hosts_completed = int(stats_match.group(1))
+                                        total_hosts_up = int(stats_match.group(2))
+                                        hosts_in_progress = int(stats_match.group(3)) if stats_match.group(3) else 0
+
+                                        # When nmap discovers more hosts, reset max to completed work only
+                                        if total_hosts_up > last_total_hosts and last_total_hosts > 0:
+                                            # Recalculate max based on completed hosts (locked-in progress)
+                                            completed_pct = (hosts_completed / total_hosts_up) * 100.0
+                                            max_scaled_pct = progress_offset + (completed_pct * progress_scale)
+                                            logger.info("Host count increased %d -> %d, reset progress to %.1f%% (completed hosts only)",
+                                                       last_total_hosts, total_hosts_up, max_scaled_pct)
+                                        last_total_hosts = total_hosts_up
+
+                                    # Parse batch percentage: "About 26.91% done"
+                                    pct_match = re.search(r"About\s+([\d.]+)%\s+done", line, re.IGNORECASE)
+                                    if pct_match and progress_reporter and total_hosts_up > 0:
+                                        try:
+                                            batch_pct = float(pct_match.group(1))
+                                            # Calculate true overall progress accounting for host batching
+                                            # Formula: (completed_hosts + in_progress_hosts * batch_pct/100) / total_hosts * 100
+                                            batch_progress = hosts_in_progress * batch_pct / 100.0
+                                            overall_nmap_pct = ((hosts_completed + batch_progress) / total_hosts_up) * 100.0
+                                            # Scale to phase range (0-50% for phase 1, 50-100% for phase 2)
+                                            scaled_pct = progress_offset + (overall_nmap_pct * progress_scale)
+                                            # Never let progress bar go backwards within the same host count
+                                            # But always update the message so user sees activity
+                                            display_pct = max(scaled_pct, max_scaled_pct)
+                                            if scaled_pct > max_scaled_pct:
+                                                max_scaled_pct = scaled_pct
+                                            progress_msg = f"{phase_name}: {hosts_completed}/{total_hosts_up} hosts, batch {batch_pct:.0f}%"
+                                            progress_reporter.update(display_pct, progress_msg)
+                                            logger.info("Progress %.1f%% (overall: %.1f%%, batch: %.1f%%) - %d/%d hosts",
+                                                       display_pct, overall_nmap_pct, batch_pct, hosts_completed, total_hosts_up)
+                                        except (ValueError, ZeroDivisionError):
+                                            pass
+                                elif line.startswith("Nmap scan report") or "PORT" in line or "/tcp" in line or "/udp" in line:
+                                    logger.info("Nmap: %s", line)
                     except OSError:
-                        # PTY closed
-                        pass
-            except (ValueError, OSError):
-                # select error, fd might be closed
-                break
+                        child_exited = True
+                        break
+            except (OSError, ValueError):
+                pass
 
-        # Wait for child if not already exited
         if not child_exited:
             try:
-                # Give it a moment to exit gracefully
                 for _ in range(10):
                     wait_pid, wait_status = os.waitpid(pid, os.WNOHANG)
                     if wait_pid != 0:
@@ -1196,21 +1252,19 @@ def _run_nmap(
                         child_exited = True
                         break
                     time.sleep(0.5)
-
                 if not child_exited:
                     logger.error("Nmap did not terminate gracefully; killing")
                     os.kill(pid, signal.SIGKILL)
                     os.waitpid(pid, 0)
             except (ChildProcessError, OSError):
                 pass
-
     finally:
         try:
             os.close(master_fd)
         except OSError:
             pass
 
-    # Read results from XML file
+    # Read XML output
     content = ""
     try:
         with open(output_path, "r", encoding="utf-8") as handle:
@@ -1220,24 +1274,343 @@ def _run_nmap(
     except Exception as exc:
         logger.error("Failed to read nmap XML output: %s", exc)
 
-    # Clean up output file
     try:
         os.remove(output_path)
     except OSError:
         pass
 
-    # Handle results
-    if cancelled:
-        return ScanRunResult(open_ports=_parse_nmap_xml(content, logger), cancelled=True)
-    if timed_out:
-        raise TimeoutError(f"Nmap exceeded timeout of {scan_timeout} seconds")
-    if exit_status != 0:
-        output_text = "\n".join(output_lines[-20:])  # Last 20 lines for error context
-        if output_text:
-            logger.error("Nmap output (last 20 lines): %s", output_text)
-        raise RuntimeError(f"Nmap failed with exit code {exit_status}")
+    return content, cancelled, timed_out, exit_status
 
-    return ScanRunResult(open_ports=_parse_nmap_xml(content, logger), cancelled=False)
+
+def _run_nmap(
+    client: ScannerClient,
+    scan_id: int,
+    cidr: str,
+    port_spec: str,
+    scan_timeout: int,
+    port_timeout: int,
+    scan_protocol: str,
+    is_ipv6: bool,
+    logger: logging.Logger,
+    progress_reporter: ProgressReporter | None = None,
+) -> ScanRunResult:
+    """Run nmap scan using hybrid approach: fast port scan, then service detection.
+
+    Phase 1: Fast SYN scan to discover open ports (no -sV)
+    Phase 2: Service detection only on discovered open ports (-sV)
+    """
+    include_ports, exclude_ports = _split_port_spec(port_spec)
+
+    if exclude_ports:
+        logger.warning(
+            "Nmap does not support port exclusions in the same way as masscan. "
+            "Excluded ports (%s) will not be scanned if included in the port spec.",
+            exclude_ports,
+        )
+
+    # Build scan type flags based on protocol
+    scan_flags: list[str] = []
+    if scan_protocol == "tcp":
+        scan_flags = ["-sS"]
+    elif scan_protocol == "udp":
+        scan_flags = ["-sU"]
+    else:  # both
+        scan_flags = ["-sS", "-sU"]
+
+    protocol_label = scan_protocol.upper() if scan_protocol != "both" else "TCP+UDP"
+    logger.info("Running nmap hybrid scan for %s with ports %s (%s)", cidr, include_ports, protocol_label)
+    if is_ipv6:
+        logger.info("Nmap IPv6 mode enabled (-6)")
+
+    # ========== PHASE 1: Fast port discovery (no service detection) ==========
+    logger.info("=== Phase 1: Fast port discovery ===")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as f:
+        phase1_output = f.name
+
+    phase1_command = [
+        "nmap",
+        *(["-6"] if is_ipv6 else []),
+        *scan_flags,
+        "-n",  # No DNS resolution (faster)
+        f"-p{include_ports}",
+        "--max-rtt-timeout", f"{int(port_timeout)}ms",
+        "-oX", phase1_output,
+        "--open",
+        "-T4",
+        "--stats-every", "5s",
+        cidr,
+    ]
+
+    # Use 70% of timeout for phase 1
+    phase1_timeout = int(scan_timeout * 0.7) if scan_timeout > 0 else 0
+
+    xml_content, cancelled, timed_out, exit_status = _run_nmap_phase(
+        client, scan_id, phase1_command, phase1_output,
+        phase1_timeout, "Phase 1 - Port Discovery", logger, progress_reporter,
+        progress_offset=0.0, progress_scale=0.5,  # Maps to 0-50%
+    )
+
+    if cancelled:
+        return ScanRunResult(open_ports=_parse_nmap_xml(xml_content, logger), cancelled=True)
+    if timed_out:
+        raise TimeoutError(f"Nmap phase 1 exceeded max runtime of {phase1_timeout} seconds")
+    if exit_status != 0:
+        raise RuntimeError(f"Nmap phase 1 failed with exit code {exit_status}")
+
+    # Parse phase 1 results to get open ports
+    phase1_ports = _parse_nmap_xml(xml_content, logger)
+
+    # Report 50% progress (phase 1 complete)
+    if progress_reporter:
+        progress_reporter.update(50.0, "Phase 1 complete - analyzing results")
+
+    if not phase1_ports:
+        logger.info("No open ports found in phase 1, skipping service detection")
+        if progress_reporter:
+            progress_reporter.update(100.0, "Complete - no open ports found")
+        return ScanRunResult(open_ports=[], cancelled=False)
+
+    # Collect unique ip:port combinations for phase 2
+    open_port_targets: dict[str, set[int]] = {}
+    for port in phase1_ports:
+        if port.ip not in open_port_targets:
+            open_port_targets[port.ip] = set()
+        open_port_targets[port.ip].add(port.port)
+
+    total_open = sum(len(ports) for ports in open_port_targets.values())
+    logger.info("Phase 1 complete: found %d open ports on %d hosts", total_open, len(open_port_targets))
+
+    # ========== PHASE 2: Service detection on open ports only ==========
+    logger.info("=== Phase 2: Service detection on %d open ports ===", total_open)
+    if progress_reporter:
+        progress_reporter.update(50.0, f"Starting Phase 2 - detecting services on {total_open} ports")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as f:
+        phase2_output = f.name
+
+    # Build target list: specific IPs with their open ports
+    # For efficiency, scan all hosts but only the ports we found open
+    all_open_ports = sorted(set(p for ports in open_port_targets.values() for p in ports))
+    port_list = ",".join(str(p) for p in all_open_ports)
+    target_ips = list(open_port_targets.keys())
+
+    # Write target IPs to a file to avoid command line length limits
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w") as targets_file:
+        phase2_targets_file = targets_file.name
+        for ip in target_ips:
+            targets_file.write(f"{ip}\n")
+
+    phase2_command = [
+        "nmap",
+        *(["-6"] if is_ipv6 else []),
+        *scan_flags,
+        "-sV",  # Service detection
+        "--version-intensity", "5",  # Balanced intensity
+        f"-p{port_list}",
+        "--max-rtt-timeout", f"{int(port_timeout)}ms",
+        "-oX", phase2_output,
+        "--open",
+        "-T4",
+        "--stats-every", "5s",
+        "-iL", phase2_targets_file,  # Read targets from file
+    ]
+
+    # Use remaining 30% of timeout for phase 2
+    phase2_timeout = int(scan_timeout * 0.3) if scan_timeout > 0 else 0
+
+    try:
+        xml_content2, cancelled2, timed_out2, exit_status2 = _run_nmap_phase(
+            client, scan_id, phase2_command, phase2_output,
+            phase2_timeout, "Phase 2 - Service Detection", logger, progress_reporter,
+            progress_offset=50.0, progress_scale=0.5,  # Maps to 50-100%
+        )
+
+        if cancelled2:
+            # Return phase 1 results if cancelled during phase 2
+            return ScanRunResult(open_ports=phase1_ports, cancelled=True)
+        if timed_out2:
+            # Return phase 1 results if phase 2 times out
+            logger.warning("Phase 2 timed out, returning phase 1 results without service info")
+            return ScanRunResult(open_ports=phase1_ports, cancelled=False)
+        if exit_status2 != 0:
+            logger.warning("Phase 2 failed (exit %d), returning phase 1 results", exit_status2)
+            return ScanRunResult(open_ports=phase1_ports, cancelled=False)
+
+        # Parse phase 2 results (with service info)
+        phase2_ports = _parse_nmap_xml(xml_content2, logger)
+        logger.info("Phase 2 complete: service detection on %d ports", len(phase2_ports))
+
+        if progress_reporter:
+            progress_reporter.update(100.0, f"Complete - {len(phase2_ports)} open ports with service info")
+
+        return ScanRunResult(open_ports=phase2_ports, cancelled=False)
+    finally:
+        # Clean up targets file
+        try:
+            os.unlink(phase2_targets_file)
+        except OSError:
+            pass
+
+
+def _parse_nmap_host_discovery_xml(xml_content: str, logger: logging.Logger) -> list[HostResult]:
+    """Parse nmap XML output from host discovery scan and extract host info."""
+    results: list[HostResult] = []
+
+    try:
+        root = ET.fromstring(xml_content)
+    except ET.ParseError as exc:
+        logger.error("Failed to parse nmap XML output: %s", exc)
+        return results
+
+    for host in root.findall(".//host"):
+        # Check if host is up (pingable)
+        status_elem = host.find("status")
+        is_pingable = status_elem is not None and status_elem.get("state") == "up"
+
+        # Get IP address
+        ip_addr: str | None = None
+        mac_address: str | None = None
+        mac_vendor: str | None = None
+
+        for addr_elem in host.findall("address"):
+            addr_type = addr_elem.get("addrtype", "")
+            if addr_type in ("ipv4", "ipv6"):
+                ip_addr = addr_elem.get("addr")
+            elif addr_type == "mac":
+                mac_address = addr_elem.get("addr")
+                mac_vendor = addr_elem.get("vendor")
+
+        if not ip_addr:
+            continue
+
+        # Get hostname from reverse DNS
+        hostname: str | None = None
+        hostnames_elem = host.find("hostnames")
+        if hostnames_elem is not None:
+            hostname_elem = hostnames_elem.find("hostname")
+            if hostname_elem is not None:
+                hostname = hostname_elem.get("name")
+
+        results.append(
+            HostResult(
+                ip=ip_addr,
+                hostname=hostname,
+                is_pingable=is_pingable,
+                mac_address=mac_address,
+                mac_vendor=mac_vendor,
+            )
+        )
+
+    return results
+
+
+def _run_host_discovery(
+    cidr: str,
+    is_ipv6: bool,
+    logger: logging.Logger,
+    timeout: int = 300,
+) -> list[HostResult]:
+    """
+    Run host discovery using nmap ping scan with reverse DNS.
+    Only returns hosts that responded to the scan (is_pingable=True).
+
+    Command: nmap -sn -R [-6] --host-timeout {timeout}s -oX {output} {cidr}
+
+    -sn: Ping scan (no port scan)
+    -R: Always do reverse DNS lookup
+    """
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as output_file:
+        output_path = output_file.name
+
+    command = [
+        "nmap",
+        "-sn",  # Ping scan only
+        "-PE",  # ICMP echo only (no TCP/ARP probes)
+        "--disable-arp-ping",  # Don't use ARP (which finds all hosts on local network)
+        "-R",  # Always do reverse DNS
+        *(["-6"] if is_ipv6 else []),
+        "--host-timeout", f"{timeout}s",
+        "-oX", output_path,
+        cidr,
+    ]
+
+    logger.info("Running host discovery for %s", cidr)
+    logger.info("Host discovery command: %s", _format_command(command))
+    if is_ipv6:
+        logger.info("Host discovery IPv6 mode enabled (-6)")
+
+    try:
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+        # Read output for logging
+        if process.stdout:
+            for line in process.stdout:
+                line = line.strip()
+                if line:
+                    logger.info("Nmap: %s", line)
+
+        returncode = process.wait()
+        if returncode != 0:
+            raise RuntimeError(f"Nmap host discovery failed with exit code {returncode}")
+
+        # Read results
+        with open(output_path, "r", encoding="utf-8") as handle:
+            content = handle.read()
+
+        return _parse_nmap_host_discovery_xml(content, logger)
+
+    finally:
+        try:
+            os.remove(output_path)
+        except OSError:
+            pass
+
+
+def _process_host_discovery_job(
+    job: HostDiscoveryJob,
+    client: ScannerClient,
+    logger: logging.Logger,
+) -> None:
+    """Process a host discovery job."""
+    logger.info("Claiming host discovery job for network %s (scan_id=%s)", job.network_id, job.scan_id)
+
+    claimed_job = client.claim_host_discovery_job(job.scan_id)
+    if claimed_job is None:
+        return
+
+    logger.info("Claimed host discovery job for network %s", claimed_job.network_id)
+
+    try:
+        if claimed_job.is_ipv6:
+            if not _check_ipv6_connectivity(logger):
+                raise RuntimeError("IPv6 connectivity not available")
+
+        hosts = _run_host_discovery(
+            claimed_job.cidr,
+            claimed_job.is_ipv6,
+            logger,
+        )
+
+        logger.info("Host discovery completed, found %s hosts", len(hosts))
+
+        client.submit_host_discovery_results(claimed_job.scan_id, "success", hosts)
+        logger.info("Submitted host discovery results for scan %s", claimed_job.scan_id)
+
+    except Exception as exc:
+        logger.exception("Host discovery failed for network %s", claimed_job.network_id)
+        try:
+            client.submit_host_discovery_results(
+                claimed_job.scan_id, "failed", [], error_message=str(exc)
+            )
+            logger.info("Submitted failed host discovery results for scan %s", claimed_job.scan_id)
+        except Exception:
+            logger.exception("Failed to submit failure results for host discovery scan %s", claimed_job.scan_id)
 
 
 def _load_config() -> ScannerConfig:
@@ -1435,21 +1808,32 @@ def main() -> None:
 
     try:
         while True:
+            has_work = False
+
+            # Check for port scan jobs
             try:
                 jobs = client.get_jobs()
+                if jobs:
+                    has_work = True
+                    logger.info("Found %s pending port scan job(s)", len(jobs))
+                    for job in jobs:
+                        _process_job(job, client, logger, log_buffer)
             except Exception:
-                logger.exception("Failed to fetch scanner jobs")
-                time.sleep(config.poll_interval)
-                continue
+                logger.exception("Failed to fetch port scan jobs")
 
-            if not jobs:
+            # Check for host discovery jobs
+            try:
+                host_discovery_jobs = client.get_host_discovery_jobs()
+                if host_discovery_jobs:
+                    has_work = True
+                    logger.info("Found %s pending host discovery job(s)", len(host_discovery_jobs))
+                    for job in host_discovery_jobs:
+                        _process_host_discovery_job(job, client, logger)
+            except Exception:
+                logger.exception("Failed to fetch host discovery jobs")
+
+            if not has_work:
                 logger.debug("No pending jobs; sleeping")
-                time.sleep(config.poll_interval)
-                continue
-
-            logger.info("Found %s pending job(s)", len(jobs))
-            for job in jobs:
-                _process_job(job, client, logger, log_buffer)
 
             time.sleep(config.poll_interval)
     except KeyboardInterrupt:

@@ -14,6 +14,7 @@ from app.models.scan import Scan, ScanStatus
 from app.services.email_alerts import queue_alert_emails, queue_global_alert_emails
 from app.services.global_open_ports import upsert_global_open_port
 from app.services.global_port_rules import is_port_whitelisted
+from app.services.hosts import get_host_by_ip
 
 PortKey = tuple[str, int]
 AlertKey = tuple[AlertType, str, int]
@@ -445,6 +446,10 @@ async def generate_global_alerts_for_scan(
     created_alerts: list[Alert] = []
 
     for ip, port, protocol, banner, service_guess, mac_address, mac_vendor in open_ports_data:
+        # Look up the host by IP to link the port to it
+        host = await get_host_by_ip(db, ip)
+        host_id = host.id if host else None
+
         # Upsert into global_open_ports
         global_port, is_new = await upsert_global_open_port(
             db,
@@ -456,6 +461,7 @@ async def generate_global_alerts_for_scan(
             service_guess=service_guess,
             mac_address=mac_address,
             mac_vendor=mac_vendor,
+            host_id=host_id,
         )
 
         # Only create alert if this is a NEW global port

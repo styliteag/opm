@@ -101,7 +101,7 @@ const ipVersionLabels: Record<'ipv4' | 'ipv6', string> = {
   ipv6: 'IPv6',
 }
 
-const DEFAULT_SCAN_TIMEOUT = '3600'
+const DEFAULT_SCAN_TIMEOUT_MINUTES = '60'
 const DEFAULT_PORT_TIMEOUT = '1500'
 
 const Networks = () => {
@@ -119,7 +119,7 @@ const Networks = () => {
     siteId: '',
     schedule: '',
     scanRate: '',
-    scanTimeout: DEFAULT_SCAN_TIMEOUT,
+    scanTimeoutMinutes: DEFAULT_SCAN_TIMEOUT_MINUTES,
     portTimeout: DEFAULT_PORT_TIMEOUT,
     scannerType: 'masscan' as ScannerType,
     scanProtocol: 'tcp' as ScanProtocol,
@@ -225,7 +225,7 @@ const Networks = () => {
         siteId: '',
         schedule: '',
         scanRate: '',
-        scanTimeout: DEFAULT_SCAN_TIMEOUT,
+        scanTimeoutMinutes: DEFAULT_SCAN_TIMEOUT_MINUTES,
         portTimeout: DEFAULT_PORT_TIMEOUT,
         scannerType: 'masscan',
         scanProtocol: 'tcp',
@@ -248,7 +248,7 @@ const Networks = () => {
       siteId: sitesQuery.data?.scanners?.[0] ? String(sitesQuery.data.scanners[0].id) : '',
       schedule: '',
       scanRate: '',
-      scanTimeout: DEFAULT_SCAN_TIMEOUT,
+      scanTimeoutMinutes: DEFAULT_SCAN_TIMEOUT_MINUTES,
       portTimeout: DEFAULT_PORT_TIMEOUT,
       scannerType: 'masscan',
       scanProtocol: 'tcp',
@@ -276,9 +276,9 @@ const Networks = () => {
       return
     }
 
-    const scanTimeout = Number.parseInt(formValues.scanTimeout, 10)
-    if (Number.isNaN(scanTimeout) || scanTimeout < 60 || scanTimeout > 86400) {
-      setFormError('Scan timeout must be between 60 and 86400 seconds.')
+    const scanTimeoutMinutes = Number.parseInt(formValues.scanTimeoutMinutes, 10)
+    if (Number.isNaN(scanTimeoutMinutes) || scanTimeoutMinutes < 1 || scanTimeoutMinutes > 1440) {
+      setFormError('Scan timeout must be between 1 and 1440 minutes.')
       return
     }
 
@@ -295,7 +295,7 @@ const Networks = () => {
       scanner_id: Number(formValues.siteId),
       scan_schedule: formValues.schedule.trim() || null,
       scan_rate: rate,
-      scan_timeout: scanTimeout,
+      scan_timeout: scanTimeoutMinutes * 60,
       port_timeout: portTimeout,
       scanner_type: formValues.scannerType,
       scan_protocol: formValues.scanProtocol,
@@ -571,10 +571,10 @@ const Networks = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                   <span className="flex items-center gap-2">
-                    Scan timeout (seconds)
+                    Max scan time (minutes)
                     <span
                       className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold text-slate-500 dark:border-slate-700 dark:text-slate-300"
-                      title="Maximum time allowed for the entire scan before it is stopped."
+                      title="Maximum total time allowed for the scan before it is stopped."
                     >
                       ?
                     </span>
@@ -582,20 +582,20 @@ const Networks = () => {
                   <input
                     type="number"
                     required
-                    min="60"
-                    max="86400"
-                    value={formValues.scanTimeout}
+                    min="1"
+                    max="1440"
+                    value={formValues.scanTimeoutMinutes}
                     onChange={(event) =>
                       setFormValues((prev) => ({
                         ...prev,
-                        scanTimeout: event.target.value,
+                        scanTimeoutMinutes: event.target.value,
                       }))
                     }
                     className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
-                    placeholder="3600"
+                    placeholder="60"
                   />
                   <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                    Range 60-86400 seconds
+                    Total scan runtime limit
                   </span>
                 </label>
                 <label className="space-y-2 text-xs font-semibold text-slate-500 dark:text-slate-400">

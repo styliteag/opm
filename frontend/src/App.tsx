@@ -9,6 +9,7 @@ function App() {
     { label: 'Scanners', to: '/scanners' },
     { label: 'Networks', to: '/networks' },
     { label: 'Scans', to: '/scans' },
+    { label: 'Hosts', to: '/hosts' },
     { label: 'Risk Overview', to: '/risk-overview' },
     { label: 'Policy', to: '/policy' },
     ...(user?.role === 'admin' ? [{ label: 'Users', to: '/users' }] : []),

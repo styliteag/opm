@@ -42,6 +42,7 @@ export type Network = {
   scanner_type: ScannerType
   scan_protocol: ScanProtocol
   is_ipv6: boolean
+  host_discovery_enabled: boolean
   alert_config?: Record<string, unknown> | null
   created_at?: string
   updated_at?: string
@@ -75,6 +76,7 @@ export type UpdateNetworkPayload = {
   port_timeout?: number | null
   scanner_type?: ScannerType
   scan_protocol?: ScanProtocol
+  host_discovery_enabled?: boolean
 }
 
 // Scanner types
@@ -300,4 +302,74 @@ export type PolicyUpdatePayload = {
   port?: string | null
   rule_type?: 'allow' | 'block'
   description?: string | null
+}
+
+// Host types
+export type Host = {
+  id: number
+  ip: string
+  hostname: string | null
+  is_pingable: boolean | null
+  mac_address: string | null
+  mac_vendor: string | null
+  first_seen_at: string
+  last_seen_at: string
+  user_comment: string | null
+  seen_by_networks: number[]
+  open_port_count?: number
+}
+
+export type HostListResponse = {
+  hosts: Host[]
+  total_count: number
+  pingable_count: number
+}
+
+export type BulkDeleteHostsPayload = {
+  host_ids: number[]
+}
+
+export type BulkDeleteHostsResponse = {
+  deleted_ids: number[]
+  deleted_count: number
+}
+
+export type HostUpdatePayload = {
+  user_comment: string | null
+}
+
+export type HostOpenPort = {
+  id: number
+  ip: string
+  port: number
+  protocol: string
+  banner: string | null
+  service_guess: string | null
+  first_seen_at: string
+  last_seen_at: string
+}
+
+export type HostOpenPortListResponse = {
+  ports: HostOpenPort[]
+}
+
+export type HostDiscoveryScan = {
+  id: number
+  network_id: number
+  scanner_id: number
+  status: string
+  trigger_type: string
+  started_at: string | null
+  completed_at: string | null
+  hosts_discovered: number
+  error_message: string | null
+}
+
+export type HostDiscoveryScanListResponse = {
+  scans: HostDiscoveryScan[]
+}
+
+export type TriggerHostDiscoveryResponse = {
+  scan_id: number
+  message: string
 }

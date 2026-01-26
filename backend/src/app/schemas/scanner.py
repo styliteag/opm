@@ -202,3 +202,61 @@ class ScannerScanStatusResponse(BaseModel):
     scan_id: int
     status: str
     message: str = "Status retrieved successfully"
+
+
+# --- Host Discovery Schemas ---
+
+
+class HostDiscoveryJobResponse(BaseModel):
+    """A pending host discovery job for the scanner."""
+
+    scan_id: int
+    network_id: int
+    cidr: str
+    is_ipv6: bool = False
+
+    model_config = {"from_attributes": True}
+
+
+class HostDiscoveryJobListResponse(BaseModel):
+    """List of pending host discovery jobs."""
+
+    jobs: list[HostDiscoveryJobResponse]
+
+
+class HostDiscoveryJobClaimResponse(BaseModel):
+    """Response when successfully claiming a host discovery job."""
+
+    scan_id: int
+    network_id: int
+    cidr: str
+    is_ipv6: bool
+    message: str = "Host discovery job claimed successfully"
+
+
+class HostDiscoveryResultData(BaseModel):
+    """Host discovery result data from scanner."""
+
+    ip: str
+    hostname: str | None = None
+    is_pingable: bool = True
+    mac_address: str | None = None
+    mac_vendor: str | None = None
+
+
+class HostDiscoveryResultRequest(BaseModel):
+    """Request to submit host discovery results."""
+
+    scan_id: int
+    status: str  # "success" or "failed"
+    hosts: list[HostDiscoveryResultData] = []
+    error_message: str | None = None
+
+
+class HostDiscoveryResultResponse(BaseModel):
+    """Response after submitting host discovery results."""
+
+    scan_id: int
+    status: str
+    hosts_recorded: int
+    message: str = "Host discovery results submitted successfully"

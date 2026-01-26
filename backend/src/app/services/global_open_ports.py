@@ -41,6 +41,7 @@ async def upsert_global_open_port(
     mac_address: str | None = None,
     mac_vendor: str | None = None,
     timestamp: datetime | None = None,
+    host_id: int | None = None,
 ) -> tuple[GlobalOpenPort, bool]:
     """
     Create or update a global open port entry.
@@ -71,6 +72,8 @@ async def upsert_global_open_port(
             existing.mac_address = mac_address
         if mac_vendor is not None:
             existing.mac_vendor = mac_vendor
+        if host_id is not None:
+            existing.host_id = host_id
 
         await db.flush()
         await db.refresh(existing)
@@ -89,6 +92,7 @@ async def upsert_global_open_port(
         first_seen_at=now,
         last_seen_at=now,
         seen_by_networks=networks,
+        host_id=host_id,
     )
     db.add(new_port)
     await db.flush()

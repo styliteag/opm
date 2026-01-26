@@ -9,6 +9,11 @@ from fastapi import APIRouter, Header, HTTPException, Request, status
 
 from app.core.deps import CurrentScanner, DbSession
 from app.schemas.scanner import (
+    HostDiscoveryJobClaimResponse,
+    HostDiscoveryJobListResponse,
+    HostDiscoveryJobResponse,
+    HostDiscoveryResultRequest,
+    HostDiscoveryResultResponse,
     ScannerAuthRequest,
     ScannerAuthResponse,
     ScannerJobClaimResponse,
@@ -21,6 +26,8 @@ from app.schemas.scanner import (
     ScannerResultResponse,
     ScannerScanStatusResponse,
 )
+from app.services import host_discovery as host_discovery_service
+from app.services import hosts as hosts_service
 from app.services.scanner_auth import authenticate_scanner
 from app.services.scanner_jobs import claim_job, get_pending_jobs_for_scanner, is_job_running
 from app.services.scanner_logs import submit_scan_logs
@@ -303,3 +310,135 @@ async def get_scanner_scan_status(
         )
 
     return result
+
+
+# --- Host Discovery Endpoints ---
+
+
+@router.get("/host-discovery-jobs", response_model=HostDiscoveryJobListResponse)
+async def get_host_discovery_jobs(
+    db: DbSession,
+    scanner: CurrentScanner,
+) -> HostDiscoveryJobListResponse:
+    """
+    Get pending host discovery jobs for this scanner.
+
+    Returns host discovery scans with status 'planned' for this scanner.
+
+    Requires valid scanner JWT token.
+    """
+    scans = await host_discovery_service.get_pending_host_discovery_jobs(db, scanner.id)
+
+    jobs = [
+        HostDiscoveryJobResponse(
+            scan_id=scan.id,
+            network_id=scan.network_id,
+            cidr=scan.network.cidr,
+            is_ipv6=scan.network.is_ipv6,
+        )
+        for scan in scans
+    ]
+
+    return HostDiscoveryJobListResponse(jobs=jobs)
+
+
+@router.post(
+    "/host-discovery-jobs/{scan_id}/claim",
+    response_model=HostDiscoveryJobClaimResponse,
+)
+async def claim_host_discovery_job(
+    scan_id: int,
+    db: DbSession,
+    scanner: CurrentScanner,
+) -> HostDiscoveryJobClaimResponse:
+    """
+    Claim a host discovery job.
+
+    Marks the job as in-progress and records the start time.
+
+    Returns 404 if scan doesn't exist or isn't assigned to this scanner.
+    Returns 409 Conflict if job is already claimed/running.
+
+    Requires valid scanner JWT token.
+    """
+    scan = await host_discovery_service.claim_host_discovery_job(db, scan_id, scanner.id)
+
+    if scan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Host discovery job not found or not assigned to this scanner",
+        )
+
+    await db.commit()
+    return HostDiscoveryJobClaimResponse(
+        scan_id=scan.id,
+        network_id=scan.network_id,
+        cidr=scan.network.cidr,
+        is_ipv6=scan.network.is_ipv6,
+    )
+
+
+@router.post("/host-discovery-results", response_model=HostDiscoveryResultResponse)
+async def submit_host_discovery_results(
+    request: HostDiscoveryResultRequest,
+    db: DbSession,
+    scanner: CurrentScanner,
+) -> HostDiscoveryResultResponse:
+    """
+    Submit host discovery results from a scanner.
+
+    Accepts scan_id, status (success/failed), hosts list, and optional error_message.
+
+    Each host includes: ip, hostname, is_pingable, mac_address, mac_vendor.
+
+    Updates scan record with status and completed_at timestamp.
+    Creates/updates host records.
+
+    Returns 404 if scan doesn't exist or is not assigned to this scanner.
+
+    Requires valid scanner JWT token.
+    """
+    # Get the scan to verify ownership and status
+    scan = await host_discovery_service.get_host_discovery_scan_by_id(db, request.scan_id)
+    if scan is None or scan.scanner_id != scanner.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Host discovery scan not found or not assigned to this scanner",
+        )
+
+    if request.status == "failed":
+        await host_discovery_service.fail_host_discovery_scan(
+            db, request.scan_id, request.error_message or "Unknown error"
+        )
+        await db.commit()
+        return HostDiscoveryResultResponse(
+            scan_id=request.scan_id,
+            status="failed",
+            hosts_recorded=0,
+        )
+
+    # Process host results
+    hosts_recorded = 0
+    for host_data in request.hosts:
+        await hosts_service.upsert_host(
+            db,
+            ip=host_data.ip,
+            hostname=host_data.hostname,
+            is_pingable=host_data.is_pingable,
+            mac_address=host_data.mac_address,
+            mac_vendor=host_data.mac_vendor,
+            network_id=scan.network_id,
+        )
+        hosts_recorded += 1
+
+    # Mark scan as completed
+    await host_discovery_service.complete_host_discovery_scan(
+        db, request.scan_id, hosts_recorded
+    )
+
+    await db.commit()
+    return HostDiscoveryResultResponse(
+        scan_id=request.scan_id,
+        status="success",
+        hosts_recorded=hosts_recorded,
+    )

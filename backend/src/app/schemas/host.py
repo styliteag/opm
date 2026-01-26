@@ -27,6 +27,8 @@ class HostListResponse(BaseModel):
     """Response schema for list of hosts."""
 
     hosts: list[HostResponse]
+    total_count: int
+    pingable_count: int
 
 
 class HostUpdateRequest(BaseModel):
@@ -83,3 +85,16 @@ class TriggerHostDiscoveryResponse(BaseModel):
 
     scan_id: int
     message: str
+
+
+class BulkDeleteHostsRequest(BaseModel):
+    """Request for bulk deleting hosts."""
+
+    host_ids: list[int]
+
+
+class BulkDeleteHostsResponse(BaseModel):
+    """Response for bulk delete operation."""
+
+    deleted_ids: list[int]
+    deleted_count: int

@@ -18,6 +18,7 @@ import Users from './pages/Users.tsx'
 import OpenPorts from './pages/OpenPorts.tsx'
 import Policy from './pages/Policy.tsx'
 import RiskOverview from './pages/RiskOverview.tsx'
+import Hosts from './pages/Hosts.tsx'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -57,6 +58,10 @@ const router = createBrowserRouter([
       {
         path: 'risk-overview',
         element: <RiskOverview />,
+      },
+      {
+        path: 'hosts',
+        element: <Hosts />,
       },
       {
         path: 'alerts',
