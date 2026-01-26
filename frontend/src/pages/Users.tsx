@@ -375,7 +375,7 @@ const Users = () => {
                 />
               </label>
               <label className="block space-y-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Temporary password
+                Password
                 <input
                   type="password"
                   required
