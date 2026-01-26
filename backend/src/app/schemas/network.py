@@ -127,6 +127,7 @@ class NetworkCreateRequest(BaseModel):
     scanner_type: str = "masscan"
     scan_protocol: str = "tcp"
     alert_config: dict[str, Any] | None = None
+    host_discovery_enabled: bool = True
 
     @field_validator("cidr")
     @classmethod
@@ -189,6 +190,7 @@ class NetworkUpdateRequest(BaseModel):
     scanner_type: str | None = None
     scan_protocol: str | None = None
     alert_config: dict[str, Any] | None = None
+    host_discovery_enabled: bool | None = None
 
     @field_validator("cidr")
     @classmethod
@@ -260,6 +262,7 @@ class NetworkResponse(BaseModel):
     scanner_type: str
     scan_protocol: str
     alert_config: dict[str, Any] | None
+    host_discovery_enabled: bool
     is_ipv6: bool
     created_at: datetime
     updated_at: datetime

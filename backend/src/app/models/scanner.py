@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 if TYPE_CHECKING:
+    from app.models.host_discovery_scan import HostDiscoveryScan
     from app.models.network import Network
     from app.models.scan import Scan
 
@@ -34,4 +35,7 @@ class Scanner(Base):
     )
     scans: Mapped[list["Scan"]] = relationship(
         "Scan", back_populates="scanner", cascade="all, delete-orphan"
+    )
+    host_discovery_scans: Mapped[list["HostDiscoveryScan"]] = relationship(
+        "HostDiscoveryScan", back_populates="scanner", cascade="all, delete-orphan"
     )

@@ -4,13 +4,14 @@ import ipaddress
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.alert import Alert
+    from app.models.host_discovery_scan import HostDiscoveryScan
     from app.models.port_rule import PortRule
     from app.models.scan import Scan
     from app.models.scanner import Scanner
@@ -41,6 +42,9 @@ class Network(Base):
         String(10), nullable=False, server_default="tcp"
     )  # 'tcp' | 'udp' | 'both'
     alert_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    host_discovery_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="1"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
@@ -58,6 +62,9 @@ class Network(Base):
     )
     alerts: Mapped[list["Alert"]] = relationship(
         "Alert", back_populates="network", cascade="all, delete-orphan"
+    )
+    host_discovery_scans: Mapped[list["HostDiscoveryScan"]] = relationship(
+        "HostDiscoveryScan", back_populates="network", cascade="all, delete-orphan"
     )
 
     @property

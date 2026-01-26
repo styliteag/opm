@@ -4,6 +4,8 @@ from app.models.alert import Alert
 from app.models.base import Base
 from app.models.global_open_port import GlobalOpenPort
 from app.models.global_port_rule import GlobalPortRule
+from app.models.host import Host
+from app.models.host_discovery_scan import HostDiscoveryScan
 from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.port_rule import PortRule
@@ -24,4 +26,6 @@ __all__ = [
     "Alert",
     "GlobalOpenPort",
     "GlobalPortRule",
+    "Host",
+    "HostDiscoveryScan",
 ]

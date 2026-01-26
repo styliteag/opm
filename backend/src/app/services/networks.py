@@ -51,6 +51,7 @@ async def create_network(
     scanner_type: str = "masscan",
     scan_protocol: str = "tcp",
     alert_config: dict[str, Any] | None = None,
+    host_discovery_enabled: bool = True,
 ) -> Network:
     """Create a new network."""
     network = Network(
@@ -65,6 +66,7 @@ async def create_network(
         scanner_type=scanner_type,
         scan_protocol=scan_protocol,
         alert_config=alert_config,
+        host_discovery_enabled=host_discovery_enabled,
     )
     db.add(network)
     await db.flush()
@@ -86,6 +88,7 @@ async def update_network(
     scanner_type: str | None = None,
     scan_protocol: str | None = None,
     alert_config: dict[str, Any] | None = None,
+    host_discovery_enabled: bool | None = None,
     clear_schedule: bool = False,
     clear_alert_config: bool = False,
 ) -> Network:
@@ -105,6 +108,7 @@ async def update_network(
         scanner_type: New scanner type (if provided)
         scan_protocol: New scan protocol (if provided)
         alert_config: New alert config (if provided)
+        host_discovery_enabled: New host discovery enabled flag (if provided)
         clear_schedule: If True, clear the scan_schedule even if None
         clear_alert_config: If True, clear the alert_config even if None
     """
@@ -130,6 +134,8 @@ async def update_network(
         network.scan_protocol = scan_protocol
     if alert_config is not None or clear_alert_config:
         network.alert_config = alert_config
+    if host_discovery_enabled is not None:
+        network.host_discovery_enabled = host_discovery_enabled
 
     await db.flush()
     await db.refresh(network)

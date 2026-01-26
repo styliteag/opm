@@ -3,6 +3,11 @@
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.schemas.host import (
+    HostDiscoveryScanListResponse,
+    HostDiscoveryScanResponse,
+    TriggerHostDiscoveryResponse,
+)
 from app.schemas.network import (
     NetworkCreateRequest,
     NetworkListResponse,
@@ -21,6 +26,7 @@ from app.schemas.scan import (
     ScanSummaryResponse,
     ScanTriggerResponse,
 )
+from app.services import host_discovery as host_discovery_service
 from app.services import networks as networks_service
 from app.services import port_rules as port_rules_service
 from app.services import scanners as scanners_service
@@ -77,6 +83,7 @@ async def create_network(
         scanner_type=request.scanner_type,
         scan_protocol=request.scan_protocol,
         alert_config=request.alert_config,
+        host_discovery_enabled=request.host_discovery_enabled,
     )
     await db.commit()
 
@@ -146,6 +153,7 @@ async def update_network(
         scanner_type=request.scanner_type,
         scan_protocol=request.scan_protocol,
         alert_config=request.alert_config,
+        host_discovery_enabled=request.host_discovery_enabled,
     )
     await db.commit()
     return NetworkResponse.model_validate(updated_network)
@@ -360,4 +368,74 @@ async def list_network_scans(
             )
             for scan, port_count in scans_with_counts
         ]
+    )
+
+
+# Host Discovery Endpoints
+
+
+@router.post(
+    "/{network_id}/discover-hosts",
+    response_model=TriggerHostDiscoveryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def trigger_host_discovery(
+    admin: AdminUser,
+    db: DbSession,
+    network_id: int,
+) -> TriggerHostDiscoveryResponse:
+    """Trigger a host discovery scan for a network (admin only).
+
+    Creates a host discovery scan record with status 'planned'.
+    Returns immediately with scan_id and pending status.
+    """
+    # Validate network exists
+    network = await networks_service.get_network_by_id(db, network_id)
+    if network is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Network not found",
+        )
+
+    # Check if host discovery is enabled for this network
+    if not network.host_discovery_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Host discovery is disabled for this network",
+        )
+
+    scan = await host_discovery_service.create_host_discovery_scan(db, network)
+    await db.commit()
+
+    return TriggerHostDiscoveryResponse(
+        scan_id=scan.id,
+        message="Host discovery scan scheduled",
+    )
+
+
+@router.get("/{network_id}/host-discovery-scans", response_model=HostDiscoveryScanListResponse)
+async def list_host_discovery_scans(
+    user: CurrentUser,
+    db: DbSession,
+    network_id: int,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+) -> HostDiscoveryScanListResponse:
+    """Get host discovery scan history for a network.
+
+    Returns list of host discovery scans ordered by most recent first.
+    """
+    # Validate network exists
+    network = await networks_service.get_network_by_id(db, network_id)
+    if network is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Network not found",
+        )
+
+    scans = await host_discovery_service.get_host_discovery_scans_by_network(
+        db, network_id, offset=offset, limit=limit
+    )
+    return HostDiscoveryScanListResponse(
+        scans=[HostDiscoveryScanResponse.model_validate(scan) for scan in scans]
     )
