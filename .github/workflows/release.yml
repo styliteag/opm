@@ -118,6 +118,22 @@ jobs:
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
 
+      - name: Delete old GHCR package versions (open-port-monitor)
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: "styliteag/open-port-monitor"
+          package-type: "container"
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: false
+
+      - name: Delete old GHCR package versions (open-port-monitor-scanner)
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: "styliteag/open-port-monitor-scanner"
+          package-type: "container"
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: false
+
       - name: Extract release notes from CHANGELOG
         id: release_notes
         run: |
