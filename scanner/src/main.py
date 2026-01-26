@@ -6,9 +6,12 @@ import json
 import logging
 import math
 import os
+import pty
 import re
+import select
 import shlex
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -999,7 +1002,11 @@ def _run_nmap(
     logger: logging.Logger,
     progress_reporter: ProgressReporter | None = None,
 ) -> ScanRunResult:
-    """Run nmap scan and return list of open ports."""
+    """Run nmap scan and return list of open ports.
+
+    Uses pty.fork() to run nmap with a pseudo-TTY, which is required for nmap
+    to output progress statistics. Without a TTY, nmap suppresses progress output.
+    """
     include_ports, exclude_ports = _split_port_spec(port_spec)
 
     # Build port specification for nmap
@@ -1026,6 +1033,8 @@ def _run_nmap(
     else:  # both
         scan_flags = ["-sS", "-sU"]
 
+    # Use -oX <file> to write XML directly to file
+    # PTY output will contain progress stats which we parse for reporting
     command = [
         "nmap",
         *(["-6"] if is_ipv6 else []),
@@ -1036,7 +1045,7 @@ def _run_nmap(
         f"{int(scan_timeout) * 1000}ms",
         "--max-rtt-timeout",
         f"{int(port_timeout)}ms",
-        "-oX", output_path,  # XML output
+        "-oX", output_path,  # XML output to file
         "--open",  # Only show open ports
         "-T4",  # Aggressive timing (faster scan)
         "--stats-every", "5s",  # Print stats every 5 seconds for progress monitoring
@@ -1049,95 +1058,184 @@ def _run_nmap(
     if is_ipv6:
         logger.info("Nmap IPv6 mode enabled (-6)")
 
-    timeout_watcher: ProcessTimeoutWatcher | None = None
-    cancel_watcher: ScanCancellationWatcher | None = None
-    try:
-        # Use Popen to capture stderr for progress monitoring
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        timeout_watcher = ProcessTimeoutWatcher(
-            process=process,
-            timeout_seconds=scan_timeout,
-            logger=logger,
-            label="Nmap",
-        )
-        timeout_watcher.start()
-        cancel_watcher = ScanCancellationWatcher(
-            client=client,
-            scan_id=scan_id,
-            process=process,
-            logger=logger,
-        )
-        cancel_watcher.start()
+    # Use pty.fork() to run nmap with a pseudo-TTY
+    # This is required because nmap only outputs progress stats when running in a TTY
+    pid, master_fd = pty.fork()
 
-        stdout_lines: list[str] = []
-        # Read stdout (stderr is merged into stdout) line by line to extract progress
-        if process.stdout:
-            for line in process.stdout:
-                line = line.strip()
-                if not line:
-                    continue
-                stdout_lines.append(line)
-
-                uppercase_line = line.upper()
-                if "WARNING" in uppercase_line or "RTTVAR" in uppercase_line:
-                    logger.warning("Nmap: %s", line)
-                elif "ERROR" in uppercase_line or "FAILED" in uppercase_line:
-                    logger.error("Nmap: %s", line)
-                else:
-                    logger.info("Nmap: %s", line)
-
-                # Try to parse progress from stdout
-                if progress_reporter:
-                    progress = _parse_nmap_progress(line)
-                    if progress is not None:
-                        progress_reporter.update(progress, f"Scanning: {progress}% complete")
-
-        # Wait for process to complete
-        returncode = process.wait()
-
-        timed_out = False
-        cancelled = False
-        if timeout_watcher:
-            timeout_watcher.stop()
-            timeout_watcher.join()
-            timed_out = timeout_watcher.timed_out
-            timeout_watcher = None
-        if cancel_watcher:
-            cancel_watcher.stop()
-            cancel_watcher.join()
-            cancelled = cancel_watcher.cancelled
-            cancel_watcher = None
-
-        if cancelled:
-            with open(output_path, "r", encoding="utf-8") as handle:
-                content = handle.read()
-            return ScanRunResult(open_ports=_parse_nmap_xml(content, logger), cancelled=True)
-        if timed_out:
-            raise TimeoutError(f"Nmap exceeded timeout of {scan_timeout} seconds")
-        if returncode != 0:
-            stdout_output = "\n".join(stdout_lines)
-            if stdout_output:
-                logger.error("Nmap output: %s", stdout_output)
-            raise RuntimeError(f"Nmap failed with exit code {returncode}")
-
-        with open(output_path, "r", encoding="utf-8") as handle:
-            content = handle.read()
-    finally:
-        if timeout_watcher:
-            timeout_watcher.stop()
-            timeout_watcher.join()
-        if cancel_watcher:
-            cancel_watcher.stop()
-            cancel_watcher.join()
+    if pid == 0:
+        # Child process - exec nmap
         try:
-            os.remove(output_path)
+            os.execvp(command[0], command)
+        except Exception as e:
+            sys.stderr.write(f"Failed to exec nmap: {e}\n")
+            os._exit(1)
+
+    # Parent process - read output and manage child
+    timed_out = False
+    cancelled = False
+    child_exited = False
+    exit_status = 0
+    output_lines: list[str] = []
+
+    try:
+        start_time = time.time()
+        warning_issued = False
+        buffer = ""
+
+        while True:
+            elapsed = time.time() - start_time
+
+            # Check for timeout
+            if scan_timeout > 0 and elapsed >= scan_timeout:
+                if not timed_out:
+                    logger.error(
+                        "Nmap scan exceeded timeout (%s seconds); terminating",
+                        scan_timeout,
+                    )
+                    timed_out = True
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                    except OSError:
+                        pass
+                break
+
+            # Issue warning at 90% of timeout
+            if scan_timeout > 0 and not warning_issued and elapsed >= scan_timeout * 0.9:
+                logger.warning("Nmap scan approaching timeout (90%% elapsed)")
+                warning_issued = True
+
+            # Check for cancellation (poll backend)
+            try:
+                status = client.get_scan_status(scan_id)
+                if status == "cancelled":
+                    logger.warning("Scan cancelled by user request")
+                    cancelled = True
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                    except OSError:
+                        pass
+                    break
+            except Exception as exc:
+                logger.warning("Failed to check scan status: %s", exc)
+
+            # Check if child has exited
+            try:
+                wait_pid, wait_status = os.waitpid(pid, os.WNOHANG)
+                if wait_pid != 0:
+                    child_exited = True
+                    if os.WIFEXITED(wait_status):
+                        exit_status = os.WEXITSTATUS(wait_status)
+                    elif os.WIFSIGNALED(wait_status):
+                        exit_status = -os.WTERMSIG(wait_status)
+                    break
+            except ChildProcessError:
+                child_exited = True
+                break
+
+            # Read from PTY with select timeout
+            try:
+                readable, _, _ = select.select([master_fd], [], [], 1.0)
+                if master_fd in readable:
+                    try:
+                        data = os.read(master_fd, 4096)
+                        if not data:
+                            continue
+                        text = data.decode("utf-8", errors="replace")
+                        buffer += text
+
+                        # Process complete lines
+                        while "\n" in buffer:
+                            line, buffer = buffer.split("\n", 1)
+                            # Remove ANSI escape sequences
+                            line = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", line)
+                            line = line.strip()
+                            if not line:
+                                continue
+
+                            output_lines.append(line)
+                            uppercase_line = line.upper()
+
+                            # Log the line appropriately
+                            if "WARNING" in uppercase_line or "RTTVAR" in uppercase_line:
+                                logger.warning("Nmap: %s", line)
+                            elif "ERROR" in uppercase_line or "FAILED" in uppercase_line:
+                                logger.error("Nmap: %s", line)
+                            else:
+                                logger.info("Nmap: %s", line)
+
+                            # Parse progress
+                            if progress_reporter:
+                                progress = _parse_nmap_progress(line)
+                                if progress is not None:
+                                    logger.info(
+                                        "Parsed nmap progress: %.2f%% from line: %s",
+                                        progress,
+                                        line,
+                                    )
+                                    progress_reporter.update(
+                                        progress, f"Scanning: {progress}% complete"
+                                    )
+                    except OSError:
+                        # PTY closed
+                        pass
+            except (ValueError, OSError):
+                # select error, fd might be closed
+                break
+
+        # Wait for child if not already exited
+        if not child_exited:
+            try:
+                # Give it a moment to exit gracefully
+                for _ in range(10):
+                    wait_pid, wait_status = os.waitpid(pid, os.WNOHANG)
+                    if wait_pid != 0:
+                        if os.WIFEXITED(wait_status):
+                            exit_status = os.WEXITSTATUS(wait_status)
+                        elif os.WIFSIGNALED(wait_status):
+                            exit_status = -os.WTERMSIG(wait_status)
+                        child_exited = True
+                        break
+                    time.sleep(0.5)
+
+                if not child_exited:
+                    logger.error("Nmap did not terminate gracefully; killing")
+                    os.kill(pid, signal.SIGKILL)
+                    os.waitpid(pid, 0)
+            except (ChildProcessError, OSError):
+                pass
+
+    finally:
+        try:
+            os.close(master_fd)
         except OSError:
             pass
+
+    # Read results from XML file
+    content = ""
+    try:
+        with open(output_path, "r", encoding="utf-8") as handle:
+            content = handle.read()
+    except FileNotFoundError:
+        logger.warning("Nmap XML output file not found")
+    except Exception as exc:
+        logger.error("Failed to read nmap XML output: %s", exc)
+
+    # Clean up output file
+    try:
+        os.remove(output_path)
+    except OSError:
+        pass
+
+    # Handle results
+    if cancelled:
+        return ScanRunResult(open_ports=_parse_nmap_xml(content, logger), cancelled=True)
+    if timed_out:
+        raise TimeoutError(f"Nmap exceeded timeout of {scan_timeout} seconds")
+    if exit_status != 0:
+        output_text = "\n".join(output_lines[-20:])  # Last 20 lines for error context
+        if output_text:
+            logger.error("Nmap output (last 20 lines): %s", output_text)
+        raise RuntimeError(f"Nmap failed with exit code {exit_status}")
 
     return ScanRunResult(open_ports=_parse_nmap_xml(content, logger), cancelled=False)
 
