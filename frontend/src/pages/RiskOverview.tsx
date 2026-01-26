@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
-import type { Alert, AlertListResponse, NetworkListResponse, PolicyListResponse } from '../types'
+import type { Alert, AlertListResponse, NetworkListResponse, PolicyListResponse, GlobalOpenPort, GlobalOpenPortListResponse } from '../types'
 
 const formatDateTime = (value: Date) =>
     new Intl.DateTimeFormat(undefined, {
@@ -58,6 +58,7 @@ const RiskOverview = () => {
     const [statusFilter, setStatusFilter] = useState<
         'all' | 'blocked' | 'pending' | 'approved' | 'monitoring'
     >('all')
+    const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
     const now = new Date()
 
     const isAdmin = user?.role === 'admin'
@@ -84,8 +85,25 @@ const RiskOverview = () => {
         enabled: Boolean(token),
     })
 
+    // Fetch global ports for details
+    const globalPortsQuery = useQuery({
+        queryKey: ['global-ports'],
+        queryFn: () => fetchJson<GlobalOpenPortListResponse>('/api/global-ports', token ?? ''),
+        enabled: Boolean(token),
+    })
+
     const alerts = useMemo(() => alertsQuery.data?.alerts ?? [], [alertsQuery.data?.alerts])
     const networks = useMemo(() => networksQuery.data?.networks ?? [], [networksQuery.data?.networks])
+
+    // Build port lookup map
+    const portMap = useMemo(() => {
+        const map = new Map<number, GlobalOpenPort>()
+        for (const port of globalPortsQuery.data?.ports ?? []) {
+            map.set(port.id, port)
+        }
+        return map
+    }, [globalPortsQuery.data?.ports])
+
     // Build allowed/blocked sets
     const allowedSets = useMemo(() => {
         const rules = policyQuery.data?.rules ?? []
@@ -139,6 +157,15 @@ const RiskOverview = () => {
             return true
         })
     }, [alerts, severityFilter, networkFilter, statusFilter, isAlertAllowed])
+
+    const toggleRow = (alertId: number) => {
+        setExpandedRows(prev => {
+            const next = new Set(prev)
+            if (next.has(alertId)) next.delete(alertId)
+            else next.add(alertId)
+            return next
+        })
+    }
 
     // Policy mutations
     const bulkWhitelistGlobalMutation = useMutation({
@@ -367,6 +394,7 @@ const RiskOverview = () => {
                                             />
                                         </th>
                                     )}
+                                    <th className="w-10 px-2 py-3"></th>
                                     <th className="px-4 py-3">Severity</th>
                                     <th className="px-4 py-3">IP</th>
                                     <th className="px-4 py-3">Port</th>
@@ -378,13 +406,13 @@ const RiskOverview = () => {
                             <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
                                 {alertsQuery.isLoading || policyQuery.isLoading ? (
                                     <tr>
-                                        <td colSpan={isAdmin ? 7 : 6} className="px-4 py-6 text-sm text-slate-500">
+                                        <td colSpan={isAdmin ? 9 : 8} className="px-4 py-6 text-sm text-slate-500">
                                             Loading security context...
                                         </td>
                                     </tr>
                                 ) : filteredAlerts.length === 0 ? (
                                     <tr>
-                                        <td colSpan={isAdmin ? 7 : 6} className="px-4 py-6 text-sm text-slate-500">
+                                        <td colSpan={isAdmin ? 9 : 8} className="px-4 py-6 text-sm text-slate-500">
                                             No alerts found.
                                         </td>
                                     </tr>
@@ -396,63 +424,152 @@ const RiskOverview = () => {
                                         const severity = alert.severity as Severity
                                         const severityStyle = severityStyles[severity]
                                         const severityLabel = severityLabels[severity]
+                                        const isExpanded = expandedRows.has(alert.id)
+                                        const portData = alert.global_open_port_id ? portMap.get(alert.global_open_port_id) : null
 
                                         return (
-                                            <tr
-                                                key={alert.id}
-                                                className={`text-sm transition hover:bg-slate-50/80 dark:hover:bg-slate-900/40 ${alert.acknowledged ? 'opacity-60' : ''
-                                                    }`}
-                                            >
-                                                {isAdmin && (
-                                                    <td className="px-4 py-3">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedIds.has(alert.id)}
-                                                            onChange={(e) => handleSelectOne(alert.id, e.target.checked)}
-                                                            disabled={alert.acknowledged}
-                                                            className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 disabled:opacity-30"
-                                                        />
-                                                    </td>
-                                                )}
-                                                <td className="px-4 py-3">
-                                                    <span
-                                                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${severityStyle}`}
-                                                    >
-                                                        {severityLabel}
-                                                    </span>
-                                                </td>
-                                                <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
-                                                    {alert.ip}
-                                                </td>
-                                                <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
-                                                    {alert.port}
-                                                </td>
-                                                <td className="whitespace-nowrap px-4 py-3 text-slate-900 dark:text-white">
-                                                    {alert.network_name ?? <span className="text-slate-400">Global</span>}
-                                                </td>
-                                                <td className="whitespace-nowrap px-4 py-3">
-                                                    <p className="text-slate-700 dark:text-slate-200">{relativeTime}</p>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400">{fullTime}</p>
-                                                </td>
-                                                <td className="whitespace-nowrap px-4 py-3 text-right">
-                                                    {alert.acknowledged ? (
-                                                        <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
-                                                            Acknowledged ✓
-                                                        </span>
-                                                    ) : isAdmin ? (
-                                                        <button
-                                                            onClick={() => handleResolve(alert)}
-                                                            className="rounded-full border border-amber-300 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-500/20 dark:text-amber-200"
-                                                        >
-                                                            Resolve
-                                                        </button>
-                                                    ) : (
-                                                        <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
-                                                            Pending
-                                                        </span>
+                                            <React.Fragment key={alert.id}>
+                                                <tr
+                                                    onClick={() => toggleRow(alert.id)}
+                                                    className={`text-sm transition cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-900/40 ${alert.acknowledged ? 'opacity-60' : ''}`}
+                                                >
+                                                    {isAdmin && (
+                                                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedIds.has(alert.id)}
+                                                                onChange={(e) => handleSelectOne(alert.id, e.target.checked)}
+                                                                disabled={alert.acknowledged}
+                                                                className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 disabled:opacity-30"
+                                                            />
+                                                        </td>
                                                     )}
-                                                </td>
-                                            </tr>
+                                                    <td className="px-2 py-3">
+                                                        <svg
+                                                            className={`h-4 w-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span
+                                                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${severityStyle}`}
+                                                        >
+                                                            {severityLabel}
+                                                        </span>
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
+                                                        {alert.ip}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
+                                                        {alert.port}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-slate-900 dark:text-white">
+                                                        {alert.network_name ?? <span className="text-slate-400">Global</span>}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-4 py-3">
+                                                        <p className="text-slate-700 dark:text-slate-200">{relativeTime}</p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400">{fullTime}</p>
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                                        {alert.acknowledged ? (
+                                                            <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                                                                Acknowledged
+                                                            </span>
+                                                        ) : isAdmin ? (
+                                                            <button
+                                                                onClick={() => handleResolve(alert)}
+                                                                className="rounded-full border border-amber-300 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-500/20 dark:text-amber-200"
+                                                            >
+                                                                Resolve
+                                                            </button>
+                                                        ) : (
+                                                            <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
+                                                                Pending
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                                {isExpanded && (
+                                                    <tr className="bg-slate-50/20 dark:bg-slate-800/10">
+                                                        <td colSpan={isAdmin ? 9 : 8} className="px-16 py-12">
+                                                            {portData ? (
+                                                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
+                                                                    <div className="space-y-8">
+                                                                        <div>
+                                                                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.25em] mb-2">
+                                                                                Service Detection
+                                                                            </p>
+                                                                            <p className="text-lg font-black text-slate-900 dark:text-white">
+                                                                                {portData.service_guess || 'Unknown Service'}
+                                                                            </p>
+                                                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                                                Protocol: {portData.protocol.toUpperCase()}
+                                                                            </p>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+                                                                            <div>
+                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                                                                                    First Seen
+                                                                                </p>
+                                                                                <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                                                                                    {formatDateTime(parseUtcDate(portData.first_seen_at))}
+                                                                                </p>
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                                                                                    Last Seen
+                                                                                </p>
+                                                                                <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                                                                                    {formatDateTime(parseUtcDate(portData.last_seen_at))}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="space-y-8 border-l border-slate-100 dark:border-slate-800/50 pl-16">
+                                                                        <div>
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
+                                                                                MAC Address
+                                                                            </p>
+                                                                            <p className="text-lg font-black tracking-widest text-slate-900 dark:text-white uppercase">
+                                                                                {portData.mac_address || 'Unregistered'}
+                                                                            </p>
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
+                                                                                MAC Vendor
+                                                                            </p>
+                                                                            <p className="text-sm font-black text-indigo-600 uppercase tracking-widest italic">
+                                                                                {portData.mac_vendor || 'Unknown Vendor'}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="border-l border-slate-100 dark:border-slate-800/50 pl-16">
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">
+                                                                            Application Banner
+                                                                        </p>
+                                                                        <div className="bg-slate-950 rounded-[2rem] p-8 overflow-hidden border border-slate-800 relative group/code shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
+                                                                            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 opacity-60" />
+                                                                            <pre className="text-[12px] font-mono text-emerald-400/80 whitespace-pre-wrap leading-loose select-all italic">
+                                                                                {portData.banner || 'NO PAYLOAD DATA DETECTED'}
+                                                                            </pre>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-center py-8">
+                                                                    <p className="text-slate-500 dark:text-slate-400">
+                                                                        No port data available for this alert
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
                                         )
                                     })
                                 )}
