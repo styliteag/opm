@@ -88,3 +88,24 @@
 - PDF generation uses same authentication pattern (CurrentUser) and error handling (404) as CSV exports
 - The `doc.build(elements)` method writes to the BytesIO buffer, then get content with buffer.getvalue()
 ---
+## 2026-01-27 - US-005
+- Implemented GET /api/alerts/export/pdf endpoint
+- PDF includes report header with generation timestamp
+- PDF includes summary statistics: total alerts, open/acknowledged counts, breakdown by alert type
+- PDF includes detailed table of alerts with columns: Alert Type, IP, Port, Network, Status, Created At
+- Supports optional query params: alert_type (alias "type") and acknowledged for filtering
+- Filename format: alerts_{timestamp}.pdf
+- Used ReportLab's SimpleDocTemplate, Paragraph, Table, and TableStyle for PDF generation
+
+**Files changed:**
+- backend/src/app/routers/alerts.py
+
+**Learnings for future iterations:**
+- When generating PDF reports for list-based data (not single-item reports), calculate summary statistics before building PDF elements
+- Group-by operations in Python can be done efficiently with simple dict accumulation: `by_type[key] = by_type.get(key, 0) + 1`
+- Paragraph elements support HTML-like tags for formatting (e.g., `<b>`, `<br/>`)
+- For alerts PDF export, use same filter pattern as CSV export: get all alerts with large limit (10000) instead of pagination
+- The alerts_service.get_alerts() returns tuples of (alert, network_name), which is different from other services that return models directly
+- Pre-existing mypy errors in other files (e.g., alerts.py line 514 in bulk_whitelist_network) are not blockers for new code that passes type checks
+---
+

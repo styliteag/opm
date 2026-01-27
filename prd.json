@@ -1,7 +1,7 @@
 {
   "project": "Open Port Monitor",
-  "branchName": "ralph/export-reports",
-  "description": "Export Reports - Add CSV and PDF export functionality for scan results, alerts, and host data",
+  "branchName": "ralph/export-reports-trends-collaboration",
+  "description": "Multi-feature release: Export Reports (CSV/PDF), Historical Trend Analysis, and Alert Collaboration features",
   "userStories": [
     {
       "id": "US-001",
@@ -81,7 +81,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -151,6 +151,186 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add API endpoint for open ports trend data",
+      "description": "As a user, I want to retrieve historical open port counts over time so that I can visualize trends.",
+      "acceptanceCriteria": [
+        "Add GET /api/trends/open-ports endpoint with query params: network_id (optional), period (day/week/month), start_date, end_date",
+        "Endpoint aggregates open_ports data by time period (counts unique ip:port combinations per period)",
+        "Returns JSON array with {date, count} objects sorted by date ascending",
+        "Endpoint requires authentication (CurrentUser dependency)",
+        "Returns empty array if no data found",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add API endpoint for hosts trend data",
+      "description": "As a user, I want to retrieve historical host discovery counts over time so that I can visualize network growth.",
+      "acceptanceCriteria": [
+        "Add GET /api/trends/hosts endpoint with query params: network_id (optional), period (day/week/month), start_date, end_date",
+        "Endpoint aggregates hosts by first_seen_at grouped by time period",
+        "Returns JSON array with {date, count} objects sorted by date ascending",
+        "Endpoint requires authentication (CurrentUser dependency)",
+        "Returns empty array if no data found",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add API endpoint for alerts trend data",
+      "description": "As a user, I want to retrieve historical alert counts over time so that I can visualize security risk trends.",
+      "acceptanceCriteria": [
+        "Add GET /api/trends/alerts endpoint with query params: network_id (optional), alert_type (optional), period (day/week/month), start_date, end_date",
+        "Endpoint aggregates alerts by created_at grouped by time period",
+        "Returns JSON array with {date, count, acknowledged_count} objects sorted by date ascending",
+        "Endpoint requires authentication (CurrentUser dependency)",
+        "Returns empty array if no data found",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Add charting library and trend visualization component",
+      "description": "As a developer, I need a reusable chart component to display trend data.",
+      "acceptanceCriteria": [
+        "Install recharts library (or similar) to frontend package.json",
+        "Create TrendChart component that accepts data array and chart config props",
+        "Component renders line chart with time-based x-axis and count-based y-axis",
+        "Component handles loading and empty states",
+        "Chart is responsive and styled to match theme",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Create Trends page with historical visualizations",
+      "description": "As a user, I want a dedicated page to view historical trends for open ports, hosts, and alerts.",
+      "acceptanceCriteria": [
+        "Create new Trends page route at /trends",
+        "Add navigation link to Trends in main menu",
+        "Page displays three trend charts: Open Ports Over Time, Hosts Discovered Over Time, Alerts Over Time",
+        "Add time period selector (Last 7 days, Last 30 days, Last 90 days)",
+        "Add network filter dropdown (All Networks, or select specific network)",
+        "Charts update when filters change",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add alert_comments table to database",
+      "description": "As a developer, I need to store comments on alerts in the database.",
+      "acceptanceCriteria": [
+        "Create migration to add alert_comments table with columns: id, alert_id (FK), user_id (FK), comment (text), created_at, updated_at",
+        "Add AlertComment SQLAlchemy model with relationships to Alert and User",
+        "Migration runs successfully without errors",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Add assignment and status fields to alerts table",
+      "description": "As a developer, I need to track alert assignment and resolution status in the database.",
+      "acceptanceCriteria": [
+        "Create migration to add assigned_to_user_id (nullable FK to users) and resolution_status (enum: open/in_progress/resolved, default open) to alerts table",
+        "Update Alert model with new fields and relationship to assigned user",
+        "Update Alert schema to include assigned_to and resolution_status fields",
+        "Migration runs successfully without errors",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Add API endpoints for alert comments CRUD",
+      "description": "As a user, I want to add, view, edit, and delete comments on alerts.",
+      "acceptanceCriteria": [
+        "Add POST /api/alerts/{alert_id}/comments endpoint to create comment",
+        "Add GET /api/alerts/{alert_id}/comments endpoint to list comments",
+        "Add PATCH /api/alerts/{alert_id}/comments/{comment_id} endpoint to update comment",
+        "Add DELETE /api/alerts/{alert_id}/comments/{comment_id} endpoint to delete comment",
+        "Only comment author or admin can update/delete comments",
+        "All endpoints require authentication (CurrentUser dependency)",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Add API endpoints for alert assignment and status",
+      "description": "As a user, I want to assign alerts to team members and update resolution status.",
+      "acceptanceCriteria": [
+        "Add PATCH /api/alerts/{alert_id}/assign endpoint with user_id in body (null to unassign)",
+        "Add PATCH /api/alerts/{alert_id}/status endpoint with resolution_status in body",
+        "Endpoints validate user_id exists and resolution_status is valid enum value",
+        "Endpoints require authentication (CurrentUser dependency)",
+        "Return updated alert object after changes",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Add comments section to RiskOverview alert detail",
+      "description": "As a user, I want to view and add comments on alerts directly from the alerts page.",
+      "acceptanceCriteria": [
+        "Add expandable Comments section to each alert row or detail view in RiskOverview",
+        "Section displays existing comments with author name and timestamp",
+        "Add textarea and submit button to post new comment",
+        "Show edit/delete buttons for user's own comments (or admin)",
+        "Comments update in real-time after post/edit/delete",
+        "Handle errors gracefully with toast notifications",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Add assignment and status controls to alert rows",
+      "description": "As a user, I want to assign alerts to team members and track resolution status.",
+      "acceptanceCriteria": [
+        "Add Assign dropdown to each alert row showing list of users (fetched from /api/users)",
+        "Add Status dropdown to each alert row with options: Open, In Progress, Resolved",
+        "Dropdowns update immediately on selection and show loading state",
+        "Display assigned user and status in alert row/card",
+        "Add filter options for assigned user and resolution status",
+        "Handle errors gracefully with toast notifications",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
       "passes": false,
       "notes": ""
     }
