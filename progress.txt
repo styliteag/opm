@@ -43,3 +43,22 @@
 - For exports, use a large limit (10000) instead of pagination to get all records
 - The alerts_service.get_alerts() returns tuples of (alert, network_name) for each alert
 ---
+
+## 2026-01-27 - US-003
+- Implemented GET /api/hosts/export/csv endpoint
+- Added CSV export functionality with proper headers (IP, Hostname, Status, OS Guess, First Seen, Last Seen, Open Ports Count)
+- Supports optional query params: network_id and is_pingable (aliased as "status") for filtering
+- Uses FastAPI StreamingResponse with proper Content-Disposition header for file download
+- Filename format: hosts_{timestamp}.csv
+- Status field derived from is_pingable: null = "Unknown", true = "Up", false = "Down"
+
+**Files changed:**
+- backend/src/app/routers/hosts.py
+
+**Learnings for future iterations:**
+- Host model doesn't have an OS guess field, so it's left empty in the CSV export
+- The is_pingable field can be null, true, or false - need to handle all three cases
+- For hosts export, need to fetch open port count for each host individually using hosts_service.get_open_port_count_for_host()
+- The query parameter alias can be used to provide alternative names (e.g., "status" maps to is_pingable)
+- Pre-existing mypy errors in hosts service are not related to new router code
+---
