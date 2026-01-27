@@ -521,7 +521,7 @@ const Networks = () => {
                       }))
                     }
                     className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
-                    placeholder="192.168.10.0/24"
+                    placeholder="192.168.10.0/24 or 2001:db8::/32"
                   />
                 </label>
               </div>

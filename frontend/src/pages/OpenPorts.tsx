@@ -400,7 +400,7 @@ const OpenPorts = () => {
               value={ipRangeInput}
               onChange={(e) => setIpRangeInput(e.target.value)}
               className="bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-5 py-3 text-xs font-black focus:ring-8 ring-indigo-500/5 focus:border-indigo-500/30 outline-none w-64 transition-all shadow-inner tracking-widest"
-              placeholder="192.168.1.0/24"
+              placeholder="192.168.1.0/24 or 2001:db8::/32"
             />
           </div>
         </div>
