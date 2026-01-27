@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { fetchJson } from '../lib/api'
+import { API_BASE_URL, getAuthHeaders, fetchJson } from '../lib/api'
 import { ScanLogViewer } from '../components/ScanLogViewer'
 import { formatRawScanLogs, openScanLogsWindow, parseUtcDate } from '../utils/scanLogs'
 import type { OpenPort, ScanDetail, ScanDiff, ScanLogsResponse, ScansListResponse } from '../types'
@@ -58,11 +58,19 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelled',
 }
 
+type ToastMessage = {
+  message: string
+  tone: 'success' | 'error'
+}
+
 const ScanDetailPage = () => {
   const { token } = useAuth()
   const { scanId } = useParams<{ scanId: string }>()
   const [compareToId, setCompareToId] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<'ports' | 'logs'>('ports')
+  const [showExportDropdown, setShowExportDropdown] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [toast, setToast] = useState<ToastMessage | null>(null)
 
   const scanQuery = useQuery({
     queryKey: ['scan', scanId],
@@ -106,6 +114,67 @@ const ScanDetailPage = () => {
     const logText = formatRawScanLogs(logs)
     const title = scanId ? `Scan ${scanId} Logs` : 'Scan Logs'
     openScanLogsWindow(logText, title)
+  }
+
+  // Auto-dismiss toast after 3 seconds
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  const handleExportCsv = async () => {
+    if (!scanId || !token) return
+    setIsExporting(true)
+    setShowExportDropdown(false)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/scans/${scanId}/export/csv`, {
+        headers: getAuthHeaders(token),
+      })
+      if (!response.ok) {
+        throw new Error('Failed to export CSV')
+      }
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      link.download = `scan_${scanId}_${timestamp}.csv`
+      link.click()
+      URL.revokeObjectURL(url)
+      setToast({ message: 'CSV export complete', tone: 'success' })
+    } catch (error) {
+      setToast({ message: 'CSV export failed', tone: 'error' })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleExportPdf = async () => {
+    if (!scanId || !token) return
+    setIsExporting(true)
+    setShowExportDropdown(false)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/scans/${scanId}/export/pdf`, {
+        headers: getAuthHeaders(token),
+      })
+      if (!response.ok) {
+        throw new Error('Failed to export PDF')
+      }
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      link.download = `scan_${scanId}_${timestamp}.pdf`
+      link.click()
+      URL.revokeObjectURL(url)
+      setToast({ message: 'PDF export complete', tone: 'success' })
+    } catch (error) {
+      setToast({ message: 'PDF export failed', tone: 'error' })
+    } finally {
+      setIsExporting(false)
+    }
   }
   const errorLogs = [...logs]
     .filter((log) => log.level.toLowerCase() === 'error')
@@ -212,6 +281,34 @@ const ScanDetailPage = () => {
                   </h2>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowExportDropdown(!showExportDropdown)}
+                      disabled={isExporting}
+                      className="rounded-full border border-cyan-200 bg-cyan-500/10 px-4 py-2 text-xs font-semibold text-cyan-600 transition hover:border-cyan-300 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-cyan-400/40 dark:bg-cyan-500/20 dark:text-cyan-300 dark:hover:border-cyan-400/60 dark:hover:bg-cyan-500/30"
+                    >
+                      {isExporting ? 'Exporting...' : 'Export ▾'}
+                    </button>
+                    {showExportDropdown && (
+                      <div className="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:border-slate-800/70 dark:bg-slate-950">
+                        <button
+                          type="button"
+                          onClick={handleExportCsv}
+                          className="block w-full px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-900"
+                        >
+                          Export as CSV
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleExportPdf}
+                          className="block w-full px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-900"
+                        >
+                          Export as PDF
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <Link
                     to={`/scans?network_id=${scan.network_id}`}
                     className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
@@ -599,6 +696,17 @@ const ScanDetailPage = () => {
           ) : null}
         </div>
       </section>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-top-4 duration-300">
+          <div
+            className={`px-8 py-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] font-black uppercase text-xs tracking-[0.2em] border ${toast.tone === 'success' ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-rose-500 border-rose-400 text-white'}`}
+          >
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
