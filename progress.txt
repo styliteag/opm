@@ -176,3 +176,27 @@
 - Browser testing requires valid authentication credentials - manual testing recommended for full verification
 ---
 
+## 2026-01-27 - US-009
+- Implemented Export dropdown button on Hosts page
+- Added dropdown with "Export as CSV" and "Export as PDF" options
+- Positioned before admin-only controls (network selection and discovery button) in header
+- Implemented handleExportCsv and handleExportPdf functions using fetch API with blob download pattern
+- Export functions respect current filters: network_id and pingable status filters
+- Filter mapping: pingableFilter='yes' → status=true, pingableFilter='no' → status=false
+- Added loading state ("Exporting...") during export operations
+- Reused existing toast notification system for success/error messages
+- Dropdown closes automatically when export is triggered
+- Typecheck passes
+
+**Files changed:**
+- frontend/src/pages/Hosts.tsx
+
+**Learnings for future iterations:**
+- Export dropdown follows same pattern as ScanDetail (US-007) and RiskOverview (US-008) pages
+- Hosts page has simpler filter state compared to RiskOverview (networkFilter and pingableFilter)
+- Filter parameter name mapping: pingableFilter uses 'status' query param (not 'is_pingable') for the export endpoints
+- Positioned Export button to be accessible to all users (not just admins), placed before admin-specific discovery controls
+- Toast notification state already exists in Hosts page (reused existing implementation like other pages)
+- Export dropdown should be visible to all authenticated users, not just admins, for reporting purposes
+---
+
