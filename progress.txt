@@ -298,3 +298,31 @@
 - ResponsiveContainer with 100% width and fixed height (300px) provides good chart sizing
 ---
 
+## 2026-01-27 - US-014
+- Implemented Trends page with historical visualizations
+- Created new Trends page component at frontend/src/pages/Trends.tsx with route /trends
+- Added "Trends" navigation link to main menu in App.tsx between "Risk Overview" and "Policy"
+- Added route to router configuration in main.tsx
+- Implemented time period selector with options: Last 7 days, Last 30 days, Last 90 days (default: 30 days)
+- Implemented network filter dropdown showing all networks or specific network selection
+- Added three trend charts using TrendChart component: Open Ports Over Time, Hosts Discovered Over Time, Alerts Over Time
+- Charts update automatically when filters change using React Query
+- Alerts chart displays two lines: total count (red) and acknowledged count (orange)
+- Verified in browser: all charts display correctly with proper styling and responsive layout
+- Typecheck passes
+
+**Files changed:**
+- frontend/src/pages/Trends.tsx (new)
+- frontend/src/App.tsx
+- frontend/src/main.tsx
+
+**Learnings for future iterations:**
+- Pages that use new npm dependencies (like recharts) require rebuilding the Docker frontend container: `docker compose -f compose-dev.yml up -d --build frontend`
+- Date range calculation pattern: Use new Date() and setDate() to calculate start/end dates based on period
+- React Query integration: Build query params dynamically with URLSearchParams and include all filter values in queryKey for proper cache invalidation
+- Multiple trend queries can run in parallel using React Query - each chart has its own query with loading/error states
+- TrendChart component (from US-013) supports both single and dual line charts via dataKey2 prop
+- Filter state pattern: Use useState for filter values (period, networkId) and useMemo for derived values (dateRange)
+- Browser testing with dev-browser: Admin credentials are admin@stylite.de / admin (from database, not the default admin@example.com)
+---
+
