@@ -225,3 +225,23 @@
 - Pre-existing mypy errors in other services (hosts.py, policy.py, etc.) are not blockers for new code
 ---
 
+## 2026-01-27 - US-011
+- Implemented GET /api/trends/hosts endpoint for historical host discovery trend data
+- Endpoint aggregates hosts by first_seen_at grouped by time period (day/week/month)
+- Supports filtering by network_id and date range (start_date, end_date)
+- Returns JSON array with {date, count} objects sorted by date ascending
+- Used same SQL date aggregation pattern as open-ports endpoint (func.date, func.date_sub, func.concat)
+- Network filtering uses func.json_contains to check if network_id is in seen_by_networks JSON array
+- Typecheck and ruff checks pass
+
+**Files changed:**
+- backend/src/app/routers/trends.py
+
+**Learnings for future iterations:**
+- Hosts model stores network associations in seen_by_networks JSON array field (not a foreign key)
+- Network filtering for hosts requires func.json_contains(Host.seen_by_networks, str(network_id))
+- Trend aggregation pattern reused from US-010: date truncation logic based on period type
+- Hosts are counted by Host.id (simple count), not distinct combinations like open ports
+- Same PeriodType enum and TrendDataPoint/TrendDataResponse schemas work for all trend endpoints
+---
+
