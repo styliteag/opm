@@ -46,3 +46,11 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Ralph
+.ralph/
+archive/
+tasks/
+RALPH_TASK.md
+progress.txt
+prd.json
