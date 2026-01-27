@@ -19,6 +19,7 @@ import OpenPorts from './pages/OpenPorts.tsx'
 import Policy from './pages/Policy.tsx'
 import RiskOverview from './pages/RiskOverview.tsx'
 import Hosts from './pages/Hosts.tsx'
+import Trends from './pages/Trends.tsx'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -82,6 +83,10 @@ const router = createBrowserRouter([
       {
         path: 'users',
         element: <Users />,
+      },
+      {
+        path: 'trends',
+        element: <Trends />,
       },
     ],
   },

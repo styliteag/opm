@@ -11,6 +11,7 @@ function App() {
     { label: 'Scans', to: '/scans' },
     { label: 'Hosts', to: '/hosts' },
     { label: 'Risk Overview', to: '/risk-overview' },
+    { label: 'Trends', to: '/trends' },
     { label: 'Policy', to: '/policy' },
     ...(user?.role === 'admin' ? [{ label: 'Users', to: '/users' }] : []),
   ]
