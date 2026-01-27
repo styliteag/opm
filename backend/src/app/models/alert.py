@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.global_open_port import GlobalOpenPort
     from app.models.network import Network
     from app.models.scan import Scan
+    from app.models.user import User
 
 
 class AlertType(str, Enum):
@@ -23,6 +24,14 @@ class AlertType(str, Enum):
     NEW_PORT = "new_port"
     NOT_ALLOWED = "not_allowed"
     BLOCKED = "blocked"
+
+
+class ResolutionStatus(str, Enum):
+    """Alert resolution status values."""
+
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
 
 
 class Alert(Base):
@@ -45,6 +54,14 @@ class Alert(Base):
     port: Mapped[int] = mapped_column(nullable=False, index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    assigned_to_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
+    resolution_status: Mapped[ResolutionStatus] = mapped_column(
+        SQLEnum(ResolutionStatus, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=ResolutionStatus.OPEN,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
@@ -56,3 +73,4 @@ class Alert(Base):
     comments: Mapped[list["AlertComment"]] = relationship(
         "AlertComment", back_populates="alert", cascade="all, delete-orphan"
     )
+    assigned_to: Mapped["User | None"] = relationship("User", back_populates="assigned_alerts")

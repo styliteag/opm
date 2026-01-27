@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 if TYPE_CHECKING:
+    from app.models.alert import Alert
     from app.models.alert_comment import AlertComment
 
 
@@ -57,4 +58,7 @@ class User(Base):
     # Relationships
     alert_comments: Mapped[list["AlertComment"]] = relationship(
         "AlertComment", back_populates="user"
+    )
+    assigned_alerts: Mapped[list["Alert"]] = relationship(
+        "Alert", back_populates="assigned_to"
     )

@@ -5,7 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel
 
-from app.models.alert import AlertType
+from app.models.alert import AlertType, ResolutionStatus
 
 
 class Severity(str, Enum):
@@ -29,6 +29,9 @@ class AlertResponse(BaseModel):
     port: int
     message: str
     acknowledged: bool
+    assigned_to_user_id: int | None = None
+    assigned_to_email: str | None = None
+    resolution_status: ResolutionStatus = ResolutionStatus.OPEN
     created_at: datetime
     severity: Severity = Severity.MEDIUM  # Computed field
     # Host information (if available)
