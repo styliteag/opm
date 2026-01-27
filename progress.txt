@@ -1,8 +1,10 @@
 ## Codebase Patterns
 - FastAPI CSV export pattern: Use StreamingResponse with StringIO, csv.writer, and Content-Disposition header
+- FastAPI PDF export pattern: Use StreamingResponse with BytesIO, ReportLab SimpleDocTemplate, and list[Flowable] for elements
 - Authentication via CurrentUser dependency from app.core.deps
 - Backend quality checks: `docker exec opm-backend uv run mypy src/` and `docker exec opm-backend uv run ruff check src/`
 - Endpoint pattern: fetch model with relationships → return 404 if not found → process data → return response
+- For reportlab: Install both reportlab package and types-reportlab for type stubs
 
 ---
 
@@ -61,4 +63,28 @@
 - For hosts export, need to fetch open port count for each host individually using hosts_service.get_open_port_count_for_host()
 - The query parameter alias can be used to provide alternative names (e.g., "status" maps to is_pingable)
 - Pre-existing mypy errors in hosts service are not related to new router code
+---
+
+## 2026-01-27 - US-004
+- Implemented GET /api/scans/{scan_id}/export/pdf endpoint
+- Installed reportlab library (version 4.4.9) for PDF generation
+- PDF includes scan metadata (network name, scan date, status, completion date)
+- PDF includes summary statistics showing total open ports found
+- PDF includes detailed table of open ports with headers: IP, Port, Protocol, Service, First Seen, Last Seen
+- Filename format: scan_{scan_id}_{timestamp}.pdf
+- Used ReportLab's SimpleDocTemplate, Paragraph, Table, and TableStyle for PDF generation
+
+**Files changed:**
+- backend/src/app/routers/scans.py
+- backend/pyproject.toml
+
+**Learnings for future iterations:**
+- FastAPI PDF export pattern: Use StreamingResponse with BytesIO (not StringIO like CSV)
+- ReportLab requires type annotations: use `list[Flowable]` for elements list to pass mypy strict mode
+- Install both `reportlab` package AND `types-reportlab` for type stubs to pass mypy checks
+- ReportLab uses inch units from reportlab.lib.units for sizing
+- Table styling uses TableStyle with tuples like ('BACKGROUND', (0, 0), (-1, 0), colors.grey)
+- For long lines that exceed 100 chars (ruff E501), extract variables or use parentheses for multi-line expressions
+- PDF generation uses same authentication pattern (CurrentUser) and error handling (404) as CSV exports
+- The `doc.build(elements)` method writes to the BytesIO buffer, then get content with buffer.getvalue()
 ---
