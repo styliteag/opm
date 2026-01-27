@@ -11,12 +11,18 @@
     --opm-ink: #0f172a;
     --opm-bg: #f8fafc;
     --opm-card: rgba(255, 255, 255, 0.82);
+    --tooltip-bg: #ffffff;
+    --tooltip-border: #e2e8f0;
+    --tooltip-text: #0f172a;
   }
 
   .dark {
     --opm-ink: #e2e8f0;
     --opm-bg: #020617;
     --opm-card: rgba(15, 23, 42, 0.72);
+    --tooltip-bg: #0f172a;
+    --tooltip-border: #1e293b;
+    --tooltip-text: #e2e8f0;
   }
 
   html {
