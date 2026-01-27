@@ -75,6 +75,8 @@ const RiskOverview = () => {
     const [searchQuery, setSearchQuery] = useState('')
     const [sortColumn, setSortColumn] = useState<'severity' | 'ip' | 'port' | 'network' | 'time'>('time')
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+    const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
+    const [isExporting, setIsExporting] = useState(false)
     const now = new Date()
 
     const isAdmin = user?.role === 'admin'
@@ -379,6 +381,76 @@ const RiskOverview = () => {
         onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
     })
 
+    const handleExportCsv = async () => {
+        setIsExporting(true)
+        setExportDropdownOpen(false)
+        try {
+            const queryParams = new URLSearchParams()
+            if (severityFilter) queryParams.append('type', severityFilter)
+            if (statusFilter === 'pending') queryParams.append('acknowledged', 'false')
+            else if (statusFilter === 'monitoring') queryParams.append('acknowledged', 'true')
+
+            const url = `${API_BASE_URL}/api/alerts/export/csv${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+            const response = await fetch(url, { headers: getAuthHeaders(token ?? '') })
+
+            if (!response.ok) throw new Error(await extractErrorMessage(response))
+
+            const blob = await response.blob()
+            const downloadUrl = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = downloadUrl
+            link.download = `alerts_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.csv`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            window.URL.revokeObjectURL(downloadUrl)
+
+            setToast({ message: 'Alerts exported successfully', tone: 'success' })
+        } catch (error) {
+            setToast({
+                message: error instanceof Error ? error.message : 'Export failed',
+                tone: 'error'
+            })
+        } finally {
+            setIsExporting(false)
+        }
+    }
+
+    const handleExportPdf = async () => {
+        setIsExporting(true)
+        setExportDropdownOpen(false)
+        try {
+            const queryParams = new URLSearchParams()
+            if (severityFilter) queryParams.append('type', severityFilter)
+            if (statusFilter === 'pending') queryParams.append('acknowledged', 'false')
+            else if (statusFilter === 'monitoring') queryParams.append('acknowledged', 'true')
+
+            const url = `${API_BASE_URL}/api/alerts/export/pdf${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+            const response = await fetch(url, { headers: getAuthHeaders(token ?? '') })
+
+            if (!response.ok) throw new Error(await extractErrorMessage(response))
+
+            const blob = await response.blob()
+            const downloadUrl = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = downloadUrl
+            link.download = `alerts_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.pdf`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            window.URL.revokeObjectURL(downloadUrl)
+
+            setToast({ message: 'Alerts exported successfully', tone: 'success' })
+        } catch (error) {
+            setToast({
+                message: error instanceof Error ? error.message : 'Export failed',
+                tone: 'error'
+            })
+        } finally {
+            setIsExporting(false)
+        }
+    }
+
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
             const unackIds = filteredAlerts.filter((a) => !a.acknowledged).map((a) => a.id)
@@ -467,6 +539,31 @@ const RiskOverview = () => {
                                     Resolve ({selectedIds.size})
                                 </button>
                             )}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+                                    disabled={isExporting}
+                                    className="rounded-full border border-emerald-200 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isExporting ? 'Exporting...' : 'Export'}
+                                </button>
+                                {exportDropdownOpen && !isExporting && (
+                                    <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-2xl border border-slate-200/70 bg-white shadow-lg dark:border-slate-800/70 dark:bg-slate-900">
+                                        <button
+                                            onClick={handleExportCsv}
+                                            className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-t-2xl transition"
+                                        >
+                                            Export as CSV
+                                        </button>
+                                        <button
+                                            onClick={handleExportPdf}
+                                            className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-b-2xl transition"
+                                        >
+                                            Export as PDF
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                             <Link
                                 to="/policy"
                                 className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
