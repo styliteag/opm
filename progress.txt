@@ -326,3 +326,27 @@
 - Browser testing with dev-browser: Admin credentials are admin@stylite.de / admin (from database, not the default admin@example.com)
 ---
 
+## 2026-01-27 - US-015
+- Implemented alert_comments table migration (revision 002)
+- Created AlertComment SQLAlchemy model with relationships to Alert and User
+- Added bidirectional relationships: Alert.comments and User.alert_comments
+- Migration includes CASCADE delete on alert_id foreign key to automatically clean up comments when alerts are deleted
+- Migration ran successfully and database is at revision 002 (head)
+- Typecheck and ruff checks pass for all new/modified files
+
+**Files changed:**
+- backend/src/migrations/versions/002_add_alert_comments.py (new)
+- backend/src/app/models/alert_comment.py (new)
+- backend/src/app/models/alert.py (added comments relationship)
+- backend/src/app/models/user.py (added alert_comments relationship)
+- backend/src/app/models/__init__.py (exported AlertComment model)
+
+**Learnings for future iterations:**
+- Migration pattern: Use ondelete="CASCADE" for foreign keys when child records should be deleted with parent
+- Model relationships: Use cascade="all, delete-orphan" on parent side for bidirectional one-to-many relationships
+- Updated_at pattern: Use server_default and onupdate with func.now() for automatic timestamp updates
+- When adding relationships to existing models, import new model in TYPE_CHECKING block to avoid circular imports
+- Migration revision numbering: Use simple sequential numbers (001, 002, etc.) with down_revision pointing to previous
+- Quality checks pattern: Run mypy and ruff on specific new/modified files to verify no new errors introduced
+- Pre-existing mypy errors in other files (hosts.py, policy.py, alerts.py, etc.) are not blockers for new code
+---
