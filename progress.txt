@@ -268,3 +268,33 @@
 - Coalesce null acknowledged_count with `or 0` to ensure integer return type
 ---
 
+## 2026-01-27 - US-013
+- Implemented TrendChart component for displaying historical trend data
+- Installed recharts library (version 4.2.0) for line chart visualization
+- Created reusable component that accepts data array and chart config props
+- Component renders responsive line chart with time-based x-axis and count-based y-axis
+- Implemented loading state with spinner animation
+- Implemented empty state with "No data available" message
+- Implemented error state with error message display
+- Styled component with TailwindCSS matching theme (dark mode support)
+- Added CSS variables for tooltip colors in both light and dark modes
+- Chart supports single or dual line rendering (e.g., total count + acknowledged count)
+- Typecheck passes
+
+**Files changed:**
+- frontend/src/components/TrendChart.tsx (new)
+- frontend/package.json
+- frontend/package-lock.json
+- frontend/src/index.css
+
+**Learnings for future iterations:**
+- Recharts library pattern: Use ResponsiveContainer with LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, and Legend components
+- TrendChart accepts generic data array with date/count fields and a config object for customization
+- Config includes: title, dataKey (for primary line), optional dataKey2 (for secondary line), colors, and axis labels
+- Loading/empty/error states are essential for good UX when fetching async data
+- CSS variables for tooltip styling: --tooltip-bg, --tooltip-border, --tooltip-text ensure proper dark mode support
+- Recharts Tooltip contentStyle accepts CSS variables via var() for theme-aware styling
+- Line component name prop can format dataKey with proper capitalization for legend display
+- ResponsiveContainer with 100% width and fixed height (300px) provides good chart sizing
+---
+
