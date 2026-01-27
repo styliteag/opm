@@ -118,6 +118,7 @@ class OpenPortData(BaseModel):
     protocol: str = "tcp"
     ttl: int | None = None
     banner: str | None = None
+    service_guess: str | None = None
     mac_address: str | None = None
     mac_vendor: str | None = None
 

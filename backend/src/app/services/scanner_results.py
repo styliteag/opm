@@ -105,6 +105,7 @@ async def submit_scan_results(
             protocol=port_data.protocol,
             ttl=port_data.ttl,
             banner=port_data.banner,
+            service_guess=port_data.service_guess,
             mac_address=port_data.mac_address,
             mac_vendor=port_data.mac_vendor,
             first_seen_at=first_seen,
@@ -117,7 +118,7 @@ async def submit_scan_results(
                 port_data.port,
                 port_data.protocol,
                 port_data.banner,
-                None,  # service_guess not in scan results
+                port_data.service_guess,
                 port_data.mac_address,
                 port_data.mac_vendor,
             )

@@ -18,6 +18,7 @@ from app.schemas.alert import (
 )
 from app.services import alerts as alerts_service
 from app.services import global_port_rules as global_rules_service
+from app.services import hosts as hosts_service
 from app.services import networks as networks_service
 from app.services import port_rules as port_rules_service
 from app.services.global_port_rules import is_port_blocked
@@ -78,12 +79,26 @@ async def list_alerts(
         limit=limit,
     )
 
+    # Build a cache of hosts by IP to avoid N+1 queries
+    unique_ips = set(alert.ip for alert, _ in alerts)
+    host_cache: dict[str, tuple[int, str | None, str | None]] = {}
+    for ip in unique_ips:
+        host = await hosts_service.get_host_by_ip(db, ip)
+        if host:
+            host_cache[ip] = (host.id, host.hostname, host.user_comment)
+
     # Compute severity for each alert
     alert_responses = []
     for alert, network_name in alerts:
         severity = await compute_alert_severity(
             db, alert.alert_type, alert.ip, alert.port, alert.acknowledged
         )
+        # Get host info from cache
+        host_info = host_cache.get(alert.ip)
+        host_id = host_info[0] if host_info else None
+        hostname = host_info[1] if host_info else None
+        user_comment = host_info[2] if host_info else None
+
         alert_responses.append(
             AlertResponse(
                 id=alert.id,
@@ -97,6 +112,9 @@ async def list_alerts(
                 acknowledged=alert.acknowledged,
                 created_at=alert.created_at,
                 severity=severity,
+                host_id=host_id,
+                hostname=hostname,
+                user_comment=user_comment,
             )
         )
 

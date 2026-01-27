@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
@@ -23,6 +23,17 @@ const formatRelativeTime = (value: Date, now: Date) => {
     if (hours < 24) return `${hours}h ago`
     const days = Math.floor(hours / 24)
     return `${days}d ago`
+}
+
+const getServiceName = (serviceGuess: string | null | undefined, banner: string | null | undefined): string => {
+    // Use service_guess if available
+    if (serviceGuess) return serviceGuess
+    // Fall back to first word of banner (e.g., "http" from "http Golang net/http server")
+    if (banner) {
+        const firstWord = banner.split(' ')[0]
+        if (firstWord) return firstWord
+    }
+    return 'Unknown Service'
 }
 
 type Severity = 'critical' | 'high' | 'medium' | 'info'
@@ -59,9 +70,17 @@ const RiskOverview = () => {
         'all' | 'blocked' | 'pending' | 'approved' | 'monitoring'
     >('all')
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
+    const [editingComment, setEditingComment] = useState<{ hostId: number; comment: string; ip: string } | null>(null)
+    const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
     const now = new Date()
 
     const isAdmin = user?.role === 'admin'
+
+    useEffect(() => {
+        if (!toast) return
+        const t = setTimeout(() => setToast(null), 3000)
+        return () => clearTimeout(t)
+    }, [toast])
 
     // Fetch alerts
     const alertsQuery = useQuery({
@@ -238,6 +257,24 @@ const RiskOverview = () => {
         },
     })
 
+    const updateCommentMutation = useMutation({
+        mutationFn: async ({ hostId, comment }: { hostId: number; comment: string | null }) => {
+            const res = await fetch(`${API_BASE_URL}/api/hosts/${hostId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders(token ?? '') },
+                body: JSON.stringify({ user_comment: comment }),
+            })
+            if (!res.ok) throw new Error(await extractErrorMessage(res))
+            return res.json()
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['alerts'] })
+            setToast({ message: 'Comment updated', tone: 'success' })
+            setEditingComment(null)
+        },
+        onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
+    })
+
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
             const unackIds = filteredAlerts.filter((a) => !a.acknowledged).map((a) => a.id)
@@ -290,6 +327,16 @@ const RiskOverview = () => {
 
     return (
         <div className="relative">
+            {toast && (
+                <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-top-4 duration-300">
+                    <div
+                        className={`px-8 py-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] font-black uppercase text-xs tracking-[0.2em] border ${toast.tone === 'success' ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-rose-500 border-rose-400 text-white'}`}
+                    >
+                        {toast.message}
+                    </div>
+                </div>
+            )}
+
             <div className="pointer-events-none absolute -left-20 top-16 h-64 w-64 animate-drift rounded-full bg-rose-500/15 blur-[130px]" />
             <div className="pointer-events-none absolute right-0 top-32 h-64 w-64 animate-drift rounded-full bg-amber-500/20 blur-[140px]" />
 
@@ -396,7 +443,7 @@ const RiskOverview = () => {
                                     )}
                                     <th className="w-10 px-2 py-3"></th>
                                     <th className="px-4 py-3">Severity</th>
-                                    <th className="px-4 py-3">IP</th>
+                                    <th className="px-4 py-3">IP / Hostname</th>
                                     <th className="px-4 py-3">Port</th>
                                     <th className="px-4 py-3">Network</th>
                                     <th className="px-4 py-3">Time</th>
@@ -461,8 +508,15 @@ const RiskOverview = () => {
                                                             {severityLabel}
                                                         </span>
                                                     </td>
-                                                    <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
-                                                        {alert.ip}
+                                                    <td className="px-4 py-3">
+                                                        <p className="font-mono text-slate-600 dark:text-slate-300">
+                                                            {alert.ip}
+                                                        </p>
+                                                        {alert.hostname && (
+                                                            <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">
+                                                                {alert.hostname}
+                                                            </p>
+                                                        )}
                                                     </td>
                                                     <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
                                                         {alert.port}
@@ -497,14 +551,14 @@ const RiskOverview = () => {
                                                     <tr className="bg-slate-50/20 dark:bg-slate-800/10">
                                                         <td colSpan={isAdmin ? 9 : 8} className="px-16 py-12">
                                                             {portData ? (
-                                                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
+                                                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                                                                     <div className="space-y-8">
                                                                         <div>
                                                                             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.25em] mb-2">
                                                                                 Service Detection
                                                                             </p>
                                                                             <p className="text-lg font-black text-slate-900 dark:text-white">
-                                                                                {portData.service_guess || 'Unknown Service'}
+                                                                                {getServiceName(portData.service_guess, portData.banner)}
                                                                             </p>
                                                                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                                                                 Protocol: {portData.protocol.toUpperCase()}
@@ -529,41 +583,95 @@ const RiskOverview = () => {
                                                                             </div>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="space-y-8 border-l border-slate-100 dark:border-slate-800/50 pl-16">
-                                                                        <div>
-                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
-                                                                                MAC Address
+                                                                    <div className="border-l border-slate-100 dark:border-slate-800/50 pl-12">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                                                                                Host Comment
                                                                             </p>
-                                                                            <p className="text-lg font-black tracking-widest text-slate-900 dark:text-white uppercase">
-                                                                                {portData.mac_address || 'Unregistered'}
-                                                                            </p>
+                                                                            {isAdmin && alert.host_id && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation()
+                                                                                        setEditingComment({
+                                                                                            hostId: alert.host_id!,
+                                                                                            comment: alert.user_comment || '',
+                                                                                            ip: alert.ip,
+                                                                                        })
+                                                                                    }}
+                                                                                    className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors"
+                                                                                >
+                                                                                    Edit
+                                                                                </button>
+                                                                            )}
                                                                         </div>
-                                                                        <div>
-                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
-                                                                                MAC Vendor
-                                                                            </p>
-                                                                            <p className="text-sm font-black text-indigo-600 uppercase tracking-widest italic">
-                                                                                {portData.mac_vendor || 'Unknown Vendor'}
-                                                                            </p>
-                                                                        </div>
+                                                                        <p className="text-xs text-slate-600 dark:text-slate-400 italic">
+                                                                            {alert.user_comment || 'No comment'}
+                                                                        </p>
+                                                                        {alert.hostname && (
+                                                                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
+                                                                                    Hostname
+                                                                                </p>
+                                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                                                                                    {alert.hostname}
+                                                                                </p>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                    <div className="border-l border-slate-100 dark:border-slate-800/50 pl-16">
+                                                                    <div className="border-l border-slate-100 dark:border-slate-800/50 pl-12">
                                                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">
                                                                             Application Banner
                                                                         </p>
-                                                                        <div className="bg-slate-950 rounded-[2rem] p-8 overflow-hidden border border-slate-800 relative group/code shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
+                                                                        <div className="bg-slate-950 rounded-2xl p-6 overflow-hidden border border-slate-800 relative group/code shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
                                                                             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 opacity-60" />
-                                                                            <pre className="text-[12px] font-mono text-emerald-400/80 whitespace-pre-wrap leading-loose select-all italic">
+                                                                            <pre className="text-[11px] font-mono text-emerald-400/80 whitespace-pre-wrap leading-loose select-all italic">
                                                                                 {portData.banner || 'NO PAYLOAD DATA DETECTED'}
                                                                             </pre>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                             ) : (
-                                                                <div className="text-center py-8">
-                                                                    <p className="text-slate-500 dark:text-slate-400">
-                                                                        No port data available for this alert
-                                                                    </p>
+                                                                <div className="flex items-start gap-8">
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                                                                                Host Comment
+                                                                            </p>
+                                                                            {isAdmin && alert.host_id && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation()
+                                                                                        setEditingComment({
+                                                                                            hostId: alert.host_id!,
+                                                                                            comment: alert.user_comment || '',
+                                                                                            ip: alert.ip,
+                                                                                        })
+                                                                                    }}
+                                                                                    className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors"
+                                                                                >
+                                                                                    Edit
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                        <p className="text-xs text-slate-600 dark:text-slate-400 italic">
+                                                                            {alert.user_comment || 'No comment'}
+                                                                        </p>
+                                                                        {alert.hostname && (
+                                                                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
+                                                                                    Hostname
+                                                                                </p>
+                                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                                                                                    {alert.hostname}
+                                                                                </p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-center py-4 flex-1">
+                                                                        <p className="text-slate-500 dark:text-slate-400">
+                                                                            No port data available for this alert
+                                                                        </p>
+                                                                    </div>
                                                                 </div>
                                                             )}
                                                         </td>
@@ -730,6 +838,55 @@ const RiskOverview = () => {
                                 </div>
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Comment Edit Modal */}
+            {editingComment && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/95 backdrop-blur-2xl p-4 animate-in fade-in duration-500">
+                    <div className="bg-white dark:bg-slate-900 p-16 rounded-[4rem] w-full max-w-2xl border border-slate-100 dark:border-slate-800 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] relative overflow-hidden animate-in zoom-in-95 duration-500">
+                        <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+                            Edit Host Comment
+                        </h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                            Host: <span className="font-mono text-indigo-600 dark:text-indigo-400">{editingComment.ip}</span>
+                        </p>
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault()
+                                updateCommentMutation.mutate({
+                                    hostId: editingComment.hostId,
+                                    comment: editingComment.comment.trim() || null,
+                                })
+                            }}
+                            className="mt-8 space-y-6"
+                        >
+                            <textarea
+                                value={editingComment.comment}
+                                onChange={(e) =>
+                                    setEditingComment({ ...editingComment, comment: e.target.value })
+                                }
+                                placeholder="Add a comment about this host..."
+                                className="w-full border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 rounded-2xl px-6 py-4 text-sm font-medium focus:ring-4 ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all min-h-32"
+                            />
+                            <div className="flex items-center gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingComment(null)}
+                                    className="text-[11px] font-black text-slate-400 hover:text-slate-900 dark:hover:text-white uppercase tracking-[0.2em] transition-all px-4"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={updateCommentMutation.isPending}
+                                    className="flex-1 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                                >
+                                    {updateCommentMutation.isPending ? 'Saving...' : 'Save Comment'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

@@ -31,6 +31,10 @@ class AlertResponse(BaseModel):
     acknowledged: bool
     created_at: datetime
     severity: Severity = Severity.MEDIUM  # Computed field
+    # Host information (if available)
+    host_id: int | None = None
+    hostname: str | None = None
+    user_comment: str | None = None
 
 
 class AlertListResponse(BaseModel):

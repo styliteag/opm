@@ -14,6 +14,10 @@ export type Alert = {
   acknowledged: boolean
   created_at: string
   severity: Severity
+  // Host information (if available)
+  host_id: number | null
+  hostname: string | null
+  user_comment: string | null
 }
 
 export type AlertListResponse = {

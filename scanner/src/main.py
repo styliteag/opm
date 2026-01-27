@@ -75,6 +75,7 @@ class OpenPortResult:
     protocol: str
     ttl: int | None
     banner: str | None
+    service_guess: str | None
     mac_address: str | None
     mac_vendor: str | None
 
@@ -86,6 +87,7 @@ class OpenPortResult:
             "protocol": self.protocol,
             "ttl": self.ttl,
             "banner": self.banner,
+            "service_guess": self.service_guess,
             "mac_address": self.mac_address,
             "mac_vendor": self.mac_vendor,
         }
@@ -823,6 +825,7 @@ def _extract_open_ports(entries: list[dict[str, Any]]) -> list[OpenPortResult]:
                     protocol=protocol,
                     ttl=ttl,
                     banner=banner,
+                    service_guess=None,  # masscan doesn't detect services
                     mac_address=port_mac if isinstance(port_mac, str) else mac_address,
                     mac_vendor=port_vendor if isinstance(port_vendor, str) else mac_vendor,
                 )
@@ -980,6 +983,324 @@ def _run_masscan(
     return ScanRunResult(open_ports=_extract_open_ports(entries), cancelled=False)
 
 
+def _run_nmap_service_detection(
+    client: ScannerClient,
+    scan_id: int,
+    open_ports: list[OpenPortResult],
+    scan_timeout: int,
+    logger: logging.Logger,
+    progress_reporter: ProgressReporter | None = None,
+) -> list[OpenPortResult]:
+    """
+    Run nmap service detection (-sV) on ports discovered by masscan.
+
+    This is the second phase of hybrid scanning: masscan finds open ports quickly,
+    then nmap identifies what services are running on them.
+
+    Uses PTY for progress output and a target file for large host lists.
+
+    Returns updated OpenPortResult list with service_guess populated.
+    """
+    if not open_ports:
+        return open_ports
+
+    # Group ports by IP for efficient scanning
+    ip_ports: dict[str, set[int]] = {}
+    for port_result in open_ports:
+        if port_result.ip not in ip_ports:
+            ip_ports[port_result.ip] = set()
+        ip_ports[port_result.ip].add(port_result.port)
+
+    num_hosts = len(ip_ports)
+    logger.info(
+        "Starting nmap service detection on %d ports across %d hosts",
+        len(open_ports),
+        num_hosts,
+    )
+
+    if progress_reporter:
+        progress_reporter.update(75, f"Service detection: 0/{num_hosts} hosts")
+
+    # Build port list: all unique ports across all IPs
+    all_ports: set[int] = set()
+    for ports in ip_ports.values():
+        all_ports.update(ports)
+    port_list = ",".join(str(p) for p in sorted(all_ports))
+
+    # Create temp files for targets and XML output
+    targets_path: str | None = None
+    output_path: str | None = None
+
+    try:
+        # Write targets to file (avoids command line length limits)
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as targets_file:
+            targets_path = targets_file.name
+            for ip in ip_ports.keys():
+                targets_file.write(f"{ip}\n")
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as output_file:
+            output_path = output_file.name
+
+        # Build nmap command for service detection only
+        command = [
+            "nmap",
+            "-sV",  # Service detection
+            "--version-intensity", "5",  # Balanced intensity (0-9)
+            "-T4",  # Aggressive timing
+            "-p", port_list,
+            "-oX", output_path,
+            "--open",  # Only show open ports
+            "-Pn",  # Skip host discovery (we know hosts are up from masscan)
+            "--stats-every", "5s",  # Report progress every 5 seconds
+            "-iL", targets_path,  # Read targets from file
+        ]
+
+        logger.info("Nmap service detection command: %s", _format_command(command))
+        logger.info("Targets file: %s (%d hosts)", targets_path, num_hosts)
+
+        # Calculate timeout for service detection phase
+        # Give it 30% of the original scan timeout, minimum 120 seconds
+        svc_timeout = max(120, int(scan_timeout * 0.3))
+
+        # Use PTY for progress output (like _run_nmap_phase)
+        pid, master_fd = pty.fork()
+
+        if pid == 0:
+            # Child process
+            try:
+                os.execvp(command[0], command)
+            except Exception as e:
+                sys.stderr.write(f"Failed to exec nmap: {e}\n")
+                os._exit(1)
+
+        # Parent process
+        timed_out = False
+        cancelled = False
+        child_exited = False
+        exit_status = 0
+
+        # Progress tracking
+        hosts_completed = 0
+        total_hosts_up = 0
+        max_pct = 75.0  # Start at 75% (masscan done)
+
+        try:
+            start_time = time.time()
+            buffer = ""
+
+            while True:
+                elapsed = time.time() - start_time
+
+                # Check timeout
+                if svc_timeout > 0 and elapsed >= svc_timeout:
+                    if not timed_out:
+                        logger.warning(
+                            "Service detection exceeded timeout (%d seconds); terminating",
+                            svc_timeout,
+                        )
+                        timed_out = True
+                        try:
+                            os.kill(pid, signal.SIGTERM)
+                        except OSError:
+                            pass
+                    break
+
+                # Check cancellation
+                try:
+                    status = client.get_scan_status(scan_id)
+                    if status == "cancelled":
+                        logger.warning("Scan cancelled by user request during service detection")
+                        cancelled = True
+                        try:
+                            os.kill(pid, signal.SIGTERM)
+                        except OSError:
+                            pass
+                        break
+                except Exception:
+                    pass
+
+                # Check if child exited
+                try:
+                    wait_pid, wait_status = os.waitpid(pid, os.WNOHANG)
+                    if wait_pid != 0:
+                        child_exited = True
+                        if os.WIFEXITED(wait_status):
+                            exit_status = os.WEXITSTATUS(wait_status)
+                        elif os.WIFSIGNALED(wait_status):
+                            exit_status = -os.WTERMSIG(wait_status)
+                        break
+                except ChildProcessError:
+                    child_exited = True
+                    break
+
+                # Read PTY output
+                try:
+                    readable, _, _ = select.select([master_fd], [], [], 1.0)
+                    if master_fd in readable:
+                        try:
+                            data = os.read(master_fd, 4096)
+                            if not data:
+                                child_exited = True
+                                break
+                            text = data.decode("utf-8", errors="replace")
+                            buffer += text
+
+                            while "\n" in buffer or "\r" in buffer:
+                                line, sep, buffer = (
+                                    buffer.partition("\n")
+                                    if "\n" in buffer
+                                    else buffer.partition("\r")
+                                )
+                                line = line.strip()
+                                if not line:
+                                    continue
+
+                                # Log progress-related lines
+                                if any(x in line for x in ["Stats:", "Timing:", "elapsed", "remaining", "done", "hosts completed"]):
+                                    logger.info("Nmap svc: %s", line)
+
+                                    # Parse host completion: "8 hosts completed (32 up)"
+                                    stats_match = re.search(
+                                        r"(\d+)\s+hosts?\s+completed\s+\((\d+)\s+up\)",
+                                        line,
+                                        re.IGNORECASE,
+                                    )
+                                    if stats_match:
+                                        hosts_completed = int(stats_match.group(1))
+                                        total_hosts_up = int(stats_match.group(2))
+
+                                    # Parse percentage: "About 26.91% done"
+                                    pct_match = re.search(
+                                        r"About\s+([\d.]+)%\s+done", line, re.IGNORECASE
+                                    )
+                                    if pct_match and progress_reporter:
+                                        try:
+                                            nmap_pct = float(pct_match.group(1))
+                                            # Scale from 75-100% (service detection phase)
+                                            scaled_pct = 75.0 + (nmap_pct * 0.25)
+                                            if scaled_pct > max_pct:
+                                                max_pct = scaled_pct
+                                            hosts_str = (
+                                                f"{hosts_completed}/{total_hosts_up}"
+                                                if total_hosts_up > 0
+                                                else f"0/{num_hosts}"
+                                            )
+                                            progress_reporter.update(
+                                                max_pct,
+                                                f"Service detection: {hosts_str} hosts, {nmap_pct:.0f}%",
+                                            )
+                                        except ValueError:
+                                            pass
+
+                                elif "Nmap scan report" in line or "/tcp" in line or "/udp" in line:
+                                    logger.info("Nmap svc: %s", line)
+
+                        except OSError:
+                            child_exited = True
+                            break
+                except (OSError, ValueError):
+                    pass
+
+            # Wait for child if not exited
+            if not child_exited:
+                try:
+                    for _ in range(10):
+                        wait_pid, wait_status = os.waitpid(pid, os.WNOHANG)
+                        if wait_pid != 0:
+                            if os.WIFEXITED(wait_status):
+                                exit_status = os.WEXITSTATUS(wait_status)
+                            elif os.WIFSIGNALED(wait_status):
+                                exit_status = -os.WTERMSIG(wait_status)
+                            child_exited = True
+                            break
+                        time.sleep(0.5)
+                    if not child_exited:
+                        logger.error("Nmap service detection did not terminate; killing")
+                        os.kill(pid, signal.SIGKILL)
+                        os.waitpid(pid, 0)
+                except (ChildProcessError, OSError):
+                    pass
+        finally:
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
+
+        # Handle results
+        if cancelled:
+            logger.warning("Service detection cancelled, returning original results")
+            return open_ports
+
+        if timed_out:
+            logger.warning(
+                "Service detection timed out after %d seconds, returning original results",
+                svc_timeout,
+            )
+            return open_ports
+
+        if exit_status != 0:
+            logger.warning(
+                "Nmap service detection failed with exit code %d, returning original results",
+                exit_status,
+            )
+            return open_ports
+
+        # Parse nmap XML output
+        xml_content = ""
+        try:
+            with open(output_path, "r", encoding="utf-8") as handle:
+                xml_content = handle.read()
+        except FileNotFoundError:
+            logger.warning("Nmap XML output file not found, returning original results")
+            return open_ports
+
+        nmap_results = _parse_nmap_xml(xml_content, logger)
+
+        # Build lookup map from nmap results: (ip, port) -> service_guess
+        service_map: dict[tuple[str, int], str] = {}
+        for nmap_port in nmap_results:
+            if nmap_port.service_guess:
+                service_map[(nmap_port.ip, nmap_port.port)] = nmap_port.service_guess
+
+        logger.info("Service detection identified %d services", len(service_map))
+
+        # Update original results with service_guess
+        updated_ports: list[OpenPortResult] = []
+        for port_result in open_ports:
+            key = (port_result.ip, port_result.port)
+            service_guess = service_map.get(key)
+
+            updated_ports.append(
+                OpenPortResult(
+                    ip=port_result.ip,
+                    port=port_result.port,
+                    protocol=port_result.protocol,
+                    ttl=port_result.ttl,
+                    banner=port_result.banner,
+                    service_guess=service_guess,
+                    mac_address=port_result.mac_address,
+                    mac_vendor=port_result.mac_vendor,
+                )
+            )
+
+        return updated_ports
+
+    except Exception as exc:
+        logger.warning(
+            "Service detection failed with error: %s, returning original results",
+            exc,
+        )
+        return open_ports
+    finally:
+        # Clean up temp files
+        for path in [targets_path, output_path]:
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+
+
 def _parse_nmap_xml(xml_content: str, logger: logging.Logger) -> list[OpenPortResult]:
     """Parse nmap XML output and extract open ports."""
     results: list[OpenPortResult] = []
@@ -1044,14 +1365,17 @@ def _parse_nmap_xml(xml_content: str, logger: logging.Logger) -> list[OpenPortRe
 
             protocol = port_elem.get("protocol", "tcp")
 
-            # Get service info for banner
+            # Get service info for banner and service_guess
             banner: str | None = None
+            service_guess: str | None = None
             service_elem = port_elem.find("service")
             if service_elem is not None:
                 service_parts: list[str] = []
                 service_name = service_elem.get("name")
                 if service_name:
                     service_parts.append(service_name)
+                    # Use service name as the service_guess
+                    service_guess = service_name
                 product = service_elem.get("product")
                 if product:
                     service_parts.append(product)
@@ -1075,6 +1399,7 @@ def _parse_nmap_xml(xml_content: str, logger: logging.Logger) -> list[OpenPortRe
                     protocol=protocol,
                     ttl=ttl,
                     banner=banner,
+                    service_guess=service_guess,
                     mac_address=mac_address,
                     mac_vendor=mac_vendor,
                 )
@@ -1727,6 +2052,25 @@ def _process_job(
                 progress_reporter,
             )
             logger.info("Masscan completed with %s open ports", len(result.open_ports))
+
+            # Run nmap service detection on discovered ports (hybrid approach)
+            if result.open_ports and not result.cancelled:
+                logger.info("Starting service detection phase...")
+                updated_ports = _run_nmap_service_detection(
+                    client,
+                    scan_id,
+                    result.open_ports,
+                    job.scan_timeout,
+                    logger,
+                    progress_reporter,
+                )
+                result = ScanRunResult(open_ports=updated_ports, cancelled=result.cancelled)
+                services_found = sum(1 for p in updated_ports if p.service_guess)
+                logger.info(
+                    "Service detection complete: %d/%d ports identified",
+                    services_found,
+                    len(updated_ports),
+                )
 
         if result.cancelled:
             try:
