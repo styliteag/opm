@@ -109,3 +109,23 @@
 - Pre-existing mypy errors in other files (e.g., alerts.py line 514 in bulk_whitelist_network) are not blockers for new code that passes type checks
 ---
 
+## 2026-01-27 - US-006
+- Implemented GET /api/hosts/export/pdf endpoint
+- PDF includes report header with generation timestamp
+- PDF includes summary statistics: total hosts, breakdown by status (Up/Down/Unknown)
+- PDF includes detailed table of hosts with columns: IP, Hostname, Status, First Seen, Last Seen, Open Ports
+- Supports optional query params: network_id and is_pingable (aliased as "status") for filtering
+- Filename format: hosts_{timestamp}.pdf
+- Used ReportLab's SimpleDocTemplate, Paragraph, Table, and TableStyle for PDF generation
+
+**Files changed:**
+- backend/src/app/routers/hosts.py
+
+**Learnings for future iterations:**
+- When using long list literals that exceed line length (E501), extract them to a variable first
+- For hosts PDF export, use same filter pattern as CSV export and reuse status calculation logic
+- The status field is derived from is_pingable: null = "Unknown", true = "Up", false = "Down"
+- For each host, need to fetch open port count using hosts_service.get_open_port_count_for_host()
+- Pre-existing mypy errors in services layer (e.g., hosts.py) are not blockers for new router code
+---
+
