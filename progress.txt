@@ -129,3 +129,26 @@
 - Pre-existing mypy errors in services layer (e.g., hosts.py) are not blockers for new router code
 ---
 
+## 2026-01-27 - US-007
+- Implemented Export dropdown button on ScanDetail page
+- Added dropdown with "Export as CSV" and "Export as PDF" options
+- Positioned next to "Back to scans" button in the header
+- Implemented handleExportCsv and handleExportPdf functions using fetch API with blob download pattern
+- Added loading state ("Exporting...") during export operations
+- Added toast notification system with auto-dismiss after 3 seconds
+- Toast shows success/error messages for export operations
+- Dropdown closes automatically when export is triggered
+
+**Files changed:**
+- frontend/src/pages/ScanDetail.tsx
+
+**Learnings for future iterations:**
+- Frontend export pattern: Use fetch with getAuthHeaders, convert response to blob, create object URL, trigger download with createElement('a'), then revoke URL
+- Toast notification pattern: useState for toast state, useEffect with setTimeout for auto-dismiss after 3 seconds
+- Dropdown pattern: useState for visibility, position with "absolute right-0 top-full z-20 mt-2" classes
+- Loading states: Show "Exporting..." text and disable button during async operations
+- Timestamp format for filenames: new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+- Import API_BASE_URL and getAuthHeaders from '../lib/api' for authenticated fetch calls
+- Toast styling uses fixed positioning (top-8 right-8) with z-[100] to appear above all content
+---
+
