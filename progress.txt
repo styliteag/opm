@@ -416,3 +416,31 @@
 - Unassign is handled by passing null/None to user_id - no separate endpoint needed
 - Resolution status uses same enum defined in models (ResolutionStatus: open, in_progress, resolved)
 ---
+
+## 2026-01-27 - US-019
+- Implemented Alert Comments section in RiskOverview expanded alert detail
+- Created AlertComments React component for viewing and managing alert comments
+- Added AlertComment and AlertCommentListResponse TypeScript types to frontend
+- Integrated comments section into expanded alert row (appears below existing detail sections)
+- Displays comments with author email, timestamp, and "edited" indicator when updated
+- Add new comment via textarea with "Post Comment" button
+- Edit/Delete buttons shown for user's own comments or admin users
+- Inline editing with Cancel/Save buttons within the comment card
+- Real-time updates via React Query invalidation after CRUD operations
+- Toast notifications for success/error feedback (reusing existing toast system)
+- Browser verification: Comments add, edit, and display correctly
+- Typecheck passes
+
+**Files changed:**
+- frontend/src/components/AlertComments.tsx (new)
+- frontend/src/pages/RiskOverview.tsx (integrated AlertComments component)
+- frontend/src/types/index.ts (added AlertComment and AlertCommentListResponse types)
+
+**Learnings for future iterations:**
+- Create separate component for complex nested features to keep page components clean
+- Alert comment APIs return user_email for convenience, avoiding N+1 queries for user lookups
+- Use React Query's invalidateQueries to refresh data after mutations for real-time updates
+- Pass toast callback to child components to integrate with parent's notification system
+- For inline editing, use separate state (editingComment) to track which comment is being edited
+- canModifyComment pattern: check if user.id === resource.user_id or user.role === 'admin'
+---
