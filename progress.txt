@@ -394,3 +394,25 @@
 - Response schemas should include derived fields (user_email) for UI convenience, not just foreign keys
 - Import order matters for ruff: group by app module (core, models, schemas, services)
 ---
+
+## 2026-01-27 - US-018
+- Implemented PATCH /api/alerts/{alert_id}/assign endpoint to assign/unassign alerts to users
+- Implemented PATCH /api/alerts/{alert_id}/status endpoint to update resolution status
+- Added AlertAssignRequest schema (user_id field, null to unassign)
+- Added AlertStatusRequest schema (resolution_status field with enum validation)
+- Endpoints validate user_id exists before assignment (returns 400 if not found)
+- Pydantic schema validates resolution_status is a valid enum value automatically
+- Both endpoints require authentication via CurrentUser dependency
+- Returns full AlertResponse with assigned_to_user_id, assigned_to_email, and resolution_status fields
+- Ruff and typecheck pass (pre-existing mypy error in bulk_whitelist_network is unchanged)
+
+**Files changed:**
+- backend/src/app/routers/alerts.py (added 2 new endpoints)
+- backend/src/app/schemas/alert.py (added AlertAssignRequest and AlertStatusRequest schemas)
+
+**Learnings for future iterations:**
+- For endpoints that modify a single field, Pydantic schema validation handles enum checking automatically
+- Assignment endpoints should fetch user email for response convenience (like other alert endpoints)
+- Unassign is handled by passing null/None to user_id - no separate endpoint needed
+- Resolution status uses same enum defined in models (ResolutionStatus: open, in_progress, resolved)
+---
