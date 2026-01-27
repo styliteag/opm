@@ -3,8 +3,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
-from jose import jwt
-from jose.exceptions import JWTError
+import jwt
+from jwt.exceptions import PyJWTError
 
 if TYPE_CHECKING:
     from passlib.context import CryptContext
@@ -52,8 +52,7 @@ def create_access_token(
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expiration_minutes)
     to_encode.update({"exp": expire})
-    encoded_jwt: str = jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
-    return encoded_jwt
+    return jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)  # type: ignore[return-value]
 
 
 def decode_access_token(token: str) -> dict[str, Any] | None:
@@ -63,5 +62,5 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
             token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
         )
         return payload
-    except JWTError:
+    except PyJWTError:
         return None
