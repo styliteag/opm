@@ -245,3 +245,26 @@
 - Same PeriodType enum and TrendDataPoint/TrendDataResponse schemas work for all trend endpoints
 ---
 
+## 2026-01-27 - US-012
+- Implemented GET /api/trends/alerts endpoint for historical alert trend data
+- Created AlertTrendDataPoint schema with date, count, and acknowledged_count fields
+- Created AlertTrendDataResponse schema for API response
+- Endpoint aggregates alerts by created_at grouped by time period (day/week/month)
+- Supports filtering by network_id and alert_type
+- Used SQL func.if_() to calculate acknowledged_count: sum(if(acknowledged, 1, 0))
+- Returns JSON array with {date, count, acknowledged_count} objects sorted by date ascending
+- Typecheck and ruff checks pass
+
+**Files changed:**
+- backend/src/app/routers/trends.py
+- backend/src/app/schemas/trends.py
+
+**Learnings for future iterations:**
+- For aggregating boolean fields, use func.sum(func.if_(field, 1, 0)) pattern to get counts
+- When trend data needs additional metrics beyond count, create separate schema models (e.g., AlertTrendDataPoint vs TrendDataPoint)
+- Alert model has network_id and alert_type fields for direct filtering (no joins needed)
+- SQL conditional aggregation pattern: func.if_(condition, true_value, false_value) works in MySQL
+- Reused same PeriodType enum and date truncation logic from previous trend endpoints
+- Coalesce null acknowledged_count with `or 0` to ensure integer return type
+---
+
