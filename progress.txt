@@ -152,3 +152,27 @@
 - Toast styling uses fixed positioning (top-8 right-8) with z-[100] to appear above all content
 ---
 
+## 2026-01-27 - US-008
+- Implemented Export dropdown button on RiskOverview page
+- Added dropdown with "Export as CSV" and "Export as PDF" options
+- Positioned next to "Resolve" button in the header area
+- Implemented handleExportCsv and handleExportPdf functions using fetch API with blob download pattern
+- Added loading state ("Exporting...") during export operations
+- Integrated with existing toast notification system for success/error messages
+- Export functions respect current filters (severity and status filters)
+- Dropdown closes automatically when export is triggered
+- Typecheck passes
+
+**Files changed:**
+- frontend/src/pages/RiskOverview.tsx
+
+**Learnings for future iterations:**
+- Export dropdown follows same pattern as ScanDetail page (US-007)
+- RiskOverview page has more complex filter state (severityFilter, statusFilter, networkFilter, searchQuery)
+- When exporting with filters, map UI filter states to API query params (e.g., statusFilter='pending' → acknowledged=false)
+- The statusFilter has multiple values ('all', 'blocked', 'pending', 'approved', 'monitoring') but only 'pending' and 'monitoring' map to acknowledged param
+- Positioned Export button after Resolve button and before Policy/Back to dashboard links
+- Toast notification state already exists in RiskOverview (reused existing implementation)
+- Browser testing requires valid authentication credentials - manual testing recommended for full verification
+---
+
