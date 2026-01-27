@@ -22,14 +22,30 @@ All components use Docker for development with hot-reload via source bind mounts
 
 ### Docker Development
 - Use `docker compose -f compose-dev.yml up --build` to start all services
+- mostly the user already done this, so please dont restart the services unless you know what you are doing.
 - Source bind mounts: `backend/src`, `frontend/src`, `scanner/src` → `/app/src` for hot-reload
-- Services: Frontend (5173), Backend (8000), Database (3306)
-- never run a frontend or backend directly, always use docker compose to start the services!
+- **Auto-reload enabled**: Python and npm watch for code changes - you typically don't need to rebuild or restart containers
+- Use `docker exec -it <container-name> bash` to inspect/debug running containers
+- **Container names**: `opm-backend`, `opm-frontend`, `opm-scanner`, `opm-db`
+- **Services**: Frontend (5173), Backend (8000), Database (3306)
+- **Access URLs**: Frontend at http://localhost:5173/ and Backend at http://localhost:8000/
+- **Default credentials**:
+  - Admin user: `admin@example.com` / `admin` (from `ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars)
+  - Database: `opm` / `opmpassword` (from `DB_USER`/`DB_PASSWORD` env vars)
+  - Check `.env` file or `compose-dev.yml` for overrides
+- Never run a frontend or backend directly, always use docker compose to start the services!
 
-### Package Management
-- **Backend**: Uses `uv` package manager; run `uv run mypy src/` for typechecking
-- **Frontend**: Uses Bun; run `bun run typecheck` for typechecking
-- **Scanner**: Uses `uv`; run `uv sync --all-extras && uv run mypy src/` for typechecking
+### Package Management & Quality Checks
+- **Backend**: Uses `uv` package manager
+  - Typecheck: `docker exec opm-backend uv run mypy src/`
+  - Lint: `docker exec opm-backend uv run ruff check src/`
+  - Tests: `docker exec opm-backend uv run pytest` (if tests exist)
+- **Frontend**: Uses Bun
+  - Typecheck: `docker exec opm-frontend bun run typecheck`
+  - Lint: `docker exec opm-frontend bun run lint`
+  - No tests currently configured
+- **Scanner**: Uses `uv`
+  - Typecheck: `docker exec opm-scanner uv sync --all-extras && uv run mypy src/`
 
 ### Python Build Configuration
 - All Python projects need `[tool.hatch.build.targets.wheel]` config in `pyproject.toml` for hatchling to work
@@ -113,7 +129,20 @@ All components use Docker for development with hot-reload via source bind mounts
 
 ## Frontend Patterns
 
+### Tech Stack
+- **React 18** with **Vite** for build tooling
+- **React Router v7** for routing
+- **TanStack Query (React Query)** for server state management
+- **Tailwind CSS** for styling
+- **TypeScript** for type safety
+- **Context API** for auth and theme state
+
+### Architecture
 - Auth token is stored in localStorage under `opm-auth-token`; API base URL uses `VITE_API_BASE_URL` with relative fallback
+- Authentication handled via `AuthContext` with JWT tokens
+- Theme switching via `ThemeContext` (light/dark mode)
+- Protected routes use `ProtectedRoute` component wrapper
+- Main pages: Dashboard, Networks, Scans, Hosts, Risk Overview, Policy, Users (admin-only)
 
 ## Important Gotchas
 
