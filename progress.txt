@@ -200,3 +200,28 @@
 - Export dropdown should be visible to all authenticated users, not just admins, for reporting purposes
 ---
 
+## 2026-01-27 - US-010
+- Implemented GET /api/trends/open-ports endpoint for historical open port trend data
+- Created trends router at backend/src/app/routers/trends.py with PeriodType enum (day/week/month)
+- Created trends schema at backend/src/app/schemas/trends.py with TrendDataPoint and TrendDataResponse models
+- Endpoint aggregates unique ip:port combinations by time period using SQLAlchemy func.date, func.date_sub, func.concat
+- Supports filtering by network_id, date range (start_date, end_date), and time period grouping
+- Returns JSON array with {date, count} objects sorted by date ascending
+- Registered trends router in main.py
+- Typecheck and ruff checks pass
+
+**Files changed:**
+- backend/src/app/routers/trends.py (new)
+- backend/src/app/schemas/trends.py (new)
+- backend/src/app/main.py
+
+**Learnings for future iterations:**
+- SQL date aggregation pattern for MySQL: Use func.date() for daily, func.date_sub() with func.weekday() for weekly, func.concat() for monthly
+- Trend endpoints follow pattern: Accept date range + period + optional filters → aggregate data with GROUP BY → return sorted data points
+- Count distinct combinations using func.count(distinct(func.concat(field1, ":", field2)))
+- Join Scan table when filtering by network_id since open_ports doesn't have direct network_id column
+- Enum pattern for period types: Use str, Enum with values DAY/WEEK/MONTH for FastAPI query params
+- Empty array is returned when no data matches the filter criteria (no special handling needed)
+- Pre-existing mypy errors in other services (hosts.py, policy.py, etc.) are not blockers for new code
+---
+
