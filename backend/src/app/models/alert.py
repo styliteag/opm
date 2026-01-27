@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 if TYPE_CHECKING:
+    from app.models.alert_comment import AlertComment
     from app.models.global_open_port import GlobalOpenPort
     from app.models.network import Network
     from app.models.scan import Scan
@@ -52,3 +53,6 @@ class Alert(Base):
     scan: Mapped["Scan | None"] = relationship("Scan", back_populates="alerts")
     network: Mapped["Network | None"] = relationship("Network", back_populates="alerts")
     global_open_port: Mapped["GlobalOpenPort | None"] = relationship("GlobalOpenPort")
+    comments: Mapped[list["AlertComment"]] = relationship(
+        "AlertComment", back_populates="alert", cascade="all, delete-orphan"
+    )

@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String, func
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
 if TYPE_CHECKING:
-    pass
+    from app.models.alert_comment import AlertComment
 
 
 class UserRole(str, Enum):
@@ -55,3 +55,6 @@ class User(Base):
     )
 
     # Relationships
+    alert_comments: Mapped[list["AlertComment"]] = relationship(
+        "AlertComment", back_populates="user"
+    )
