@@ -157,6 +157,14 @@ The scanner will automatically connect to your main server and start processing 
               (Distributed at different sites)
 ```
 
+## Documentation
+
+For comprehensive documentation, see the [docs folder](docs/README.md):
+
+- **[API Reference](docs/README.md#api-reference)** - Complete API documentation
+- **[Scanner Documentation](docs/README.md#scanner-documentation)** - Deployment and operation guides
+- **[Development](docs/README.md#development)** - Setup and contribution guidelines
+
 ## License
 
 MIT
