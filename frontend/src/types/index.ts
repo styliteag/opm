@@ -377,3 +377,18 @@ export type TriggerHostDiscoveryResponse = {
   scan_id: number
   message: string
 }
+
+// Alert Comment types
+export type AlertComment = {
+  id: number
+  alert_id: number
+  user_id: number
+  user_email: string
+  comment: string
+  created_at: string
+  updated_at: string
+}
+
+export type AlertCommentListResponse = {
+  comments: AlertComment[]
+}

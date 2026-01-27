@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import AlertComments from '../components/AlertComments'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
 import type { Alert, AlertListResponse, NetworkListResponse, PolicyListResponse, GlobalOpenPort, GlobalOpenPortListResponse } from '../types'
@@ -850,126 +851,144 @@ const RiskOverview = () => {
                                                     <tr className="bg-slate-50/20 dark:bg-slate-800/10">
                                                         <td colSpan={isAdmin ? 9 : 8} className="px-16 py-12">
                                                             {portData ? (
-                                                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                                                                    <div className="space-y-8">
-                                                                        <div>
-                                                                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.25em] mb-2">
-                                                                                Service Detection
-                                                                            </p>
-                                                                            <p className="text-lg font-black text-slate-900 dark:text-white">
-                                                                                {getServiceName(portData.service_guess, portData.banner)}
-                                                                            </p>
-                                                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                                                                Protocol: {portData.protocol.toUpperCase()}
-                                                                            </p>
-                                                                        </div>
-                                                                        <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+                                                                <div className="space-y-8">
+                                                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                                                                        <div className="space-y-8">
                                                                             <div>
-                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
-                                                                                    First Seen
+                                                                                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.25em] mb-2">
+                                                                                    Service Detection
                                                                                 </p>
-                                                                                <p className="text-xs font-black text-slate-700 dark:text-slate-300">
-                                                                                    {formatDateTime(parseUtcDate(portData.first_seen_at))}
+                                                                                <p className="text-lg font-black text-slate-900 dark:text-white">
+                                                                                    {getServiceName(portData.service_guess, portData.banner)}
+                                                                                </p>
+                                                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                                                    Protocol: {portData.protocol.toUpperCase()}
                                                                                 </p>
                                                                             </div>
-                                                                            <div>
-                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
-                                                                                    Last Seen
-                                                                                </p>
-                                                                                <p className="text-xs font-black text-slate-700 dark:text-slate-300">
-                                                                                    {formatDateTime(parseUtcDate(portData.last_seen_at))}
-                                                                                </p>
+                                                                            <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+                                                                                <div>
+                                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                                                                                        First Seen
+                                                                                    </p>
+                                                                                    <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                                                                                        {formatDateTime(parseUtcDate(portData.first_seen_at))}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div>
+                                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                                                                                        Last Seen
+                                                                                    </p>
+                                                                                    <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                                                                                        {formatDateTime(parseUtcDate(portData.last_seen_at))}
+                                                                                    </p>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
-                                                                    </div>
-                                                                    <div className="border-l border-slate-100 dark:border-slate-800/50 pl-12">
-                                                                        <div className="flex items-center justify-between mb-2">
-                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
-                                                                                Host Comment
+                                                                        <div className="border-l border-slate-100 dark:border-slate-800/50 pl-12">
+                                                                            <div className="flex items-center justify-between mb-2">
+                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                                                                                    Host Comment
+                                                                                </p>
+                                                                                {isAdmin && alert.host_id && (
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation()
+                                                                                            setEditingComment({
+                                                                                                hostId: alert.host_id!,
+                                                                                                comment: alert.user_comment || '',
+                                                                                                ip: alert.ip,
+                                                                                            })
+                                                                                        }}
+                                                                                        className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors"
+                                                                                    >
+                                                                                        Edit
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                            <p className="text-xs text-slate-600 dark:text-slate-400 italic">
+                                                                                {alert.user_comment || 'No comment'}
                                                                             </p>
-                                                                            {isAdmin && alert.host_id && (
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation()
-                                                                                        setEditingComment({
-                                                                                            hostId: alert.host_id!,
-                                                                                            comment: alert.user_comment || '',
-                                                                                            ip: alert.ip,
-                                                                                        })
-                                                                                    }}
-                                                                                    className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors"
-                                                                                >
-                                                                                    Edit
-                                                                                </button>
+                                                                            {alert.hostname && (
+                                                                                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+                                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
+                                                                                        Hostname
+                                                                                    </p>
+                                                                                    <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                                                                                        {alert.hostname}
+                                                                                    </p>
+                                                                                </div>
                                                                             )}
                                                                         </div>
-                                                                        <p className="text-xs text-slate-600 dark:text-slate-400 italic">
-                                                                            {alert.user_comment || 'No comment'}
-                                                                        </p>
-                                                                        {alert.hostname && (
-                                                                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
-                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
-                                                                                    Hostname
-                                                                                </p>
-                                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                                                                                    {alert.hostname}
-                                                                                </p>
+                                                                        <div className="border-l border-slate-100 dark:border-slate-800/50 pl-12">
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">
+                                                                                Application Banner
+                                                                            </p>
+                                                                            <div className="bg-slate-950 rounded-2xl p-6 overflow-hidden border border-slate-800 relative group/code shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
+                                                                                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 opacity-60" />
+                                                                                <pre className="text-[11px] font-mono text-emerald-400/80 whitespace-pre-wrap leading-loose select-all italic">
+                                                                                    {portData.banner || 'NO PAYLOAD DATA DETECTED'}
+                                                                                </pre>
                                                                             </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="border-l border-slate-100 dark:border-slate-800/50 pl-12">
-                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">
-                                                                            Application Banner
-                                                                        </p>
-                                                                        <div className="bg-slate-950 rounded-2xl p-6 overflow-hidden border border-slate-800 relative group/code shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
-                                                                            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 opacity-60" />
-                                                                            <pre className="text-[11px] font-mono text-emerald-400/80 whitespace-pre-wrap leading-loose select-all italic">
-                                                                                {portData.banner || 'NO PAYLOAD DATA DETECTED'}
-                                                                            </pre>
                                                                         </div>
+                                                                    </div>
+                                                                    {/* Alert Comments Section */}
+                                                                    <div className="pt-8 border-t border-slate-100 dark:border-slate-800/50">
+                                                                        <AlertComments
+                                                                            alertId={alert.id}
+                                                                            onToast={(message, tone) => setToast({ message, tone })}
+                                                                        />
                                                                     </div>
                                                                 </div>
                                                             ) : (
-                                                                <div className="flex items-start gap-8">
-                                                                    <div className="flex-1">
-                                                                        <div className="flex items-center justify-between mb-2">
-                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
-                                                                                Host Comment
+                                                                <div className="space-y-8">
+                                                                    <div className="flex items-start gap-8">
+                                                                        <div className="flex-1">
+                                                                            <div className="flex items-center justify-between mb-2">
+                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                                                                                    Host Comment
+                                                                                </p>
+                                                                                {isAdmin && alert.host_id && (
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation()
+                                                                                            setEditingComment({
+                                                                                                hostId: alert.host_id!,
+                                                                                                comment: alert.user_comment || '',
+                                                                                                ip: alert.ip,
+                                                                                            })
+                                                                                        }}
+                                                                                        className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors"
+                                                                                    >
+                                                                                        Edit
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                            <p className="text-xs text-slate-600 dark:text-slate-400 italic">
+                                                                                {alert.user_comment || 'No comment'}
                                                                             </p>
-                                                                            {isAdmin && alert.host_id && (
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation()
-                                                                                        setEditingComment({
-                                                                                            hostId: alert.host_id!,
-                                                                                            comment: alert.user_comment || '',
-                                                                                            ip: alert.ip,
-                                                                                        })
-                                                                                    }}
-                                                                                    className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors"
-                                                                                >
-                                                                                    Edit
-                                                                                </button>
+                                                                            {alert.hostname && (
+                                                                                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+                                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
+                                                                                        Hostname
+                                                                                    </p>
+                                                                                    <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                                                                                        {alert.hostname}
+                                                                                    </p>
+                                                                                </div>
                                                                             )}
                                                                         </div>
-                                                                        <p className="text-xs text-slate-600 dark:text-slate-400 italic">
-                                                                            {alert.user_comment || 'No comment'}
-                                                                        </p>
-                                                                        {alert.hostname && (
-                                                                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
-                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
-                                                                                    Hostname
-                                                                                </p>
-                                                                                <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                                                                                    {alert.hostname}
-                                                                                </p>
-                                                                            </div>
-                                                                        )}
+                                                                        <div className="text-center py-4 flex-1">
+                                                                            <p className="text-slate-500 dark:text-slate-400">
+                                                                                No port data available for this alert
+                                                                            </p>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="text-center py-4 flex-1">
-                                                                        <p className="text-slate-500 dark:text-slate-400">
-                                                                            No port data available for this alert
-                                                                        </p>
+                                                                    {/* Alert Comments Section */}
+                                                                    <div className="pt-8 border-t border-slate-100 dark:border-slate-800/50">
+                                                                        <AlertComments
+                                                                            alertId={alert.id}
+                                                                            onToast={(message, tone) => setToast({ message, tone })}
+                                                                        />
                                                                     </div>
                                                                 </div>
                                                             )}
