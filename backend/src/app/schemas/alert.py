@@ -67,3 +67,15 @@ class AlertBulkWhitelistResponse(BaseModel):
     acknowledged_ids: list[int]
     missing_ids: list[int]
     errors: list[str] = []
+
+
+class AlertAssignRequest(BaseModel):
+    """Request schema for assigning an alert to a user."""
+
+    user_id: int | None = None  # None to unassign
+
+
+class AlertStatusRequest(BaseModel):
+    """Request schema for updating alert resolution status."""
+
+    resolution_status: ResolutionStatus
