@@ -23,6 +23,7 @@ from .routers import (
     scanner,
     scanners,
     scans,
+    trends,
     users,
     version,
 )
@@ -118,6 +119,7 @@ app.include_router(ports.router)
 app.include_router(scanner.router)
 app.include_router(scans.router)
 app.include_router(scanners.router)
+app.include_router(trends.router)
 app.include_router(users.router)
 app.include_router(version.router)
 
