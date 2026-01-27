@@ -2,10 +2,15 @@
 
 import csv
 from datetime import datetime, timezone
-from io import StringIO
+from io import BytesIO, StringIO
 
 from fastapi import APIRouter, Body, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.models.alert import AlertType
@@ -192,6 +197,120 @@ async def export_alerts_csv(
     return StreamingResponse(
         iter([csv_content]),
         media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/pdf")
+async def export_alerts_pdf(
+    user: CurrentUser,
+    db: DbSession,
+    alert_type: AlertType | None = Query(None, alias="type"),
+    acknowledged: bool | None = Query(None),
+) -> StreamingResponse:
+    """Export alerts as PDF with optional filters."""
+    # Get all alerts with filters (no pagination for export)
+    alerts = await alerts_service.get_alerts(
+        db,
+        alert_type=alert_type,
+        network_id=None,
+        acknowledged=acknowledged,
+        start_date=None,
+        end_date=None,
+        offset=0,
+        limit=10000,  # Large limit for export
+    )
+
+    # Create PDF in memory
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements: list[Flowable] = []
+    styles = getSampleStyleSheet()
+
+    # Add title
+    title = Paragraph("<b>Alerts Report</b>", styles["Title"])
+    elements.append(title)
+    elements.append(Spacer(1, 0.2 * inch))
+
+    # Add report metadata
+    report_date = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+    metadata_text = f"<b>Generated:</b> {report_date}"
+    metadata = Paragraph(metadata_text, styles["Normal"])
+    elements.append(metadata)
+    elements.append(Spacer(1, 0.3 * inch))
+
+    # Calculate summary statistics
+    total_alerts = len(alerts)
+    by_type: dict[str, int] = {}
+    acknowledged_count = 0
+    for alert, _ in alerts:
+        by_type[alert.alert_type.value] = by_type.get(alert.alert_type.value, 0) + 1
+        if alert.acknowledged:
+            acknowledged_count += 1
+
+    open_count = total_alerts - acknowledged_count
+
+    # Add summary statistics
+    summary_lines = [
+        f"<b>Total alerts:</b> {total_alerts}",
+        f"<b>Open:</b> {open_count}",
+        f"<b>Acknowledged:</b> {acknowledged_count}",
+    ]
+    if by_type:
+        summary_lines.append("<b>By type:</b>")
+        for alert_type_name, count in sorted(by_type.items()):
+            summary_lines.append(f"  • {alert_type_name}: {count}")
+
+    summary_text = "<b>Summary Statistics</b><br/>" + "<br/>".join(summary_lines)
+    summary = Paragraph(summary_text, styles["Heading2"])
+    elements.append(summary)
+    elements.append(Spacer(1, 0.3 * inch))
+
+    # Add detailed table of alerts
+    if alerts:
+        headers = ["Alert Type", "IP", "Port", "Network", "Status", "Created At"]
+        table_data = [headers]
+        for alert, network_name in alerts:
+            table_data.append([
+                alert.alert_type.value,
+                alert.ip,
+                str(alert.port),
+                network_name or "",
+                "Acknowledged" if alert.acknowledged else "Open",
+                alert.created_at.strftime('%Y-%m-%d %H:%M'),
+            ])
+
+        col_widths = [1.3 * inch, 1.2 * inch, 0.7 * inch, 1.3 * inch, 1.2 * inch, 1.3 * inch]
+        table = Table(table_data, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ]))
+        elements.append(table)
+    else:
+        no_alerts = Paragraph("No alerts found matching the filters.", styles["Normal"])
+        elements.append(no_alerts)
+
+    # Build PDF
+    doc.build(elements)
+    pdf_content = buffer.getvalue()
+    buffer.close()
+
+    # Generate filename with timestamp
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"alerts_{timestamp}.pdf"
+
+    # Return as streaming response
+    return StreamingResponse(
+        iter([pdf_content]),
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
