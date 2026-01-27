@@ -444,3 +444,31 @@
 - For inline editing, use separate state (editingComment) to track which comment is being edited
 - canModifyComment pattern: check if user.id === resource.user_id or user.role === 'admin'
 ---
+
+## 2026-01-27 - US-020
+- Implemented assignment and status controls for alert rows in RiskOverview
+- Added Assign dropdown to each alert row showing list of users (fetched from /api/users)
+- Added Status dropdown to each alert row with options: Open, In Progress, Resolved
+- Dropdowns update immediately on selection with loading state ("Updating...")
+- Display assigned user email (truncated) and status with colored badges in alert rows
+- Added filter dropdown for assigned user: All Assignees, Unassigned, or specific user
+- Added filter dropdown for resolution status: All Resolution Status, Open, In Progress, Resolved
+- Added mutations for PATCH /api/alerts/{id}/assign and PATCH /api/alerts/{id}/status endpoints
+- Toast notifications show success/error messages for assignment/status updates
+- Updated Alert type to include assigned_to_user_id, assigned_to_email, and resolution_status fields
+- Added ResolutionStatus type with values: 'open' | 'in_progress' | 'resolved'
+- Browser verification: All dropdowns, filters, and updates work correctly
+- Typecheck passes
+
+**Files changed:**
+- frontend/src/pages/RiskOverview.tsx (added dropdowns, mutations, filters, state management)
+- frontend/src/types/index.ts (added ResolutionStatus type and new Alert fields)
+
+**Learnings for future iterations:**
+- Dropdown state pattern: Use useState<number | null> to track which alert has an open dropdown
+- Filter state for union types: Use type like `number | 'all' | 'unassigned'` for flexible filter values
+- Mutation loading pattern: Track updating state per-row with `updatingAssignment === alert.id`
+- Resolution status styling: Use mapped styles object `resolutionStatusStyles[status]` for consistent badge colors
+- Table column expansion: Remember to update all colSpan values when adding new columns
+- Users query: Fetch users list once for assignment dropdown, memoize with useMemo
+---
