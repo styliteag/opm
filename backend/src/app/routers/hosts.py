@@ -2,11 +2,16 @@
 
 import csv
 from datetime import datetime, timezone
-from io import StringIO
+from io import BytesIO, StringIO
 from ipaddress import ip_address, ip_network
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.schemas.host import (
@@ -280,5 +285,142 @@ async def export_hosts_csv(
     return StreamingResponse(
         iter([csv_content]),
         media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/pdf")
+async def export_hosts_pdf(
+    user: CurrentUser,
+    db: DbSession,
+    network_id: int | None = Query(None, ge=1),
+    is_pingable: bool | None = Query(None, alias="status"),
+) -> StreamingResponse:
+    """Export hosts as PDF report."""
+    # Fetch all hosts with the given filters (using a large limit to get all)
+    hosts = await hosts_service.get_hosts(
+        db,
+        network_id=network_id,
+        is_pingable=is_pingable,
+        sort_by="ip",
+        sort_dir="asc",
+        offset=0,
+        limit=10000,
+    )
+
+    # Calculate summary statistics
+    total_hosts = len(hosts)
+    status_counts = {"Up": 0, "Down": 0, "Unknown": 0}
+    for host in hosts:
+        if host.is_pingable is None:
+            status_counts["Unknown"] += 1
+        elif host.is_pingable:
+            status_counts["Up"] += 1
+        else:
+            status_counts["Down"] += 1
+
+    # Create PDF in memory
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements: list[Flowable] = []
+    styles = getSampleStyleSheet()
+
+    # Report header
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    title = Paragraph("<b>Host Inventory Report</b>", styles["Title"])
+    elements.append(title)
+    elements.append(Spacer(1, 0.2 * inch))
+
+    subtitle = Paragraph(f"Generated: {timestamp}", styles["Normal"])
+    elements.append(subtitle)
+    elements.append(Spacer(1, 0.3 * inch))
+
+    # Summary statistics
+    summary_text = (
+        f"<b>Summary Statistics:</b><br/>"
+        f"Total Hosts: {total_hosts}<br/>"
+        f"Up: {status_counts['Up']}<br/>"
+        f"Down: {status_counts['Down']}<br/>"
+        f"Unknown: {status_counts['Unknown']}"
+    )
+    summary = Paragraph(summary_text, styles["Normal"])
+    elements.append(summary)
+    elements.append(Spacer(1, 0.3 * inch))
+
+    # Detailed hosts table
+    table_data = [[
+        "IP",
+        "Hostname",
+        "Status",
+        "First Seen",
+        "Last Seen",
+        "Open Ports",
+    ]]
+
+    for host in hosts:
+        # Determine status from is_pingable field
+        if host.is_pingable is None:
+            status_value = "Unknown"
+        elif host.is_pingable:
+            status_value = "Up"
+        else:
+            status_value = "Down"
+
+        # Get open port count for this host
+        port_count = await hosts_service.get_open_port_count_for_host(db, host.id)
+
+        # Format datetimes
+        first_seen = (
+            host.first_seen_at.strftime("%Y-%m-%d %H:%M")
+            if host.first_seen_at
+            else "N/A"
+        )
+        last_seen = (
+            host.last_seen_at.strftime("%Y-%m-%d %H:%M")
+            if host.last_seen_at
+            else "N/A"
+        )
+
+        table_data.append([
+            host.ip,
+            host.hostname or "",
+            status_value,
+            first_seen,
+            last_seen,
+            str(port_count),
+        ])
+
+    # Create table with style
+    col_widths = [1.2 * inch, 1.5 * inch, 0.8 * inch, 1.2 * inch, 1.2 * inch, 0.8 * inch]
+    table = Table(table_data, colWidths=col_widths)
+    table_style = TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+        ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+        ("GRID", (0, 0), (-1, -1), 1, colors.black),
+        ("FONTSIZE", (0, 1), (-1, -1), 8),
+    ])
+    table.setStyle(table_style)
+    elements.append(table)
+
+    # Build PDF
+    doc.build(elements)
+
+    # Get PDF content
+    pdf_content = buffer.getvalue()
+    buffer.close()
+
+    # Generate filename with timestamp
+    filename_timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"hosts_{filename_timestamp}.pdf"
+
+    # Return as streaming response
+    return StreamingResponse(
+        iter([pdf_content]),
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
