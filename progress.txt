@@ -25,3 +25,21 @@
 - Service layer functions (in app/services/) handle database operations
 - Endpoint pattern: get model with relationships, return 404 if not found, process data, return response
 ---
+
+## 2026-01-27 - US-002
+- Implemented GET /api/alerts/export/csv endpoint
+- Added CSV export functionality with proper headers (Alert Type, IP, Port, Network, Status, Created At)
+- Supports optional query params: alert_type (alias "type") and acknowledged for filtering
+- Uses FastAPI StreamingResponse with proper Content-Disposition header for file download
+- Filename format: alerts_{timestamp}.csv
+
+**Files changed:**
+- backend/src/app/routers/alerts.py
+
+**Learnings for future iterations:**
+- Alert model doesn't have an `acknowledged_at` field, only an `acknowledged` boolean
+- The CSV export uses the same pattern as scans: csv.writer with StringIO
+- Query parameter alias "type" is used for alert_type to match existing API patterns
+- For exports, use a large limit (10000) instead of pagination to get all records
+- The alerts_service.get_alerts() returns tuples of (alert, network_name) for each alert
+---
