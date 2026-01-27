@@ -371,3 +371,26 @@
 - Bidirectional relationships: User.assigned_alerts <-> Alert.assigned_to with back_populates
 - Schema response models should include both ID fields (assigned_to_user_id) and derived fields (assigned_to_email) for flexibility
 ---
+
+## 2026-01-27 - US-017
+- Implemented API endpoints for alert comments CRUD operations
+- POST /api/alerts/{alert_id}/comments to create a comment
+- GET /api/alerts/{alert_id}/comments to list all comments for an alert
+- PATCH /api/alerts/{alert_id}/comments/{comment_id} to update a comment
+- DELETE /api/alerts/{alert_id}/comments/{comment_id} to delete a comment
+- Only comment author or admin can update/delete comments
+- All endpoints require authentication via CurrentUser dependency
+- Ruff and typecheck pass (pre-existing mypy errors in hosts.py and global_open_ports.py are unchanged)
+
+**Files changed:**
+- backend/src/app/routers/alerts.py (added 4 new endpoints)
+- backend/src/app/schemas/alert_comment.py (new - request/response schemas)
+- backend/src/app/services/alert_comments.py (new - service layer for CRUD operations)
+
+**Learnings for future iterations:**
+- CRUD pattern for nested resources: verify parent exists first (404 if not found), then verify child belongs to parent
+- Permission check pattern: allow action if user.id == resource.user_id or user.role == UserRole.ADMIN
+- Service layer returns tuples with joined data (e.g., comment + user_email) to avoid N+1 queries
+- Response schemas should include derived fields (user_email) for UI convenience, not just foreign keys
+- Import order matters for ruff: group by app module (core, models, schemas, services)
+---
