@@ -72,6 +72,9 @@ const RiskOverview = () => {
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
     const [editingComment, setEditingComment] = useState<{ hostId: number; comment: string; ip: string } | null>(null)
     const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [sortColumn, setSortColumn] = useState<'severity' | 'ip' | 'port' | 'network' | 'time'>('time')
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
     const now = new Date()
 
     const isAdmin = user?.role === 'admin'
@@ -87,7 +90,6 @@ const RiskOverview = () => {
         queryKey: ['alerts', 'all'],
         queryFn: () => fetchJson<AlertListResponse>('/api/alerts?limit=200', token ?? ''),
         enabled: Boolean(token),
-        refetchInterval: 30000,
     })
 
     // Fetch networks
@@ -158,9 +160,9 @@ const RiskOverview = () => {
         [allowedSets],
     )
 
-    // Filter alerts
+    // Filter and sort alerts
     const filteredAlerts = useMemo(() => {
-        return alerts.filter((alert) => {
+        const filtered = alerts.filter((alert) => {
             if (severityFilter && alert.severity !== severityFilter) return false
             if (networkFilter && alert.network_id !== networkFilter) return false
 
@@ -173,9 +175,102 @@ const RiskOverview = () => {
             if (statusFilter === 'monitoring' && (!alert.acknowledged || alert.severity === 'critical'))
                 return false
 
+            // Search filter
+            if (searchQuery.trim()) {
+                const query = searchQuery.toLowerCase()
+                const portData = alert.global_open_port_id ? portMap.get(alert.global_open_port_id) : null
+                const serviceName = portData ? getServiceName(portData.service_guess, portData.banner).toLowerCase() : ''
+
+                const matches =
+                    alert.ip.toLowerCase().includes(query) ||
+                    (alert.hostname && alert.hostname.toLowerCase().includes(query)) ||
+                    String(alert.port).includes(query) ||
+                    (alert.network_name && alert.network_name.toLowerCase().includes(query)) ||
+                    serviceName.includes(query) ||
+                    (portData?.banner && portData.banner.toLowerCase().includes(query))
+
+                if (!matches) return false
+            }
+
             return true
         })
-    }, [alerts, severityFilter, networkFilter, statusFilter, isAlertAllowed])
+
+        // Sort alerts
+        const severityOrder = { critical: 0, high: 1, medium: 2, info: 3 }
+
+        // Helper function to compare IPs (supports both IPv4 and IPv6)
+        const compareIPs = (ipA: string, ipB: string): number => {
+            const isIPv4 = (ip: string) => /^(\d{1,3}\.){3}\d{1,3}$/.test(ip)
+
+            const aIsV4 = isIPv4(ipA)
+            const bIsV4 = isIPv4(ipB)
+
+            // IPv4 comes before IPv6
+            if (aIsV4 && !bIsV4) return -1
+            if (!aIsV4 && bIsV4) return 1
+
+            if (aIsV4 && bIsV4) {
+                // Both are IPv4 - numeric comparison
+                const aParts = ipA.split('.').map(Number)
+                const bParts = ipB.split('.').map(Number)
+                for (let i = 0; i < 4; i++) {
+                    if (aParts[i] !== bParts[i]) {
+                        return aParts[i] - bParts[i]
+                    }
+                }
+                return 0
+            } else {
+                // Both are IPv6 (or other format) - lexicographic comparison
+                // Expand compressed IPv6 for proper comparison
+                const expandIPv6 = (ip: string): string => {
+                    if (!ip.includes(':')) return ip
+
+                    // Handle :: expansion
+                    if (ip.includes('::')) {
+                        const sides = ip.split('::')
+                        const leftParts = sides[0] ? sides[0].split(':') : []
+                        const rightParts = sides[1] ? sides[1].split(':') : []
+                        const missingParts = 8 - leftParts.length - rightParts.length
+                        const middleParts = Array(missingParts).fill('0')
+                        ip = [...leftParts, ...middleParts, ...rightParts].join(':')
+                    }
+
+                    // Pad each segment to 4 characters
+                    return ip.split(':').map(seg => seg.padStart(4, '0')).join(':')
+                }
+
+                return expandIPv6(ipA).localeCompare(expandIPv6(ipB))
+            }
+        }
+
+        return filtered.sort((a, b) => {
+            let comparison = 0
+
+            switch (sortColumn) {
+                case 'severity':
+                    comparison = severityOrder[a.severity as Severity] - severityOrder[b.severity as Severity]
+                    break
+                case 'ip':
+                    comparison = compareIPs(a.ip, b.ip)
+                    break
+                case 'port':
+                    comparison = a.port - b.port
+                    break
+                case 'network':
+                    const aNetwork = a.network_name ?? ''
+                    const bNetwork = b.network_name ?? ''
+                    comparison = aNetwork.localeCompare(bNetwork)
+                    break
+                case 'time':
+                    const aTime = parseUtcDate(a.created_at).getTime()
+                    const bTime = parseUtcDate(b.created_at).getTime()
+                    comparison = aTime - bTime
+                    break
+            }
+
+            return sortDirection === 'asc' ? comparison : -comparison
+        })
+    }, [alerts, severityFilter, networkFilter, statusFilter, searchQuery, isAlertAllowed, portMap, sortColumn, sortDirection])
 
     const toggleRow = (alertId: number) => {
         setExpandedRows(prev => {
@@ -184,6 +279,15 @@ const RiskOverview = () => {
             else next.add(alertId)
             return next
         })
+    }
+
+    const handleSort = (column: typeof sortColumn) => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+        } else {
+            setSortColumn(column)
+            setSortDirection('asc')
+        }
     }
 
     // Policy mutations
@@ -380,6 +484,44 @@ const RiskOverview = () => {
 
                     {/* Filters */}
                     <div className="mt-6 flex flex-wrap items-center gap-3">
+                        <div className="relative flex-1 min-w-[240px]">
+                            <svg
+                                className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                />
+                            </svg>
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search IP, hostname, port, network, service, banner..."
+                                className="w-full rounded-2xl border border-slate-200/70 bg-white pl-10 pr-4 py-2 text-sm font-medium text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                                >
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                        />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
@@ -442,11 +584,71 @@ const RiskOverview = () => {
                                         </th>
                                     )}
                                     <th className="w-10 px-2 py-3"></th>
-                                    <th className="px-4 py-3">Severity</th>
-                                    <th className="px-4 py-3">IP / Hostname</th>
-                                    <th className="px-4 py-3">Port</th>
-                                    <th className="px-4 py-3">Network</th>
-                                    <th className="px-4 py-3">Time</th>
+                                    <th
+                                        className="px-4 py-3 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        onClick={() => handleSort('severity')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            Severity
+                                            {sortColumn === 'severity' && (
+                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                                                </svg>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        onClick={() => handleSort('ip')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            IP / Hostname
+                                            {sortColumn === 'ip' && (
+                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                                                </svg>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        onClick={() => handleSort('port')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            Port
+                                            {sortColumn === 'port' && (
+                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                                                </svg>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        onClick={() => handleSort('network')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            Network
+                                            {sortColumn === 'network' && (
+                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                                                </svg>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th
+                                        className="px-4 py-3 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        onClick={() => handleSort('time')}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            Time
+                                            {sortColumn === 'time' && (
+                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                                                </svg>
+                                            )}
+                                        </div>
+                                    </th>
                                     <th className="px-4 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -683,14 +885,6 @@ const RiskOverview = () => {
                                 )}
                             </tbody>
                         </table>
-                    </div>
-
-                    {/* Auto-refresh indicator */}
-                    <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-                        Auto-refreshes every 30 seconds
-                        {alertsQuery.isFetching && !alertsQuery.isLoading && (
-                            <span className="ml-2 italic">Refreshing...</span>
-                        )}
                     </div>
                 </div>
             </section>
