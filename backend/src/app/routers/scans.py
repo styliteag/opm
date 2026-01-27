@@ -1,6 +1,11 @@
 """Scan detail and diff endpoints."""
 
+import csv
+from datetime import datetime, timezone
+from io import StringIO
+
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.models.open_port import OpenPort
@@ -219,6 +224,54 @@ async def update_scan_visibility(
     await db.commit()
 
     return ScanResponse.model_validate(scan)
+
+
+@router.get("/{scan_id}/export/csv")
+async def export_scan_csv(
+    user: CurrentUser,
+    db: DbSession,
+    scan_id: int,
+) -> StreamingResponse:
+    """Export scan results as CSV."""
+    scan = await scans_service.get_scan_with_ports(db, scan_id)
+    if scan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found",
+        )
+
+    # Create CSV in memory
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # Write headers
+    writer.writerow(["IP", "Port", "Protocol", "Service", "First Seen", "Last Seen"])
+
+    # Write data rows
+    for port in scan.open_ports:
+        writer.writerow([
+            port.ip,
+            port.port,
+            port.protocol,
+            port.service_guess or "",
+            port.first_seen_at.isoformat() if port.first_seen_at else "",
+            port.last_seen_at.isoformat() if port.last_seen_at else "",
+        ])
+
+    # Get CSV content
+    csv_content = output.getvalue()
+    output.close()
+
+    # Generate filename with scan ID and timestamp
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"scan_{scan_id}_{timestamp}.csv"
+
+    # Return as streaming response
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.delete("/{scan_id}", status_code=status.HTTP_204_NO_CONTENT)
