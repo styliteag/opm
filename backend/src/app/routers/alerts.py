@@ -1,8 +1,11 @@
 """Alerts management endpoints."""
 
-from datetime import datetime
+import csv
+from datetime import datetime, timezone
+from io import StringIO
 
 from fastapi import APIRouter, Body, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.models.alert import AlertType
@@ -130,6 +133,67 @@ async def list_alerts(
     )
 
     return AlertListResponse(alerts=alert_responses)
+
+
+@router.get("/export/csv")
+async def export_alerts_csv(
+    user: CurrentUser,
+    db: DbSession,
+    alert_type: AlertType | None = Query(None, alias="type"),
+    acknowledged: bool | None = Query(None),
+) -> StreamingResponse:
+    """Export alerts as CSV with optional filters."""
+    # Get all alerts with filters (no pagination for export)
+    alerts = await alerts_service.get_alerts(
+        db,
+        alert_type=alert_type,
+        network_id=None,
+        acknowledged=acknowledged,
+        start_date=None,
+        end_date=None,
+        offset=0,
+        limit=10000,  # Large limit for export
+    )
+
+    # Create CSV in memory
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # Write headers: Alert Type, IP, Port, Network, Status, Created At
+    writer.writerow([
+        "Alert Type",
+        "IP",
+        "Port",
+        "Network",
+        "Status",
+        "Created At",
+    ])
+
+    # Write data rows
+    for alert, network_name in alerts:
+        writer.writerow([
+            alert.alert_type.value,
+            alert.ip,
+            alert.port,
+            network_name or "",
+            "Acknowledged" if alert.acknowledged else "Open",
+            alert.created_at.isoformat(),
+        ])
+
+    # Get CSV content
+    csv_content = output.getvalue()
+    output.close()
+
+    # Generate filename with timestamp
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"alerts_{timestamp}.csv"
+
+    # Return as streaming response
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.put("/{alert_id}/acknowledge", response_model=AlertResponse)
