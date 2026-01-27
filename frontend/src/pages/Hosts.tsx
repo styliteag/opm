@@ -90,6 +90,8 @@ const Hosts = () => {
     null,
   )
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   const isAdmin = user?.role === 'admin'
 
@@ -216,6 +218,86 @@ const Hosts = () => {
     bulkDeleteMutation.mutate(Array.from(selectedHosts))
   }
 
+  const handleExportCsv = async () => {
+    setIsExporting(true)
+    setIsExportDropdownOpen(false)
+    try {
+      const params = new URLSearchParams()
+      if (networkFilter) params.set('network_id', String(networkFilter))
+      if (pingableFilter === 'yes') params.set('status', 'true')
+      else if (pingableFilter === 'no') params.set('status', 'false')
+
+      const url = `${API_BASE_URL}/api/hosts/export/csv?${params.toString()}`
+      const response = await fetch(url, {
+        headers: getAuthHeaders(token ?? ''),
+      })
+
+      if (!response.ok) {
+        throw new Error(await extractErrorMessage(response))
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      a.download = `hosts_${timestamp}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(downloadUrl)
+
+      setToast({ message: 'CSV export successful', tone: 'success' })
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : 'Export failed',
+        tone: 'error'
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleExportPdf = async () => {
+    setIsExporting(true)
+    setIsExportDropdownOpen(false)
+    try {
+      const params = new URLSearchParams()
+      if (networkFilter) params.set('network_id', String(networkFilter))
+      if (pingableFilter === 'yes') params.set('status', 'true')
+      else if (pingableFilter === 'no') params.set('status', 'false')
+
+      const url = `${API_BASE_URL}/api/hosts/export/pdf?${params.toString()}`
+      const response = await fetch(url, {
+        headers: getAuthHeaders(token ?? ''),
+      })
+
+      if (!response.ok) {
+        throw new Error(await extractErrorMessage(response))
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      a.download = `hosts_${timestamp}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(downloadUrl)
+
+      setToast({ message: 'PDF export successful', tone: 'success' })
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : 'Export failed',
+        tone: 'error'
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const renderSort = (label: string, key: SortKey) => (
     <button
       onClick={() => {
@@ -253,32 +335,68 @@ const Hosts = () => {
             Host Discovery Results
           </p>
         </div>
-        {isAdmin && (
-          <div className="flex items-center gap-3">
-            <select
-              value={discoveryNetworkId ?? ''}
-              onChange={(e) => setDiscoveryNetworkId(e.target.value ? Number(e.target.value) : null)}
-              className="bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold focus:ring-4 ring-violet-500/10 focus:border-violet-500 outline-none transition-all min-w-[200px]"
-            >
-              <option value="">Select Network...</option>
-              {(networksQuery.data?.networks ?? []).map((n) => (
-                <option key={n.id} value={n.id} disabled={!n.host_discovery_enabled}>
-                  {n.name} ({n.cidr}){!n.host_discovery_enabled ? ' - disabled' : ''}
-                </option>
-              ))}
-            </select>
+        <div className="flex items-center gap-3">
+          <div className="relative">
             <button
-              onClick={() => discoveryNetworkId && triggerDiscoveryMutation.mutate(discoveryNetworkId)}
-              disabled={!discoveryNetworkId || triggerDiscoveryMutation.isPending}
-              className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+              disabled={isExporting}
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              {triggerDiscoveryMutation.isPending ? 'Starting...' : 'Discover Hosts'}
+              {isExporting ? 'Exporting...' : 'Export'}
             </button>
+            {isExportDropdownOpen && (
+              <div className="absolute right-0 top-full z-20 mt-2 w-48 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden">
+                <button
+                  onClick={handleExportCsv}
+                  className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export as CSV
+                </button>
+                <button
+                  onClick={handleExportPdf}
+                  className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-2 border-t border-slate-100 dark:border-slate-800"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Export as PDF
+                </button>
+              </div>
+            )}
           </div>
-        )}
+          {isAdmin && (
+            <>
+              <select
+                value={discoveryNetworkId ?? ''}
+                onChange={(e) => setDiscoveryNetworkId(e.target.value ? Number(e.target.value) : null)}
+                className="bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold focus:ring-4 ring-violet-500/10 focus:border-violet-500 outline-none transition-all min-w-[200px]"
+              >
+                <option value="">Select Network...</option>
+                {(networksQuery.data?.networks ?? []).map((n) => (
+                  <option key={n.id} value={n.id} disabled={!n.host_discovery_enabled}>
+                    {n.name} ({n.cidr}){!n.host_discovery_enabled ? ' - disabled' : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => discoveryNetworkId && triggerDiscoveryMutation.mutate(discoveryNetworkId)}
+                disabled={!discoveryNetworkId || triggerDiscoveryMutation.isPending}
+                className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {triggerDiscoveryMutation.isPending ? 'Starting...' : 'Discover Hosts'}
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
