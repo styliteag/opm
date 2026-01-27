@@ -1,4 +1,27 @@
 ## Codebase Patterns
-(Patterns will be added as discovered during implementation)
+- FastAPI CSV export pattern: Use StreamingResponse with StringIO, csv.writer, and Content-Disposition header
+- Authentication via CurrentUser dependency from app.core.deps
+- Backend quality checks: `docker exec opm-backend uv run mypy src/` and `docker exec opm-backend uv run ruff check src/`
+- Endpoint pattern: fetch model with relationships → return 404 if not found → process data → return response
 
+---
+
+## 2026-01-27 - US-001
+- Implemented GET /api/scans/{scan_id}/export/csv endpoint
+- Added CSV export functionality with proper headers (IP, Port, Protocol, Service, First Seen, Last Seen)
+- Used FastAPI StreamingResponse with proper Content-Disposition header for file download
+- Filename format: scan_{scan_id}_{timestamp}.csv
+
+**Files changed:**
+- backend/src/app/routers/scans.py
+
+**Learnings for future iterations:**
+- FastAPI pattern for CSV exports: Use StreamingResponse with StringIO and csv.writer
+- Authentication is handled via CurrentUser dependency (from app.core.deps)
+- Use datetime.now(timezone.utc).strftime() for timestamp formatting in filenames
+- CSV data should use .isoformat() for datetime serialization
+- Quality checks: Run `docker exec opm-backend uv run mypy src/` and `docker exec opm-backend uv run ruff check src/`
+- The backend uses FastAPI with async SQLAlchemy, all endpoints should be async
+- Service layer functions (in app/services/) handle database operations
+- Endpoint pattern: get model with relationships, return 404 if not found, process data, return response
 ---
