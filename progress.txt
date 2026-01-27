@@ -350,3 +350,24 @@
 - Quality checks pattern: Run mypy and ruff on specific new/modified files to verify no new errors introduced
 - Pre-existing mypy errors in other files (hosts.py, policy.py, alerts.py, etc.) are not blockers for new code
 ---
+
+## 2026-01-27 - US-016
+- Implemented migration 003 to add assigned_to_user_id and resolution_status fields to alerts table
+- Added ResolutionStatus enum with values: open, in_progress, resolved
+- Updated Alert model with new fields and relationship to assigned user
+- Updated User model with assigned_alerts relationship
+- Updated AlertResponse schema with assigned_to_user_id, assigned_to_email, and resolution_status fields
+- Migration ran successfully, database now at revision 003
+
+**Files changed:**
+- backend/src/migrations/versions/003_add_alert_assignment_and_status.py (new)
+- backend/src/app/models/alert.py (added ResolutionStatus enum and new fields)
+- backend/src/app/models/user.py (added assigned_alerts relationship)
+- backend/src/app/schemas/alert.py (added new fields to AlertResponse)
+
+**Learnings for future iterations:**
+- Enum columns in MySQL: Use server_default="value" for default enum values in migrations
+- When adding FK columns that may have related data in queries, consider adding indexes for performance
+- Bidirectional relationships: User.assigned_alerts <-> Alert.assigned_to with back_populates
+- Schema response models should include both ID fields (assigned_to_user_id) and derived fields (assigned_to_email) for flexibility
+---
