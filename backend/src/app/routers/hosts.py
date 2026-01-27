@@ -1,8 +1,12 @@
 """Hosts API endpoint."""
 
+import csv
+from datetime import datetime, timezone
+from io import StringIO
 from ipaddress import ip_address, ip_network
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.schemas.host import (
@@ -204,4 +208,77 @@ async def bulk_delete_hosts(
     return BulkDeleteHostsResponse(
         deleted_ids=deleted_ids,
         deleted_count=len(deleted_ids),
+    )
+
+
+@router.get("/export/csv")
+async def export_hosts_csv(
+    user: CurrentUser,
+    db: DbSession,
+    network_id: int | None = Query(None, ge=1),
+    is_pingable: bool | None = Query(None, alias="status"),
+) -> StreamingResponse:
+    """Export hosts as CSV."""
+    # Fetch all hosts with the given filters (using a large limit to get all)
+    hosts = await hosts_service.get_hosts(
+        db,
+        network_id=network_id,
+        is_pingable=is_pingable,
+        sort_by="ip",
+        sort_dir="asc",
+        offset=0,
+        limit=10000,
+    )
+
+    # Create CSV in memory
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # Write headers
+    writer.writerow([
+        "IP",
+        "Hostname",
+        "Status",
+        "OS Guess",
+        "First Seen",
+        "Last Seen",
+        "Open Ports Count",
+    ])
+
+    # Write data rows
+    for host in hosts:
+        # Determine status from is_pingable field
+        if host.is_pingable is None:
+            status_value = "Unknown"
+        elif host.is_pingable:
+            status_value = "Up"
+        else:
+            status_value = "Down"
+
+        # Get open port count for this host
+        port_count = await hosts_service.get_open_port_count_for_host(db, host.id)
+
+        writer.writerow([
+            host.ip,
+            host.hostname or "",
+            status_value,
+            "",  # OS Guess - not available in current Host model
+            host.first_seen_at.isoformat() if host.first_seen_at else "",
+            host.last_seen_at.isoformat() if host.last_seen_at else "",
+            port_count,
+        ])
+
+    # Get CSV content
+    csv_content = output.getvalue()
+    output.close()
+
+    # Generate filename with timestamp
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"hosts_{timestamp}.csv"
+
+    # Return as streaming response
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
