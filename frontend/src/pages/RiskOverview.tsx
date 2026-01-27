@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import AlertComments from '../components/AlertComments'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
-import type { Alert, AlertListResponse, NetworkListResponse, PolicyListResponse, GlobalOpenPort, GlobalOpenPortListResponse } from '../types'
+import type { Alert, AlertListResponse, NetworkListResponse, PolicyListResponse, GlobalOpenPort, GlobalOpenPortListResponse, UserListResponse, ResolutionStatus } from '../types'
 
 const formatDateTime = (value: Date) =>
     new Intl.DateTimeFormat(undefined, {
@@ -53,6 +53,18 @@ const severityLabels: Record<Severity, string> = {
     info: '🔵 Info',
 }
 
+const resolutionStatusLabels: Record<ResolutionStatus, string> = {
+    open: 'Open',
+    in_progress: 'In Progress',
+    resolved: 'Resolved',
+}
+
+const resolutionStatusStyles: Record<ResolutionStatus, string> = {
+    open: 'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:text-amber-200',
+    in_progress: 'border-blue-300/50 bg-blue-500/15 text-blue-700 dark:text-blue-200',
+    resolved: 'border-emerald-300/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200',
+}
+
 type ActionModalState = {
     alerts: Alert[]
     mode: 'single' | 'bulk'
@@ -78,6 +90,12 @@ const RiskOverview = () => {
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
     const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
     const [isExporting, setIsExporting] = useState(false)
+    const [assignedUserFilter, setAssignedUserFilter] = useState<number | 'all' | 'unassigned'>('all')
+    const [resolutionStatusFilter, setResolutionStatusFilter] = useState<ResolutionStatus | 'all'>('all')
+    const [assignDropdownOpen, setAssignDropdownOpen] = useState<number | null>(null)
+    const [statusDropdownOpen, setStatusDropdownOpen] = useState<number | null>(null)
+    const [updatingAssignment, setUpdatingAssignment] = useState<number | null>(null)
+    const [updatingStatus, setUpdatingStatus] = useState<number | null>(null)
     const now = new Date()
 
     const isAdmin = user?.role === 'admin'
@@ -116,8 +134,16 @@ const RiskOverview = () => {
         enabled: Boolean(token),
     })
 
+    // Fetch users for assignment dropdown
+    const usersQuery = useQuery({
+        queryKey: ['users'],
+        queryFn: () => fetchJson<UserListResponse>('/api/users', token ?? ''),
+        enabled: Boolean(token),
+    })
+
     const alerts = useMemo(() => alertsQuery.data?.alerts ?? [], [alertsQuery.data?.alerts])
     const networks = useMemo(() => networksQuery.data?.networks ?? [], [networksQuery.data?.networks])
+    const users = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data?.users])
 
     // Build port lookup map
     const portMap = useMemo(() => {
@@ -193,6 +219,20 @@ const RiskOverview = () => {
                     (portData?.banner && portData.banner.toLowerCase().includes(query))
 
                 if (!matches) return false
+            }
+
+            // Assigned user filter
+            if (assignedUserFilter !== 'all') {
+                if (assignedUserFilter === 'unassigned') {
+                    if (alert.assigned_to_user_id !== null) return false
+                } else {
+                    if (alert.assigned_to_user_id !== assignedUserFilter) return false
+                }
+            }
+
+            // Resolution status filter
+            if (resolutionStatusFilter !== 'all') {
+                if (alert.resolution_status !== resolutionStatusFilter) return false
             }
 
             return true
@@ -273,7 +313,7 @@ const RiskOverview = () => {
 
             return sortDirection === 'asc' ? comparison : -comparison
         })
-    }, [alerts, severityFilter, networkFilter, statusFilter, searchQuery, isAlertAllowed, portMap, sortColumn, sortDirection])
+    }, [alerts, severityFilter, networkFilter, statusFilter, searchQuery, isAlertAllowed, portMap, sortColumn, sortDirection, assignedUserFilter, resolutionStatusFilter])
 
     const toggleRow = (alertId: number) => {
         setExpandedRows(prev => {
@@ -381,6 +421,60 @@ const RiskOverview = () => {
         },
         onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
     })
+
+    const assignAlertMutation = useMutation({
+        mutationFn: async ({ alertId, userId }: { alertId: number; userId: number | null }) => {
+            const res = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/assign`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders(token ?? '') },
+                body: JSON.stringify({ user_id: userId }),
+            })
+            if (!res.ok) throw new Error(await extractErrorMessage(res))
+            return res.json()
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['alerts'] })
+            setToast({ message: 'Alert assignment updated', tone: 'success' })
+            setAssignDropdownOpen(null)
+            setUpdatingAssignment(null)
+        },
+        onError: (e) => {
+            setToast({ message: e instanceof Error ? e.message : 'Failed to update assignment', tone: 'error' })
+            setUpdatingAssignment(null)
+        },
+    })
+
+    const updateStatusMutation = useMutation({
+        mutationFn: async ({ alertId, status }: { alertId: number; status: ResolutionStatus }) => {
+            const res = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders(token ?? '') },
+                body: JSON.stringify({ resolution_status: status }),
+            })
+            if (!res.ok) throw new Error(await extractErrorMessage(res))
+            return res.json()
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['alerts'] })
+            setToast({ message: 'Alert status updated', tone: 'success' })
+            setStatusDropdownOpen(null)
+            setUpdatingStatus(null)
+        },
+        onError: (e) => {
+            setToast({ message: e instanceof Error ? e.message : 'Failed to update status', tone: 'error' })
+            setUpdatingStatus(null)
+        },
+    })
+
+    const handleAssignAlert = (alertId: number, userId: number | null) => {
+        setUpdatingAssignment(alertId)
+        assignAlertMutation.mutate({ alertId, userId })
+    }
+
+    const handleUpdateStatus = (alertId: number, status: ResolutionStatus) => {
+        setUpdatingStatus(alertId)
+        updateStatusMutation.mutate({ alertId, status })
+    }
 
     const handleExportCsv = async () => {
         setIsExporting(true)
@@ -656,6 +750,38 @@ const RiskOverview = () => {
                                 </option>
                             ))}
                         </select>
+
+                        <select
+                            value={assignedUserFilter}
+                            onChange={(e) => {
+                                const val = e.target.value
+                                if (val === 'all' || val === 'unassigned') {
+                                    setAssignedUserFilter(val)
+                                } else {
+                                    setAssignedUserFilter(Number(val))
+                                }
+                            }}
+                            className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                        >
+                            <option value="all">All Assignees</option>
+                            <option value="unassigned">Unassigned</option>
+                            {users.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                    {u.email}
+                                </option>
+                            ))}
+                        </select>
+
+                        <select
+                            value={resolutionStatusFilter}
+                            onChange={(e) => setResolutionStatusFilter(e.target.value as ResolutionStatus | 'all')}
+                            className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                        >
+                            <option value="all">All Resolution Status</option>
+                            <option value="open">🟡 Open</option>
+                            <option value="in_progress">🔵 In Progress</option>
+                            <option value="resolved">🟢 Resolved</option>
+                        </select>
                     </div>
 
                     {/* Action message */}
@@ -747,19 +873,21 @@ const RiskOverview = () => {
                                             )}
                                         </div>
                                     </th>
+                                    <th className="px-4 py-3">Assigned To</th>
+                                    <th className="px-4 py-3">Status</th>
                                     <th className="px-4 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
                                 {alertsQuery.isLoading || policyQuery.isLoading ? (
                                     <tr>
-                                        <td colSpan={isAdmin ? 9 : 8} className="px-4 py-6 text-sm text-slate-500">
+                                        <td colSpan={isAdmin ? 11 : 10} className="px-4 py-6 text-sm text-slate-500">
                                             Loading security context...
                                         </td>
                                     </tr>
                                 ) : filteredAlerts.length === 0 ? (
                                     <tr>
-                                        <td colSpan={isAdmin ? 9 : 8} className="px-4 py-6 text-sm text-slate-500">
+                                        <td colSpan={isAdmin ? 11 : 10} className="px-4 py-6 text-sm text-slate-500">
                                             No alerts found.
                                         </td>
                                     </tr>
@@ -828,6 +956,80 @@ const RiskOverview = () => {
                                                         <p className="text-slate-700 dark:text-slate-200">{relativeTime}</p>
                                                         <p className="text-xs text-slate-500 dark:text-slate-400">{fullTime}</p>
                                                     </td>
+                                                    {/* Assigned To column */}
+                                                    <td className="whitespace-nowrap px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="relative">
+                                                            <button
+                                                                onClick={() => setAssignDropdownOpen(assignDropdownOpen === alert.id ? null : alert.id)}
+                                                                disabled={updatingAssignment === alert.id}
+                                                                className="flex items-center gap-2 rounded-xl border border-slate-200/70 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 disabled:opacity-50"
+                                                            >
+                                                                {updatingAssignment === alert.id ? (
+                                                                    <span className="animate-pulse">Updating...</span>
+                                                                ) : alert.assigned_to_email ? (
+                                                                    <span className="max-w-[100px] truncate">{alert.assigned_to_email}</span>
+                                                                ) : (
+                                                                    <span className="text-slate-400">Unassigned</span>
+                                                                )}
+                                                                <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                                </svg>
+                                                            </button>
+                                                            {assignDropdownOpen === alert.id && (
+                                                                <div className="absolute left-0 top-full z-30 mt-1 w-48 rounded-xl border border-slate-200/70 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                                                                    <button
+                                                                        onClick={() => handleAssignAlert(alert.id, null)}
+                                                                        className="w-full px-3 py-2 text-left text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 rounded-t-xl transition"
+                                                                    >
+                                                                        Unassigned
+                                                                    </button>
+                                                                    {users.map((u) => (
+                                                                        <button
+                                                                            key={u.id}
+                                                                            onClick={() => handleAssignAlert(alert.id, u.id)}
+                                                                            className={`w-full px-3 py-2 text-left text-xs font-medium transition hover:bg-slate-100 dark:hover:bg-slate-700 last:rounded-b-xl ${alert.assigned_to_user_id === u.id ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}
+                                                                        >
+                                                                            {u.email}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    {/* Status column */}
+                                                    <td className="whitespace-nowrap px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="relative">
+                                                            <button
+                                                                onClick={() => setStatusDropdownOpen(statusDropdownOpen === alert.id ? null : alert.id)}
+                                                                disabled={updatingStatus === alert.id}
+                                                                className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${resolutionStatusStyles[alert.resolution_status]} disabled:opacity-50`}
+                                                            >
+                                                                {updatingStatus === alert.id ? (
+                                                                    <span className="animate-pulse">Updating...</span>
+                                                                ) : (
+                                                                    resolutionStatusLabels[alert.resolution_status]
+                                                                )}
+                                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                                </svg>
+                                                            </button>
+                                                            {statusDropdownOpen === alert.id && (
+                                                                <div className="absolute left-0 top-full z-30 mt-1 w-36 rounded-xl border border-slate-200/70 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                                                                    {(['open', 'in_progress', 'resolved'] as ResolutionStatus[]).map((status) => (
+                                                                        <button
+                                                                            key={status}
+                                                                            onClick={() => handleUpdateStatus(alert.id, status)}
+                                                                            className={`w-full px-3 py-2 text-left text-xs font-medium transition hover:bg-slate-100 dark:hover:bg-slate-700 first:rounded-t-xl last:rounded-b-xl ${alert.resolution_status === status ? 'bg-slate-100 dark:bg-slate-700' : ''}`}
+                                                                        >
+                                                                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${resolutionStatusStyles[status]}`}>
+                                                                                {resolutionStatusLabels[status]}
+                                                                            </span>
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
                                                     <td className="whitespace-nowrap px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                                                         {alert.acknowledged ? (
                                                             <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
@@ -849,7 +1051,7 @@ const RiskOverview = () => {
                                                 </tr>
                                                 {isExpanded && (
                                                     <tr className="bg-slate-50/20 dark:bg-slate-800/10">
-                                                        <td colSpan={isAdmin ? 9 : 8} className="px-16 py-12">
+                                                        <td colSpan={isAdmin ? 11 : 10} className="px-16 py-12">
                                                             {portData ? (
                                                                 <div className="space-y-8">
                                                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">

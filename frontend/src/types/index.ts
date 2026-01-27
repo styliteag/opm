@@ -1,6 +1,7 @@
 // Alert types
 export type AlertType = 'new_port' | 'not_allowed' | 'blocked'
 export type Severity = 'critical' | 'high' | 'medium' | 'info'
+export type ResolutionStatus = 'open' | 'in_progress' | 'resolved'
 
 export type Alert = {
   id: number
@@ -12,6 +13,9 @@ export type Alert = {
   port: number
   message: string
   acknowledged: boolean
+  assigned_to_user_id: number | null
+  assigned_to_email: string | null
+  resolution_status: ResolutionStatus
   created_at: string
   severity: Severity
   // Host information (if available)
