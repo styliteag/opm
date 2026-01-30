@@ -123,12 +123,102 @@ const isSSHService = (port: number, serviceGuess: string | null, banner: string 
   return false
 }
 
+// Helper to get algorithm security class
+const getAlgorithmSecurityClass = (isWeak: boolean): string => {
+  if (isWeak) {
+    return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800'
+  }
+  return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
+}
+
+// Algorithm List Component
+const AlgorithmList: React.FC<{
+  title: string
+  algorithms: Array<{ name: string; keysize?: number | null; is_weak: boolean; notes?: string[] }> | null
+  emptyMessage?: string
+}> = ({ title, algorithms, emptyMessage = 'No data available' }) => {
+  if (!algorithms || algorithms.length === 0) {
+    return (
+      <div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">
+          {title}
+        </p>
+        <p className="text-xs text-slate-400 italic">{emptyMessage}</p>
+      </div>
+    )
+  }
+
+  const weakCount = algorithms.filter((a) => a.is_weak).length
+
+  return (
+    <div>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">
+        {title}
+        {weakCount > 0 && (
+          <span className="ml-2 text-rose-500">
+            ({weakCount} weak)
+          </span>
+        )}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {algorithms.map((algo) => (
+          <span
+            key={algo.name}
+            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border ${getAlgorithmSecurityClass(algo.is_weak)}`}
+            title={algo.notes?.join(', ') || (algo.is_weak ? 'Weak algorithm - consider disabling' : 'Secure algorithm')}
+          >
+            {algo.is_weak && <span className="mr-1">⚠</span>}
+            {algo.name}
+            {algo.keysize && <span className="ml-1 opacity-70">({algo.keysize})</span>}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Host Key Types List Component
+const HostKeyTypesList: React.FC<{
+  hostKeyTypes: string[] | null
+}> = ({ hostKeyTypes }) => {
+  if (!hostKeyTypes || hostKeyTypes.length === 0) {
+    return (
+      <div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">
+          Host Key Types
+        </p>
+        <p className="text-xs text-slate-400 italic">No data available</p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">
+        Host Key Types
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {hostKeyTypes.map((keyType) => (
+          <span
+            key={keyType}
+            className="px-3 py-1.5 rounded-xl text-[10px] font-bold border bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+          >
+            {keyType}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // SSH Security Panel Component
 const SSHSecurityPanel: React.FC<{
   hostIp: string
   port: number
   token: string
 }> = ({ hostIp, port, token }) => {
+  const [showCryptoDetails, setShowCryptoDetails] = useState(false)
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['ssh-host-history', hostIp, port],
     queryFn: () =>
@@ -150,6 +240,16 @@ const SSHSecurityPanel: React.FC<{
   }
 
   const latestResult = data.history[0]
+
+  // Count weak algorithms
+  const weakCipherCount = latestResult.supported_ciphers?.filter((c) => c.is_weak).length || 0
+  const weakKexCount = latestResult.kex_algorithms?.filter((k) => k.is_weak).length || 0
+  const weakMacCount = latestResult.mac_algorithms?.filter((m) => m.is_weak).length || 0
+  const hasWeakAlgorithms = weakCipherCount > 0 || weakKexCount > 0 || weakMacCount > 0
+  const hasCryptoData = (latestResult.supported_ciphers?.length ?? 0) > 0 ||
+    (latestResult.kex_algorithms?.length ?? 0) > 0 ||
+    (latestResult.mac_algorithms?.length ?? 0) > 0 ||
+    (latestResult.host_key_types?.length ?? 0) > 0
 
   return (
     <div className="space-y-6">
@@ -233,6 +333,105 @@ const SSHSecurityPanel: React.FC<{
                 ? 'Password authentication is enabled. This is vulnerable to brute-force attacks. Consider using public key authentication only.'
                 : 'Keyboard-interactive authentication is enabled. Consider whether this is necessary for your security requirements.'}
           </p>
+        </div>
+      )}
+
+      {/* Cryptographic Details Expandable Section */}
+      {hasCryptoData && (
+        <div className="border-t border-slate-100 dark:border-slate-800/50 pt-6">
+          <button
+            onClick={() => setShowCryptoDetails(!showCryptoDetails)}
+            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${
+              showCryptoDetails
+                ? 'bg-indigo-50 dark:bg-indigo-900/20 border-2 border-indigo-100 dark:border-indigo-900/50'
+                : 'bg-slate-50 dark:bg-slate-800/30 border-2 border-slate-100 dark:border-slate-800 hover:border-indigo-100 dark:hover:border-indigo-900/50'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <svg
+                className={`w-5 h-5 ${hasWeakAlgorithms ? 'text-rose-500' : 'text-emerald-500'}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">
+                Cryptographic Configuration
+              </span>
+              {hasWeakAlgorithms && (
+                <span className="px-2 py-1 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-lg text-[10px] font-black">
+                  {weakCipherCount + weakKexCount + weakMacCount} WEAK
+                </span>
+              )}
+            </div>
+            <svg
+              className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${showCryptoDetails ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {showCryptoDetails && (
+            <div className="mt-4 p-6 bg-white dark:bg-slate-900 rounded-2xl border-2 border-slate-100 dark:border-slate-800 space-y-6 animate-in slide-in-from-top-2 duration-200">
+              {/* Weak Algorithm Warning */}
+              {hasWeakAlgorithms && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-900/50">
+                  <p className="text-[11px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                    Weak Algorithms Detected
+                  </p>
+                  <p className="text-xs text-amber-600/80 dark:text-amber-400/80 mt-2 font-bold">
+                    {weakCipherCount > 0 && `${weakCipherCount} weak cipher${weakCipherCount > 1 ? 's' : ''}`}
+                    {weakCipherCount > 0 && (weakKexCount > 0 || weakMacCount > 0) && ', '}
+                    {weakKexCount > 0 && `${weakKexCount} weak key exchange algorithm${weakKexCount > 1 ? 's' : ''}`}
+                    {weakKexCount > 0 && weakMacCount > 0 && ', '}
+                    {weakMacCount > 0 && `${weakMacCount} weak MAC algorithm${weakMacCount > 1 ? 's' : ''}`}
+                    {' detected. Consider updating SSH configuration to remove deprecated algorithms.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Ciphers */}
+              <AlgorithmList
+                title="Ciphers"
+                algorithms={latestResult.supported_ciphers}
+                emptyMessage="No cipher data available"
+              />
+
+              {/* Key Exchange Algorithms */}
+              <AlgorithmList
+                title="Key Exchange Algorithms"
+                algorithms={latestResult.kex_algorithms}
+                emptyMessage="No key exchange data available"
+              />
+
+              {/* MAC Algorithms */}
+              <AlgorithmList
+                title="MAC Algorithms"
+                algorithms={latestResult.mac_algorithms}
+                emptyMessage="No MAC algorithm data available"
+              />
+
+              {/* Host Key Types */}
+              <HostKeyTypesList hostKeyTypes={latestResult.host_key_types} />
+            </div>
+          )}
         </div>
       )}
     </div>
