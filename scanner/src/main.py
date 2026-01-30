@@ -2171,8 +2171,8 @@ def main() -> None:
                 if host_discovery_jobs:
                     has_work = True
                     logger.info("Found %s pending host discovery job(s)", len(host_discovery_jobs))
-                    for job in host_discovery_jobs:
-                        _process_host_discovery_job(job, client, logger)
+                    for hd_job in host_discovery_jobs:
+                        _process_host_discovery_job(hd_job, client, logger)
             except Exception:
                 logger.exception("Failed to fetch host discovery jobs")
 

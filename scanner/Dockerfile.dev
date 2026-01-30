@@ -21,7 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast Python package management
-RUN pip install uv
+# Install ssh-audit for SSH security probing
+RUN pip install uv ssh-audit
 
 # Copy project configuration
 COPY pyproject.toml ./

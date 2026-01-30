@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     socat \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+RUN pip install uv ssh-audit
 
 COPY pyproject.toml ./
 COPY uv.lock* ./
