@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchJson } from '../lib/api'
-import type { SSHHostListResponse, SSHHostSummary } from '../types'
+import type { NetworkListResponse, SSHHostListResponse, SSHHostSummary } from '../types'
 
 const parseUtcDate = (dateStr: string) => {
   return new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
@@ -48,11 +49,26 @@ const parseSSHVersion = (versionStr: string | null): number | null => {
 const DEFAULT_MIN_SSH_VERSION = 8.0
 
 type FilterType = 'all' | 'insecure_auth' | 'weak_ciphers' | 'outdated_version'
+type SortKey = 'ip' | 'port' | 'ssh_version' | 'auth' | 'last_scanned'
+type SortDirection = 'asc' | 'desc'
+type AuthFilterType = 'all' | 'secure' | 'insecure'
 
 const SSHSecurity = () => {
   const { token } = useAuth()
+  const navigate = useNavigate()
   const now = new Date()
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
+  const [networkFilter, setNetworkFilter] = useState<number | null>(null)
+  const [authFilter, setAuthFilter] = useState<AuthFilterType>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('last_scanned')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  // Fetch networks for filter dropdown
+  const networksQuery = useQuery({
+    queryKey: ['networks'],
+    queryFn: () => fetchJson<NetworkListResponse>('/api/networks', token ?? ''),
+    enabled: Boolean(token),
+  })
 
   // Fetch all SSH hosts (up to 200 for summary statistics)
   const sshHostsQuery = useQuery({
@@ -89,19 +105,71 @@ const SSHSecurity = () => {
     }
   }, [hosts, totalHosts])
 
-  // Filter hosts based on selected card
+  // Filter hosts based on selected card, network, and auth status
   const filteredHosts = useMemo(() => {
+    let result: SSHHostSummary[]
+
+    // Apply card filter first
     switch (activeFilter) {
       case 'insecure_auth':
-        return metrics.hostsWithInsecureAuth
+        result = metrics.hostsWithInsecureAuth
+        break
       case 'weak_ciphers':
-        return metrics.hostsWithWeakCiphers
+        result = metrics.hostsWithWeakCiphers
+        break
       case 'outdated_version':
-        return metrics.hostsWithOutdatedVersion
+        result = metrics.hostsWithOutdatedVersion
+        break
       default:
-        return hosts
+        result = hosts
     }
-  }, [activeFilter, hosts, metrics])
+
+    // Apply network filter
+    if (networkFilter !== null) {
+      result = result.filter((h) => h.network_id === networkFilter)
+    }
+
+    // Apply auth method filter
+    if (authFilter === 'secure') {
+      result = result.filter(
+        (h) => h.publickey_enabled && !h.password_enabled && !h.keyboard_interactive_enabled
+      )
+    } else if (authFilter === 'insecure') {
+      result = result.filter((h) => h.password_enabled || h.keyboard_interactive_enabled)
+    }
+
+    return result
+  }, [activeFilter, hosts, metrics, networkFilter, authFilter])
+
+  // Sort filtered hosts
+  const sortedHosts = useMemo(() => {
+    const sorted = [...filteredHosts]
+    sorted.sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'ip':
+          cmp = a.host_ip.localeCompare(b.host_ip)
+          break
+        case 'port':
+          cmp = a.port - b.port
+          break
+        case 'ssh_version':
+          cmp = (a.ssh_version ?? '').localeCompare(b.ssh_version ?? '')
+          break
+        case 'auth': {
+          const aInsecure = a.password_enabled || a.keyboard_interactive_enabled ? 1 : 0
+          const bInsecure = b.password_enabled || b.keyboard_interactive_enabled ? 1 : 0
+          cmp = bInsecure - aInsecure // Insecure first by default
+          break
+        }
+        case 'last_scanned':
+          cmp = new Date(a.last_scanned).getTime() - new Date(b.last_scanned).getTime()
+          break
+      }
+      return sortDirection === 'asc' ? cmp : -cmp
+    })
+    return sorted
+  }, [filteredHosts, sortKey, sortDirection])
 
   const summaryCards = [
     {
@@ -151,6 +219,33 @@ const SSHSecurity = () => {
 
   const isLoading = sshHostsQuery.isLoading
   const hasError = sshHostsQuery.isError
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const renderSortHeader = (label: string, key: SortKey) => (
+    <button
+      type="button"
+      onClick={() => handleSort(key)}
+      className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+    >
+      {label}
+      {sortKey === key && (
+        <span className="text-cyan-500">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+      )}
+    </button>
+  )
+
+  const handleRowClick = (host: SSHHostSummary) => {
+    // Navigate to hosts page with IP filter
+    navigate(`/hosts?ip=${encodeURIComponent(host.host_ip)}`)
+  }
 
   const getAuthMethodBadge = (host: SSHHostSummary) => {
     if (host.password_enabled || host.keyboard_interactive_enabled) {
@@ -266,13 +361,48 @@ const SSHSecurity = () => {
 
         {/* Filtered Hosts Table */}
         <div className="animate-rise rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm dark:border-slate-800/70 dark:bg-slate-950/70">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="font-display text-xl text-slate-900 dark:text-white">
               {filterLabels[activeFilter]}
             </h3>
             <span className="rounded-full border border-slate-200/70 bg-slate-100/80 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700/70 dark:bg-slate-800/80 dark:text-slate-300">
-              {filteredHosts.length} host{filteredHosts.length !== 1 ? 's' : ''}
+              {sortedHosts.length} host{sortedHosts.length !== 1 ? 's' : ''}
             </span>
+          </div>
+
+          {/* Filter Controls */}
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Network
+              </label>
+              <select
+                value={networkFilter ?? ''}
+                onChange={(e) => setNetworkFilter(e.target.value ? Number(e.target.value) : null)}
+                className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition-colors focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700/70 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <option value="">All Networks</option>
+                {(networksQuery.data?.networks ?? []).map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Auth Status
+              </label>
+              <select
+                value={authFilter}
+                onChange={(e) => setAuthFilter(e.target.value as AuthFilterType)}
+                className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition-colors focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700/70 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <option value="all">All Auth</option>
+                <option value="secure">Secure (Key Only)</option>
+                <option value="insecure">Insecure (Password/Kbd)</option>
+              </select>
+            </div>
           </div>
 
           {hasError ? (
@@ -283,40 +413,44 @@ const SSHSecurity = () => {
             <div className="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-sm text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-400">
               Loading SSH hosts...
             </div>
-          ) : filteredHosts.length === 0 ? (
+          ) : sortedHosts.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-sm text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-400">
-              {activeFilter === 'all'
+              {activeFilter === 'all' && networkFilter === null && authFilter === 'all'
                 ? 'No SSH hosts discovered yet. Run a scan to discover SSH services.'
-                : 'No hosts match this filter criteria.'}
+                : 'No hosts match the current filter criteria.'}
             </div>
           ) : (
             <div className="mt-4 overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-200/70 text-left text-xs font-semibold text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
-                    <th className="pb-3 pr-4">Host</th>
-                    <th className="pb-3 pr-4">SSH Version</th>
-                    <th className="pb-3 pr-4">Auth</th>
-                    <th className="pb-3 pr-4">Crypto</th>
-                    <th className="pb-3 pr-4">Network</th>
-                    <th className="pb-3">Last Scanned</th>
+                  <tr className="border-b border-slate-200/70 text-left dark:border-slate-800/70">
+                    <th className="pb-3 pr-4">{renderSortHeader('IP', 'ip')}</th>
+                    <th className="pb-3 pr-4">{renderSortHeader('Port', 'port')}</th>
+                    <th className="pb-3 pr-4">{renderSortHeader('SSH Version', 'ssh_version')}</th>
+                    <th className="pb-3 pr-4">{renderSortHeader('Auth', 'auth')}</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Crypto
+                    </th>
+                    <th className="pb-3 pr-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Network
+                    </th>
+                    <th className="pb-3">{renderSortHeader('Last Scanned', 'last_scanned')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/50 dark:divide-slate-800/50">
-                  {filteredHosts.map((host) => (
+                  {sortedHosts.map((host) => (
                     <tr
                       key={`${host.host_ip}:${host.port}`}
-                      className="text-sm transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
+                      onClick={() => handleRowClick(host)}
+                      className="cursor-pointer text-sm transition-colors hover:bg-cyan-50/50 dark:hover:bg-cyan-900/10"
                     >
                       <td className="py-3 pr-4">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-slate-900 dark:text-white">
-                            {host.host_ip}
-                          </span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            Port {host.port}
-                          </span>
-                        </div>
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                          {host.host_ip}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className="text-slate-600 dark:text-slate-300">{host.port}</span>
                       </td>
                       <td className="py-3 pr-4">
                         <div className="flex items-center gap-2">

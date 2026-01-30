@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
 import type {
@@ -76,7 +77,9 @@ const formatIpAddress = (val: string) => (val.includes(':') ? compressIpv6(val) 
 const Hosts = () => {
   const { token, user } = useAuth()
   const queryClient = useQueryClient()
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialIp = searchParams.get('ip') ?? ''
+  const [searchTerm, setSearchTerm] = useState(initialIp)
   const [networkFilter, setNetworkFilter] = useState<number | null>(null)
   const [pingableFilter, setPingableFilter] = useState<string>('all')
   const [sortKey, setSortKey] = useState<SortKey>('last_seen_at')
@@ -94,6 +97,13 @@ const Hosts = () => {
   const [isExporting, setIsExporting] = useState(false)
 
   const isAdmin = user?.role === 'admin'
+
+  // Clear URL param after initial load to avoid keeping it in the URL
+  useEffect(() => {
+    if (searchParams.has('ip')) {
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setOffset(0)
