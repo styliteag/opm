@@ -788,3 +788,248 @@ async def generate_ssh_alerts_for_scan(
         await queue_alert_emails(created_alerts, network_name, alert_config, scan.id)
 
     return created_count
+
+
+SSHResultKey = tuple[str, int]  # (host_ip, port)
+
+
+async def _get_previous_ssh_results(
+    db: AsyncSession, scan: Scan
+) -> dict[SSHResultKey, SSHScanResult]:
+    """Get SSH scan results from the previous completed scan for this network.
+
+    Returns a dict mapping (host_ip, port) to SSHScanResult for easy lookup.
+    """
+    # Find the previous completed scan for this network
+    result = await db.execute(
+        select(Scan.id)
+        .where(
+            Scan.network_id == scan.network_id,
+            Scan.status == ScanStatus.COMPLETED,
+            Scan.id < scan.id,
+        )
+        .order_by(Scan.id.desc())
+        .limit(1)
+    )
+    previous_scan_id = result.scalar_one_or_none()
+    if previous_scan_id is None:
+        return {}
+
+    # Get SSH results from the previous scan
+    ssh_result = await db.execute(
+        select(SSHScanResult).where(SSHScanResult.scan_id == previous_scan_id)
+    )
+    ssh_results = list(ssh_result.scalars().all())
+
+    # Build lookup dict
+    return {(r.host_ip, r.port): r for r in ssh_results}
+
+
+def _get_algorithm_names(algorithms: list[dict[str, Any]] | None) -> set[str]:
+    """Extract algorithm names from a list of algorithm dicts."""
+    if not algorithms:
+        return set()
+    return {algo.get("name", "") for algo in algorithms if isinstance(algo, dict)}
+
+
+def _get_weak_algorithm_names(algorithms: list[dict[str, Any]] | None) -> set[str]:
+    """Extract names of weak algorithms from a list of algorithm dicts."""
+    if not algorithms:
+        return set()
+    return {
+        algo.get("name", "")
+        for algo in algorithms
+        if isinstance(algo, dict) and algo.get("is_weak", False)
+    }
+
+
+def _detect_ssh_regressions(
+    current: SSHScanResult, previous: SSHScanResult
+) -> list[str]:
+    """Detect security regressions between current and previous SSH scan results.
+
+    Returns a list of regression descriptions. Empty list means no regressions.
+
+    Regressions include:
+    - Password auth enabled (was disabled)
+    - Keyboard-interactive auth enabled (was disabled)
+    - Weak ciphers added
+    - Weak KEX algorithms added
+    """
+    regressions: list[str] = []
+
+    # Check auth method regressions
+    if current.password_enabled and not previous.password_enabled:
+        regressions.append("password authentication was enabled")
+
+    if current.keyboard_interactive_enabled and not previous.keyboard_interactive_enabled:
+        regressions.append("keyboard-interactive authentication was enabled")
+
+    # Check for newly added weak ciphers
+    prev_weak_ciphers = _get_weak_algorithm_names(previous.supported_ciphers)
+    curr_weak_ciphers = _get_weak_algorithm_names(current.supported_ciphers)
+    new_weak_ciphers = curr_weak_ciphers - prev_weak_ciphers
+    if new_weak_ciphers:
+        regressions.append(f"weak ciphers added: {', '.join(sorted(new_weak_ciphers))}")
+
+    # Check for newly added weak KEX algorithms
+    prev_weak_kex = _get_weak_algorithm_names(previous.kex_algorithms)
+    curr_weak_kex = _get_weak_algorithm_names(current.kex_algorithms)
+    new_weak_kex = curr_weak_kex - prev_weak_kex
+    if new_weak_kex:
+        regressions.append(f"weak KEX algorithms added: {', '.join(sorted(new_weak_kex))}")
+
+    return regressions
+
+
+def _detect_ssh_improvements(
+    current: SSHScanResult, previous: SSHScanResult
+) -> list[str]:
+    """Detect security improvements between current and previous SSH scan results.
+
+    Returns a list of improvement descriptions. Empty list means no improvements.
+
+    Improvements include:
+    - Password auth disabled (was enabled)
+    - Keyboard-interactive auth disabled (was enabled)
+    - Weak ciphers removed
+    - Weak KEX algorithms removed
+    """
+    improvements: list[str] = []
+
+    # Check auth method improvements
+    if not current.password_enabled and previous.password_enabled:
+        improvements.append("password authentication was disabled")
+
+    if not current.keyboard_interactive_enabled and previous.keyboard_interactive_enabled:
+        improvements.append("keyboard-interactive authentication was disabled")
+
+    # Check for removed weak ciphers
+    prev_weak_ciphers = _get_weak_algorithm_names(previous.supported_ciphers)
+    curr_weak_ciphers = _get_weak_algorithm_names(current.supported_ciphers)
+    removed_weak_ciphers = prev_weak_ciphers - curr_weak_ciphers
+    if removed_weak_ciphers:
+        improvements.append(f"weak ciphers removed: {', '.join(sorted(removed_weak_ciphers))}")
+
+    # Check for removed weak KEX algorithms
+    prev_weak_kex = _get_weak_algorithm_names(previous.kex_algorithms)
+    curr_weak_kex = _get_weak_algorithm_names(current.kex_algorithms)
+    removed_weak_kex = prev_weak_kex - curr_weak_kex
+    if removed_weak_kex:
+        improvements.append(f"weak KEX algorithms removed: {', '.join(sorted(removed_weak_kex))}")
+
+    return improvements
+
+
+async def generate_ssh_regression_alerts_for_scan(
+    db: AsyncSession,
+    scan: Scan,
+) -> int:
+    """
+    Generate SSH_CONFIG_REGRESSION alerts for security regressions in SSH configuration.
+
+    This function:
+    1. Gets SSH results from the previous completed scan for this network
+    2. Compares each host/port configuration to detect regressions
+    3. Creates SSH_CONFIG_REGRESSION alerts for regressions
+    4. Logs informational events for improvements (no alerts)
+
+    Args:
+        db: Database session
+        scan: The completed scan
+
+    Returns:
+        Number of alerts created
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if scan.status != ScanStatus.COMPLETED:
+        return 0
+
+    # Fetch SSH scan results for this scan
+    result = await db.execute(
+        select(SSHScanResult).where(SSHScanResult.scan_id == scan.id)
+    )
+    current_results = list(result.scalars().all())
+
+    if not current_results:
+        return 0
+
+    # Get previous scan's SSH results
+    previous_results = await _get_previous_ssh_results(db, scan)
+    if not previous_results:
+        # No previous scan to compare against
+        return 0
+
+    # Get network info for context and alert config
+    network_result = await db.execute(
+        select(Network.alert_config, Network.name).where(Network.id == scan.network_id)
+    )
+    network_row = network_result.first()
+    if network_row is None:
+        return 0
+
+    alert_config, network_name = network_row
+    enabled_types = _get_enabled_alert_types(alert_config)
+
+    # Check if SSH_CONFIG_REGRESSION is enabled
+    if AlertType.SSH_CONFIG_REGRESSION not in enabled_types:
+        return 0
+
+    # Get existing unacknowledged SSH alerts to avoid duplicates
+    existing_alerts = await _get_unacknowledged_ssh_alerts(db, scan.network_id)
+    created_alert_keys: set[SSHAlertKey] = set()
+    created_count = 0
+    created_alerts: list[Alert] = []
+
+    for current in current_results:
+        key_tuple: SSHResultKey = (current.host_ip, current.port)
+        previous = previous_results.get(key_tuple)
+
+        if previous is None:
+            # New SSH service, no comparison possible
+            continue
+
+        # Detect regressions
+        regressions = _detect_ssh_regressions(current, previous)
+        if regressions:
+            alert_key: SSHAlertKey = (AlertType.SSH_CONFIG_REGRESSION, current.host_ip, current.port)
+            if alert_key not in existing_alerts and alert_key not in created_alert_keys:
+                regression_details = "; ".join(regressions)
+                version_info = f" (SSH {current.ssh_version})" if current.ssh_version else ""
+                message = (
+                    f"SSH security regression detected{version_info} on "
+                    f"{current.host_ip}:{current.port}: {regression_details}"
+                )
+
+                alert = Alert(
+                    scan_id=scan.id,
+                    network_id=scan.network_id,
+                    alert_type=AlertType.SSH_CONFIG_REGRESSION,
+                    ip=current.host_ip,
+                    port=current.port,
+                    message=message,
+                )
+                db.add(alert)
+                created_alerts.append(alert)
+                created_alert_keys.add(alert_key)
+                created_count += 1
+
+        # Detect improvements (log only, no alerts)
+        improvements = _detect_ssh_improvements(current, previous)
+        if improvements:
+            improvement_details = "; ".join(improvements)
+            logger.info(
+                "SSH security improvement on %s:%d: %s",
+                current.host_ip,
+                current.port,
+                improvement_details,
+            )
+
+    # Queue email notifications
+    if created_alerts:
+        await queue_alert_emails(created_alerts, network_name, alert_config, scan.id)
+
+    return created_count
