@@ -54,3 +54,5 @@ tasks/
 RALPH_TASK.md
 progress.txt
 prd.json
+.claude/
+scripts/ralph/
