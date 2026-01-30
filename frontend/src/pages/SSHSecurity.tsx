@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { fetchJson } from '../lib/api'
+import { API_BASE_URL, fetchJson, getAuthHeaders, extractErrorMessage } from '../lib/api'
 import type { NetworkListResponse, SSHHostListResponse, SSHHostSummary } from '../types'
 
 const parseUtcDate = (dateStr: string) => {
@@ -62,6 +62,8 @@ const SSHSecurity = () => {
   const [authFilter, setAuthFilter] = useState<AuthFilterType>('all')
   const [sortKey, setSortKey] = useState<SortKey>('last_scanned')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [isExporting, setIsExporting] = useState(false)
+  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
 
   // Fetch networks for filter dropdown
   const networksQuery = useQuery({
@@ -258,6 +260,43 @@ const SSHSecurity = () => {
     navigate(`/hosts?ip=${encodeURIComponent(host.host_ip)}`)
   }
 
+  const handleExportPdf = async () => {
+    setIsExporting(true)
+    try {
+      const queryParams = new URLSearchParams()
+      if (networkFilter !== null) queryParams.append('network_id', networkFilter.toString())
+
+      const url = `${API_BASE_URL}/api/ssh/export/pdf${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+      const response = await fetch(url, { headers: getAuthHeaders(token ?? '') })
+
+      if (!response.ok) throw new Error(await extractErrorMessage(response))
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = `ssh_security_report_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+
+      setToast({ message: 'SSH Security Report exported successfully', tone: 'success' })
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : 'Export failed',
+        tone: 'error',
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  // Auto-dismiss toast after 3 seconds
+  if (toast) {
+    setTimeout(() => setToast(null), 3000)
+  }
+
   const getAuthMethodBadge = (host: SSHHostSummary) => {
     if (host.password_enabled || host.keyboard_interactive_enabled) {
       return (
@@ -444,8 +483,17 @@ const SSHSecurity = () => {
                 authentication methods, weak ciphers, or outdated versions.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-xs text-slate-500 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60 dark:text-slate-300">
-              {isLoading ? 'Loading SSH data...' : `Updated ${formatDateTime(now)}`}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportPdf}
+                disabled={isExporting || isLoading || totalHosts === 0}
+                className="rounded-full border border-emerald-200 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isExporting ? 'Exporting...' : 'Export PDF Report'}
+              </button>
+              <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-xs text-slate-500 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60 dark:text-slate-300">
+                {isLoading ? 'Loading SSH data...' : `Updated ${formatDateTime(now)}`}
+              </div>
             </div>
           </div>
 
@@ -606,6 +654,19 @@ const SSHSecurity = () => {
           )}
         </div>
       </section>
+
+      {/* Toast notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 rounded-2xl border px-5 py-3 text-sm font-medium shadow-lg transition-all ${
+            toast.tone === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
+              : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
     </div>
   )
 }

@@ -387,3 +387,106 @@ async def get_scan_with_ssh_results(
         .where(Scan.id == scan_id)
     )
     return result.scalar_one_or_none()
+
+
+async def get_ssh_hosts_for_report(
+    db: AsyncSession,
+    *,
+    network_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Get all SSH hosts with detailed cipher data for report generation.
+
+    Similar to get_ssh_hosts but includes full cipher/KEX lists for report.
+    Returns all hosts without pagination.
+    """
+    # Subquery to find the latest SSH result for each host/port combination
+    latest_subq = (
+        select(
+            SSHScanResult.host_ip,
+            SSHScanResult.port,
+            func.max(SSHScanResult.id).label("max_id"),
+        )
+        .join(Scan, Scan.id == SSHScanResult.scan_id)
+        .where(Scan.status == ScanStatus.COMPLETED)
+        .group_by(SSHScanResult.host_ip, SSHScanResult.port)
+        .subquery()
+    )
+
+    # Main query joining to get the actual SSH results
+    query = (
+        select(SSHScanResult, Scan.network_id, Network.name.label("network_name"))
+        .join(
+            latest_subq,
+            and_(
+                SSHScanResult.host_ip == latest_subq.c.host_ip,
+                SSHScanResult.port == latest_subq.c.port,
+                SSHScanResult.id == latest_subq.c.max_id,
+            ),
+        )
+        .join(Scan, Scan.id == SSHScanResult.scan_id)
+        .outerjoin(Network, Network.id == Scan.network_id)
+    )
+
+    # Apply network filter if specified
+    if network_id is not None:
+        query = query.where(Scan.network_id == network_id)
+
+    query = query.order_by(SSHScanResult.host_ip, SSHScanResult.port)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Transform results with detailed cipher information
+    hosts = []
+    for row in rows:
+        ssh_result = row[0]
+        network_id_val = row[1]
+        network_name = row[2]
+
+        # Extract weak ciphers list
+        weak_ciphers = []
+        if ssh_result.supported_ciphers:
+            weak_ciphers = [
+                c.get("name", "unknown")
+                for c in ssh_result.supported_ciphers
+                if c.get("is_weak", False)
+            ]
+
+        # Extract weak KEX list
+        weak_kex = []
+        if ssh_result.kex_algorithms:
+            weak_kex = [
+                k.get("name", "unknown")
+                for k in ssh_result.kex_algorithms
+                if k.get("is_weak", False)
+            ]
+
+        # Extract weak MACs list
+        weak_macs = []
+        if ssh_result.mac_algorithms:
+            weak_macs = [
+                m.get("name", "unknown")
+                for m in ssh_result.mac_algorithms
+                if m.get("is_weak", False)
+            ]
+
+        hosts.append({
+            "host_ip": ssh_result.host_ip,
+            "port": ssh_result.port,
+            "ssh_version": ssh_result.ssh_version,
+            "publickey_enabled": ssh_result.publickey_enabled,
+            "password_enabled": ssh_result.password_enabled,
+            "keyboard_interactive_enabled": ssh_result.keyboard_interactive_enabled,
+            "has_weak_ciphers": len(weak_ciphers) > 0,
+            "has_weak_kex": len(weak_kex) > 0,
+            "has_weak_macs": len(weak_macs) > 0,
+            "weak_ciphers": weak_ciphers,
+            "weak_kex": weak_kex,
+            "weak_macs": weak_macs,
+            "last_scanned": ssh_result.timestamp,
+            "network_id": network_id_val,
+            "network_name": network_name,
+        })
+
+    return hosts
