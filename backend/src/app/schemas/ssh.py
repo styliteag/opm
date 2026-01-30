@@ -49,6 +49,14 @@ class SSHScanResultListResponse(BaseModel):
     ssh_results: list[SSHScanResultResponse]
 
 
+class SSHConfigChange(BaseModel):
+    """Details about a configuration change between scans."""
+
+    field: str
+    description: str
+    is_regression: bool  # True if security degraded
+
+
 class SSHHostSummary(BaseModel):
     """Summary of SSH security status for a host."""
 
@@ -64,6 +72,9 @@ class SSHHostSummary(BaseModel):
     last_scanned: datetime
     network_id: int | None = None
     network_name: str | None = None
+    # Change tracking: "improved", "degraded", "unchanged", or None (no prior scan)
+    change_status: str | None = None
+    changes: list[SSHConfigChange] = []
 
 
 class SSHHostListResponse(BaseModel):

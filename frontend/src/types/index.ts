@@ -423,6 +423,12 @@ export type SSHScanResult = {
   mac_algorithms: SSHAlgorithm[] | null
 }
 
+export type SSHConfigChange = {
+  field: string
+  description: string
+  is_regression: boolean
+}
+
 export type SSHHostSummary = {
   host_ip: string
   port: number
@@ -436,6 +442,9 @@ export type SSHHostSummary = {
   last_scanned: string
   network_id: number | null
   network_name: string | null
+  // Change tracking fields
+  change_status: 'improved' | 'degraded' | 'unchanged' | null
+  changes: SSHConfigChange[]
 }
 
 export type SSHHostListResponse = {

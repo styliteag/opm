@@ -49,7 +49,7 @@ const parseSSHVersion = (versionStr: string | null): number | null => {
 const DEFAULT_MIN_SSH_VERSION = 8.0
 
 type FilterType = 'all' | 'insecure_auth' | 'weak_ciphers' | 'outdated_version'
-type SortKey = 'ip' | 'port' | 'ssh_version' | 'auth' | 'last_scanned'
+type SortKey = 'ip' | 'port' | 'ssh_version' | 'auth' | 'change' | 'last_scanned'
 type SortDirection = 'asc' | 'desc'
 type AuthFilterType = 'all' | 'secure' | 'insecure'
 
@@ -160,6 +160,17 @@ const SSHSecurity = () => {
           const aInsecure = a.password_enabled || a.keyboard_interactive_enabled ? 1 : 0
           const bInsecure = b.password_enabled || b.keyboard_interactive_enabled ? 1 : 0
           cmp = bInsecure - aInsecure // Insecure first by default
+          break
+        }
+        case 'change': {
+          // Sort order: degraded (highest priority) > improved > unchanged > new (null)
+          const changeOrder = (status: string | null) => {
+            if (status === 'degraded') return 3
+            if (status === 'improved') return 2
+            if (status === 'unchanged') return 1
+            return 0 // null (new)
+          }
+          cmp = changeOrder(a.change_status) - changeOrder(b.change_status)
           break
         }
         case 'last_scanned':
@@ -305,6 +316,111 @@ const SSHSecurity = () => {
     return null
   }
 
+  const getChangeBadge = (host: SSHHostSummary) => {
+    if (!host.change_status) {
+      // No prior scan data
+      return (
+        <span className="inline-flex items-center rounded-full border border-slate-300/40 bg-slate-100/50 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:border-slate-600/40 dark:bg-slate-800/50 dark:text-slate-400">
+          New
+        </span>
+      )
+    }
+
+    if (host.change_status === 'unchanged') {
+      return (
+        <span className="inline-flex items-center rounded-full border border-slate-300/40 bg-slate-100/50 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:border-slate-600/40 dark:bg-slate-800/50 dark:text-slate-400">
+          —
+        </span>
+      )
+    }
+
+    if (host.change_status === 'improved') {
+      return (
+        <span
+          className="group relative inline-flex cursor-help items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-200"
+          title={host.changes.map((c) => c.description).join('\n')}
+        >
+          <svg
+            className="h-3 w-3"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 10l7-7m0 0l7 7m-7-7v18"
+            />
+          </svg>
+          Improved
+        </span>
+      )
+    }
+
+    // degraded
+    return (
+      <span
+        className="group relative inline-flex cursor-help items-center gap-1 rounded-full border border-rose-400/40 bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-200"
+        title={host.changes.map((c) => c.description).join('\n')}
+      >
+        <svg
+          className="h-3 w-3"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+          />
+        </svg>
+        Degraded
+      </span>
+    )
+  }
+
+  const getChangeTooltipContent = (host: SSHHostSummary) => {
+    if (!host.change_status || host.change_status === 'unchanged' || host.changes.length === 0) {
+      return null
+    }
+    return (
+      <div className="absolute bottom-full left-1/2 z-50 mb-2 hidden w-64 -translate-x-1/2 rounded-lg border border-slate-200/70 bg-white p-3 text-left text-xs shadow-lg group-hover:block dark:border-slate-700/70 dark:bg-slate-900">
+        <p className="mb-2 font-semibold text-slate-700 dark:text-slate-200">
+          Changes since last scan:
+        </p>
+        <ul className="space-y-1">
+          {host.changes.map((change, idx) => (
+            <li
+              key={idx}
+              className={`flex items-start gap-2 ${
+                change.is_regression
+                  ? 'text-rose-600 dark:text-rose-300'
+                  : 'text-emerald-600 dark:text-emerald-300'
+              }`}
+            >
+              <span className="mt-0.5">
+                {change.is_regression ? (
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                ) : (
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                  </svg>
+                )}
+              </span>
+              <span>{change.description}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 border-8 border-transparent border-t-white dark:border-t-slate-900" />
+      </div>
+    )
+  }
+
   return (
     <div className="relative">
       {/* Background decorations */}
@@ -431,6 +547,7 @@ const SSHSecurity = () => {
                     <th className="pb-3 pr-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       Crypto
                     </th>
+                    <th className="pb-3 pr-4">{renderSortHeader('Change', 'change')}</th>
                     <th className="pb-3 pr-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       Network
                     </th>
@@ -462,6 +579,12 @@ const SSHSecurity = () => {
                       </td>
                       <td className="py-3 pr-4">{getAuthMethodBadge(host)}</td>
                       <td className="py-3 pr-4">{getWeaknessBadge(host)}</td>
+                      <td className="py-3 pr-4">
+                        <div className="group relative inline-block">
+                          {getChangeBadge(host)}
+                          {getChangeTooltipContent(host)}
+                        </div>
+                      </td>
                       <td className="py-3 pr-4">
                         <span className="text-slate-600 dark:text-slate-300">
                           {host.network_name ?? 'Unknown'}

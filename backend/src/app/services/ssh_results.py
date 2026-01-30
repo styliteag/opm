@@ -2,13 +2,128 @@
 
 from typing import Any
 
-from sqlalchemy import and_, distinct, func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.network import Network
 from app.models.scan import Scan, ScanStatus
 from app.models.ssh_scan_result import SSHScanResult
+
+
+def _compute_ssh_changes(
+    current: dict[str, Any],
+    previous: dict[str, Any] | None,
+) -> tuple[str | None, list[dict[str, Any]]]:
+    """
+    Compare current SSH result with previous and compute changes.
+
+    Returns a tuple of (change_status, list_of_changes).
+    change_status: "improved", "degraded", "unchanged", or None (no prior scan)
+    """
+    if previous is None:
+        return None, []
+
+    changes: list[dict[str, Any]] = []
+
+    # Check authentication method changes
+    # Regression: insecure auth enabled that wasn't before
+    # Improvement: insecure auth disabled that was enabled before
+    if current["password_enabled"] and not previous["password_enabled"]:
+        changes.append({
+            "field": "password_enabled",
+            "description": "Password authentication was enabled",
+            "is_regression": True,
+        })
+    elif not current["password_enabled"] and previous["password_enabled"]:
+        changes.append({
+            "field": "password_enabled",
+            "description": "Password authentication was disabled",
+            "is_regression": False,
+        })
+
+    if current["keyboard_interactive_enabled"] and not previous["keyboard_interactive_enabled"]:
+        changes.append({
+            "field": "keyboard_interactive_enabled",
+            "description": "Keyboard-interactive authentication was enabled",
+            "is_regression": True,
+        })
+    elif not current["keyboard_interactive_enabled"] and previous["keyboard_interactive_enabled"]:
+        changes.append({
+            "field": "keyboard_interactive_enabled",
+            "description": "Keyboard-interactive authentication was disabled",
+            "is_regression": False,
+        })
+
+    if not current["publickey_enabled"] and previous["publickey_enabled"]:
+        changes.append({
+            "field": "publickey_enabled",
+            "description": "Public key authentication was disabled",
+            "is_regression": True,
+        })
+    elif current["publickey_enabled"] and not previous["publickey_enabled"]:
+        changes.append({
+            "field": "publickey_enabled",
+            "description": "Public key authentication was enabled",
+            "is_regression": False,
+        })
+
+    # Check weak cipher changes
+    if current["has_weak_ciphers"] and not previous["has_weak_ciphers"]:
+        changes.append({
+            "field": "has_weak_ciphers",
+            "description": "Weak ciphers detected",
+            "is_regression": True,
+        })
+    elif not current["has_weak_ciphers"] and previous["has_weak_ciphers"]:
+        changes.append({
+            "field": "has_weak_ciphers",
+            "description": "Weak ciphers removed",
+            "is_regression": False,
+        })
+
+    # Check weak KEX changes
+    if current["has_weak_kex"] and not previous["has_weak_kex"]:
+        changes.append({
+            "field": "has_weak_kex",
+            "description": "Weak key exchange algorithms detected",
+            "is_regression": True,
+        })
+    elif not current["has_weak_kex"] and previous["has_weak_kex"]:
+        changes.append({
+            "field": "has_weak_kex",
+            "description": "Weak key exchange algorithms removed",
+            "is_regression": False,
+        })
+
+    # Check SSH version changes
+    if current["ssh_version"] != previous["ssh_version"]:
+        # Version change - determine if it's an upgrade or downgrade
+        curr_ver = current["ssh_version"] or ""
+        prev_ver = previous["ssh_version"] or ""
+        if curr_ver != prev_ver:
+            prev_label = prev_ver or "unknown"
+            curr_label = curr_ver or "unknown"
+            changes.append({
+                "field": "ssh_version",
+                "description": f"SSH version changed from {prev_label} to {curr_label}",
+                "is_regression": False,  # Version changes are informational
+            })
+
+    # Determine overall status
+    if not changes:
+        return "unchanged", []
+
+    has_regressions = any(c["is_regression"] for c in changes)
+    has_improvements = any(not c["is_regression"] for c in changes)
+
+    if has_regressions and not has_improvements:
+        return "degraded", changes
+    elif has_improvements and not has_regressions:
+        return "improved", changes
+    else:
+        # Mixed changes - report as degraded if there are any regressions
+        return "degraded" if has_regressions else "improved", changes
 
 
 async def get_ssh_results_for_scan(
@@ -38,6 +153,7 @@ async def get_ssh_hosts(
     Get a list of all hosts with SSH data, showing the latest scan result for each host/port.
 
     Returns a tuple of (hosts, total_count).
+    Includes change tracking compared to the previous scan.
     """
     # Subquery to find the latest SSH result for each host/port combination
     latest_subq = (
@@ -95,7 +211,52 @@ async def get_ssh_hosts(
     result = await db.execute(query)
     rows = result.all()
 
-    # Transform results to dict with computed weak cipher/kex flags
+    # Collect host/port pairs to fetch previous results
+    host_port_pairs = [(row[0].host_ip, row[0].port, row[0].id) for row in rows]
+
+    # Fetch previous scan results for each host/port (the second-most-recent)
+    previous_results: dict[tuple[str, int], dict[str, Any]] = {}
+    if host_port_pairs:
+        for host_ip, port, current_id in host_port_pairs:
+            # Find the second-most-recent result for this host/port
+            prev_query = (
+                select(SSHScanResult)
+                .join(Scan, Scan.id == SSHScanResult.scan_id)
+                .where(
+                    and_(
+                        SSHScanResult.host_ip == host_ip,
+                        SSHScanResult.port == port,
+                        SSHScanResult.id < current_id,
+                        Scan.status == ScanStatus.COMPLETED,
+                    )
+                )
+                .order_by(SSHScanResult.id.desc())
+                .limit(1)
+            )
+            prev_result = await db.execute(prev_query)
+            prev_row = prev_result.scalar_one_or_none()
+            if prev_row:
+                # Check for weak ciphers/kex in previous result
+                prev_has_weak_ciphers = False
+                if prev_row.supported_ciphers:
+                    prev_has_weak_ciphers = any(
+                        cipher.get("is_weak", False) for cipher in prev_row.supported_ciphers
+                    )
+                prev_has_weak_kex = False
+                if prev_row.kex_algorithms:
+                    prev_has_weak_kex = any(
+                        kex.get("is_weak", False) for kex in prev_row.kex_algorithms
+                    )
+                previous_results[(host_ip, port)] = {
+                    "ssh_version": prev_row.ssh_version,
+                    "publickey_enabled": prev_row.publickey_enabled,
+                    "password_enabled": prev_row.password_enabled,
+                    "keyboard_interactive_enabled": prev_row.keyboard_interactive_enabled,
+                    "has_weak_ciphers": prev_has_weak_ciphers,
+                    "has_weak_kex": prev_has_weak_kex,
+                }
+
+    # Transform results to dict with computed weak cipher/kex flags and change tracking
     hosts = []
     for row in rows:
         ssh_result = row[0]
@@ -116,6 +277,20 @@ async def get_ssh_hosts(
                 kex.get("is_weak", False) for kex in ssh_result.kex_algorithms
             )
 
+        # Build current result dict for comparison
+        current_data = {
+            "ssh_version": ssh_result.ssh_version,
+            "publickey_enabled": ssh_result.publickey_enabled,
+            "password_enabled": ssh_result.password_enabled,
+            "keyboard_interactive_enabled": ssh_result.keyboard_interactive_enabled,
+            "has_weak_ciphers": has_weak_ciphers,
+            "has_weak_kex": has_weak_kex,
+        }
+
+        # Get previous result and compute changes
+        prev_data = previous_results.get((ssh_result.host_ip, ssh_result.port))
+        change_status, changes = _compute_ssh_changes(current_data, prev_data)
+
         hosts.append({
             "host_ip": ssh_result.host_ip,
             "port": ssh_result.port,
@@ -129,6 +304,8 @@ async def get_ssh_hosts(
             "last_scanned": ssh_result.timestamp,
             "network_id": network_id_val,
             "network_name": network_name,
+            "change_status": change_status,
+            "changes": changes,
         })
 
     return hosts, total
