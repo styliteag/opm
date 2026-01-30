@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from app.models.open_port import OpenPort
     from app.models.scan_log import ScanLog
     from app.models.scanner import Scanner
+    from app.models.ssh_scan_result import SSHScanResult
     from app.models.user import User
 
 
@@ -84,6 +85,9 @@ class Scan(Base):
     )
     alerts: Mapped[list["Alert"]] = relationship(
         "Alert", back_populates="scan", cascade="all, delete-orphan"
+    )
+    ssh_scan_results: Mapped[list["SSHScanResult"]] = relationship(
+        "SSHScanResult", back_populates="scan", cascade="all, delete-orphan"
     )
 
     @property

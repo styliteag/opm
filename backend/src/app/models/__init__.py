@@ -13,6 +13,7 @@ from app.models.port_rule import PortRule
 from app.models.scan import Scan
 from app.models.scan_log import ScanLog
 from app.models.scanner import Scanner
+from app.models.ssh_scan_result import SSHScanResult
 from app.models.user import User
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "PortRule",
     "Scan",
     "ScanLog",
+    "SSHScanResult",
     "OpenPort",
     "Alert",
     "AlertComment",
