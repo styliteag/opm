@@ -501,6 +501,13 @@ async def generate_global_alerts_for_scan(
 
 SSHAlertKey = tuple[AlertType, str, int]  # (alert_type, ip, port)
 
+# SSH alert types to check for unacknowledged alerts
+SSH_ALERT_TYPES = (
+    AlertType.SSH_INSECURE_AUTH,
+    AlertType.SSH_WEAK_CIPHER,
+    AlertType.SSH_WEAK_KEX,
+)
+
 
 async def _get_unacknowledged_ssh_alerts(
     db: AsyncSession, network_id: int
@@ -510,10 +517,26 @@ async def _get_unacknowledged_ssh_alerts(
         select(Alert.alert_type, Alert.ip, Alert.port).where(
             Alert.network_id == network_id,
             Alert.acknowledged.is_(False),
-            Alert.alert_type == AlertType.SSH_INSECURE_AUTH,
+            Alert.alert_type.in_(SSH_ALERT_TYPES),
         )
     )
     return {(row[0], row[1], int(row[2])) for row in result.all()}
+
+
+def _extract_weak_algorithms(
+    algorithms: list[dict[str, Any]] | None
+) -> list[str]:
+    """Extract names of weak algorithms from a list of algorithm dicts.
+
+    Each algorithm dict should have 'name' and 'is_weak' fields.
+    """
+    if not algorithms:
+        return []
+    return [
+        algo.get("name", "unknown")
+        for algo in algorithms
+        if isinstance(algo, dict) and algo.get("is_weak", False)
+    ]
 
 
 async def generate_ssh_alerts_for_scan(
@@ -521,13 +544,15 @@ async def generate_ssh_alerts_for_scan(
     scan: Scan,
 ) -> int:
     """
-    Generate SSH_INSECURE_AUTH alerts for a completed scan.
+    Generate SSH alerts for a completed scan.
 
     This function:
     1. Queries SSHScanResult records for the scan
-    2. Checks if password_enabled=True OR keyboard_interactive_enabled=True
-    3. Creates SSH_INSECURE_AUTH alert with deduplication
-    4. Queues email notifications
+    2. Checks for insecure auth (password/keyboard-interactive enabled)
+    3. Checks for weak ciphers (DES, 3DES, RC4, Blowfish, CBC modes)
+    4. Checks for weak KEX algorithms (sha1-based, weak DH groups)
+    5. Creates alerts with deduplication
+    6. Queues email notifications
 
     Args:
         db: Database session
@@ -559,8 +584,13 @@ async def generate_ssh_alerts_for_scan(
     alert_config, network_name = network_row
     enabled_types = _get_enabled_alert_types(alert_config)
 
-    # Check if SSH_INSECURE_AUTH alert type is enabled
-    if AlertType.SSH_INSECURE_AUTH not in enabled_types:
+    # Check if any SSH alert types are enabled
+    ssh_types_enabled = {
+        AlertType.SSH_INSECURE_AUTH,
+        AlertType.SSH_WEAK_CIPHER,
+        AlertType.SSH_WEAK_KEX,
+    }.intersection(enabled_types)
+    if not ssh_types_enabled:
         return 0
 
     # Get existing unacknowledged SSH alerts to avoid duplicates
@@ -570,49 +600,95 @@ async def generate_ssh_alerts_for_scan(
     created_alerts: list[Alert] = []
 
     for ssh_result in ssh_results:
-        # Check for insecure authentication methods
-        if not ssh_result.password_enabled and not ssh_result.keyboard_interactive_enabled:
-            continue
-
-        # Build alert message with details about which auth methods are enabled
-        auth_methods: list[str] = []
-        if ssh_result.password_enabled:
-            auth_methods.append("password")
-        if ssh_result.keyboard_interactive_enabled:
-            auth_methods.append("keyboard-interactive")
-        auth_methods_str = ", ".join(auth_methods)
-
         ip = ssh_result.host_ip
         port = ssh_result.port
 
-        # Check for duplicate alerts (same alert_type, ip, port)
-        key: SSHAlertKey = (AlertType.SSH_INSECURE_AUTH, ip, port)
-        if key in existing_alerts or key in created_alert_keys:
-            continue
-
-        # Build detailed message
+        # Version info suffix for all alerts
         version_info = ""
         if ssh_result.ssh_version:
             version_info = f" (SSH {ssh_result.ssh_version})"
 
-        message = (
-            f"SSH server allows insecure authentication methods: {auth_methods_str}"
-            f"{version_info} on {ip}:{port}"
-        )
+        # Check for insecure authentication methods
+        if AlertType.SSH_INSECURE_AUTH in enabled_types:
+            if ssh_result.password_enabled or ssh_result.keyboard_interactive_enabled:
+                # Build alert message with details about which auth methods are enabled
+                auth_methods: list[str] = []
+                if ssh_result.password_enabled:
+                    auth_methods.append("password")
+                if ssh_result.keyboard_interactive_enabled:
+                    auth_methods.append("keyboard-interactive")
+                auth_methods_str = ", ".join(auth_methods)
 
-        # Create the alert
-        alert = Alert(
-            scan_id=scan.id,
-            network_id=scan.network_id,
-            alert_type=AlertType.SSH_INSECURE_AUTH,
-            ip=ip,
-            port=port,
-            message=message,
-        )
-        db.add(alert)
-        created_alerts.append(alert)
-        created_alert_keys.add(key)
-        created_count += 1
+                # Check for duplicate alerts (same alert_type, ip, port)
+                key: SSHAlertKey = (AlertType.SSH_INSECURE_AUTH, ip, port)
+                if key not in existing_alerts and key not in created_alert_keys:
+                    message = (
+                        f"SSH server allows insecure authentication methods: "
+                        f"{auth_methods_str}{version_info} on {ip}:{port}"
+                    )
+
+                    alert = Alert(
+                        scan_id=scan.id,
+                        network_id=scan.network_id,
+                        alert_type=AlertType.SSH_INSECURE_AUTH,
+                        ip=ip,
+                        port=port,
+                        message=message,
+                    )
+                    db.add(alert)
+                    created_alerts.append(alert)
+                    created_alert_keys.add(key)
+                    created_count += 1
+
+        # Check for weak ciphers
+        if AlertType.SSH_WEAK_CIPHER in enabled_types:
+            weak_ciphers = _extract_weak_algorithms(ssh_result.supported_ciphers)
+            if weak_ciphers:
+                key = (AlertType.SSH_WEAK_CIPHER, ip, port)
+                if key not in existing_alerts and key not in created_alert_keys:
+                    weak_ciphers_str = ", ".join(weak_ciphers)
+                    message = (
+                        f"SSH server supports weak ciphers: "
+                        f"{weak_ciphers_str}{version_info} on {ip}:{port}"
+                    )
+
+                    alert = Alert(
+                        scan_id=scan.id,
+                        network_id=scan.network_id,
+                        alert_type=AlertType.SSH_WEAK_CIPHER,
+                        ip=ip,
+                        port=port,
+                        message=message,
+                    )
+                    db.add(alert)
+                    created_alerts.append(alert)
+                    created_alert_keys.add(key)
+                    created_count += 1
+
+        # Check for weak key exchange algorithms
+        if AlertType.SSH_WEAK_KEX in enabled_types:
+            weak_kex = _extract_weak_algorithms(ssh_result.kex_algorithms)
+            if weak_kex:
+                key = (AlertType.SSH_WEAK_KEX, ip, port)
+                if key not in existing_alerts and key not in created_alert_keys:
+                    weak_kex_str = ", ".join(weak_kex)
+                    message = (
+                        f"SSH server supports weak key exchange algorithms: "
+                        f"{weak_kex_str}{version_info} on {ip}:{port}"
+                    )
+
+                    alert = Alert(
+                        scan_id=scan.id,
+                        network_id=scan.network_id,
+                        alert_type=AlertType.SSH_WEAK_KEX,
+                        ip=ip,
+                        port=port,
+                        message=message,
+                    )
+                    db.add(alert)
+                    created_alerts.append(alert)
+                    created_alert_keys.add(key)
+                    created_count += 1
 
     # Queue email notifications
     if created_alerts:
