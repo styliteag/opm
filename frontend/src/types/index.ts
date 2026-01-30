@@ -396,3 +396,72 @@ export type AlertComment = {
 export type AlertCommentListResponse = {
   comments: AlertComment[]
 }
+
+// SSH Security types
+export type SSHAlgorithm = {
+  name: string
+  keysize?: number | null
+  is_weak: boolean
+  notes?: string[]
+}
+
+export type SSHScanResult = {
+  id: number
+  scan_id: number
+  host_ip: string
+  port: number
+  timestamp: string
+  publickey_enabled: boolean
+  password_enabled: boolean
+  keyboard_interactive_enabled: boolean
+  ssh_version: string | null
+  protocol_version: string | null
+  server_banner: string | null
+  supported_ciphers: SSHAlgorithm[] | null
+  kex_algorithms: SSHAlgorithm[] | null
+  host_key_types: string[] | null
+  mac_algorithms: SSHAlgorithm[] | null
+}
+
+export type SSHHostSummary = {
+  host_ip: string
+  port: number
+  ssh_version: string | null
+  publickey_enabled: boolean
+  password_enabled: boolean
+  keyboard_interactive_enabled: boolean
+  has_weak_ciphers: boolean
+  has_weak_kex: boolean
+  last_scan_id: number
+  last_scanned: string
+  network_id: number | null
+  network_name: string | null
+}
+
+export type SSHHostListResponse = {
+  hosts: SSHHostSummary[]
+  total: number
+}
+
+export type SSHHostHistoryEntry = {
+  scan_id: number
+  timestamp: string
+  ssh_version: string | null
+  publickey_enabled: boolean
+  password_enabled: boolean
+  keyboard_interactive_enabled: boolean
+  supported_ciphers: SSHAlgorithm[] | null
+  kex_algorithms: SSHAlgorithm[] | null
+  host_key_types: string[] | null
+  mac_algorithms: SSHAlgorithm[] | null
+  network_id: number | null
+  network_name: string | null
+  // Note: protocol_version is not included in history entries, only in full scan results
+}
+
+export type SSHHostHistoryResponse = {
+  host_ip: string
+  port: number
+  history: SSHHostHistoryEntry[]
+  total: number
+}

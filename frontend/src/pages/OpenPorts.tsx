@@ -8,6 +8,7 @@ import type {
   GlobalOpenPortListResponse,
   PolicyListResponse,
   NetworkListResponse,
+  SSHHostHistoryResponse,
 } from '../types'
 
 type SortKey = 'ip' | 'port' | 'protocol' | 'service' | 'first_seen_at' | 'last_seen_at' | 'network'
@@ -112,6 +113,130 @@ const serverSortKeys: Partial<Record<SortKey, string>> = {
   port: 'port',
   first_seen_at: 'first_seen_at',
   last_seen_at: 'last_seen_at',
+}
+
+// Check if service is SSH based on port or service guess
+const isSSHService = (port: number, serviceGuess: string | null, banner: string | null): boolean => {
+  if (port === 22) return true
+  if (serviceGuess?.toLowerCase().includes('ssh')) return true
+  if (banner?.toLowerCase().startsWith('ssh-')) return true
+  return false
+}
+
+// SSH Security Panel Component
+const SSHSecurityPanel: React.FC<{
+  hostIp: string
+  port: number
+  token: string
+}> = ({ hostIp, port, token }) => {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['ssh-host-history', hostIp, port],
+    queryFn: () =>
+      fetchJson<SSHHostHistoryResponse>(`/api/ssh/hosts/${encodeURIComponent(hostIp)}?port=${port}`, token),
+    enabled: !!token,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="animate-pulse space-y-4">
+        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/3"></div>
+        <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
+      </div>
+    )
+  }
+
+  if (error || !data?.history?.length) {
+    return null
+  }
+
+  const latestResult = data.history[0]
+
+  return (
+    <div className="space-y-6">
+      <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.25em] mb-4">
+        SSH Security Analysis
+      </h4>
+
+      {/* SSH Version */}
+      <div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+          SSH Version
+        </p>
+        <p className="text-sm font-black text-slate-700 dark:text-slate-300">
+          {latestResult.ssh_version || 'Unknown'}
+        </p>
+      </div>
+
+      {/* Authentication Methods */}
+      <div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">
+          Authentication Methods
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <span
+            className={`px-4 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest border-2 ${
+              latestResult.publickey_enabled
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
+                : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700'
+            }`}
+          >
+            <span className="mr-2">{latestResult.publickey_enabled ? '✓' : '✗'}</span>
+            Public Key
+          </span>
+          <span
+            className={`px-4 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest border-2 ${
+              latestResult.password_enabled
+                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
+            }`}
+          >
+            <span className="mr-2">{latestResult.password_enabled ? '⚠' : '✓'}</span>
+            Password
+            {latestResult.password_enabled && (
+              <span className="ml-2 text-[9px] opacity-70">(Insecure)</span>
+            )}
+          </span>
+          <span
+            className={`px-4 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest border-2 ${
+              latestResult.keyboard_interactive_enabled
+                ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
+            }`}
+          >
+            <span className="mr-2">{latestResult.keyboard_interactive_enabled ? '⚠' : '✓'}</span>
+            Keyboard Interactive
+            {latestResult.keyboard_interactive_enabled && (
+              <span className="ml-2 text-[9px] opacity-70">(Caution)</span>
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* Security Status Summary */}
+      {(latestResult.password_enabled || latestResult.keyboard_interactive_enabled) && (
+        <div className="p-4 bg-rose-50 dark:bg-rose-900/20 rounded-2xl border-2 border-rose-100 dark:border-rose-900/50">
+          <p className="text-[11px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.5}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            Security Advisory
+          </p>
+          <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-2 font-bold">
+            {latestResult.password_enabled && latestResult.keyboard_interactive_enabled
+              ? 'Both password and keyboard-interactive authentication are enabled. Consider disabling these methods and using public key authentication only.'
+              : latestResult.password_enabled
+                ? 'Password authentication is enabled. This is vulnerable to brute-force attacks. Consider using public key authentication only.'
+                : 'Keyboard-interactive authentication is enabled. Consider whether this is necessary for your security requirements.'}
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }
 
 const OpenPorts = () => {
@@ -582,6 +707,12 @@ const OpenPorts = () => {
                               </div>
                             </div>
                           </div>
+                          {/* SSH Security Section */}
+                          {isSSHService(p.port, p.service_guess, p.banner) && token && (
+                            <div className="mt-12 pt-12 border-t border-slate-100 dark:border-slate-800/50">
+                              <SSHSecurityPanel hostIp={p.ip} port={p.port} token={token} />
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}
