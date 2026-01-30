@@ -1,8 +1,30 @@
 """Scan management schemas for triggering and viewing scans."""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
+
+
+class SSHScanResultSummary(BaseModel):
+    """SSH scan result summary for inclusion in scan detail response."""
+
+    id: int
+    host_ip: str
+    port: int
+    timestamp: datetime
+    publickey_enabled: bool
+    password_enabled: bool
+    keyboard_interactive_enabled: bool
+    ssh_version: str | None
+    protocol_version: str | None
+    server_banner: str | None
+    supported_ciphers: list[dict[str, Any]] | None = None
+    kex_algorithms: list[dict[str, Any]] | None = None
+    host_key_types: list[str] | None = None
+    mac_algorithms: list[dict[str, Any]] | None = None
+
+    model_config = {"from_attributes": True}
 
 
 class OpenPortResponse(BaseModel):
@@ -73,6 +95,7 @@ class ScanDetailResponse(ScanResponse):
     """Scan detail with open ports."""
 
     open_ports: list[OpenPortResponse]
+    ssh_scan_results: list[SSHScanResultSummary] = []
 
 
 class ScanListResponse(BaseModel):

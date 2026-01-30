@@ -74,11 +74,12 @@ async def get_scans_by_network_id(
 
 
 async def get_scan_with_ports(db: AsyncSession, scan_id: int) -> Scan | None:
-    """Get a scan by ID with open ports loaded."""
+    """Get a scan by ID with open ports and SSH results loaded."""
     result = await db.execute(
         select(Scan)
         .options(
             selectinload(Scan.open_ports),
+            selectinload(Scan.ssh_scan_results),
             selectinload(Scan.cancelled_by_user),
         )
         .where(Scan.id == scan_id)
