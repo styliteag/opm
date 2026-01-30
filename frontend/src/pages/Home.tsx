@@ -46,12 +46,22 @@ const alertStyles: Record<Alert['type'], string> = {
   new_port: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-200 border-cyan-400/30',
   not_allowed: 'bg-amber-500/15 text-amber-700 dark:text-amber-200 border-amber-400/30',
   blocked: 'bg-rose-500/15 text-rose-700 dark:text-rose-200 border-rose-400/30',
+  ssh_insecure_auth: 'bg-rose-500/15 text-rose-700 dark:text-rose-200 border-rose-400/30',
+  ssh_weak_cipher: 'bg-amber-500/15 text-amber-700 dark:text-amber-200 border-amber-400/30',
+  ssh_weak_kex: 'bg-amber-500/15 text-amber-700 dark:text-amber-200 border-amber-400/30',
+  ssh_outdated_version: 'bg-orange-500/15 text-orange-700 dark:text-orange-200 border-orange-400/30',
+  ssh_config_regression: 'bg-rose-500/15 text-rose-700 dark:text-rose-200 border-rose-400/30',
 }
 
 const alertLabels: Record<Alert['type'], string> = {
   new_port: 'New port',
   not_allowed: 'Not allowed',
   blocked: 'Blocked',
+  ssh_insecure_auth: 'SSH insecure auth',
+  ssh_weak_cipher: 'SSH weak cipher',
+  ssh_weak_kex: 'SSH weak KEX',
+  ssh_outdated_version: 'SSH outdated',
+  ssh_config_regression: 'SSH regression',
 }
 
 const Home = () => {

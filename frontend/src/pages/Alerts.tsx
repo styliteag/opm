@@ -38,6 +38,11 @@ const alertTypeLabels: Record<AlertType, string> = {
   new_port: 'New Port',
   not_allowed: 'Not Allowed',
   blocked: 'Blocked',
+  ssh_insecure_auth: 'SSH Insecure Auth',
+  ssh_weak_cipher: 'SSH Weak Cipher',
+  ssh_weak_kex: 'SSH Weak KEX',
+  ssh_outdated_version: 'SSH Outdated',
+  ssh_config_regression: 'SSH Regression',
 }
 
 const alertTypeStyles: Record<AlertType, string> = {
@@ -46,6 +51,16 @@ const alertTypeStyles: Record<AlertType, string> = {
   not_allowed:
     'border-orange-300/50 bg-orange-500/15 text-orange-700 dark:border-orange-400/40 dark:bg-orange-500/20 dark:text-orange-200',
   blocked:
+    'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
+  ssh_insecure_auth:
+    'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
+  ssh_weak_cipher:
+    'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200',
+  ssh_weak_kex:
+    'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200',
+  ssh_outdated_version:
+    'border-orange-300/50 bg-orange-500/15 text-orange-700 dark:border-orange-400/40 dark:bg-orange-500/20 dark:text-orange-200',
+  ssh_config_regression:
     'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
 }
 

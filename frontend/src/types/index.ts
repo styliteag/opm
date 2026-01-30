@@ -1,5 +1,29 @@
 // Alert types
-export type AlertType = 'new_port' | 'not_allowed' | 'blocked'
+export type AlertType =
+  | 'new_port'
+  | 'not_allowed'
+  | 'blocked'
+  | 'ssh_insecure_auth'
+  | 'ssh_weak_cipher'
+  | 'ssh_weak_kex'
+  | 'ssh_outdated_version'
+  | 'ssh_config_regression'
+
+// SSH Alert Configuration
+export type SSHAlertConfig = {
+  // Port-based alerts
+  new_port?: boolean
+  not_allowed?: boolean
+  blocked?: boolean
+  // SSH security alerts
+  ssh_insecure_auth?: boolean
+  ssh_weak_cipher?: boolean
+  ssh_weak_kex?: boolean
+  ssh_outdated_version?: boolean
+  ssh_config_regression?: boolean
+  // SSH version threshold
+  ssh_version_threshold?: string
+}
 export type Severity = 'critical' | 'high' | 'medium' | 'info'
 export type ResolutionStatus = 'open' | 'in_progress' | 'resolved'
 
@@ -85,6 +109,7 @@ export type UpdateNetworkPayload = {
   scanner_type?: ScannerType
   scan_protocol?: ScanProtocol
   host_discovery_enabled?: boolean
+  alert_config?: SSHAlertConfig | null
 }
 
 // Scanner types
