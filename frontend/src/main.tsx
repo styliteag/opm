@@ -20,6 +20,7 @@ import Policy from './pages/Policy.tsx'
 import RiskOverview from './pages/RiskOverview.tsx'
 import Hosts from './pages/Hosts.tsx'
 import Trends from './pages/Trends.tsx'
+import SSHSecurity from './pages/SSHSecurity.tsx'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -87,6 +88,10 @@ const router = createBrowserRouter([
       {
         path: 'trends',
         element: <Trends />,
+      },
+      {
+        path: 'ssh-security',
+        element: <SSHSecurity />,
       },
     ],
   },
