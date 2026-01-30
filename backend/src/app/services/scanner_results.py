@@ -1,6 +1,7 @@
 """Scanner result submission service."""
 
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.open_port import OpenPort
 from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
+from app.models.ssh_scan_result import SSHScanResult
 from app.schemas.scanner import ScannerResultRequest, ScannerResultResponse
 from app.services.alerts import generate_global_alerts_for_scan
 
@@ -124,6 +126,61 @@ async def submit_scan_results(
             )
         )
         ports_recorded += 1
+
+    # Process SSH probe results
+    ssh_results_recorded = 0
+    for ssh_data in request.ssh_results:
+        # Only store successful SSH probe results
+        if not ssh_data.success:
+            continue
+
+        # Convert algorithm info to JSON-serializable format
+        ciphers_json: list[dict[str, Any]] = [
+            {
+                "name": c.name,
+                "keysize": c.keysize,
+                "is_weak": c.is_weak,
+                "notes": c.notes,
+            }
+            for c in ssh_data.ciphers
+        ]
+        kex_json: list[dict[str, Any]] = [
+            {
+                "name": k.name,
+                "keysize": k.keysize,
+                "is_weak": k.is_weak,
+                "notes": k.notes,
+            }
+            for k in ssh_data.kex_algorithms
+        ]
+        mac_json: list[dict[str, Any]] = [
+            {
+                "name": m.name,
+                "keysize": m.keysize,
+                "is_weak": m.is_weak,
+                "notes": m.notes,
+            }
+            for m in ssh_data.mac_algorithms
+        ]
+
+        ssh_result = SSHScanResult(
+            scan_id=scan.id,
+            host_ip=ssh_data.host,
+            port=ssh_data.port,
+            timestamp=now,
+            publickey_enabled=ssh_data.publickey_enabled,
+            password_enabled=ssh_data.password_enabled,
+            keyboard_interactive_enabled=ssh_data.keyboard_interactive_enabled,
+            ssh_version=ssh_data.ssh_version,
+            protocol_version=ssh_data.protocol_version,
+            server_banner=ssh_data.server_banner,
+            supported_ciphers=ciphers_json,
+            kex_algorithms=kex_json,
+            host_key_types=list(ssh_data.host_key_types),
+            mac_algorithms=mac_json,
+        )
+        db.add(ssh_result)
+        ssh_results_recorded += 1
 
     if scan.status == ScanStatus.COMPLETED:
         await generate_global_alerts_for_scan(db, scan, recorded_ports_data)

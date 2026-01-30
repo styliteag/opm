@@ -19,6 +19,7 @@ import tempfile
 import traceback
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import Event, Lock, Thread
@@ -26,7 +27,11 @@ from typing import Any
 
 import httpx
 
+from src.ssh_probe import SSHProbeResult, probe_ssh
+
 DEFAULT_POLL_INTERVAL = 60
+DEFAULT_SSH_PROBE_CONCURRENCY = 10
+DEFAULT_SSH_PROBE_TIMEOUT = 10
 REQUEST_TIMEOUT_SECONDS = 15.0
 MAX_RETRIES = 5
 BACKOFF_BASE_SECONDS = 1.0
@@ -502,14 +507,17 @@ class ScannerClient:
         scan_id: int,
         status: str,
         open_ports: list[OpenPortResult],
+        ssh_results: list[SSHProbeResult] | None = None,
         error_message: str | None = None,
     ) -> None:
-        payload = {
+        payload: dict[str, Any] = {
             "scan_id": scan_id,
             "status": status,
             "open_ports": [entry.to_payload() for entry in open_ports],
             "error_message": error_message,
         }
+        if ssh_results:
+            payload["ssh_results"] = [result.to_dict() for result in ssh_results]
         response = self._request("POST", "/api/scanner/results", json=payload, auth_required=True)
         response.raise_for_status()
 
@@ -1897,6 +1905,136 @@ def _run_host_discovery(
             pass
 
 
+def _detect_ssh_services(open_ports: list[OpenPortResult]) -> list[tuple[str, int]]:
+    """
+    Detect SSH services from open port results.
+
+    SSH services are detected by:
+    1. Port 22 (standard SSH port)
+    2. service_guess containing "ssh" (from nmap service detection)
+
+    Returns a list of (ip, port) tuples for SSH services.
+    """
+    ssh_targets: list[tuple[str, int]] = []
+    seen: set[tuple[str, int]] = set()
+
+    for port_result in open_ports:
+        key = (port_result.ip, port_result.port)
+        if key in seen:
+            continue
+
+        # Check for standard SSH port
+        if port_result.port == 22:
+            ssh_targets.append(key)
+            seen.add(key)
+            continue
+
+        # Check for SSH service identification from nmap
+        if port_result.service_guess:
+            service_lower = port_result.service_guess.lower()
+            if "ssh" in service_lower:
+                ssh_targets.append(key)
+                seen.add(key)
+
+    return ssh_targets
+
+
+def _run_ssh_probes(
+    ssh_targets: list[tuple[str, int]],
+    logger: logging.Logger,
+    progress_reporter: ProgressReporter | None = None,
+    concurrency: int = DEFAULT_SSH_PROBE_CONCURRENCY,
+    timeout: int = DEFAULT_SSH_PROBE_TIMEOUT,
+    progress_offset: float = 0.0,
+    progress_scale: float = 1.0,
+) -> list[SSHProbeResult]:
+    """
+    Run SSH probes in parallel with configurable concurrency.
+
+    Args:
+        ssh_targets: List of (ip, port) tuples to probe
+        logger: Logger instance
+        progress_reporter: Optional progress reporter for updates
+        concurrency: Maximum concurrent probes (default: 10)
+        timeout: Timeout per probe in seconds (default: 10)
+        progress_offset: Progress percentage offset for reporting
+        progress_scale: Progress scaling factor for reporting
+
+    Returns:
+        List of SSHProbeResult objects (including failures)
+    """
+    if not ssh_targets:
+        return []
+
+    total = len(ssh_targets)
+    logger.info("Starting SSH security probes on %d targets (concurrency=%d)", total, concurrency)
+
+    results: list[SSHProbeResult] = []
+    completed = 0
+
+    def probe_target(target: tuple[str, int]) -> SSHProbeResult:
+        ip, port = target
+        return probe_ssh(ip, port, timeout=timeout)
+
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        future_to_target = {
+            executor.submit(probe_target, target): target for target in ssh_targets
+        }
+
+        for future in as_completed(future_to_target):
+            target = future_to_target[future]
+            try:
+                result = future.result()
+                results.append(result)
+
+                if result.success:
+                    logger.info(
+                        "SSH probe completed: %s:%d - version=%s, auth=[%s]",
+                        result.host,
+                        result.port,
+                        result.ssh_version or "unknown",
+                        ", ".join(
+                            m for m in [
+                                "publickey" if result.publickey_enabled else None,
+                                "password" if result.password_enabled else None,
+                                "keyboard-interactive" if result.keyboard_interactive_enabled else None,
+                            ] if m
+                        ) or "none detected",
+                    )
+                else:
+                    logger.warning(
+                        "SSH probe failed: %s:%d - %s",
+                        result.host,
+                        result.port,
+                        result.error_message or "unknown error",
+                    )
+
+            except Exception as exc:
+                ip, port = target
+                logger.error("SSH probe exception for %s:%d: %s", ip, port, exc)
+                # Create a failed result for exceptions
+                results.append(SSHProbeResult(
+                    host=ip,
+                    port=port,
+                    success=False,
+                    error_message=str(exc),
+                ))
+
+            completed += 1
+            if progress_reporter:
+                pct = (completed / total) * 100.0
+                scaled_pct = progress_offset + (pct * progress_scale / 100.0)
+                progress_reporter.update(
+                    scaled_pct,
+                    f"SSH probing: {completed}/{total} targets",
+                )
+
+    successful = sum(1 for r in results if r.success)
+    logger.info("SSH probes completed: %d/%d successful", successful, total)
+
+    return results
+
+
 def _process_host_discovery_job(
     job: HostDiscoveryJob,
     client: ScannerClient,
@@ -2072,12 +2210,47 @@ def _process_job(
                     len(updated_ports),
                 )
 
+        # SSH probing phase - runs after port scanning
+        ssh_results: list[SSHProbeResult] = []
+        if result.open_ports and not result.cancelled:
+            # Detect SSH services from discovered ports
+            ssh_targets = _detect_ssh_services(result.open_ports)
+
+            if ssh_targets:
+                logger.info("=== SSH Security Probing Phase ===")
+                progress_reporter.update(90, f"Starting SSH probes on {len(ssh_targets)} targets...")
+
+                # Run SSH probes - maps 90-100% progress
+                ssh_results = _run_ssh_probes(
+                    ssh_targets,
+                    logger,
+                    progress_reporter,
+                    concurrency=DEFAULT_SSH_PROBE_CONCURRENCY,
+                    timeout=DEFAULT_SSH_PROBE_TIMEOUT,
+                    progress_offset=90.0,
+                    progress_scale=10.0,
+                )
+
+                # Log summary
+                successful_probes = [r for r in ssh_results if r.success]
+                insecure_auth = sum(1 for r in successful_probes if r.has_insecure_auth())
+                weak_ciphers = sum(1 for r in successful_probes if r.has_weak_ciphers())
+
+                logger.info(
+                    "SSH probing complete: %d/%d successful, %d with insecure auth, %d with weak ciphers",
+                    len(successful_probes),
+                    len(ssh_targets),
+                    insecure_auth,
+                    weak_ciphers,
+                )
+
         if result.cancelled:
             try:
                 client.submit_results(
                     scan_id,
                     "failed",
                     result.open_ports,
+                    ssh_results=ssh_results,
                     error_message="Scan cancelled by user request",
                 )
                 logger.info("Submitted cancelled scan results for scan %s", scan_id)
@@ -2088,7 +2261,7 @@ def _process_job(
         # Report 100% at completion
         progress_reporter.update(100, "Scan complete")
 
-        client.submit_results(scan_id, "success", result.open_ports)
+        client.submit_results(scan_id, "success", result.open_ports, ssh_results=ssh_results)
         logger.info("Submitted scan results for scan %s", scan_id)
     except Exception as exc:
         logger.exception("Scan failed for network %s", job.network_id)

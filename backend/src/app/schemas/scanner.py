@@ -123,12 +123,47 @@ class OpenPortData(BaseModel):
     mac_vendor: str | None = None
 
 
+class SSHAlgorithmInfo(BaseModel):
+    """Information about a cryptographic algorithm with security classification."""
+
+    name: str
+    keysize: int | None = None
+    is_weak: bool = False
+    notes: list[str] = []
+
+
+class SSHProbeResultData(BaseModel):
+    """SSH probe result data from scanner."""
+
+    host: str
+    port: int
+    success: bool
+    error_message: str | None = None
+
+    # Authentication methods
+    publickey_enabled: bool = False
+    password_enabled: bool = False
+    keyboard_interactive_enabled: bool = False
+
+    # SSH metadata
+    ssh_version: str | None = None
+    protocol_version: str | None = None
+    server_banner: str | None = None
+
+    # Cryptographic algorithms with security classification
+    ciphers: list[SSHAlgorithmInfo] = []
+    kex_algorithms: list[SSHAlgorithmInfo] = []
+    mac_algorithms: list[SSHAlgorithmInfo] = []
+    host_key_types: list[str] = []
+
+
 class ScannerResultRequest(BaseModel):
     """Request to submit scan results."""
 
     scan_id: int
     status: str  # "success" or "failed"
     open_ports: list[OpenPortData] = []
+    ssh_results: list[SSHProbeResultData] = []
     error_message: str | None = None
 
 
