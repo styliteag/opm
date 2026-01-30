@@ -24,6 +24,12 @@ class AlertType(str, Enum):
     NEW_PORT = "new_port"
     NOT_ALLOWED = "not_allowed"
     BLOCKED = "blocked"
+    # SSH security alert types
+    SSH_INSECURE_AUTH = "ssh_insecure_auth"
+    SSH_WEAK_CIPHER = "ssh_weak_cipher"
+    SSH_WEAK_KEX = "ssh_weak_kex"
+    SSH_OUTDATED_VERSION = "ssh_outdated_version"
+    SSH_CONFIG_REGRESSION = "ssh_config_regression"
 
 
 class ResolutionStatus(str, Enum):

@@ -64,6 +64,17 @@ async def compute_alert_severity(
         return Severity.HIGH
     elif alert_type == AlertType.NOT_ALLOWED:
         return Severity.MEDIUM
+    # SSH security alert types
+    elif alert_type == AlertType.SSH_INSECURE_AUTH:
+        return Severity.HIGH
+    elif alert_type == AlertType.SSH_WEAK_CIPHER:
+        return Severity.MEDIUM
+    elif alert_type == AlertType.SSH_WEAK_KEX:
+        return Severity.MEDIUM
+    elif alert_type == AlertType.SSH_OUTDATED_VERSION:
+        return Severity.MEDIUM
+    elif alert_type == AlertType.SSH_CONFIG_REGRESSION:
+        return Severity.HIGH
 
     return Severity.MEDIUM
 
