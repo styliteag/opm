@@ -11,6 +11,7 @@ from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.port_rule import PortRule, RuleType
 from app.models.scan import Scan, ScanStatus
+from app.models.ssh_scan_result import SSHScanResult
 from app.services.email_alerts import queue_alert_emails, queue_global_alert_emails
 from app.services.global_open_ports import upsert_global_open_port
 from app.services.global_port_rules import is_port_whitelisted
@@ -494,5 +495,127 @@ async def generate_global_alerts_for_scan(
 
     if created_alerts:
         await queue_global_alert_emails(created_alerts, network_name, alert_config, scan.id)
+
+    return created_count
+
+
+SSHAlertKey = tuple[AlertType, str, int]  # (alert_type, ip, port)
+
+
+async def _get_unacknowledged_ssh_alerts(
+    db: AsyncSession, network_id: int
+) -> set[SSHAlertKey]:
+    """Get all unacknowledged SSH alerts for a network as a set of (alert_type, ip, port) tuples."""
+    result = await db.execute(
+        select(Alert.alert_type, Alert.ip, Alert.port).where(
+            Alert.network_id == network_id,
+            Alert.acknowledged.is_(False),
+            Alert.alert_type == AlertType.SSH_INSECURE_AUTH,
+        )
+    )
+    return {(row[0], row[1], int(row[2])) for row in result.all()}
+
+
+async def generate_ssh_alerts_for_scan(
+    db: AsyncSession,
+    scan: Scan,
+) -> int:
+    """
+    Generate SSH_INSECURE_AUTH alerts for a completed scan.
+
+    This function:
+    1. Queries SSHScanResult records for the scan
+    2. Checks if password_enabled=True OR keyboard_interactive_enabled=True
+    3. Creates SSH_INSECURE_AUTH alert with deduplication
+    4. Queues email notifications
+
+    Args:
+        db: Database session
+        scan: The completed scan
+
+    Returns:
+        Number of alerts created
+    """
+    if scan.status != ScanStatus.COMPLETED:
+        return 0
+
+    # Fetch SSH scan results for this scan
+    result = await db.execute(
+        select(SSHScanResult).where(SSHScanResult.scan_id == scan.id)
+    )
+    ssh_results = list(result.scalars().all())
+
+    if not ssh_results:
+        return 0
+
+    # Get network info for context and alert config
+    network_result = await db.execute(
+        select(Network.alert_config, Network.name).where(Network.id == scan.network_id)
+    )
+    network_row = network_result.first()
+    if network_row is None:
+        return 0
+
+    alert_config, network_name = network_row
+    enabled_types = _get_enabled_alert_types(alert_config)
+
+    # Check if SSH_INSECURE_AUTH alert type is enabled
+    if AlertType.SSH_INSECURE_AUTH not in enabled_types:
+        return 0
+
+    # Get existing unacknowledged SSH alerts to avoid duplicates
+    existing_alerts = await _get_unacknowledged_ssh_alerts(db, scan.network_id)
+    created_alert_keys: set[SSHAlertKey] = set()
+    created_count = 0
+    created_alerts: list[Alert] = []
+
+    for ssh_result in ssh_results:
+        # Check for insecure authentication methods
+        if not ssh_result.password_enabled and not ssh_result.keyboard_interactive_enabled:
+            continue
+
+        # Build alert message with details about which auth methods are enabled
+        auth_methods: list[str] = []
+        if ssh_result.password_enabled:
+            auth_methods.append("password")
+        if ssh_result.keyboard_interactive_enabled:
+            auth_methods.append("keyboard-interactive")
+        auth_methods_str = ", ".join(auth_methods)
+
+        ip = ssh_result.host_ip
+        port = ssh_result.port
+
+        # Check for duplicate alerts (same alert_type, ip, port)
+        key: SSHAlertKey = (AlertType.SSH_INSECURE_AUTH, ip, port)
+        if key in existing_alerts or key in created_alert_keys:
+            continue
+
+        # Build detailed message
+        version_info = ""
+        if ssh_result.ssh_version:
+            version_info = f" (SSH {ssh_result.ssh_version})"
+
+        message = (
+            f"SSH server allows insecure authentication methods: {auth_methods_str}"
+            f"{version_info} on {ip}:{port}"
+        )
+
+        # Create the alert
+        alert = Alert(
+            scan_id=scan.id,
+            network_id=scan.network_id,
+            alert_type=AlertType.SSH_INSECURE_AUTH,
+            ip=ip,
+            port=port,
+            message=message,
+        )
+        db.add(alert)
+        created_alerts.append(alert)
+        created_alert_keys.add(key)
+        created_count += 1
+
+    # Queue email notifications
+    if created_alerts:
+        await queue_alert_emails(created_alerts, network_name, alert_config, scan.id)
 
     return created_count
