@@ -506,7 +506,70 @@ SSH_ALERT_TYPES = (
     AlertType.SSH_INSECURE_AUTH,
     AlertType.SSH_WEAK_CIPHER,
     AlertType.SSH_WEAK_KEX,
+    AlertType.SSH_OUTDATED_VERSION,
 )
+
+# Default minimum SSH version threshold for outdated version alerts
+DEFAULT_SSH_VERSION_THRESHOLD = "8.0.0"
+
+
+def _parse_ssh_version(version_str: str | None) -> tuple[int, int, int] | None:
+    """Parse SSH version string into a tuple of (major, minor, patch).
+
+    Handles various SSH version formats:
+    - "OpenSSH_8.2p1" -> (8, 2, 0)
+    - "OpenSSH_7.9" -> (7, 9, 0)
+    - "8.2p1" -> (8, 2, 0)
+    - "8.2" -> (8, 2, 0)
+    - "8" -> (8, 0, 0)
+
+    Returns None if version cannot be parsed.
+    """
+    import re
+
+    if not version_str:
+        return None
+
+    # Strip common prefixes like "OpenSSH_" or "SSH-"
+    cleaned = version_str
+    for prefix in ["OpenSSH_", "SSH-", "openssh_", "ssh-"]:
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+
+    # Match version pattern: major.minor.patch or major.minor
+    # Also handles suffixes like "p1", "p2", etc.
+    match = re.match(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:p\d+)?", cleaned)
+    if not match:
+        return None
+
+    major = int(match.group(1))
+    minor = int(match.group(2)) if match.group(2) else 0
+    patch = int(match.group(3)) if match.group(3) else 0
+
+    return (major, minor, patch)
+
+
+def _is_version_outdated(
+    version_str: str | None, threshold_str: str
+) -> bool:
+    """Check if an SSH version is below the threshold.
+
+    Args:
+        version_str: The detected SSH version string
+        threshold_str: The minimum acceptable version (e.g., "8.0.0")
+
+    Returns:
+        True if version is outdated (below threshold), False otherwise.
+        Returns False if version cannot be parsed.
+    """
+    parsed_version = _parse_ssh_version(version_str)
+    threshold_version = _parse_ssh_version(threshold_str)
+
+    if parsed_version is None or threshold_version is None:
+        return False
+
+    return parsed_version < threshold_version
 
 
 async def _get_unacknowledged_ssh_alerts(
@@ -589,6 +652,7 @@ async def generate_ssh_alerts_for_scan(
         AlertType.SSH_INSECURE_AUTH,
         AlertType.SSH_WEAK_CIPHER,
         AlertType.SSH_WEAK_KEX,
+        AlertType.SSH_OUTDATED_VERSION,
     }.intersection(enabled_types)
     if not ssh_types_enabled:
         return 0
@@ -681,6 +745,35 @@ async def generate_ssh_alerts_for_scan(
                         scan_id=scan.id,
                         network_id=scan.network_id,
                         alert_type=AlertType.SSH_WEAK_KEX,
+                        ip=ip,
+                        port=port,
+                        message=message,
+                    )
+                    db.add(alert)
+                    created_alerts.append(alert)
+                    created_alert_keys.add(key)
+                    created_count += 1
+
+        # Check for outdated SSH version
+        if AlertType.SSH_OUTDATED_VERSION in enabled_types:
+            # Get version threshold from alert_config or use default
+            version_threshold = DEFAULT_SSH_VERSION_THRESHOLD
+            if alert_config and isinstance(alert_config.get("ssh_version_threshold"), str):
+                version_threshold = alert_config["ssh_version_threshold"]
+
+            if _is_version_outdated(ssh_result.ssh_version, version_threshold):
+                key = (AlertType.SSH_OUTDATED_VERSION, ip, port)
+                if key not in existing_alerts and key not in created_alert_keys:
+                    detected_version = ssh_result.ssh_version or "unknown"
+                    message = (
+                        f"SSH server running outdated version: {detected_version} "
+                        f"(recommended minimum: {version_threshold}) on {ip}:{port}"
+                    )
+
+                    alert = Alert(
+                        scan_id=scan.id,
+                        network_id=scan.network_id,
+                        alert_type=AlertType.SSH_OUTDATED_VERSION,
                         ip=ip,
                         port=port,
                         message=message,
