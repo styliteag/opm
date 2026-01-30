@@ -292,6 +292,40 @@ const SSHSecurity = () => {
     }
   }
 
+  const handleExportCsv = async () => {
+    setIsExporting(true)
+    try {
+      const queryParams = new URLSearchParams()
+      if (networkFilter !== null) queryParams.append('network_id', networkFilter.toString())
+
+      const url = `${API_BASE_URL}/api/ssh/export/csv${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+      const response = await fetch(url, { headers: getAuthHeaders(token ?? '') })
+
+      if (!response.ok) throw new Error(await extractErrorMessage(response))
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      // Filename with date: ssh-security-YYYY-MM-DD.csv
+      const dateStr = new Date().toISOString().slice(0, 10)
+      link.download = `ssh-security-${dateStr}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+
+      setToast({ message: 'CSV exported successfully', tone: 'success' })
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : 'CSV export failed',
+        tone: 'error',
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   // Auto-dismiss toast after 3 seconds
   if (toast) {
     setTimeout(() => setToast(null), 3000)
@@ -485,11 +519,18 @@ const SSHSecurity = () => {
             </div>
             <div className="flex items-center gap-3">
               <button
+                onClick={handleExportCsv}
+                disabled={isExporting || isLoading || totalHosts === 0}
+                className="rounded-full border border-cyan-200 bg-cyan-500/10 px-4 py-2 text-xs font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-500/20 dark:border-cyan-500/40 dark:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isExporting ? 'Exporting...' : 'Export CSV'}
+              </button>
+              <button
                 onClick={handleExportPdf}
                 disabled={isExporting || isLoading || totalHosts === 0}
                 className="rounded-full border border-emerald-200 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isExporting ? 'Exporting...' : 'Export PDF Report'}
+                {isExporting ? 'Exporting...' : 'Export PDF'}
               </button>
               <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-xs text-slate-500 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60 dark:text-slate-300">
                 {isLoading ? 'Loading SSH data...' : `Updated ${formatDateTime(now)}`}

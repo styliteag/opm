@@ -1,7 +1,8 @@
 """SSH security scan result endpoints."""
 
+import csv
 from datetime import datetime, timezone
-from io import BytesIO
+from io import BytesIO, StringIO
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -418,3 +419,114 @@ def _percentage(count: int, total: int) -> str:
     if total == 0:
         return "0%"
     return f"{(count / total) * 100:.1f}%"
+
+
+@router.get("/ssh/export/csv")
+async def export_ssh_security_csv(
+    user: CurrentUser,
+    db: DbSession,
+    network_id: int | None = Query(None, ge=1, description="Filter by network ID"),
+) -> StreamingResponse:
+    """
+    Export SSH security data as CSV.
+
+    Includes IP, Port, SSH Version, Auth Methods, Ciphers, KEX, and security status.
+    """
+    # Get all SSH hosts for export
+    hosts = await ssh_service.get_ssh_hosts_for_report(db, network_id=network_id)
+
+    # Create CSV in memory
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+
+    # Write header row
+    writer.writerow([
+        "IP",
+        "Port",
+        "SSH Version",
+        "Publickey Auth",
+        "Password Auth",
+        "Keyboard-Interactive Auth",
+        "Auth Status",
+        "Ciphers (Weak)",
+        "KEX Algorithms (Weak)",
+        "Cipher Status",
+        "KEX Status",
+        "Version Status",
+        "Overall Compliance",
+        "Network",
+        "Last Scanned",
+    ])
+
+    # Write data rows
+    for host in hosts:
+        # Determine auth status
+        has_insecure_auth = host["password_enabled"] or host["keyboard_interactive_enabled"]
+        auth_status = "Insecure" if has_insecure_auth else "Secure"
+
+        # Determine cipher/KEX status
+        cipher_status = "Weak" if host["has_weak_ciphers"] else "Secure"
+        kex_status = "Weak" if host["has_weak_kex"] else "Secure"
+
+        # Determine version status
+        ssh_version = host["ssh_version"]
+        parsed_version = _parse_ssh_version(ssh_version)
+        if parsed_version is not None and parsed_version < MIN_SSH_VERSION:
+            version_status = "Outdated"
+        elif parsed_version is not None:
+            version_status = "Current"
+        else:
+            version_status = "Unknown"
+
+        # Overall compliance: non-compliant if any security issues
+        is_compliant = (
+            not has_insecure_auth
+            and not host["has_weak_ciphers"]
+            and not host["has_weak_kex"]
+            and version_status != "Outdated"
+        )
+        overall_compliance = "Compliant" if is_compliant else "Non-Compliant"
+
+        # Format weak ciphers and KEX
+        weak_ciphers_str = ", ".join(host["weak_ciphers"]) if host["weak_ciphers"] else ""
+        weak_kex_str = ", ".join(host["weak_kex"]) if host["weak_kex"] else ""
+
+        # Format last scanned timestamp
+        last_scanned = host["last_scanned"]
+        if isinstance(last_scanned, datetime):
+            last_scanned_str = last_scanned.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            last_scanned_str = str(last_scanned) if last_scanned else ""
+
+        writer.writerow([
+            host["host_ip"],
+            host["port"],
+            ssh_version or "",
+            "Yes" if host["publickey_enabled"] else "No",
+            "Yes" if host["password_enabled"] else "No",
+            "Yes" if host["keyboard_interactive_enabled"] else "No",
+            auth_status,
+            weak_ciphers_str,
+            weak_kex_str,
+            cipher_status,
+            kex_status,
+            version_status,
+            overall_compliance,
+            host["network_name"] or "",
+            last_scanned_str,
+        ])
+
+    # Get CSV content
+    csv_content = buffer.getvalue()
+    buffer.close()
+
+    # Generate filename with date
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"ssh-security-{date_str}.csv"
+
+    # Return as streaming response
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
