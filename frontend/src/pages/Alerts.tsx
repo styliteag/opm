@@ -11,6 +11,7 @@ import type {
   NetworkListResponse,
   PolicyListResponse,
 } from '../types'
+import { ALERT_TYPE_LABELS, ALERT_TYPE_STYLES } from '../constants/alerts'
 
 const formatDateTime = (value: Date) =>
   new Intl.DateTimeFormat(undefined, {
@@ -34,35 +35,7 @@ const formatRelativeTime = (value: Date, now: Date) => {
   return `${days}d ago`
 }
 
-const alertTypeLabels: Record<AlertType, string> = {
-  new_port: 'New Port',
-  not_allowed: 'Not Allowed',
-  blocked: 'Blocked',
-  ssh_insecure_auth: 'SSH Insecure Auth',
-  ssh_weak_cipher: 'SSH Weak Cipher',
-  ssh_weak_kex: 'SSH Weak KEX',
-  ssh_outdated_version: 'SSH Outdated',
-  ssh_config_regression: 'SSH Regression',
-}
 
-const alertTypeStyles: Record<AlertType, string> = {
-  new_port:
-    'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200',
-  not_allowed:
-    'border-orange-300/50 bg-orange-500/15 text-orange-700 dark:border-orange-400/40 dark:bg-orange-500/20 dark:text-orange-200',
-  blocked:
-    'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
-  ssh_insecure_auth:
-    'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
-  ssh_weak_cipher:
-    'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200',
-  ssh_weak_kex:
-    'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200',
-  ssh_outdated_version:
-    'border-orange-300/50 bg-orange-500/15 text-orange-700 dark:border-orange-400/40 dark:bg-orange-500/20 dark:text-orange-200',
-  ssh_config_regression:
-    'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
-}
 
 type ActionModalState = {
   alert: Alert
@@ -456,9 +429,9 @@ const Alerts = () => {
                         )}
                         <td className="px-4 py-3">
                           <span
-                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${alertTypeStyles[alert.type] || 'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300'}`}
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${ALERT_TYPE_STYLES[alert.type] || 'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300'}`}
                           >
-                            {alertTypeLabels[alert.type] || alert.type}
+                            {ALERT_TYPE_LABELS[alert.type] || alert.type}
                           </span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-slate-900 dark:text-white">

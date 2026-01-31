@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - FastAPI app version now uses `get_version()` instead of hardcoded "0.1.0"
 - Removed runtime sed injection for frontend version; now baked in at build time via Vite
+- Eliminated magic strings in alert styling by centralizing alert type labels and styles into `frontend/src/constants/alerts.ts`
 - Home page N+1 query: replaced N HTTP requests for latest scans with single `/api/scans/latest-by-network` endpoint
 
 ## [1.1.7] - 2026-01-31
