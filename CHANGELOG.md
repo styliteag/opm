@@ -8,7 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Refactored scanner nmap functions into dedicated module `scanner/src/scanners/nmap.py`
+- **Major refactoring**: Split monolithic 2400-line `scanner/src/main.py` into focused modules for better maintainability
+  - `scanner/src/main.py` (69 lines) - Entry point and main event loop only
+  - `scanner/src/models.py` (115 lines) - All dataclass definitions
+  - `scanner/src/client.py` (392 lines) - HTTP client for backend communication
+  - `scanner/src/threading_utils.py` (276 lines) - Thread classes for logging, progress, timeouts, and cancellation
+  - `scanner/src/utils.py` (242 lines) - Utility functions for parsing, formatting, config, and logging
+  - `scanner/src/orchestration.py` (243 lines) - Job processing and orchestration logic
+  - `scanner/src/discovery.py` (294 lines) - Host discovery and SSH probing
+  - `scanner/src/scanners/masscan.py` (287 lines) - Masscan scanner implementation
+  - `scanner/src/scanners/nmap.py` (817 lines) - Nmap scanner implementation
 
 ## [1.1.7] - 2026-01-31
 

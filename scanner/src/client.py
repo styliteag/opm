@@ -68,12 +68,18 @@ class ScannerClient:
                     return
                 self._logger.warning(
                     "Backend returned %s (attempt %d/%d), retrying in %.1fs...",
-                    response.status_code, attempt, max_attempts, delay
+                    response.status_code,
+                    attempt,
+                    max_attempts,
+                    delay,
                 )
             except httpx.RequestError as e:
                 self._logger.warning(
                     "Backend not reachable: %s (attempt %d/%d), retrying in %.1fs...",
-                    type(e).__name__, attempt, max_attempts, delay
+                    type(e).__name__,
+                    attempt,
+                    max_attempts,
+                    delay,
                 )
 
             if attempt < max_attempts:
@@ -136,10 +142,10 @@ class ScannerClient:
 
     def claim_job(self, network_id: int) -> int | None:
         """Claim a port scan job.
-        
+
         Args:
             network_id: The network ID to claim
-            
+
         Returns:
             Scan ID if successful, None otherwise
         """
@@ -171,7 +177,7 @@ class ScannerClient:
         error_message: str | None = None,
     ) -> None:
         """Submit scan results to the backend.
-        
+
         Args:
             scan_id: The scan ID
             status: Scan status (success, failed, etc.)
@@ -192,7 +198,7 @@ class ScannerClient:
 
     def submit_logs(self, scan_id: int, entries: list[LogEntry]) -> None:
         """Submit log entries to the backend.
-        
+
         Args:
             scan_id: The scan ID
             entries: List of log entries
@@ -208,7 +214,7 @@ class ScannerClient:
         self, scan_id: int, progress_percent: float, progress_message: str | None = None
     ) -> None:
         """Submit progress update to the backend.
-        
+
         Args:
             scan_id: The scan ID
             progress_percent: Progress percentage (0-100)
@@ -220,23 +226,19 @@ class ScannerClient:
         }
         if progress_message is not None:
             payload["progress_message"] = progress_message
-        response = self._request(
-            "POST", "/api/scanner/progress", json=payload, auth_required=True
-        )
+        response = self._request("POST", "/api/scanner/progress", json=payload, auth_required=True)
         response.raise_for_status()
 
     def get_scan_status(self, scan_id: int) -> str | None:
         """Get the current status of a scan.
-        
+
         Args:
             scan_id: The scan ID
-            
+
         Returns:
             Scan status or None if not found
         """
-        response = self._request(
-            "GET", f"/api/scanner/scans/{scan_id}/status", auth_required=True
-        )
+        response = self._request("GET", f"/api/scanner/scans/{scan_id}/status", auth_required=True)
         if response.status_code == 404:
             return None
         response.raise_for_status()
@@ -268,10 +270,10 @@ class ScannerClient:
 
     def claim_host_discovery_job(self, scan_id: int) -> HostDiscoveryJob | None:
         """Claim a host discovery job.
-        
+
         Args:
             scan_id: The scan ID to claim
-            
+
         Returns:
             HostDiscoveryJob if successful, None otherwise
         """
@@ -304,7 +306,7 @@ class ScannerClient:
         error_message: str | None = None,
     ) -> None:
         """Submit host discovery results.
-        
+
         Args:
             scan_id: The scan ID
             status: Scan status (success, failed, etc.)
@@ -332,14 +334,14 @@ class ScannerClient:
         auth_required: bool,
     ) -> httpx.Response:
         """Make an HTTP request with retries and authentication.
-        
+
         Args:
             method: HTTP method
             url: URL path
             json: Optional JSON payload
             headers: Optional headers
             auth_required: Whether authentication is required
-            
+
         Returns:
             HTTP response
         """

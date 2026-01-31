@@ -8,11 +8,11 @@ import re
 import shlex
 import socket
 import sys
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from src.threading_utils import LogBufferHandler
     from src.models import ScannerConfig
+    from src.threading_utils import LogBufferHandler
 
 # Constants
 DEFAULT_POLL_INTERVAL = 60
@@ -59,10 +59,10 @@ def parse_int(value: Any) -> int | None:
 
 def split_port_spec(port_spec: str) -> tuple[str, str | None]:
     """Split port specification into includes and excludes.
-    
+
     Args:
         port_spec: Port specification string (e.g., "80,443,!88")
-        
+
     Returns:
         Tuple of (include_spec, exclude_spec)
     """
@@ -85,10 +85,10 @@ def split_port_spec(port_spec: str) -> tuple[str, str | None]:
 
 def check_ipv6_connectivity(logger: logging.Logger) -> bool:
     """Check if IPv6 connectivity is available.
-    
+
     Args:
         logger: Logger instance
-        
+
     Returns:
         True if IPv6 is available, False otherwise
     """
@@ -112,10 +112,10 @@ def parse_masscan_progress(line: str) -> float | None:
 
     Masscan outputs progress like:
     rate:  0.00-kpps, 0.00% done,   0:00:00 remaining, found=0
-    
+
     Args:
         line: Output line from masscan
-        
+
     Returns:
         Progress percentage or None
     """
@@ -134,10 +134,10 @@ def parse_nmap_progress(line: str) -> float | None:
     Nmap with --stats-every outputs progress like:
     Stats: 0:00:05 elapsed; 0 hosts completed (1 up), 1 undergoing SYN Stealth Scan
     SYN Stealth Scan Timing: About 45.23% done; ETC: 12:34 (0:00:05 remaining)
-    
+
     Args:
         line: Output line from nmap
-        
+
     Returns:
         Progress percentage or None
     """
@@ -152,15 +152,15 @@ def parse_nmap_progress(line: str) -> float | None:
 
 def load_config() -> ScannerConfig:
     """Load scanner configuration from environment variables.
-    
+
     Returns:
         ScannerConfig instance
-        
+
     Raises:
         SystemExit: If required environment variables are missing
     """
     from src.models import ScannerConfig
-    
+
     backend_url = os.environ.get("BACKEND_URL")
     api_key = os.environ.get("API_KEY")
     if not backend_url or not api_key:
@@ -187,11 +187,11 @@ def load_config() -> ScannerConfig:
 
 def configure_logging(level: str, buffer_handler: LogBufferHandler) -> logging.Logger:
     """Configure logging with stream and buffer handlers.
-    
+
     Args:
         level: Log level string
         buffer_handler: Buffer handler for collecting logs
-        
+
     Returns:
         Logger instance
     """
@@ -220,14 +220,14 @@ def configure_logging(level: str, buffer_handler: LogBufferHandler) -> logging.L
 
 def get_version() -> str:
     """Get scanner version from VERSION file or APP_VERSION environment variable.
-    
+
     Checks /app/VERSION file first, then falls back to APP_VERSION env var, then 'unknown'.
-    
+
     Returns:
         Version string
     """
     from pathlib import Path
-    
+
     # Try reading from VERSION file first (for dev mode with mounted file)
     version_file = Path("/app/VERSION")
     if version_file.exists():
@@ -237,6 +237,6 @@ def get_version() -> str:
                 return version
         except Exception:
             pass
-    
+
     # Fall back to environment variable (for production builds)
     return os.environ.get("APP_VERSION", "unknown")

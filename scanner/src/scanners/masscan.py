@@ -8,7 +8,7 @@ import math
 import os
 import subprocess
 import tempfile
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.models import OpenPortResult, ScanRunResult
 from src.threading_utils import ProcessTimeoutWatcher, ScanCancellationWatcher
@@ -26,11 +26,11 @@ if TYPE_CHECKING:
 
 def parse_masscan_json(content: str, logger: logging.Logger) -> list[dict[str, Any]]:
     """Parse masscan JSON output, handling both full JSON and line-by-line format.
-    
+
     Args:
         content: JSON content from masscan output
         logger: Logger instance
-        
+
     Returns:
         List of parsed entries
     """
@@ -60,10 +60,10 @@ def parse_masscan_json(content: str, logger: logging.Logger) -> list[dict[str, A
 
 def extract_open_ports(entries: list[dict[str, Any]]) -> list[OpenPortResult]:
     """Extract open port results from masscan JSON entries.
-    
+
     Args:
         entries: Parsed masscan JSON entries
-        
+
     Returns:
         List of OpenPortResult objects
     """
@@ -120,11 +120,11 @@ def build_masscan_port_spec(include_ports: str, scan_protocol: str) -> str:
     - TCP only: -p <ports> or -p T:<ports>
     - UDP only: -pU:<ports>
     - Both: -p T:<ports>,U:<ports>
-    
+
     Args:
         include_ports: Ports to include
         scan_protocol: Protocol to scan (tcp, udp, or both)
-        
+
     Returns:
         Masscan port specification string
     """
@@ -150,7 +150,7 @@ def run_masscan(
     progress_reporter: ProgressReporter | None = None,
 ) -> ScanRunResult:
     """Run masscan to scan for open ports.
-    
+
     Args:
         client: Scanner client for API communication
         scan_id: Scan ID
@@ -162,7 +162,7 @@ def run_masscan(
         scan_protocol: Protocol to scan (tcp, udp, or both)
         logger: Logger instance
         progress_reporter: Optional progress reporter
-        
+
     Returns:
         ScanRunResult with discovered ports
     """

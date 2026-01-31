@@ -254,9 +254,7 @@ class ScanCancellationWatcher(Thread):
             try:
                 status = self._client.get_scan_status(self._scan_id)
             except Exception as exc:
-                self._logger.warning(
-                    "Failed to check scan status for %s: %s", self._scan_id, exc
-                )
+                self._logger.warning("Failed to check scan status for %s: %s", self._scan_id, exc)
 
             if status == "cancelled":
                 self._logger.warning("Scan cancelled by user request")

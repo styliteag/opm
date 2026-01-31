@@ -12,10 +12,10 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from src.models import OpenPortResult, ScanRunResult
-from src.utils import format_command, parse_int, parse_nmap_progress, split_port_spec
+from src.utils import format_command, split_port_spec
 
 if TYPE_CHECKING:
     from src.client import ScannerClient
@@ -84,14 +84,19 @@ def _run_nmap_service_detection(
         command = [
             "nmap",
             "-sV",  # Service detection
-            "--version-intensity", "5",  # Balanced intensity (0-9)
+            "--version-intensity",
+            "5",  # Balanced intensity (0-9)
             "-T4",  # Aggressive timing
-            "-p", port_list,
-            "-oX", output_path,
+            "-p",
+            port_list,
+            "-oX",
+            output_path,
             "--open",  # Only show open ports
             "-Pn",  # Skip host discovery (we know hosts are up from masscan)
-            "--stats-every", "5s",  # Report progress every 5 seconds
-            "-iL", targets_path,  # Read targets from file
+            "--stats-every",
+            "5s",  # Report progress every 5 seconds
+            "-iL",
+            targets_path,  # Read targets from file
         ]
 
         logger.info("Nmap service detection command: %s", format_command(command))
@@ -195,7 +200,17 @@ def _run_nmap_service_detection(
                                     continue
 
                                 # Log progress-related lines
-                                if any(x in line for x in ["Stats:", "Timing:", "elapsed", "remaining", "done", "hosts completed"]):
+                                if any(
+                                    x in line
+                                    for x in [
+                                        "Stats:",
+                                        "Timing:",
+                                        "elapsed",
+                                        "remaining",
+                                        "done",
+                                        "hosts completed",
+                                    ]
+                                ):
                                     logger.info("Nmap svc: %s", line)
 
                                     # Parse host completion: "8 hosts completed (32 up)"
@@ -499,7 +514,11 @@ def _run_nmap_phase(
 
             if scan_timeout > 0 and elapsed >= scan_timeout:
                 if not timed_out:
-                    logger.error("Nmap %s exceeded max runtime (%s seconds); terminating", phase_name, scan_timeout)
+                    logger.error(
+                        "Nmap %s exceeded max runtime (%s seconds); terminating",
+                        phase_name,
+                        scan_timeout,
+                    )
                     timed_out = True
                     try:
                         os.kill(pid, signal.SIGTERM)
@@ -548,43 +567,68 @@ def _run_nmap_phase(
                         text = data.decode("utf-8", errors="replace")
                         buffer += text
                         while "\n" in buffer or "\r" in buffer:
-                            line, sep, buffer = buffer.partition("\n") if "\n" in buffer else buffer.partition("\r")
+                            line, sep, buffer = (
+                                buffer.partition("\n") if "\n" in buffer else buffer.partition("\r")
+                            )
                             line = line.strip()
                             if line:
                                 output_lines.append(line)
-                                if any(x in line for x in ["Stats:", "Timing:", "elapsed", "remaining", "done"]):
+                                if any(
+                                    x in line
+                                    for x in ["Stats:", "Timing:", "elapsed", "remaining", "done"]
+                                ):
                                     logger.info("Nmap: %s", line)
 
                                     # Parse host completion stats: "8 hosts completed (32 up), 24 undergoing"
                                     stats_match = re.search(
                                         r"(\d+)\s+hosts?\s+completed\s+\((\d+)\s+up\)(?:,\s+(\d+)\s+undergoing)?",
-                                        line, re.IGNORECASE
+                                        line,
+                                        re.IGNORECASE,
                                     )
                                     if stats_match:
                                         hosts_completed = int(stats_match.group(1))
                                         total_hosts_up = int(stats_match.group(2))
-                                        hosts_in_progress = int(stats_match.group(3)) if stats_match.group(3) else 0
+                                        hosts_in_progress = (
+                                            int(stats_match.group(3)) if stats_match.group(3) else 0
+                                        )
 
                                         # When nmap discovers more hosts, reset max to completed work only
-                                        if total_hosts_up > last_total_hosts and last_total_hosts > 0:
+                                        if (
+                                            total_hosts_up > last_total_hosts
+                                            and last_total_hosts > 0
+                                        ):
                                             # Recalculate max based on completed hosts (locked-in progress)
-                                            completed_pct = (hosts_completed / total_hosts_up) * 100.0
-                                            max_scaled_pct = progress_offset + (completed_pct * progress_scale)
-                                            logger.info("Host count increased %d -> %d, reset progress to %.1f%% (completed hosts only)",
-                                                       last_total_hosts, total_hosts_up, max_scaled_pct)
+                                            completed_pct = (
+                                                hosts_completed / total_hosts_up
+                                            ) * 100.0
+                                            max_scaled_pct = progress_offset + (
+                                                completed_pct * progress_scale
+                                            )
+                                            logger.info(
+                                                "Host count increased %d -> %d, reset progress to %.1f%% (completed hosts only)",
+                                                last_total_hosts,
+                                                total_hosts_up,
+                                                max_scaled_pct,
+                                            )
                                         last_total_hosts = total_hosts_up
 
                                     # Parse batch percentage: "About 26.91% done"
-                                    pct_match = re.search(r"About\s+([\d.]+)%\s+done", line, re.IGNORECASE)
+                                    pct_match = re.search(
+                                        r"About\s+([\d.]+)%\s+done", line, re.IGNORECASE
+                                    )
                                     if pct_match and progress_reporter and total_hosts_up > 0:
                                         try:
                                             batch_pct = float(pct_match.group(1))
                                             # Calculate true overall progress accounting for host batching
                                             # Formula: (completed_hosts + in_progress_hosts * batch_pct/100) / total_hosts * 100
                                             batch_progress = hosts_in_progress * batch_pct / 100.0
-                                            overall_nmap_pct = ((hosts_completed + batch_progress) / total_hosts_up) * 100.0
+                                            overall_nmap_pct = (
+                                                (hosts_completed + batch_progress) / total_hosts_up
+                                            ) * 100.0
                                             # Scale to phase range (0-50% for phase 1, 50-100% for phase 2)
-                                            scaled_pct = progress_offset + (overall_nmap_pct * progress_scale)
+                                            scaled_pct = progress_offset + (
+                                                overall_nmap_pct * progress_scale
+                                            )
                                             # Never let progress bar go backwards within the same host count
                                             # But always update the message so user sees activity
                                             display_pct = max(scaled_pct, max_scaled_pct)
@@ -592,11 +636,22 @@ def _run_nmap_phase(
                                                 max_scaled_pct = scaled_pct
                                             progress_msg = f"{phase_name}: {hosts_completed}/{total_hosts_up} hosts, batch {batch_pct:.0f}%"
                                             progress_reporter.update(display_pct, progress_msg)
-                                            logger.info("Progress %.1f%% (overall: %.1f%%, batch: %.1f%%) - %d/%d hosts",
-                                                       display_pct, overall_nmap_pct, batch_pct, hosts_completed, total_hosts_up)
+                                            logger.info(
+                                                "Progress %.1f%% (overall: %.1f%%, batch: %.1f%%) - %d/%d hosts",
+                                                display_pct,
+                                                overall_nmap_pct,
+                                                batch_pct,
+                                                hosts_completed,
+                                                total_hosts_up,
+                                            )
                                         except (ValueError, ZeroDivisionError):
                                             pass
-                                elif line.startswith("Nmap scan report") or "PORT" in line or "/tcp" in line or "/udp" in line:
+                                elif (
+                                    line.startswith("Nmap scan report")
+                                    or "PORT" in line
+                                    or "/tcp" in line
+                                    or "/udp" in line
+                                ):
                                     logger.info("Nmap: %s", line)
                     except OSError:
                         child_exited = True
@@ -682,7 +737,9 @@ def _run_nmap(
         scan_flags = ["-sS", "-sU"]
 
     protocol_label = scan_protocol.upper() if scan_protocol != "both" else "TCP+UDP"
-    logger.info("Running nmap hybrid scan for %s with ports %s (%s)", cidr, include_ports, protocol_label)
+    logger.info(
+        "Running nmap hybrid scan for %s with ports %s (%s)", cidr, include_ports, protocol_label
+    )
     if is_ipv6:
         logger.info("Nmap IPv6 mode enabled (-6)")
 
@@ -698,11 +755,14 @@ def _run_nmap(
         *scan_flags,
         "-n",  # No DNS resolution (faster)
         f"-p{include_ports}",
-        "--max-rtt-timeout", f"{int(port_timeout)}ms",
-        "-oX", phase1_output,
+        "--max-rtt-timeout",
+        f"{int(port_timeout)}ms",
+        "-oX",
+        phase1_output,
         "--open",
         "-T4",
-        "--stats-every", "5s",
+        "--stats-every",
+        "5s",
         cidr,
     ]
 
@@ -710,9 +770,16 @@ def _run_nmap(
     phase1_timeout = int(scan_timeout * 0.7) if scan_timeout > 0 else 0
 
     xml_content, cancelled, timed_out, exit_status = _run_nmap_phase(
-        client, scan_id, phase1_command, phase1_output,
-        phase1_timeout, "Phase 1 - Port Discovery", logger, progress_reporter,
-        progress_offset=0.0, progress_scale=0.5,  # Maps to 0-50%
+        client,
+        scan_id,
+        phase1_command,
+        phase1_output,
+        phase1_timeout,
+        "Phase 1 - Port Discovery",
+        logger,
+        progress_reporter,
+        progress_offset=0.0,
+        progress_scale=0.5,  # Maps to 0-50%
     )
 
     if cancelled:
@@ -743,12 +810,16 @@ def _run_nmap(
         open_port_targets[port.ip].add(port.port)
 
     total_open = sum(len(ports) for ports in open_port_targets.values())
-    logger.info("Phase 1 complete: found %d open ports on %d hosts", total_open, len(open_port_targets))
+    logger.info(
+        "Phase 1 complete: found %d open ports on %d hosts", total_open, len(open_port_targets)
+    )
 
     # ========== PHASE 2: Service detection on open ports only ==========
     logger.info("=== Phase 2: Service detection on %d open ports ===", total_open)
     if progress_reporter:
-        progress_reporter.update(50.0, f"Starting Phase 2 - detecting services on {total_open} ports")
+        progress_reporter.update(
+            50.0, f"Starting Phase 2 - detecting services on {total_open} ports"
+        )
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as f:
         phase2_output = f.name
@@ -770,14 +841,19 @@ def _run_nmap(
         *(["-6"] if is_ipv6 else []),
         *scan_flags,
         "-sV",  # Service detection
-        "--version-intensity", "5",  # Balanced intensity
+        "--version-intensity",
+        "5",  # Balanced intensity
         f"-p{port_list}",
-        "--max-rtt-timeout", f"{int(port_timeout)}ms",
-        "-oX", phase2_output,
+        "--max-rtt-timeout",
+        f"{int(port_timeout)}ms",
+        "-oX",
+        phase2_output,
         "--open",
         "-T4",
-        "--stats-every", "5s",
-        "-iL", phase2_targets_file,  # Read targets from file
+        "--stats-every",
+        "5s",
+        "-iL",
+        phase2_targets_file,  # Read targets from file
     ]
 
     # Use remaining 30% of timeout for phase 2
@@ -785,9 +861,16 @@ def _run_nmap(
 
     try:
         xml_content2, cancelled2, timed_out2, exit_status2 = _run_nmap_phase(
-            client, scan_id, phase2_command, phase2_output,
-            phase2_timeout, "Phase 2 - Service Detection", logger, progress_reporter,
-            progress_offset=50.0, progress_scale=0.5,  # Maps to 50-100%
+            client,
+            scan_id,
+            phase2_command,
+            phase2_output,
+            phase2_timeout,
+            "Phase 2 - Service Detection",
+            logger,
+            progress_reporter,
+            progress_offset=50.0,
+            progress_scale=0.5,  # Maps to 50-100%
         )
 
         if cancelled2:
@@ -806,7 +889,9 @@ def _run_nmap(
         logger.info("Phase 2 complete: service detection on %d ports", len(phase2_ports))
 
         if progress_reporter:
-            progress_reporter.update(100.0, f"Complete - {len(phase2_ports)} open ports with service info")
+            progress_reporter.update(
+                100.0, f"Complete - {len(phase2_ports)} open ports with service info"
+            )
 
         return ScanRunResult(open_ports=phase2_ports, cancelled=False)
     finally:
