@@ -120,16 +120,18 @@ jobs:
 
       - name: Delete old GHCR package versions (open-port-monitor)
         uses: actions/delete-package-versions@v5
+        continue-on-error: true
         with:
-          package-name: "styliteag/open-port-monitor"
+          package-name: "open-port-monitor"
           package-type: "container"
           min-versions-to-keep: 5
           delete-only-untagged-versions: false
 
       - name: Delete old GHCR package versions (open-port-monitor-scanner)
         uses: actions/delete-package-versions@v5
+        continue-on-error: true
         with:
-          package-name: "styliteag/open-port-monitor-scanner"
+          package-name: "open-port-monitor-scanner"
           package-type: "container"
           min-versions-to-keep: 5
           delete-only-untagged-versions: false
