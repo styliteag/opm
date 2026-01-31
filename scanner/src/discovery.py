@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from src.models import HostResult, OpenPortResult
 from src.ssh_probe import SSHProbeResult, probe_ssh
-from src.utils import format_command
+from src.utils import format_command, sanitize_cidr
 
 if TYPE_CHECKING:
     from src.threading_utils import ProgressReporter
@@ -106,6 +106,9 @@ def run_host_discovery(
     Returns:
         List of discovered hosts
     """
+    # Sanitize CIDR input to prevent command injection
+    cidr = sanitize_cidr(cidr)
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as output_file:
         output_path = output_file.name
 

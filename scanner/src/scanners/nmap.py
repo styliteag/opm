@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING
 
 from src.models import OpenPortResult, ScanRunResult
-from src.utils import format_command, split_port_spec
+from src.utils import format_command, sanitize_cidr, sanitize_port_spec, split_port_spec
 
 if TYPE_CHECKING:
     from src.client import ScannerClient
@@ -718,6 +718,10 @@ def _run_nmap(
     Phase 1: Fast SYN scan to discover open ports (no -sV)
     Phase 2: Service detection only on discovered open ports (-sV)
     """
+    # Sanitize inputs to prevent command injection
+    cidr = sanitize_cidr(cidr)
+    port_spec = sanitize_port_spec(port_spec)
+
     include_ports, exclude_ports = split_port_spec(port_spec)
 
     if exclude_ports:
@@ -900,3 +904,8 @@ def _run_nmap(
             os.unlink(phase2_targets_file)
         except OSError:
             pass
+
+
+# Public API
+run_nmap = _run_nmap
+run_nmap_service_detection = _run_nmap_service_detection

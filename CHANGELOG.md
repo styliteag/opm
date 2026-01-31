@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Added defensive input sanitization in scanner to prevent potential command injection attacks
+  - New `sanitize_cidr()` function validates CIDR notation and rejects shell metacharacters
+  - New `sanitize_port_spec()` function validates port specifications and rejects shell metacharacters
+  - Applied sanitization to all scanner subprocess calls (masscan, nmap, host discovery)
+  - Comprehensive test coverage with 23 unit tests for sanitization functions
 ### Changed
 - Improved SSH probe logging to explicitly show timeout value for better visibility and debugging
 - CORS configuration now allows all origins (`allow_origins=["*"]`) for maximum flexibility

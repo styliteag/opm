@@ -16,6 +16,8 @@ from src.utils import (
     format_command,
     parse_int,
     parse_masscan_progress,
+    sanitize_cidr,
+    sanitize_port_spec,
     split_port_spec,
 )
 
@@ -166,6 +168,10 @@ def run_masscan(
     Returns:
         ScanRunResult with discovered ports
     """
+    # Sanitize inputs to prevent command injection
+    cidr = sanitize_cidr(cidr)
+    port_spec = sanitize_port_spec(port_spec)
+
     include_ports, exclude_ports = split_port_spec(port_spec)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as output_file:
         output_path = output_file.name
