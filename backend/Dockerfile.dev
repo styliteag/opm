@@ -18,9 +18,10 @@ COPY src ./src
 # Copy Alembic configuration (migrations are now in src/migrations)
 COPY alembic.ini ./
 
-# Copy dev entrypoint script and wait-for-db script
+# Copy startup scripts
 COPY scripts/dev-entrypoint.sh ./scripts/dev-entrypoint.sh
 COPY scripts/wait-for-db.py ./scripts/wait-for-db.py
+COPY scripts/init_admin.py ./scripts/init_admin.py
 RUN chmod +x ./scripts/wait-for-db.py
 
 # Expose port

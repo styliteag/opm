@@ -30,8 +30,9 @@ COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 
-# Copy startup script
+# Copy startup script and initialization scripts
 COPY start.sh ./
+COPY scripts ./scripts
 RUN chmod +x start.sh
 
 EXPOSE 8000

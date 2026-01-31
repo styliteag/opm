@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Admin user initialization now runs once before workers start, eliminating retry loop in application startup
+
 ### Fixed
 - FastAPI app version now uses `get_version()` instead of hardcoded "0.1.0"
 - Removed runtime sed injection for frontend version; now baked in at build time via Vite
