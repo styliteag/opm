@@ -59,9 +59,12 @@ app = FastAPI(
 )
 
 # Configure CORS for frontend
+# WARNING: allow_origins=["*"] with allow_credentials=True is a security risk
+# and should only be used in development environments. For production, use
+# specific origins via settings.cors_origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
