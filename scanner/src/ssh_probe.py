@@ -19,54 +19,60 @@ DEFAULT_SSH_PROBE_TIMEOUT = 10
 
 # Classification of weak algorithms based on ssh-audit recommendations
 # These are algorithms that should be avoided for security reasons
-WEAK_CIPHERS = frozenset({
-    # DES family
-    "des-cbc",
-    "des",
-    "3des-cbc",
-    "3des",
-    # RC4 family
-    "arcfour",
-    "arcfour128",
-    "arcfour256",
-    # Blowfish
-    "blowfish-cbc",
-    "blowfish",
-    # CBC mode ciphers (vulnerable to BEAST-style attacks)
-    "aes128-cbc",
-    "aes192-cbc",
-    "aes256-cbc",
-    "cast128-cbc",
-    "rijndael-cbc@lysator.liu.se",
-})
+WEAK_CIPHERS = frozenset(
+    {
+        # DES family
+        "des-cbc",
+        "des",
+        "3des-cbc",
+        "3des",
+        # RC4 family
+        "arcfour",
+        "arcfour128",
+        "arcfour256",
+        # Blowfish
+        "blowfish-cbc",
+        "blowfish",
+        # CBC mode ciphers (vulnerable to BEAST-style attacks)
+        "aes128-cbc",
+        "aes192-cbc",
+        "aes256-cbc",
+        "cast128-cbc",
+        "rijndael-cbc@lysator.liu.se",
+    }
+)
 
-WEAK_KEX = frozenset({
-    # Weak Diffie-Hellman groups
-    "diffie-hellman-group1-sha1",
-    "diffie-hellman-group14-sha1",
-    "diffie-hellman-group-exchange-sha1",
-    # ECDH with potentially problematic curves
-    "ecdh-sha2-nistp256",
-    "ecdh-sha2-nistp384",
-    "ecdh-sha2-nistp521",
-})
+WEAK_KEX = frozenset(
+    {
+        # Weak Diffie-Hellman groups
+        "diffie-hellman-group1-sha1",
+        "diffie-hellman-group14-sha1",
+        "diffie-hellman-group-exchange-sha1",
+        # ECDH with potentially problematic curves
+        "ecdh-sha2-nistp256",
+        "ecdh-sha2-nistp384",
+        "ecdh-sha2-nistp521",
+    }
+)
 
-WEAK_MACS = frozenset({
-    # MD5-based MACs
-    "hmac-md5",
-    "hmac-md5-96",
-    "hmac-md5-etm@openssh.com",
-    "hmac-md5-96-etm@openssh.com",
-    # SHA1-based MACs (weaker than SHA2)
-    "hmac-sha1",
-    "hmac-sha1-96",
-    "hmac-sha1-etm@openssh.com",
-    "hmac-sha1-96-etm@openssh.com",
-    # RIPEMD (less common, potentially weaker)
-    "hmac-ripemd160",
-    "hmac-ripemd160@openssh.com",
-    "hmac-ripemd160-etm@openssh.com",
-})
+WEAK_MACS = frozenset(
+    {
+        # MD5-based MACs
+        "hmac-md5",
+        "hmac-md5-96",
+        "hmac-md5-etm@openssh.com",
+        "hmac-md5-96-etm@openssh.com",
+        # SHA1-based MACs (weaker than SHA2)
+        "hmac-sha1",
+        "hmac-sha1-96",
+        "hmac-sha1-etm@openssh.com",
+        "hmac-sha1-96-etm@openssh.com",
+        # RIPEMD (less common, potentially weaker)
+        "hmac-ripemd160",
+        "hmac-ripemd160@openssh.com",
+        "hmac-ripemd160-etm@openssh.com",
+    }
+)
 
 logger = logging.getLogger(__name__)
 
@@ -219,12 +225,14 @@ def _parse_ciphers(enc_data: list[dict[str, Any]] | None) -> tuple[AlgorithmInfo
         if any("[FAIL]" in note for note in notes):
             is_weak = True
 
-        ciphers.append(AlgorithmInfo(
-            name=name,
-            keysize=keysize,
-            is_weak=is_weak,
-            notes=notes,
-        ))
+        ciphers.append(
+            AlgorithmInfo(
+                name=name,
+                keysize=keysize,
+                is_weak=is_weak,
+                notes=notes,
+            )
+        )
 
     return tuple(ciphers)
 
@@ -255,12 +263,14 @@ def _parse_kex(kex_data: list[dict[str, Any]] | None) -> tuple[AlgorithmInfo, ..
         if any("[FAIL]" in note for note in notes):
             is_weak = True
 
-        kex_list.append(AlgorithmInfo(
-            name=name,
-            keysize=keysize,
-            is_weak=is_weak,
-            notes=notes,
-        ))
+        kex_list.append(
+            AlgorithmInfo(
+                name=name,
+                keysize=keysize,
+                is_weak=is_weak,
+                notes=notes,
+            )
+        )
 
     return tuple(kex_list)
 
@@ -291,12 +301,14 @@ def _parse_macs(mac_data: list[dict[str, Any]] | None) -> tuple[AlgorithmInfo, .
         if any("[FAIL]" in note for note in notes):
             is_weak = True
 
-        mac_list.append(AlgorithmInfo(
-            name=name,
-            keysize=keysize,
-            is_weak=is_weak,
-            notes=notes,
-        ))
+        mac_list.append(
+            AlgorithmInfo(
+                name=name,
+                keysize=keysize,
+                is_weak=is_weak,
+                notes=notes,
+            )
+        )
 
     return tuple(mac_list)
 
@@ -479,7 +491,8 @@ def probe_ssh(
     command = [
         "ssh-audit",
         "-j",
-        "--timeout", str(timeout),
+        "--timeout",
+        str(timeout),
         target,
     ]
 
