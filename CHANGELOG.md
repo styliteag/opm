@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Database migrations now use MySQL advisory lock to prevent race conditions when multiple workers start simultaneously
+- Migrations now check if already at head revision before running, avoiding duplicate migration logs
 - Scanner now waits for backend to be ready before polling for jobs, avoiding startup errors when backend is still initializing
 
 ## [1.1.2] - 2026-01-31

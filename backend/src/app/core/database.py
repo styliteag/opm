@@ -69,6 +69,8 @@ async def run_migrations() -> bool:
         Uses MySQL GET_LOCK() to ensure only one worker runs migrations.
         """
         import pymysql
+        from alembic.runtime.migration import MigrationContext
+        from alembic.script import ScriptDirectory
 
         # Create sync connection for Alembic
         sync_url = settings.database_url.replace("+aiomysql", "+pymysql")
@@ -94,14 +96,27 @@ async def run_migrations() -> bool:
                 cursor.execute("SELECT GET_LOCK('opm_migrations', 30)")
                 result = cursor.fetchone()
                 if result[0] != 1:
-                    logger.info("Another worker is running migrations, skipping")
+                    print("[migrations] Another worker is running migrations, skipping")
                     return
 
                 try:
-                    # Run migrations while holding the lock
+                    # Check if we're already at head (another worker may have finished)
                     alembic_cfg = Config(str(alembic_ini_path))
                     alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
+                    script = ScriptDirectory.from_config(alembic_cfg)
+                    head_rev = script.get_current_head()
+
+                    # Get current database revision
+                    context = MigrationContext.configure(conn)
+                    current_rev = context.get_current_revision()
+
+                    if current_rev == head_rev:
+                        print(f"[migrations] Already at head revision ({head_rev}), skipping")
+                        return
+
+                    print(f"[migrations] Running migrations from {current_rev} to {head_rev}")
                     command.upgrade(alembic_cfg, "head")
+                    print("[migrations] Migrations completed successfully")
                 finally:
                     # Release the lock
                     cursor.execute("SELECT RELEASE_LOCK('opm_migrations')")
