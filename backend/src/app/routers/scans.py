@@ -17,6 +17,8 @@ from app.models.open_port import OpenPort
 from app.models.scan import ScanStatus
 from app.schemas.scan import (
     AllScansListResponse,
+    LatestScanByNetwork,
+    LatestScansByNetworkResponse,
     OpenPortResponse,
     ScanCancelResponse,
     ScanDetailResponse,
@@ -24,12 +26,58 @@ from app.schemas.scan import (
     ScanLogListResponse,
     ScanLogResponse,
     ScanResponse,
+    ScanSummaryResponse,
     ScanVisibilityRequest,
     ScanWithNamesResponse,
 )
 from app.services import scans as scans_service
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
+
+
+@router.get("/latest-by-network", response_model=LatestScansByNetworkResponse)
+async def get_latest_scans_by_network(
+    user: CurrentUser,
+    db: DbSession,
+) -> LatestScansByNetworkResponse:
+    """Get the latest completed scan for each network in a single request."""
+    from app.services.networks import get_networks
+
+    networks = await get_networks(db)
+    network_ids = [n.id for n in networks]
+
+    latest_scans_map = await scans_service.get_latest_scans_by_network(db)
+
+    latest_scans = []
+    for network_id in network_ids:
+        scan_data = latest_scans_map.get(network_id)
+        if scan_data:
+            scan, port_count = scan_data
+            latest_scans.append(
+                LatestScanByNetwork(
+                    network_id=network_id,
+                    scan=ScanSummaryResponse(
+                        id=scan.id,
+                        network_id=scan.network_id,
+                        scanner_id=scan.scanner_id,
+                        status=scan.status.value,
+                        started_at=scan.started_at,
+                        completed_at=scan.completed_at,
+                        cancelled_at=scan.cancelled_at,
+                        cancelled_by=scan.cancelled_by,
+                        error_message=scan.error_message,
+                        trigger_type=scan.trigger_type.value,
+                        hidden=scan.hidden,
+                        progress_percent=scan.progress_percent,
+                        progress_message=scan.progress_message,
+                        port_count=port_count,
+                    ),
+                )
+            )
+        else:
+            latest_scans.append(LatestScanByNetwork(network_id=network_id, scan=None))
+
+    return LatestScansByNetworkResponse(latest_scans=latest_scans)
 
 
 @router.get("", response_model=AllScansListResponse)

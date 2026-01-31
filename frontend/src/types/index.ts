@@ -170,6 +170,15 @@ export type ScansListResponse = {
   scans: ScanSummary[]
 }
 
+export type LatestScanByNetwork = {
+  network_id: number
+  scan: ScanSummary | null
+}
+
+export type LatestScansByNetworkResponse = {
+  latest_scans: LatestScanByNetwork[]
+}
+
 export type ScanDetail = {
   id: number
   network_id: number
