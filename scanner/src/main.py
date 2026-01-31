@@ -433,6 +433,39 @@ class ScannerClient:
     def close(self) -> None:
         self._client.close()
 
+    def wait_for_backend(self, max_attempts: int = 30, initial_delay: float = 2.0) -> None:
+        """Wait for the backend to be reachable before starting.
+
+        Retries with exponential backoff until the backend responds successfully.
+
+        Args:
+            max_attempts: Maximum number of attempts before giving up
+            initial_delay: Initial delay between attempts in seconds
+        """
+        delay = initial_delay
+        for attempt in range(1, max_attempts + 1):
+            try:
+                # Try to hit the health endpoint (no auth required)
+                response = self._client.get("/health")
+                if response.status_code == 200:
+                    self._logger.info("Backend is ready")
+                    return
+                self._logger.warning(
+                    "Backend returned %s (attempt %d/%d), retrying in %.1fs...",
+                    response.status_code, attempt, max_attempts, delay
+                )
+            except httpx.RequestError as e:
+                self._logger.warning(
+                    "Backend not reachable: %s (attempt %d/%d), retrying in %.1fs...",
+                    type(e).__name__, attempt, max_attempts, delay
+                )
+
+            if attempt < max_attempts:
+                time.sleep(delay)
+                delay = min(delay * 1.5, 30.0)  # Cap at 30 seconds
+
+        raise RuntimeError(f"Backend not reachable after {max_attempts} attempts")
+
     def ensure_authenticated(self) -> None:
         if self._token is None or time.time() >= self._token_expires_at:
             self.authenticate()
@@ -2322,6 +2355,10 @@ def main() -> None:
     logger.info("Polling interval set to %s seconds", config.poll_interval)
 
     client = ScannerClient(config.backend_url, config.api_key, logger, scanner_version=version)
+
+    # Wait for backend to be ready before starting
+    logger.info("Waiting for backend to be ready...")
+    client.wait_for_backend()
 
     try:
         while True:
