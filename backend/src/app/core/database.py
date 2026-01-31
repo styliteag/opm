@@ -69,7 +69,6 @@ async def run_migrations() -> bool:
         Uses MySQL GET_LOCK() to ensure only one worker runs migrations.
         """
         import pymysql
-        from alembic.runtime.migration import MigrationContext
         from alembic.script import ScriptDirectory
 
         # Create sync connection for Alembic
@@ -106,9 +105,16 @@ async def run_migrations() -> bool:
                     script = ScriptDirectory.from_config(alembic_cfg)
                     head_rev = script.get_current_head()
 
-                    # Get current database revision
-                    context = MigrationContext.configure(conn)
-                    current_rev = context.get_current_revision()
+                    # Get current database revision from alembic_version table
+                    current_rev = None
+                    try:
+                        cursor.execute("SELECT version_num FROM alembic_version LIMIT 1")
+                        row = cursor.fetchone()
+                        if row:
+                            current_rev = row[0]
+                    except pymysql.err.ProgrammingError:
+                        # Table doesn't exist yet, migrations need to run
+                        pass
 
                     if current_rev == head_rev:
                         print(f"[migrations] Already at head revision ({head_rev}), skipping")
