@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- CORS configuration now allows all origins (`allow_origins=["*"]`) for maximum flexibility
+
 ## [1.1.10] - 2026-01-31
 
 ## [1.1.9] - 2026-01-31
