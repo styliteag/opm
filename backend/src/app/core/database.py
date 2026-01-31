@@ -31,6 +31,9 @@ async_session_factory = async_sessionmaker(
 async def run_migrations() -> bool:
     """Run Alembic migrations if they exist.
 
+    Uses a database advisory lock to ensure only one worker runs migrations
+    at a time, preventing race conditions in multi-worker deployments.
+
     Returns:
         True if migrations were run, False if no migrations exist.
     """
@@ -61,15 +64,49 @@ async def run_migrations() -> bool:
         return False
 
     def _run_migrations_sync() -> None:
-        """Run migrations synchronously (Alembic uses sync connections)."""
-        # Create Alembic config
-        alembic_cfg = Config(str(alembic_ini_path))
-        # Set database URL for sync connection (Alembic uses sync connections)
-        sync_url = settings.database_url.replace("+aiomysql", "+pymysql")
-        alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
+        """Run migrations synchronously with advisory lock.
 
-        # Run migrations to head
-        command.upgrade(alembic_cfg, "head")
+        Uses MySQL GET_LOCK() to ensure only one worker runs migrations.
+        """
+        import pymysql
+
+        # Create sync connection for Alembic
+        sync_url = settings.database_url.replace("+aiomysql", "+pymysql")
+
+        # Parse connection params from URL
+        # Format: mysql+pymysql://user:pass@host:port/dbname
+        from urllib.parse import urlparse
+        parsed = urlparse(sync_url.replace("mysql+pymysql://", "mysql://"))
+        conn_params = {
+            "host": parsed.hostname or "localhost",
+            "port": parsed.port or 3306,
+            "user": parsed.username,
+            "password": parsed.password,
+            "database": parsed.path.lstrip("/") if parsed.path else None,
+        }
+
+        # Get advisory lock before running migrations
+        conn = pymysql.connect(**conn_params)
+        try:
+            with conn.cursor() as cursor:
+                # Try to acquire lock with 30 second timeout
+                # Lock name: "opm_migrations", unique per database
+                cursor.execute("SELECT GET_LOCK('opm_migrations', 30)")
+                result = cursor.fetchone()
+                if result[0] != 1:
+                    logger.info("Another worker is running migrations, skipping")
+                    return
+
+                try:
+                    # Run migrations while holding the lock
+                    alembic_cfg = Config(str(alembic_ini_path))
+                    alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
+                    command.upgrade(alembic_cfg, "head")
+                finally:
+                    # Release the lock
+                    cursor.execute("SELECT RELEASE_LOCK('opm_migrations')")
+        finally:
+            conn.close()
 
     try:
         logger.info("Running database migrations...")
