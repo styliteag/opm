@@ -83,6 +83,121 @@ def split_port_spec(port_spec: str) -> tuple[str, str | None]:
     return include_spec, exclude_spec
 
 
+def sanitize_cidr(cidr: str) -> str:
+    """Validate and sanitize CIDR notation for safe use in subprocess commands.
+
+    This function provides defensive validation to ensure CIDR strings received
+    from the backend API are safe to use in subprocess commands.
+
+    Args:
+        cidr: CIDR notation string (e.g., "192.168.1.0/24" or "2001:db8::/32")
+
+    Returns:
+        Validated CIDR string
+
+    Raises:
+        ValueError: If CIDR format is invalid or contains unsafe characters
+    """
+    import ipaddress
+
+    if not cidr or not isinstance(cidr, str):
+        raise ValueError("CIDR must be a non-empty string")
+
+    # Strip whitespace
+    cidr = cidr.strip()
+
+    # Check if empty after stripping
+    if not cidr:
+        raise ValueError("CIDR must be a non-empty string")
+
+    # Check for any shell metacharacters or control characters that should never be in a CIDR
+    # Allow only alphanumeric, dots, colons, slashes, and hyphens
+    if not re.match(r"^[a-fA-F0-9.:/\-]+$", cidr):
+        raise ValueError(f"CIDR contains invalid characters: {cidr}")
+
+    # Validate using ipaddress module (same as backend validation)
+    try:
+        ipaddress.ip_network(cidr, strict=False)
+    except ValueError as e:
+        raise ValueError(f"Invalid CIDR format: {e}") from e
+
+    return cidr
+
+
+def sanitize_port_spec(port_spec: str) -> str:
+    """Validate and sanitize port specification for safe use in subprocess commands.
+
+    This function provides defensive validation to ensure port specifications received
+    from the backend API are safe to use in subprocess commands.
+
+    Args:
+        port_spec: Port specification string (e.g., "80,443,8000-9000,!88")
+
+    Returns:
+        Validated port specification string
+
+    Raises:
+        ValueError: If port specification is invalid or contains unsafe characters
+    """
+    if not port_spec or not isinstance(port_spec, str):
+        raise ValueError("Port specification must be a non-empty string")
+
+    # Strip whitespace
+    port_spec = port_spec.strip()
+
+    # Check if empty after stripping
+    if not port_spec:
+        raise ValueError("Port specification must be a non-empty string")
+
+    # Check for shell metacharacters or control characters
+    # Allow only digits, commas, hyphens, exclamation marks, and protocol prefixes (T:, U:)
+    if not re.match(r"^[0-9,\-!TU:]+$", port_spec):
+        raise ValueError(f"Port specification contains invalid characters: {port_spec}")
+
+    # Split by comma and validate each segment
+    segments = [s.strip() for s in port_spec.split(",")]
+
+    for segment in segments:
+        if not segment:
+            raise ValueError("Port specification contains empty segment")
+
+        # Handle exclusion prefix
+        port_str = segment.lstrip("!")
+
+        # Handle protocol prefix (for masscan format like "T:80" or "U:53")
+        if port_str.startswith(("T:", "U:")):
+            port_str = port_str[2:]
+
+        # Check for range
+        if "-" in port_str:
+            parts = port_str.split("-")
+            if len(parts) != 2:
+                raise ValueError(f"Invalid port range format: {segment}")
+            try:
+                start = int(parts[0])
+                end = int(parts[1])
+                if not (1 <= start <= 65535 and 1 <= end <= 65535):
+                    raise ValueError(f"Port out of range (1-65535): {segment}")
+                if start > end:
+                    raise ValueError(f"Invalid port range (start > end): {segment}")
+            except ValueError as e:
+                if "invalid literal" in str(e):
+                    raise ValueError(f"Invalid port number in range: {segment}") from e
+                raise
+        else:
+            # Single port
+            try:
+                port = int(port_str)
+                if not (1 <= port <= 65535):
+                    raise ValueError(f"Port out of range (1-65535): {segment}")
+            except ValueError as e:
+                if "invalid literal" in str(e):
+                    raise ValueError(f"Invalid port number: {segment}") from e
+                raise
+
+    return port_spec
+
+
 def check_ipv6_connectivity(logger: logging.Logger) -> bool:
     """Check if IPv6 connectivity is available.
 
