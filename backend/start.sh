@@ -17,6 +17,10 @@ echo "Starting Open Port Monitor Backend version: ${VERSION}"
 echo "Waiting for database to be ready..."
 python3 /app/scripts/wait-for-db.py || exit 1
 
-# Database schema is initialized automatically on startup via main.py lifespan
+# Run migrations BEFORE starting workers (single process, no race condition)
+echo "Running database migrations..."
+alembic upgrade head
+
+# Start application with workers
 echo "Starting application..."
 exec uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --workers 4
