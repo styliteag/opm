@@ -96,7 +96,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Open Port Monitor",
     description="Distributed network port scanning and monitoring system",
-    version="0.1.0",
+    version=get_version(),
     lifespan=lifespan,
 )
 

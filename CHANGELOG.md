@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- FastAPI app version now uses `get_version()` instead of hardcoded "0.1.0"
+- Removed runtime sed injection for frontend version; now baked in at build time via Vite
+
 ## [1.1.7] - 2026-01-31
 
 ## [1.1.6] - 2026-01-31

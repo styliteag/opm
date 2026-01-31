@@ -82,11 +82,7 @@ const Home = () => {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   })
 
-  // Try to get version from runtime injection (production) or build-time env (dev)
-  const frontendVersion =
-    (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__ ||
-    import.meta.env.VITE_APP_VERSION ||
-    'unknown'
+  const frontendVersion = import.meta.env.VITE_APP_VERSION || 'unknown'
   const backendVersion = backendVersionQuery.data ?? 'unknown'
 
   const networksQuery = useQuery({
