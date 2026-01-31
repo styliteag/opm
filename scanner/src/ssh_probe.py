@@ -460,16 +460,21 @@ def probe_ssh(
     Returns:
         SSHProbeResult containing the security analysis results
     """
-    target = f"{host}:{port}"
+    # Format target - IPv6 addresses need brackets
+    if ":" in host:
+        # IPv6 address - wrap in brackets
+        target = f"[{host}]:{port}"
+    else:
+        target = f"{host}:{port}"
     logger.info("Probing SSH service at %s", target)
 
     # Build ssh-audit command
     # -j: JSON output
-    # -T: Timeout
+    # --timeout: Connection timeout in seconds
     command = [
         "ssh-audit",
         "-j",
-        "-T", str(timeout),
+        "--timeout", str(timeout),
         target,
     ]
 
