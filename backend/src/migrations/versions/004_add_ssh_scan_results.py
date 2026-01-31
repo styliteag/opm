@@ -10,6 +10,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision: str = "004"
@@ -18,47 +19,66 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def table_exists(table_name: str) -> bool:
+    """Check if a table exists in the database."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return table_name in inspector.get_table_names()
+
+
+def index_exists(table_name: str, index_name: str) -> bool:
+    """Check if an index exists on a table."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    indexes = inspector.get_indexes(table_name)
+    return any(idx["name"] == index_name for idx in indexes)
+
+
 def upgrade() -> None:
-    op.create_table(
-        "ssh_scan_results",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("scan_id", sa.Integer(), nullable=False),
-        sa.Column("host_ip", sa.String(45), nullable=False),
-        sa.Column("port", sa.Integer(), nullable=False, server_default="22"),
-        sa.Column(
-            "timestamp",
-            sa.DateTime(),
-            server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
-        ),
-        # Authentication methods
-        sa.Column(
-            "publickey_enabled", sa.Boolean(), nullable=False, server_default="0"
-        ),
-        sa.Column("password_enabled", sa.Boolean(), nullable=False, server_default="0"),
-        sa.Column(
-            "keyboard_interactive_enabled",
-            sa.Boolean(),
-            nullable=False,
-            server_default="0",
-        ),
-        # SSH metadata
-        sa.Column("ssh_version", sa.String(100), nullable=True),
-        sa.Column("protocol_version", sa.String(20), nullable=True),
-        sa.Column("server_banner", sa.Text(), nullable=True),
-        # JSON fields for cryptographic algorithms
-        sa.Column("supported_ciphers", sa.JSON(), nullable=True),
-        sa.Column("kex_algorithms", sa.JSON(), nullable=True),
-        sa.Column("host_key_types", sa.JSON(), nullable=True),
-        sa.Column("mac_algorithms", sa.JSON(), nullable=True),
-        # Keys and constraints
-        sa.ForeignKeyConstraint(
-            ["scan_id"], ["scans.id"], ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("ix_ssh_scan_results_scan_id", "ssh_scan_results", ["scan_id"])
-    op.create_index("ix_ssh_scan_results_host_ip", "ssh_scan_results", ["host_ip"])
+    # Create ssh_scan_results table (idempotent)
+    if not table_exists("ssh_scan_results"):
+        op.create_table(
+            "ssh_scan_results",
+            sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column("scan_id", sa.Integer(), nullable=False),
+            sa.Column("host_ip", sa.String(45), nullable=False),
+            sa.Column("port", sa.Integer(), nullable=False, server_default="22"),
+            sa.Column(
+                "timestamp",
+                sa.DateTime(),
+                server_default=sa.text("CURRENT_TIMESTAMP"),
+                nullable=False,
+            ),
+            # Authentication methods
+            sa.Column(
+                "publickey_enabled", sa.Boolean(), nullable=False, server_default="0"
+            ),
+            sa.Column("password_enabled", sa.Boolean(), nullable=False, server_default="0"),
+            sa.Column(
+                "keyboard_interactive_enabled",
+                sa.Boolean(),
+                nullable=False,
+                server_default="0",
+            ),
+            # SSH metadata
+            sa.Column("ssh_version", sa.String(100), nullable=True),
+            sa.Column("protocol_version", sa.String(20), nullable=True),
+            sa.Column("server_banner", sa.Text(), nullable=True),
+            # JSON fields for cryptographic algorithms
+            sa.Column("supported_ciphers", sa.JSON(), nullable=True),
+            sa.Column("kex_algorithms", sa.JSON(), nullable=True),
+            sa.Column("host_key_types", sa.JSON(), nullable=True),
+            sa.Column("mac_algorithms", sa.JSON(), nullable=True),
+            # Keys and constraints
+            sa.ForeignKeyConstraint(
+                ["scan_id"], ["scans.id"], ondelete="CASCADE"
+            ),
+            sa.PrimaryKeyConstraint("id"),
+        )
+    if not index_exists("ssh_scan_results", "ix_ssh_scan_results_scan_id"):
+        op.create_index("ix_ssh_scan_results_scan_id", "ssh_scan_results", ["scan_id"])
+    if not index_exists("ssh_scan_results", "ix_ssh_scan_results_host_ip"):
+        op.create_index("ix_ssh_scan_results_host_ip", "ssh_scan_results", ["host_ip"])
 
 
 def downgrade() -> None:

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed migration version check to use raw SQL query instead of SQLAlchemy MigrationContext
 - Database migrations now run before uvicorn workers start, preventing race conditions in multi-worker deployments
+- Made all database migrations idempotent to handle schema drift from previous `create_all()` usage
 
 ## [1.1.5] - 2026-01-31
 
