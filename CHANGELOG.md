@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.7] - 2026-01-31
+
 ## [1.1.6] - 2026-01-31
 ### Fixed
 - Fixed migration version check to use raw SQL query instead of SQLAlchemy MigrationContext
