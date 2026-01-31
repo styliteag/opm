@@ -2,6 +2,19 @@
 
 Distributed network port scanning and monitoring system for security purposes with multi-site scanner support, alerting, and web dashboard.
 
+## Features
+
+- **Port Scanning**: Masscan-based high-speed port scanning with service detection
+- **SSH Security Analysis**: Automatic SSH server security auditing including:
+  - Authentication method detection (publickey, password, keyboard-interactive)
+  - Weak cipher and key exchange algorithm detection
+  - SSH version tracking with outdated version alerts
+  - Configuration regression detection between scans
+- **Multi-Site Scanning**: Deploy scanner agents at different locations
+- **Alerting**: Configurable alerts for new ports, policy violations, and SSH security issues
+- **Compliance Reports**: Export PDF and CSV reports for SSH security compliance
+- **Web Dashboard**: React-based UI with dark mode support
+
 ## Quick Start
 
 ### Prerequisites

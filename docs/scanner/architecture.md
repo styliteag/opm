@@ -345,6 +345,93 @@ POST /api/scanner/results
 }
 ```
 
+## SSH Security Probing
+
+After port and service detection, the scanner automatically probes any discovered SSH services for security analysis.
+
+### Detection
+
+SSH services are identified by:
+1. **Port 22** (standard SSH port)
+2. **Service identification** containing "ssh" (from nmap service detection)
+
+### Probing Process
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│               SSH Security Probing Phase                     │
+│                    (90-100% progress)                        │
+│                                                             │
+│  1. Detect SSH services from open ports                     │
+│                                                             │
+│  2. For each SSH service (parallel, 10 concurrent):         │
+│     └── Run ssh-audit with JSON output                      │
+│                                                             │
+│  3. Parse results:                                          │
+│     • Authentication methods                                │
+│     • Supported ciphers                                     │
+│     • Key exchange algorithms                               │
+│     • MAC algorithms                                        │
+│     • SSH version                                           │
+│                                                             │
+│  4. Classify weak algorithms                                │
+│                                                             │
+│  5. Include SSH results in submission                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### ssh-audit Command
+
+```bash
+ssh-audit -j --timeout <seconds> <host>:<port>
+```
+
+For IPv6 addresses, the host is wrapped in brackets: `[2001:db8::1]:22`
+
+### SSH Result Data
+
+```json
+{
+    "host": "192.168.1.1",
+    "port": 22,
+    "success": true,
+    "publickey_enabled": true,
+    "password_enabled": true,
+    "keyboard_interactive_enabled": false,
+    "ssh_version": "OpenSSH_8.9p1",
+    "protocol_version": "2.0",
+    "server_banner": "SSH-2.0-OpenSSH_8.9p1 Ubuntu",
+    "ciphers": [
+        {"name": "aes256-gcm@openssh.com", "keysize": 256, "is_weak": false, "notes": []}
+    ],
+    "kex_algorithms": [
+        {"name": "curve25519-sha256", "keysize": null, "is_weak": false, "notes": []}
+    ],
+    "mac_algorithms": [
+        {"name": "hmac-sha2-256-etm@openssh.com", "keysize": null, "is_weak": false, "notes": []}
+    ],
+    "host_key_types": ["ssh-ed25519", "rsa-sha2-512"]
+}
+```
+
+### Weak Algorithm Classification
+
+The scanner classifies algorithms as weak based on security best practices:
+
+**Weak Ciphers**: DES, 3DES, RC4/Arcfour, Blowfish, CBC-mode ciphers
+
+**Weak KEX**: SHA1-based algorithms, weak DH groups (group1, group14-sha1), NIST curves
+
+**Weak MACs**: MD5-based, SHA1-based algorithms
+
+### Dependencies
+
+| Tool | Purpose |
+|------|---------|
+| ssh-audit | SSH security analysis |
+
+The scanner checks for ssh-audit at startup and logs a warning if missing. SSH probing is skipped if the tool is unavailable.
+
 ## Cancellation Handling
 
 The scanner supports graceful cancellation of running scans.
