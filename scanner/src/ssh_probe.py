@@ -7,6 +7,7 @@ algorithms, and version information.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import subprocess
@@ -461,10 +462,14 @@ def probe_ssh(
         SSHProbeResult containing the security analysis results
     """
     # Format target - IPv6 addresses need brackets
-    if ":" in host:
-        # IPv6 address - wrap in brackets
-        target = f"[{host}]:{port}"
-    else:
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.version == 6:
+            target = f"[{host}]:{port}"
+        else:
+            target = f"{host}:{port}"
+    except ValueError:
+        # Not a valid IP address (might be a hostname), use as-is
         target = f"{host}:{port}"
     logger.info("Probing SSH service at %s", target)
 

@@ -216,28 +216,16 @@ async def submit_scanner_results(
 
     Requires valid scanner JWT token.
     """
-    import logging
-    import traceback
+    result = await submit_scan_results(db, scanner, request)
 
-    logger = logging.getLogger(__name__)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found, not assigned to this site, or not in running status",
+        )
 
-    try:
-        result = await submit_scan_results(db, scanner, request)
-
-        if result is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Scan not found, not assigned to this site, or not in running status",
-            )
-
-        await db.commit()
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error submitting scan results: %s", e)
-        logger.error("Traceback: %s", traceback.format_exc())
-        raise
+    await db.commit()
+    return result
 
 
 @router.post("/logs", response_model=ScannerLogsResponse)

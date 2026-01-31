@@ -26,18 +26,23 @@ from app.services import ssh_results as ssh_service
 
 router = APIRouter(prefix="/api", tags=["ssh"])
 
-# Minimum SSH version threshold for "outdated" classification
-MIN_SSH_VERSION = 8.0
+# Minimum SSH version threshold for "outdated" classification (major, minor)
+MIN_SSH_VERSION = (8, 0)
+MIN_SSH_VERSION_STR = f"{MIN_SSH_VERSION[0]}.{MIN_SSH_VERSION[1]}"
 
 
-def _parse_ssh_version(version_str: str | None) -> float | None:
-    """Parse SSH version string to extract major.minor version number."""
+def _parse_ssh_version(version_str: str | None) -> tuple[int, int] | None:
+    """Parse SSH version string to extract (major, minor) version tuple.
+
+    Using tuple comparison instead of float avoids bugs where
+    version "8.10" would incorrectly become 8.1 as a float.
+    """
     if not version_str:
         return None
     import re
     match = re.search(r"OpenSSH[_\s]?(\d+)\.(\d+)", version_str, re.IGNORECASE)
     if match:
-        return float(f"{match.group(1)}.{match.group(2)}")
+        return (int(match.group(1)), int(match.group(2)))
     return None
 
 
@@ -200,7 +205,7 @@ async def export_ssh_security_pdf(
         f"({_percentage(len(hosts_with_weak_ciphers), total_hosts)})",
         f"<b>Hosts with weak key exchange:</b> {len(hosts_with_weak_kex)} "
         f"({_percentage(len(hosts_with_weak_kex), total_hosts)})",
-        f"<b>Hosts with outdated SSH (&lt;{MIN_SSH_VERSION}):</b> {len(hosts_with_outdated)} "
+        f"<b>Hosts with outdated SSH (&lt;{MIN_SSH_VERSION_STR}):</b> {len(hosts_with_outdated)} "
         f"({_percentage(len(hosts_with_outdated), total_hosts)})",
     ]
     summary_text = "<br/>".join(summary_lines)
@@ -334,7 +339,7 @@ async def export_ssh_security_pdf(
         elements.append(Spacer(1, 0.1 * inch))
 
         version_intro = Paragraph(
-            f"The following hosts are running SSH versions older than {MIN_SSH_VERSION}, "
+            f"The following hosts are running SSH versions older than {MIN_SSH_VERSION_STR}, "
             "which may lack important security fixes.",
             styles["Normal"],
         )
@@ -376,7 +381,7 @@ async def export_ssh_security_pdf(
         # Remediation recommendation
         remediation = Paragraph(
             "<b>Remediation:</b> Update SSH server software to the latest stable version "
-            f"(OpenSSH {MIN_SSH_VERSION} or later) to receive security patches and improvements.",
+            f"(OpenSSH {MIN_SSH_VERSION_STR} or later) to receive security patches and improvements.",
             styles["Normal"],
         )
         elements.append(remediation)
