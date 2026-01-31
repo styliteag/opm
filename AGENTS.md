@@ -159,6 +159,19 @@ All components use Docker for development with hot-reload via source bind mounts
 - Keep changes focused and minimal
 - Follow existing code patterns
 
+## Documentation Requirements
+
+- **CHANGELOG.md**: Always update when making changes:
+  - Add new features under `### Added`
+  - Add bug fixes under `### Fixed`
+  - Add breaking changes under `### Changed`
+  - Add deprecations under `### Deprecated`
+  - Add removals under `### Removed`
+  - Add security fixes under `### Security`
+  - Place entries under `## [Unreleased]` section
+- Keep changelog entries concise but descriptive
+- Reference issue numbers if applicable
+
 ## Browser Testing
 
 For any story that changes UI:
