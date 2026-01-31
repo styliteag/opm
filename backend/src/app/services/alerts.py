@@ -995,7 +995,9 @@ async def generate_ssh_regression_alerts_for_scan(
         # Detect regressions
         regressions = _detect_ssh_regressions(current, previous)
         if regressions:
-            alert_key: SSHAlertKey = (AlertType.SSH_CONFIG_REGRESSION, current.host_ip, current.port)
+            alert_key: SSHAlertKey = (
+                AlertType.SSH_CONFIG_REGRESSION, current.host_ip, current.port
+            )
             if alert_key not in existing_alerts and alert_key not in created_alert_keys:
                 regression_details = "; ".join(regressions)
                 version_info = f" (SSH {current.ssh_version})" if current.ssh_version else ""

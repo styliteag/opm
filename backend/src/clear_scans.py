@@ -6,7 +6,7 @@ from app.core.database import async_session_factory
 from app.models.scan import Scan, ScanStatus
 
 
-async def main():
+async def main() -> None:
     async with async_session_factory() as db:
         await db.execute(
             update(Scan)

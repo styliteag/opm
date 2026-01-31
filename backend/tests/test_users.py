@@ -1,10 +1,10 @@
 """Tests for user service and router."""
 
-import pytest
+from conftest import UserFactory
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import hash_password, verify_password
+from app.core.security import verify_password
 from app.models.user import User, UserRole
 from app.services.users import (
     create_user,
@@ -14,7 +14,6 @@ from app.services.users import (
     get_user_by_id,
     update_user,
 )
-from conftest import UserFactory
 
 
 class TestUserService:

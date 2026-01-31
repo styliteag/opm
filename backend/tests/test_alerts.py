@@ -1,16 +1,12 @@
 """Tests for alert service and router."""
 
-from datetime import datetime, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert, AlertType
 from app.models.network import Network
-from app.models.open_port import OpenPort
-from app.models.scan import Scan, ScanStatus, TriggerType
-from app.models.scanner import Scanner
+from app.models.scan import Scan
 from app.models.user import User
 from app.services.alerts import (
     acknowledge_alert,

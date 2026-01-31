@@ -4,7 +4,7 @@ from datetime import datetime
 from ipaddress import IPv4Address, IPv6Address
 from typing import Any, cast
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
@@ -72,7 +72,7 @@ async def upsert_host(
         return existing, False
 
     # Create new entry
-    networks = [network_id] if network_id is not None else []
+    initial_networks = [network_id] if network_id is not None else []
     new_host = Host(
         ip=ip,
         hostname=hostname,
@@ -81,7 +81,7 @@ async def upsert_host(
         mac_vendor=mac_vendor,
         first_seen_at=now,
         last_seen_at=now,
-        seen_by_networks=networks,
+        seen_by_networks=initial_networks,
     )
     db.add(new_host)
     await db.flush()
@@ -124,7 +124,7 @@ async def get_hosts(
     """
     query = select(Host)
 
-    filters = []
+    filters: list[ColumnElement[bool]] = []
 
     if network_id is not None:
         # Filter by hosts that have been seen by this network
@@ -265,7 +265,7 @@ async def delete_host(db: AsyncSession, host_id: int) -> bool:
 
     # Unlink any associated open ports (set host_id to NULL)
     await db.execute(
-        GlobalOpenPort.__table__.update()
+        update(GlobalOpenPort)
         .where(GlobalOpenPort.host_id == host_id)
         .values(host_id=None)
     )
@@ -282,7 +282,7 @@ async def delete_hosts_bulk(db: AsyncSession, host_ids: list[int]) -> list[int]:
 
     # Unlink open ports from these hosts
     await db.execute(
-        GlobalOpenPort.__table__.update()
+        update(GlobalOpenPort)
         .where(GlobalOpenPort.host_id.in_(host_ids))
         .values(host_id=None)
     )

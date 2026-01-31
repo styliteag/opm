@@ -2,13 +2,12 @@
 
 from datetime import datetime, timezone
 
-import pytest
+from conftest import NetworkFactory, ScannerFactory
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.network import Network
-from app.models.scan import Scan, ScanStatus, TriggerType
-from app.models.scanner import Scanner
+from app.models.scan import ScanStatus, TriggerType
 from app.models.user import User
 from app.services.scans import (
     cancel_scan,
@@ -21,7 +20,6 @@ from app.services.scans import (
     get_scans_by_network_id,
     set_scan_hidden,
 )
-from conftest import NetworkFactory, ScannerFactory
 
 
 class TestScanService:

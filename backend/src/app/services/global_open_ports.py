@@ -80,7 +80,7 @@ async def upsert_global_open_port(
         return existing, False
 
     # Create new entry
-    networks = [network_id] if network_id is not None else []
+    initial_networks = [network_id] if network_id is not None else []
     new_port = GlobalOpenPort(
         ip=ip,
         port=port,
@@ -91,7 +91,7 @@ async def upsert_global_open_port(
         mac_vendor=mac_vendor,
         first_seen_at=now,
         last_seen_at=now,
-        seen_by_networks=networks,
+        seen_by_networks=initial_networks,
         host_id=host_id,
     )
     db.add(new_port)

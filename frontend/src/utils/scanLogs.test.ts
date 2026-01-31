@@ -115,7 +115,7 @@ describe('formatRawScanLogs', () => {
 })
 
 describe('openScanLogsWindow', () => {
-  const originalWindow = global.window
+  const originalWindow = globalThis.window
   let mockWindowOpen: ReturnType<typeof vi.fn>
   let mockDocument: {
     title: string
@@ -143,7 +143,7 @@ describe('openScanLogsWindow', () => {
       document: mockDocument,
     }))
 
-    global.window = {
+    globalThis.window = {
       ...originalWindow,
       open: mockWindowOpen,
       alert: vi.fn(),
@@ -151,7 +151,7 @@ describe('openScanLogsWindow', () => {
   })
 
   afterEach(() => {
-    global.window = originalWindow
+    globalThis.window = originalWindow
     vi.restoreAllMocks()
   })
 

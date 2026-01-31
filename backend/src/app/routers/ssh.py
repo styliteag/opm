@@ -381,7 +381,8 @@ async def export_ssh_security_pdf(
         # Remediation recommendation
         remediation = Paragraph(
             "<b>Remediation:</b> Update SSH server software to the latest stable version "
-            f"(OpenSSH {MIN_SSH_VERSION_STR} or later) to receive security patches and improvements.",
+            f"(OpenSSH {MIN_SSH_VERSION_STR} or later) to receive security patches "
+            "and improvements.",
             styles["Normal"],
         )
         elements.append(remediation)

@@ -86,19 +86,19 @@ describe('extractErrorMessage', () => {
 })
 
 describe('fetchJson', () => {
-  const originalFetch = global.fetch
+  const originalFetch = globalThis.fetch
 
   beforeEach(() => {
     vi.resetAllMocks()
   })
 
   afterEach(() => {
-    global.fetch = originalFetch
+    globalThis.fetch = originalFetch
   })
 
   it('should fetch and return JSON data on success', async () => {
     const mockData = { id: 1, name: 'Test' }
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockData),
     })
@@ -106,13 +106,13 @@ describe('fetchJson', () => {
     const result = await fetchJson('/api/test', 'token123')
 
     expect(result).toEqual(mockData)
-    expect(global.fetch).toHaveBeenCalledWith('/api/test', {
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/test', {
       headers: { Authorization: 'Bearer token123' },
     })
   })
 
   it('should throw error with message on failure', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
       statusText: 'Unauthorized',
@@ -123,7 +123,7 @@ describe('fetchJson', () => {
   })
 
   it('should use status text when JSON error extraction fails', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',

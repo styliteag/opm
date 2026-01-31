@@ -13,7 +13,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
-from app.models.alert import AlertType
+from app.models.alert import Alert, AlertType
 from app.models.global_port_rule import GlobalRuleType
 from app.models.port_rule import RuleType
 from app.models.user import UserRole
@@ -533,7 +533,7 @@ async def bulk_whitelist_network(
     alerts = await alerts_service.get_alerts_by_ids(db, unique_ids)
 
     # Group by network_id
-    alerts_by_network: dict[int, list] = {}
+    alerts_by_network: dict[int, list[Alert]] = {}
     errors: list[str] = []
 
     for alert in alerts:

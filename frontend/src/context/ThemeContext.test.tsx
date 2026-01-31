@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
-import { ThemeProvider, useTheme, type ThemePreference } from './ThemeContext'
+import { ThemeProvider, useTheme } from './ThemeContext'
 
 // Test component that uses the hook
 function TestComponent() {

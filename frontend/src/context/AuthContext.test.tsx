@@ -36,17 +36,17 @@ function renderWithProviders(ui: React.ReactNode) {
 }
 
 describe('AuthContext', () => {
-  const originalFetch = global.fetch
+  const originalFetch = globalThis.fetch
   let mockFetch: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     window.localStorage.removeItem('opm-auth-token')
     mockFetch = vi.fn()
-    global.fetch = mockFetch
+    globalThis.fetch = mockFetch
   })
 
   afterEach(() => {
-    global.fetch = originalFetch
+    globalThis.fetch = originalFetch
     vi.restoreAllMocks()
   })
 

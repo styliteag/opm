@@ -85,7 +85,7 @@ async def evaluate_schedules() -> None:
 
             scan = Scan(
                 network_id=network.id,
-                site_id=network.site_id,
+                scanner_id=network.scanner_id,
                 status=ScanStatus.PLANNED,
                 trigger_type=TriggerType.SCHEDULED,
             )

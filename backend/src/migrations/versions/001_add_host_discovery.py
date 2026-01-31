@@ -90,7 +90,10 @@ def upgrade() -> None:
             sa.Column("scanner_id", sa.Integer(), nullable=False),
             sa.Column(
                 "status",
-                sa.Enum("planned", "running", "completed", "failed", name="hostdiscoveryscanstatus"),
+                sa.Enum(
+                    "planned", "running", "completed", "failed",
+                    name="hostdiscoveryscanstatus"
+                ),
                 nullable=False,
                 server_default="planned",
             ),
@@ -109,9 +112,13 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint("id"),
         )
     if not index_exists("host_discovery_scans", "ix_host_discovery_scans_network_id"):
-        op.create_index("ix_host_discovery_scans_network_id", "host_discovery_scans", ["network_id"])
+        op.create_index(
+            "ix_host_discovery_scans_network_id", "host_discovery_scans", ["network_id"]
+        )
     if not index_exists("host_discovery_scans", "ix_host_discovery_scans_scanner_id"):
-        op.create_index("ix_host_discovery_scans_scanner_id", "host_discovery_scans", ["scanner_id"])
+        op.create_index(
+            "ix_host_discovery_scans_scanner_id", "host_discovery_scans", ["scanner_id"]
+        )
     if not index_exists("host_discovery_scans", "ix_host_discovery_scans_status"):
         op.create_index("ix_host_discovery_scans_status", "host_discovery_scans", ["status"])
 

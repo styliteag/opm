@@ -56,9 +56,10 @@ async def delete_global_rule(db: AsyncSession, rule: GlobalPortRule) -> None:
 async def delete_global_rule_by_id(db: AsyncSession, rule_id: int) -> bool:
     """Delete a global port rule by ID. Returns True if a rule was deleted."""
     stmt = delete(GlobalPortRule).where(GlobalPortRule.id == rule_id)
-    result = await db.execute(stmt)
+    cursor_result = await db.execute(stmt)
     await db.flush()
-    return result.rowcount > 0
+    rowcount = cursor_result.rowcount  # type: ignore[attr-defined]
+    return rowcount is not None and rowcount > 0
 
 
 def _parse_port_range(value: str) -> tuple[int, int] | None:

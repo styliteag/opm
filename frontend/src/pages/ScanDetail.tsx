@@ -143,7 +143,7 @@ const ScanDetailPage = () => {
       link.click()
       URL.revokeObjectURL(url)
       setToast({ message: 'CSV export complete', tone: 'success' })
-    } catch (error) {
+    } catch {
       setToast({ message: 'CSV export failed', tone: 'error' })
     } finally {
       setIsExporting(false)
@@ -170,7 +170,7 @@ const ScanDetailPage = () => {
       link.click()
       URL.revokeObjectURL(url)
       setToast({ message: 'PDF export complete', tone: 'success' })
-    } catch (error) {
+    } catch {
       setToast({ message: 'PDF export failed', tone: 'error' })
     } finally {
       setIsExporting(false)

@@ -299,16 +299,18 @@ const RiskOverview = () => {
                 case 'port':
                     comparison = a.port - b.port
                     break
-                case 'network':
+                case 'network': {
                     const aNetwork = a.network_name ?? ''
                     const bNetwork = b.network_name ?? ''
                     comparison = aNetwork.localeCompare(bNetwork)
                     break
-                case 'time':
+                }
+                case 'time': {
                     const aTime = parseUtcDate(a.created_at).getTime()
                     const bTime = parseUtcDate(b.created_at).getTime()
                     comparison = aTime - bTime
                     break
+                }
             }
 
             return sortDirection === 'asc' ? comparison : -comparison

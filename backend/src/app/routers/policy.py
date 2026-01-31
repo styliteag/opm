@@ -33,18 +33,18 @@ async def list_policy_rules(
 
     # Fetch global rules
     global_rules = await global_rules_service.get_all_global_rules(db)
-    for rule in global_rules:
+    for g_rule in global_rules:
         rules.append(
             PolicyRuleResponse(
-                id=rule.id,
+                id=g_rule.id,
                 network_id=None,
                 network_name="Global",
-                ip=rule.ip,
-                port=rule.port,
-                rule_type=GlobalRuleType(rule.rule_type.value),
-                description=rule.description,
-                created_at=rule.created_at,
-                created_by=rule.created_by,
+                ip=g_rule.ip,
+                port=g_rule.port,
+                rule_type=GlobalRuleType(g_rule.rule_type.value),
+                description=g_rule.description,
+                created_at=g_rule.created_at,
+                created_by=g_rule.created_by,
             )
         )
 
@@ -53,33 +53,33 @@ async def list_policy_rules(
         network_rules = await network_rules_service.get_rules_by_network_id(db, network_id)
         network = await networks_service.get_network_by_id(db, network_id)
         network_name = network.name if network else f"Network {network_id}"
-        for rule in network_rules:
+        for n_rule in network_rules:
             rules.append(
                 PolicyRuleResponse(
-                    id=rule.id,
-                    network_id=rule.network_id,
+                    id=n_rule.id,
+                    network_id=n_rule.network_id,
                     network_name=network_name,
-                    ip=rule.ip,
-                    port=rule.port,
-                    rule_type=GlobalRuleType(rule.rule_type.value),
-                    description=rule.description,
+                    ip=n_rule.ip,
+                    port=n_rule.port,
+                    rule_type=GlobalRuleType(n_rule.rule_type.value),
+                    description=n_rule.description,
                 )
             )
     else:
         # Fetch all network rules if no network_id filter
         stmt = select(PortRule).options(joinedload(PortRule.network))
         result = await db.execute(stmt)
-        network_rules = result.scalars().all()
-        for rule in network_rules:
+        all_network_rules = list(result.scalars().all())
+        for n_rule in all_network_rules:
             rules.append(
                 PolicyRuleResponse(
-                    id=rule.id,
-                    network_id=rule.network_id,
-                    network_name=rule.network.name,
-                    ip=rule.ip,
-                    port=rule.port,
-                    rule_type=GlobalRuleType(rule.rule_type.value),
-                    description=rule.description,
+                    id=n_rule.id,
+                    network_id=n_rule.network_id,
+                    network_name=n_rule.network.name,
+                    ip=n_rule.ip,
+                    port=n_rule.port,
+                    rule_type=GlobalRuleType(n_rule.rule_type.value),
+                    description=n_rule.description,
                 )
             )
 
@@ -100,7 +100,7 @@ async def create_policy_rule(
     if request.network_id is None:
         # Create global rule
         try:
-            rule = await global_rules_service.create_global_rule(
+            g_rule = await global_rules_service.create_global_rule(
                 db=db,
                 port=request.port,
                 rule_type=request.rule_type,
@@ -110,15 +110,15 @@ async def create_policy_rule(
             )
             await db.commit()
             return PolicyRuleResponse(
-                id=rule.id,
+                id=g_rule.id,
                 network_id=None,
                 network_name="Global",
-                ip=rule.ip,
-                port=rule.port,
-                rule_type=GlobalRuleType(rule.rule_type.value),
-                description=rule.description,
-                created_at=rule.created_at,
-                created_by=rule.created_by,
+                ip=g_rule.ip,
+                port=g_rule.port,
+                rule_type=GlobalRuleType(g_rule.rule_type.value),
+                description=g_rule.description,
+                created_at=g_rule.created_at,
+                created_by=g_rule.created_by,
             )
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -128,7 +128,7 @@ async def create_policy_rule(
         if not network:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found")
 
-        rule = await network_rules_service.create_rule(
+        n_rule = await network_rules_service.create_rule(
             db=db,
             network_id=request.network_id,
             port=request.port,
@@ -138,13 +138,13 @@ async def create_policy_rule(
         )
         await db.commit()
         return PolicyRuleResponse(
-            id=rule.id,
-            network_id=rule.network_id,
+            id=n_rule.id,
+            network_id=n_rule.network_id,
             network_name=network.name,
-            ip=rule.ip,
-            port=rule.port,
-            rule_type=GlobalRuleType(rule.rule_type.value),
-            description=rule.description,
+            ip=n_rule.ip,
+            port=n_rule.port,
+            rule_type=GlobalRuleType(n_rule.rule_type.value),
+            description=n_rule.description,
         )
 
 
@@ -159,15 +159,15 @@ async def update_policy_rule(
     """Update an existing policy rule."""
 
     if scope == "global":
-        rule = await global_rules_service.get_global_rule_by_id(db, rule_id)
-        if not rule:
+        g_rule = await global_rules_service.get_global_rule_by_id(db, rule_id)
+        if not g_rule:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Global rule not found"
             )
 
         updated = await global_rules_service.update_global_rule(
             db=db,
-            rule=rule,
+            rule=g_rule,
             ip=request.ip,
             port=request.port,
             rule_type=request.rule_type,
@@ -186,38 +186,38 @@ async def update_policy_rule(
             created_by=updated.created_by,
         )
     elif scope == "network":
-        rule = await network_rules_service.get_rule_by_id(db, rule_id)
-        if not rule:
+        n_rule = await network_rules_service.get_rule_by_id(db, rule_id)
+        if not n_rule:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Network rule not found"
             )
 
         if request.ip is not None:
-            rule.ip = request.ip if request.ip.strip() else None
+            n_rule.ip = request.ip if request.ip.strip() else None
         if request.port is not None:
-            rule.port = request.port
+            n_rule.port = request.port
         if request.rule_type is not None:
-            rule.rule_type = RuleType(request.rule_type.value)
+            n_rule.rule_type = RuleType(request.rule_type.value)
         if request.description is not None:
-            rule.description = request.description
+            n_rule.description = request.description
 
         await db.flush()
-        await db.refresh(rule)
+        await db.refresh(n_rule)
 
         # Need to load network name
-        stmt = select(Network).where(Network.id == rule.network_id)
+        stmt = select(Network).where(Network.id == n_rule.network_id)
         result = await db.execute(stmt)
         network = result.scalar_one_or_none()
 
         await db.commit()
         return PolicyRuleResponse(
-            id=rule.id,
-            network_id=rule.network_id,
-            network_name=network.name if network else f"Network {rule.network_id}",
-            ip=rule.ip,
-            port=rule.port,
-            rule_type=GlobalRuleType(rule.rule_type.value),
-            description=rule.description,
+            id=n_rule.id,
+            network_id=n_rule.network_id,
+            network_name=network.name if network else f"Network {n_rule.network_id}",
+            ip=n_rule.ip,
+            port=n_rule.port,
+            rule_type=GlobalRuleType(n_rule.rule_type.value),
+            description=n_rule.description,
         )
     else:
         raise HTTPException(
@@ -236,19 +236,19 @@ async def delete_policy_rule(
     """Delete a policy rule."""
 
     if scope == "global":
-        rule = await global_rules_service.get_global_rule_by_id(db, rule_id)
-        if not rule:
+        g_rule = await global_rules_service.get_global_rule_by_id(db, rule_id)
+        if not g_rule:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Global rule not found"
             )
-        await global_rules_service.delete_global_rule(db, rule)
+        await global_rules_service.delete_global_rule(db, g_rule)
     elif scope == "network":
-        rule = await network_rules_service.get_rule_by_id(db, rule_id)
-        if not rule:
+        n_rule = await network_rules_service.get_rule_by_id(db, rule_id)
+        if not n_rule:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Network rule not found"
             )
-        await network_rules_service.delete_rule(db, rule)
+        await network_rules_service.delete_rule(db, n_rule)
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid scope.")
 

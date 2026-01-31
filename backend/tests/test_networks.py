@@ -1,6 +1,6 @@
 """Tests for network service and router."""
 
-import pytest
+from conftest import NetworkFactory, ScannerFactory
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +16,6 @@ from app.services.networks import (
     get_networks_by_scanner_id,
     update_network,
 )
-from conftest import NetworkFactory, ScannerFactory
 
 
 class TestNetworkService:

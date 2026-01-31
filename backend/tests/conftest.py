@@ -15,7 +15,6 @@ from app.models.scan import Scan, ScanStatus, TriggerType
 from app.models.scanner import Scanner
 from app.models.user import User, UserRole
 
-
 # Test database URL - use SQLite for fast, isolated tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
