@@ -66,6 +66,36 @@ The development environment uses bind mounts for hot-reloading:
 
 Changes to source files will automatically trigger reloads.
 
+### Running Tests
+
+#### Backend Tests
+
+The backend has a comprehensive test suite using pytest with async support.
+
+```bash
+cd backend
+
+# Install dev dependencies (if not already installed)
+uv pip install -e ".[dev]"
+
+# Run all tests
+.venv/bin/pytest tests/ -v
+
+# Run specific test file
+.venv/bin/pytest tests/test_auth.py -v
+
+# Run with coverage
+.venv/bin/pytest tests/ --cov=app --cov-report=term-missing
+```
+
+Test categories:
+- `test_security.py` - Password hashing, JWT token handling
+- `test_auth.py` - Authentication endpoints
+- `test_users.py` - User management
+- `test_networks.py` - Network CRUD operations
+- `test_scans.py` - Scan lifecycle management
+- `test_alerts.py` - Alert operations
+
 ### Environment Variables
 
 See `.env.example` for all available configuration options.
