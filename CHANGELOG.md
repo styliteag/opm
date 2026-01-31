@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Backend test suite with 128 tests covering security, auth, users, networks, scans, and alerts
+- Test infrastructure with async SQLite fixtures, factories, and authentication helpers
+
 ### Changed
 - **Major refactoring**: Split monolithic 2400-line `scanner/src/main.py` into focused modules for better maintainability
   - `scanner/src/main.py` (69 lines) - Entry point and main event loop only

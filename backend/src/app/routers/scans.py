@@ -41,9 +41,9 @@ async def get_latest_scans_by_network(
     db: DbSession,
 ) -> LatestScansByNetworkResponse:
     """Get the latest completed scan for each network in a single request."""
-    from app.services.networks import get_networks
+    from app.services.networks import get_all_networks
 
-    networks = await get_networks(db)
+    networks = await get_all_networks(db)
     network_ids = [n.id for n in networks]
 
     latest_scans_map = await scans_service.get_latest_scans_by_network(db)
