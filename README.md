@@ -96,6 +96,30 @@ Test categories:
 - `test_scans.py` - Scan lifecycle management
 - `test_alerts.py` - Alert operations
 
+#### Frontend Tests
+
+The frontend uses Vitest with React Testing Library.
+
+```bash
+cd frontend
+
+# Install dependencies (if not already installed)
+npm install
+
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run with coverage
+npm run test:coverage
+```
+
+Test categories:
+- `api.test.ts` - API utilities, error handling
+- `scanEstimate.test.ts` - Scan estimation calculations
+
 ### Environment Variables
 
 See `.env.example` for all available configuration options.
