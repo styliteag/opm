@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Refactored scanner nmap functions into dedicated module `scanner/src/scanners/nmap.py`
+
 ## [1.1.7] - 2026-01-31
 
 ## [1.1.6] - 2026-01-31
