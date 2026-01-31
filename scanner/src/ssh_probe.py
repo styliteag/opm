@@ -483,7 +483,7 @@ def probe_ssh(
     except ValueError:
         # Not a valid IP address (might be a hostname), use as-is
         target = f"{host}:{port}"
-    logger.info("Probing SSH service at %s", target)
+    logger.info("Probing SSH service at %s (timeout: %ds)", target, timeout)
 
     # Build ssh-audit command
     # -j: JSON output
