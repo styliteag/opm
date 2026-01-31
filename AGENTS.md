@@ -161,7 +161,9 @@ All components use Docker for development with hot-reload via source bind mounts
 
 ## Documentation Requirements
 
-- **CHANGELOG.md**: Always update when making changes:
+**IMPORTANT: ALWAYS UPDATE CHANGELOG.md WITH EVERY COMMIT!**
+
+- **CHANGELOG.md**: Update in the SAME commit as your code changes:
   - Add new features under `### Added`
   - Add bug fixes under `### Fixed`
   - Add breaking changes under `### Changed`
@@ -171,6 +173,7 @@ All components use Docker for development with hot-reload via source bind mounts
   - Place entries under `## [Unreleased]` section
 - Keep changelog entries concise but descriptive
 - Reference issue numbers if applicable
+- **Do NOT make a code change without updating CHANGELOG.md**
 
 ## Browser Testing
 
