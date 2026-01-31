@@ -117,8 +117,13 @@ npm run test:coverage
 ```
 
 Test categories:
-- `api.test.ts` - API utilities, error handling
-- `scanEstimate.test.ts` - Scan estimation calculations
+- `api.test.ts` - API utilities, error handling, fetch wrapper
+- `scanEstimate.test.ts` - Scan estimation calculations (CIDR parsing, port counts)
+- `scanLogs.test.ts` - Log formatting and date parsing utilities
+- `formatRelativeTime.test.ts` - Relative time formatting (e.g., "5m ago")
+- `ThemeContext.test.tsx` - Theme provider, localStorage persistence
+- `AuthContext.test.tsx` - Authentication hook, login/logout flows
+- `ProtectedRoute.test.tsx` - Route guard component
 
 ### Environment Variables
 
