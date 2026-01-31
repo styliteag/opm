@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchJson, API_BASE_URL } from '../lib/api'
 import type {
   Alert,
   AlertListResponse,
+  LatestScansByNetworkResponse,
   NetworkListResponse,
-  ScanListResponse,
   ScannerListResponse,
 } from '../types'
 
@@ -110,21 +110,17 @@ const Home = () => {
     enabled: Boolean(token),
   })
 
-  const networkIds = networksQuery.data?.networks.map((network) => network.id) ?? []
-
-  const latestScanQueries = useQueries({
-    queries: networkIds.map((networkId) => ({
-      queryKey: ['networks', networkId, 'scans', 'latest'],
-      queryFn: () =>
-        fetchJson<ScanListResponse>(`/api/networks/${networkId}/scans?limit=1`, token ?? ''),
-      enabled: Boolean(token),
-    })),
+  const latestScansQuery = useQuery({
+    queryKey: ['scans', 'latest-by-network'],
+    queryFn: () =>
+      fetchJson<LatestScansByNetworkResponse>('/api/scans/latest-by-network', token ?? ''),
+    enabled: Boolean(token),
   })
 
   const latestScanDate = useMemo(() => {
+    const latestScans = latestScansQuery.data?.latest_scans ?? []
     let latest: Date | null = null
-    for (const query of latestScanQueries) {
-      const scan = query.data?.scans?.[0]
+    for (const { scan } of latestScans) {
       if (!scan) {
         continue
       }
@@ -137,7 +133,7 @@ const Home = () => {
       }
     }
     return latest
-  }, [latestScanQueries])
+  }, [latestScansQuery.data])
 
   const totalNetworks = networksQuery.data?.networks.length ?? 0
   const totalScanners = scannersQuery.data?.scanners.length ?? 0
@@ -211,13 +207,15 @@ const Home = () => {
     networksQuery.isLoading ||
     scannersQuery.isLoading ||
     recentAlertsQuery.isLoading ||
-    activeAlertsQuery.isLoading
+    activeAlertsQuery.isLoading ||
+    latestScansQuery.isLoading
 
   const hasError =
     networksQuery.isError ||
     scannersQuery.isError ||
     recentAlertsQuery.isError ||
-    activeAlertsQuery.isError
+    activeAlertsQuery.isError ||
+    latestScansQuery.isError
 
   const showPlaceholder = isLoading || hasError
 

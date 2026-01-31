@@ -155,3 +155,37 @@ async def delete_scan(db: AsyncSession, scan: Scan) -> None:
     """Permanently delete a scan and its related data."""
     await db.delete(scan)
     await db.flush()
+
+
+async def get_latest_scans_by_network(
+    db: AsyncSession,
+) -> dict[int, tuple[Scan, int] | None]:
+    """
+    Get the latest completed scan for each network.
+
+    Returns a dict mapping network_id to (Scan, port_count) or None if no scans exist.
+    """
+    # Subquery to get the latest scan ID for each network
+    latest_scan_subq = (
+        select(
+            Scan.network_id,
+            func.max(Scan.id).label("latest_scan_id"),
+        )
+        .where(Scan.status == ScanStatus.COMPLETED)
+        .group_by(Scan.network_id)
+        .subquery()
+    )
+
+    # Main query to get the scans with port counts
+    query = (
+        select(Scan, func.count(OpenPort.id).label("port_count"))
+        .join(
+            latest_scan_subq,
+            Scan.id == latest_scan_subq.c.latest_scan_id,
+        )
+        .outerjoin(OpenPort, OpenPort.scan_id == Scan.id)
+        .group_by(Scan.id)
+    )
+
+    result = await db.execute(query)
+    return {row[0].network_id: (row[0], int(row[1])) for row in result.all()}

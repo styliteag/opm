@@ -162,3 +162,16 @@ class AllScansListResponse(BaseModel):
     """Response schema for list of all scans with names."""
 
     scans: list[ScanWithNamesResponse]
+
+
+class LatestScanByNetwork(BaseModel):
+    """Latest scan for a network."""
+
+    network_id: int
+    scan: ScanSummaryResponse | None
+
+
+class LatestScansByNetworkResponse(BaseModel):
+    """Response schema for latest scans grouped by network."""
+
+    latest_scans: list[LatestScanByNetwork]
