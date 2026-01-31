@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `scanner/src/discovery.py` (294 lines) - Host discovery and SSH probing
   - `scanner/src/scanners/masscan.py` (287 lines) - Masscan scanner implementation
   - `scanner/src/scanners/nmap.py` (817 lines) - Nmap scanner implementation
+- Admin user initialization now runs once before workers start, eliminating retry loop in application startup
+
+### Fixed
+- FastAPI app version now uses `get_version()` instead of hardcoded "0.1.0"
+- Removed runtime sed injection for frontend version; now baked in at build time via Vite
 
 ## [1.1.7] - 2026-01-31
 

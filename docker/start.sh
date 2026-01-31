@@ -23,21 +23,6 @@ fi
 # Log version at startup
 echo "Starting Open Port Monitor version: ${VERSION}"
 
-# Inject frontend version into index.html at runtime
-if [ -f /usr/share/nginx/html/index.html ]; then
-    # Inject inline script with version into index.html before </head> or first <script>
-    VERSION_SCRIPT="<script>window.__APP_VERSION__=\"${VERSION}\";</script>"
-    if ! grep -q '__APP_VERSION__' /usr/share/nginx/html/index.html; then
-        # Try to inject before </head> tag
-        if grep -q '</head>' /usr/share/nginx/html/index.html; then
-            sed -i "s|</head>|${VERSION_SCRIPT}\n</head>|" /usr/share/nginx/html/index.html || true
-        # Otherwise inject before first <script> tag
-        elif grep -q '<script' /usr/share/nginx/html/index.html; then
-            sed -i "s|<script|${VERSION_SCRIPT}\n<script|" /usr/share/nginx/html/index.html || true
-        fi
-    fi
-fi
-
 # Wait for database to be ready before starting backend
 echo "Waiting for database to be ready..."
 python3 /app/scripts/wait-for-db.py || exit 1

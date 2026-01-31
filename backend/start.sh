@@ -21,6 +21,10 @@ python3 /app/scripts/wait-for-db.py || exit 1
 echo "Running database migrations..."
 alembic upgrade head
 
+# Initialize admin user BEFORE starting workers (single process, no race condition)
+echo "Initializing admin user..."
+python3 /app/scripts/init_admin.py || exit 1
+
 # Start application with workers
 echo "Starting application..."
 exec uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --workers 4
