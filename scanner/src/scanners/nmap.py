@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from src.threading_utils import ProgressReporter
 
 
-def _run_nmap_service_detection(
+def run_nmap_service_detection(
     client: ScannerClient,
     scan_id: int,
     open_ports: list[OpenPortResult],
@@ -701,7 +701,7 @@ def _run_nmap_phase(
     return content, cancelled, timed_out, exit_status
 
 
-def _run_nmap(
+def run_nmap(
     client: ScannerClient,
     scan_id: int,
     cidr: str,
