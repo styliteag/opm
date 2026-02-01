@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CORS configuration now allows all origins (`allow_origins=["*"]`) for maximum flexibility
   - **Security Note**: This configuration allows credentials from any origin and should only be used in development environments
 
+## [1.1.11] - 2026-02-01
+
 ## [1.1.10] - 2026-01-31
 
 ## [1.1.9] - 2026-01-31
