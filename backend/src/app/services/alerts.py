@@ -16,6 +16,7 @@ from app.services.email_alerts import queue_alert_emails, queue_global_alert_ema
 from app.services.global_open_ports import upsert_global_open_port
 from app.services.global_port_rules import is_port_whitelisted
 from app.services.hosts import get_host_by_ip
+import app.services.global_settings as global_settings_service
 
 PortKey = tuple[str, int]
 AlertKey = tuple[AlertType, str, int]
@@ -176,9 +177,21 @@ def _port_in_ranges(port: int, ranges: list[tuple[int, int]]) -> bool:
     return False
 
 
-def _get_enabled_alert_types(alert_config: dict[str, Any] | None) -> set[AlertType]:
-    """Resolve enabled alert types from alert_config."""
+async def _get_enabled_alert_types(
+    db: AsyncSession, alert_config: dict[str, Any] | None
+) -> set[AlertType]:
+    """Resolve enabled alert types from alert_config or global defaults.
+    
+    If alert_config is None, falls back to global SSH alert defaults.
+    """
+    # If alert_config is None, use global defaults for SSH alerts
+    if alert_config is None:
+        global_defaults = await global_settings_service.get_ssh_alert_defaults(db)
+        alert_config = global_defaults
+    
+    # Default port-related alerts (always enabled unless explicitly disabled)
     all_types = {AlertType.NEW_PORT, AlertType.NOT_ALLOWED, AlertType.BLOCKED}
+    
     if not alert_config:
         return all_types
 
@@ -270,7 +283,7 @@ async def generate_alerts_for_scan(
     if network_row is None:
         return 0
     alert_config, network_name = network_row
-    enabled_types = _get_enabled_alert_types(alert_config)
+    enabled_types = await _get_enabled_alert_types(db, alert_config)
     if not enabled_types:
         return 0
 
@@ -645,7 +658,7 @@ async def generate_ssh_alerts_for_scan(
         return 0
 
     alert_config, network_name = network_row
-    enabled_types = _get_enabled_alert_types(alert_config)
+    enabled_types = await _get_enabled_alert_types(db, alert_config)
 
     # Check if any SSH alert types are enabled
     ssh_types_enabled = {
@@ -972,7 +985,7 @@ async def generate_ssh_regression_alerts_for_scan(
         return 0
 
     alert_config, network_name = network_row
-    enabled_types = _get_enabled_alert_types(alert_config)
+    enabled_types = await _get_enabled_alert_types(db, alert_config)
 
     # Check if SSH_CONFIG_REGRESSION is enabled
     if AlertType.SSH_CONFIG_REGRESSION not in enabled_types:

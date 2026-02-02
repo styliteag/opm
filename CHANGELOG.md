@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - "Rescan" button in Risk Overview page for admin users
   - "Recheck" button in SSH Security page for SSH security rechecks
   - Scanner automatically uses nmap for single-host scans for better service detection
+- Global SSH alert settings: Configure default SSH security alert settings from the SSH Security Dashboard
+- Network-level SSH alert override: Networks can now use global defaults or define custom SSH alert settings
+- "Use Global Defaults" toggle in network alert settings to easily switch between default and custom configurations
 
 ### Security
 - Added defensive input sanitization in scanner to prevent potential command injection attacks

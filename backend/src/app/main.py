@@ -13,6 +13,7 @@ from .routers import (
     alerts,
     auth,
     global_ports,
+    global_settings,
     hosts,
     networks,
     policy,
@@ -74,6 +75,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(alerts.router)
 app.include_router(global_ports.router)
+app.include_router(global_settings.router)
 app.include_router(hosts.router)
 app.include_router(networks.router)
 app.include_router(policy.router)
