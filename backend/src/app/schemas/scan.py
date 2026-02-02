@@ -81,6 +81,7 @@ class ScanResponse(BaseModel):
     hidden: bool = False
     progress_percent: float | None = None
     progress_message: str | None = None
+    target_ip: str | None = None
 
     model_config = {"from_attributes": True}
 

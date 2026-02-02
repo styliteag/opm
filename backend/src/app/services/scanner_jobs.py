@@ -23,30 +23,35 @@ async def get_pending_jobs_for_scanner(
        (Schedule evaluation will be handled by the scheduler service in US-022)
 
     For now, we just return networks that have planned scans waiting.
+    Returns one job per planned scan (to support single-host scans).
     """
-    # Get networks with planned scans for this scanner
+    from sqlalchemy.orm import selectinload
+    
+    # Get planned scans for networks on this scanner
     result = await db.execute(
-        select(Network)
+        select(Scan)
+        .options(selectinload(Scan.network))
+        .join(Network, Network.id == Scan.network_id)
         .where(Network.scanner_id == scanner.id)
-        .join(Scan, Network.id == Scan.network_id)
         .where(Scan.status == ScanStatus.PLANNED)
-        .distinct()
+        .order_by(Scan.id.asc())
     )
-    networks = list(result.scalars().all())
+    planned_scans = list(result.scalars().all())
 
     jobs = [
         ScannerJobResponse(
-            network_id=network.id,
-            cidr=network.cidr,
-            port_spec=network.port_spec,
-            rate=network.scan_rate,
-            scanner_type=network.scanner_type or "masscan",
-            scan_timeout=network.scan_timeout if network.scan_timeout is not None else 3600,
-            port_timeout=network.port_timeout if network.port_timeout is not None else 1500,
-            scan_protocol=network.scan_protocol or "tcp",
-            is_ipv6=network.is_ipv6,
+            network_id=scan.network.id,
+            cidr=scan.network.cidr,
+            port_spec=scan.network.port_spec,
+            rate=scan.network.scan_rate,
+            scanner_type=scan.network.scanner_type or "masscan",
+            scan_timeout=scan.network.scan_timeout if scan.network.scan_timeout is not None else 3600,
+            port_timeout=scan.network.port_timeout if scan.network.port_timeout is not None else 1500,
+            scan_protocol=scan.network.scan_protocol or "tcp",
+            is_ipv6=scan.network.is_ipv6,
+            target_ip=scan.target_ip,  # None for full network scan
         )
-        for network in networks
+        for scan in planned_scans
     ]
 
     return jobs

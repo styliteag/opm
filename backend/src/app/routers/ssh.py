@@ -536,3 +536,61 @@ async def export_ssh_security_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.post("/ssh/hosts/{host_ip}/recheck", response_model=dict)
+async def trigger_ssh_recheck(
+    user: CurrentUser,
+    db: DbSession,
+    host_ip: str,
+    port: int = Query(22, ge=1, le=65535, description="SSH port to recheck"),
+) -> dict:
+    """Trigger a single SSH host security recheck.
+    
+    This will create a targeted scan for just this SSH host using the same
+    scanner and configuration as the network it belongs to. The scan will
+    perform SSH security analysis including authentication methods, ciphers,
+    and version detection.
+    """
+    from ipaddress import ip_address
+    from app.services import networks as networks_service
+    from app.services import scans as scans_service
+    from app.services import hosts as hosts_service
+    
+    # Validate IP address format
+    try:
+        parsed_ip = ip_address(host_ip)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid IP address: {host_ip}",
+        ) from exc
+    
+    # Find the host to get its network
+    host = await hosts_service.get_host_by_ip(db, host_ip)
+    if host is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Host {host_ip} not found",
+        )
+    
+    # Get the network for this host
+    network = await networks_service.get_network_by_id(db, host.network_id)
+    if network is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Network not found for host {host_ip}",
+        )
+    
+    # Create a single-host scan (SSH probe will be performed on the discovered port)
+    scan = await scans_service.create_single_host_scan(db, network, host_ip)
+    await db.commit()
+    
+    return {
+        "scan_id": scan.id,
+        "network_id": network.id,
+        "host_ip": host_ip,
+        "port": port,
+        "status": "planned",
+        "message": f"SSH security recheck triggered for {host_ip}:{port}",
+    }

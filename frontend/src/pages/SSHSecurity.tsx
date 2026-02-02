@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, fetchJson, getAuthHeaders, extractErrorMessage } from '../lib/api'
@@ -119,6 +119,26 @@ const SSHSecurity = () => {
     queryKey: ['ssh-hosts', 'all'],
     queryFn: () => fetchJson<SSHHostListResponse>('/api/ssh/hosts?limit=200', token ?? ''),
     enabled: Boolean(token),
+  })
+
+  const recheckSSHMutation = useMutation({
+    mutationFn: async ({ hostIp, port }: { hostIp: string; port: number }) => {
+      const res = await fetch(
+        `${API_BASE_URL}/api/ssh/hosts/${encodeURIComponent(hostIp)}/recheck?port=${port}`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders(token ?? ''),
+        }
+      )
+      if (!res.ok) throw new Error(await extractErrorMessage(res))
+      return res.json()
+    },
+    onSuccess: (_, { hostIp }) => {
+      queryClient.invalidateQueries({ queryKey: ['ssh-hosts'] })
+      setToast({ message: `SSH recheck started for ${hostIp}`, tone: 'success' })
+    },
+    onError: (e) =>
+      setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
   })
 
   const hosts = useMemo(
@@ -710,7 +730,10 @@ const SSHSecurity = () => {
                     <th className="pb-3 pr-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       Network
                     </th>
-                    <th className="pb-3">{renderSortHeader('Last Scanned', 'last_scanned')}</th>
+                    <th className="pb-3 pr-4">{renderSortHeader('Last Scanned', 'last_scanned')}</th>
+                    <th className="pb-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/50 dark:divide-slate-800/50">
@@ -749,13 +772,26 @@ const SSHSecurity = () => {
                           {host.network_name ?? 'Unknown'}
                         </span>
                       </td>
-                      <td className="py-3">
+                      <td className="py-3 pr-4">
                         <span
                           className="text-slate-500 dark:text-slate-400"
                           title={formatDateTime(parseUtcDate(host.last_scanned))}
                         >
                           {formatRelativeTime(parseUtcDate(host.last_scanned), now)}
                         </span>
+                      </td>
+                      <td className="py-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            recheckSSHMutation.mutate({ hostIp: host.host_ip, port: host.port })
+                          }}
+                          disabled={recheckSSHMutation.isPending}
+                          className="rounded-lg border border-emerald-200 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                          title="Recheck SSH security for this host"
+                        >
+                          {recheckSSHMutation.isPending ? 'Checking...' : 'Recheck'}
+                        </button>
                       </td>
                     </tr>
                   ))}

@@ -23,6 +23,7 @@ from app.schemas.host import (
     HostResponse,
     HostUpdateRequest,
 )
+from app.schemas.scan import ScanTriggerResponse
 from app.services import hosts as hosts_service
 
 router = APIRouter(prefix="/api/hosts", tags=["hosts"])
@@ -423,4 +424,58 @@ async def export_hosts_pdf(
         iter([pdf_content]),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post("/{host_ip}/rescan", response_model=ScanTriggerResponse)
+async def trigger_host_rescan(
+    admin: AdminUser,
+    db: DbSession,
+    host_ip: str,
+) -> ScanTriggerResponse:
+    """Trigger a single-host rescan for a specific IP address.
+    
+    This will create a targeted scan for just this IP using the same scanner
+    and configuration as the network it belongs to. The scan will use nmap
+    for detailed host scanning and service detection.
+    """
+    from ipaddress import ip_address
+    from app.services import networks as networks_service
+    from app.services import scans as scans_service
+    
+    # Validate IP address format
+    try:
+        parsed_ip = ip_address(host_ip)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid IP address: {host_ip}",
+        ) from exc
+    
+    # Find the host to get its network
+    host = await hosts_service.get_host_by_ip(db, host_ip)
+    if host is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Host {host_ip} not found",
+        )
+    
+    # Get the network for this host
+    network = await networks_service.get_network_by_id(db, host.network_id)
+    if network is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Network not found for host {host_ip}",
+        )
+    
+    # Create a single-host scan
+    scan = await scans_service.create_single_host_scan(db, network, host_ip)
+    await db.commit()
+    
+    return ScanTriggerResponse(
+        scan_id=scan.id,
+        network_id=network.id,
+        status="planned",
+        trigger_type="manual",
+        message=f"Single-host scan triggered for {host_ip}",
     )

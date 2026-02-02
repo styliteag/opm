@@ -92,6 +92,7 @@ class ScannerJobResponse(BaseModel):
     port_timeout: int = 1500  # milliseconds
     scan_protocol: str = "tcp"  # tcp, udp, or both
     is_ipv6: bool = False  # whether the network CIDR is IPv6
+    target_ip: str | None = None  # specific IP for single-host scan, None for full network
 
     model_config = {"from_attributes": True}
 

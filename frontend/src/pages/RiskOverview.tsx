@@ -468,6 +468,22 @@ const RiskOverview = () => {
         },
     })
 
+    const rescanHostMutation = useMutation({
+        mutationFn: async (hostIp: string) => {
+            const res = await fetch(`${API_BASE_URL}/api/hosts/${encodeURIComponent(hostIp)}/rescan`, {
+                method: 'POST',
+                headers: getAuthHeaders(token ?? ''),
+            })
+            if (!res.ok) throw new Error(await extractErrorMessage(res))
+            return res.json()
+        },
+        onSuccess: (_, hostIp) => {
+            setToast({ message: `Rescan started for ${hostIp}`, tone: 'success' })
+        },
+        onError: (e) =>
+            setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
+    })
+
     const handleAssignAlert = (alertId: number, userId: number | null) => {
         setUpdatingAssignment(alertId)
         assignAlertMutation.mutate({ alertId, userId })
@@ -1033,22 +1049,34 @@ const RiskOverview = () => {
                                                         </div>
                                                     </td>
                                                     <td className="whitespace-nowrap px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                                                        {alert.acknowledged ? (
-                                                            <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
-                                                                Acknowledged
-                                                            </span>
-                                                        ) : isAdmin ? (
-                                                            <button
-                                                                onClick={() => handleResolve(alert)}
-                                                                className="rounded-full border border-amber-300 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-500/20 dark:text-amber-200"
-                                                            >
-                                                                Resolve
-                                                            </button>
-                                                        ) : (
-                                                            <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
-                                                                Pending
-                                                            </span>
-                                                        )}
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {isAdmin && (
+                                                                <button
+                                                                    onClick={() => rescanHostMutation.mutate(alert.ip)}
+                                                                    disabled={rescanHostMutation.isPending}
+                                                                    className="rounded-full border border-cyan-300 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-700 transition hover:border-cyan-400 hover:bg-cyan-500/20 dark:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                    title="Rescan this host with nmap"
+                                                                >
+                                                                    {rescanHostMutation.isPending ? 'Scanning...' : 'Rescan'}
+                                                                </button>
+                                                            )}
+                                                            {alert.acknowledged ? (
+                                                                <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                                                                    Acknowledged
+                                                                </span>
+                                                            ) : isAdmin ? (
+                                                                <button
+                                                                    onClick={() => handleResolve(alert)}
+                                                                    className="rounded-full border border-amber-300 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-500/20 dark:text-amber-200"
+                                                                >
+                                                                    Resolve
+                                                                </button>
+                                                            ) : (
+                                                                <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
+                                                                    Pending
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                 {isExpanded && (
