@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, fetchJson, getAuthHeaders, extractErrorMessage } from '../lib/api'
-import type { NetworkListResponse, SSHHostListResponse, SSHHostSummary } from '../types'
+import type { NetworkListResponse, SSHHostListResponse, SSHHostSummary, SSHAlertConfig } from '../types'
 
 const parseUtcDate = (dateStr: string) => {
   return new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
@@ -56,6 +56,7 @@ type AuthFilterType = 'all' | 'secure' | 'insecure'
 const SSHSecurity = () => {
   const { token } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const now = new Date()
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [networkFilter, setNetworkFilter] = useState<number | null>(null)
@@ -64,12 +65,53 @@ const SSHSecurity = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [isExporting, setIsExporting] = useState(false)
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
+  const [showGlobalSettings, setShowGlobalSettings] = useState(false)
+  const [globalSettings, setGlobalSettings] = useState<SSHAlertConfig>({
+    ssh_insecure_auth: true,
+    ssh_weak_cipher: false,
+    ssh_weak_kex: false,
+    ssh_outdated_version: false,
+    ssh_config_regression: true,
+    ssh_version_threshold: '8.0.0',
+  })
+  const [globalSettingsError, setGlobalSettingsError] = useState<string | null>(null)
 
   // Fetch networks for filter dropdown
   const networksQuery = useQuery({
     queryKey: ['networks'],
     queryFn: () => fetchJson<NetworkListResponse>('/api/networks', token ?? ''),
     enabled: Boolean(token),
+  })
+
+  // Fetch global SSH alert defaults
+  const globalDefaultsQuery = useQuery({
+    queryKey: ['ssh-alert-defaults'],
+    queryFn: () => fetchJson<SSHAlertConfig>('/api/settings/ssh-alert-defaults', token ?? ''),
+    enabled: Boolean(token),
+  })
+
+  // Mutation to update global SSH alert defaults
+  const updateGlobalDefaultsMutation = useMutation({
+    mutationFn: async (settings: SSHAlertConfig) => {
+      const response = await fetch(`${API_BASE_URL}/api/settings/ssh-alert-defaults`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(token ?? ''),
+        },
+        body: JSON.stringify(settings),
+      })
+      if (!response.ok) throw new Error(await extractErrorMessage(response))
+      return response.json()
+    },
+    onSuccess: async () => {
+      setShowGlobalSettings(false)
+      setGlobalSettingsError(null)
+      await queryClient.invalidateQueries({ queryKey: ['ssh-alert-defaults'] })
+      setToast({ message: 'Global SSH alert defaults updated successfully', tone: 'success' })
+    },
+    onError: (error) =>
+      setGlobalSettingsError(error instanceof Error ? error.message : 'Failed to save settings'),
   })
 
   // Fetch all SSH hosts (up to 200 for summary statistics)
@@ -331,6 +373,27 @@ const SSHSecurity = () => {
     setTimeout(() => setToast(null), 3000)
   }
 
+  const openGlobalSettingsModal = () => {
+    if (!globalDefaultsQuery.data) return
+    setGlobalSettingsError(null)
+    setGlobalSettings({
+      ssh_insecure_auth: globalDefaultsQuery.data.ssh_insecure_auth ?? true,
+      ssh_weak_cipher: globalDefaultsQuery.data.ssh_weak_cipher ?? false,
+      ssh_weak_kex: globalDefaultsQuery.data.ssh_weak_kex ?? false,
+      ssh_outdated_version: globalDefaultsQuery.data.ssh_outdated_version ?? false,
+      ssh_config_regression: globalDefaultsQuery.data.ssh_config_regression ?? true,
+      ssh_version_threshold: globalDefaultsQuery.data.ssh_version_threshold ?? '8.0.0',
+    })
+    setShowGlobalSettings(true)
+  }
+
+  const handleGlobalSettingsSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setGlobalSettingsError(null)
+    if (!token) return
+    updateGlobalDefaultsMutation.mutate(globalSettings)
+  }
+
   const getAuthMethodBadge = (host: SSHHostSummary) => {
     if (host.password_enabled || host.keyboard_interactive_enabled) {
       return (
@@ -519,6 +582,13 @@ const SSHSecurity = () => {
             </div>
             <div className="flex items-center gap-3">
               <button
+                onClick={openGlobalSettingsModal}
+                disabled={!globalDefaultsQuery.data}
+                className="rounded-full border border-violet-200 bg-violet-500/10 px-4 py-2 text-xs font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-500/20 dark:border-violet-500/40 dark:text-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Alert Settings
+              </button>
+              <button
                 onClick={handleExportCsv}
                 disabled={isExporting || isLoading || totalHosts === 0}
                 className="rounded-full border border-cyan-200 bg-cyan-500/10 px-4 py-2 text-xs font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-500/20 dark:border-cyan-500/40 dark:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
@@ -695,6 +765,192 @@ const SSHSecurity = () => {
           )}
         </div>
       </section>
+
+      {/* Global SSH Alert Settings Modal */}
+      {showGlobalSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-2xl animate-rise rounded-3xl border border-slate-200/70 bg-white p-8 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-display text-2xl text-slate-900 dark:text-white">
+                  Global SSH Alert Settings
+                </h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Configure default SSH security alert settings for all networks
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGlobalSettings(false)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+              >
+                Close
+              </button>
+            </div>
+            <form className="mt-6 space-y-5" onSubmit={handleGlobalSettingsSubmit}>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                These settings apply to networks that use default alert configuration. Networks with custom alert settings will not be affected.
+              </p>
+
+              {/* SSH Insecure Auth Toggle */}
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Password/keyboard-interactive authentication
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Alert when SSH allows insecure authentication methods (HIGH severity)
+                  </p>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={globalSettings.ssh_insecure_auth ?? true}
+                    onChange={(e) =>
+                      setGlobalSettings((v) => ({ ...v, ssh_insecure_auth: e.target.checked }))
+                    }
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
+                </label>
+              </div>
+
+              {/* SSH Weak Cipher Toggle */}
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Weak ciphers detected
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Alert when weak encryption algorithms are enabled (MEDIUM severity)
+                  </p>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={globalSettings.ssh_weak_cipher ?? false}
+                    onChange={(e) =>
+                      setGlobalSettings((v) => ({ ...v, ssh_weak_cipher: e.target.checked }))
+                    }
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
+                </label>
+              </div>
+
+              {/* SSH Weak KEX Toggle */}
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Weak key exchange algorithms
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Alert when weak KEX algorithms are enabled (MEDIUM severity)
+                  </p>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={globalSettings.ssh_weak_kex ?? false}
+                    onChange={(e) =>
+                      setGlobalSettings((v) => ({ ...v, ssh_weak_kex: e.target.checked }))
+                    }
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
+                </label>
+              </div>
+
+              {/* SSH Outdated Version Toggle */}
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Outdated SSH version
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Alert when SSH version is below threshold (MEDIUM severity)
+                  </p>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={globalSettings.ssh_outdated_version ?? false}
+                    onChange={(e) =>
+                      setGlobalSettings((v) => ({ ...v, ssh_outdated_version: e.target.checked }))
+                    }
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
+                </label>
+              </div>
+
+              {/* SSH Version Threshold */}
+              <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <label className="block space-y-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  SSH version threshold
+                  <input
+                    type="text"
+                    placeholder="e.g., 8.0.0"
+                    value={globalSettings.ssh_version_threshold ?? '8.0.0'}
+                    onChange={(e) =>
+                      setGlobalSettings((v) => ({ ...v, ssh_version_threshold: e.target.value }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                  <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                    Minimum acceptable SSH version (default: 8.0.0)
+                  </span>
+                </label>
+              </div>
+
+              {/* SSH Config Regression Toggle */}
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800/70 dark:bg-slate-900/60">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Configuration regression
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Alert when SSH security configuration degrades between scans (HIGH severity)
+                  </p>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={globalSettings.ssh_config_regression ?? true}
+                    onChange={(e) =>
+                      setGlobalSettings((v) => ({ ...v, ssh_config_regression: e.target.checked }))
+                    }
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
+                </label>
+              </div>
+
+              {globalSettingsError && (
+                <div className="rounded-2xl border border-rose-200/70 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-100">
+                  {globalSettingsError}
+                </div>
+              )}
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowGlobalSettings(false)}
+                  className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateGlobalDefaultsMutation.isPending}
+                  className="rounded-full border border-cyan-500 bg-cyan-600 px-4 py-2 text-xs font-semibold text-white shadow-md transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-cyan-400 dark:bg-cyan-600 dark:hover:bg-cyan-500"
+                >
+                  {updateGlobalDefaultsMutation.isPending ? 'Saving...' : 'Save Global Defaults'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Toast notification */}
       {toast && (
