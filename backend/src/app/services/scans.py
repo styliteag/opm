@@ -29,6 +29,27 @@ async def create_manual_scan(db: AsyncSession, network: Network) -> Scan:
     return scan
 
 
+async def create_single_host_scan(
+    db: AsyncSession, network: Network, target_ip: str
+) -> Scan:
+    """
+    Create a new manual scan for a single host/IP within a network.
+
+    Creates a scan record with status 'planned', trigger_type 'manual',
+    and target_ip set to the specific IP address to scan.
+    """
+    scan = Scan(
+        network_id=network.id,
+        scanner_id=network.scanner_id,
+        status=ScanStatus.PLANNED,
+        trigger_type=TriggerType.MANUAL,
+        target_ip=target_ip,
+    )
+    db.add(scan)
+    await db.flush()
+    return scan
+
+
 async def cancel_scan(
     db: AsyncSession,
     scan: Scan,

@@ -72,6 +72,11 @@ class Scan(Base):
         server_default="0",
         index=True,
     )
+    target_ip: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Target IP for single-host scan; NULL for full network scan",
+    )
 
     # Relationships
     network: Mapped["Network"] = relationship("Network", back_populates="scans")

@@ -30,6 +30,7 @@ class ScannerJob:
     port_timeout: int  # milliseconds
     scan_protocol: str  # tcp, udp, or both
     is_ipv6: bool = False  # whether the network CIDR is IPv6
+    target_ip: str | None = None  # specific IP for single-host scan, None for full network
 
 
 @dataclass(frozen=True)

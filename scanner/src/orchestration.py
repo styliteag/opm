@@ -97,6 +97,8 @@ def process_job(
     logger.info("Claimed job for network %s with scan ID %s", job.network_id, scan_id)
     logger.info("Scanner type: %s", job.scanner_type)
     logger.info("Scan protocol: %s", job.scan_protocol)
+    if job.target_ip:
+        logger.info("Single-host scan mode: targeting %s", job.target_ip)
 
     # Start log streamer
     log_streamer = LogStreamer(client=client, log_buffer=log_buffer, scan_id=scan_id)
@@ -115,8 +117,24 @@ def process_job(
             if not check_ipv6_connectivity(logger):
                 raise RuntimeError("IPv6 connectivity not available")
 
-        # Dispatch to appropriate scanner based on scanner_type
-        if job.scanner_type == "nmap":
+        # For single-host scans, always use nmap for better results
+        if job.target_ip:
+            logger.info("Using nmap for single-host scan of %s", job.target_ip)
+            result = run_nmap(
+                client,
+                scan_id,
+                job.target_ip,  # Use target_ip instead of cidr
+                job.port_spec,
+                job.scan_timeout,
+                job.port_timeout,
+                job.scan_protocol,
+                job.is_ipv6,
+                logger,
+                progress_reporter,
+            )
+            logger.info("Nmap single-host scan completed with %s open ports", len(result.open_ports))
+        # Dispatch to appropriate scanner based on scanner_type for full network scans
+        elif job.scanner_type == "nmap":
             result = run_nmap(
                 client,
                 scan_id,

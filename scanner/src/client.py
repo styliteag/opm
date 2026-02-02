@@ -134,6 +134,7 @@ class ScannerClient:
                         port_timeout=port_timeout if port_timeout is not None else 1500,
                         scan_protocol=str(job.get("scan_protocol", "tcp")),
                         is_ipv6=bool(job.get("is_ipv6", False)),
+                        target_ip=job.get("target_ip"),  # None for full network scan
                     )
                 )
             except (KeyError, TypeError, ValueError) as exc:
