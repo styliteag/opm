@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.13] - 2026-02-03
+
 ### Added
 - Single-host rescan feature for targeted nmap scans from Risk Overview and Hosts pages
   - New `target_ip` field in Scan model to differentiate network scans from single-host scans
