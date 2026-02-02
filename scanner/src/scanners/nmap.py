@@ -904,8 +904,3 @@ def run_nmap(
             os.unlink(phase2_targets_file)
         except OSError:
             pass
-
-
-# Public API
-run_nmap = _run_nmap
-run_nmap_service_detection = _run_nmap_service_detection

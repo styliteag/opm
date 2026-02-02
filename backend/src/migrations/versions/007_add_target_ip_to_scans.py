@@ -1,7 +1,7 @@
 """add target_ip to scans
 
-Revision ID: 006
-Revises: 005
+Revision ID: 007
+Revises: 006
 Create Date: 2026-02-02 15:45:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '006'
-down_revision = '005'
+revision = '007'
+down_revision = '006'
 branch_labels = None
 depends_on = None
 
