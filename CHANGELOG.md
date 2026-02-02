@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Single-host rescan feature for targeted nmap scans from Risk Overview and Hosts pages
+  - New `target_ip` field in Scan model to differentiate network scans from single-host scans
+  - `/api/hosts/{host_ip}/rescan` endpoint to trigger single-host rescans
+  - `/api/ssh/hosts/{host_ip}/recheck` endpoint to recheck SSH security for a single host
+  - "Rescan" button in Hosts page for admin users
+  - "Rescan" button in Risk Overview page for admin users
+  - "Recheck" button in SSH Security page for SSH security rechecks
+  - Scanner automatically uses nmap for single-host scans for better service detection
+
 ### Security
 - Added defensive input sanitization in scanner to prevent potential command injection attacks
   - New `sanitize_cidr()` function validates CIDR notation and rejects shell metacharacters
