@@ -1441,9 +1441,10 @@ const NetworkDetail = () => {
                     onChange={(e) =>
                       setAlertSettings((v) => ({ ...v, ssh_weak_cipher: e.target.checked }))
                     }
+                    disabled={useDefaultAlerts}
                     className="peer sr-only"
                   />
-                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-disabled:opacity-50 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
                 </label>
               </div>
 
@@ -1464,9 +1465,10 @@ const NetworkDetail = () => {
                     onChange={(e) =>
                       setAlertSettings((v) => ({ ...v, ssh_weak_kex: e.target.checked }))
                     }
+                    disabled={useDefaultAlerts}
                     className="peer sr-only"
                   />
-                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-disabled:opacity-50 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
                 </label>
               </div>
 
@@ -1487,9 +1489,10 @@ const NetworkDetail = () => {
                     onChange={(e) =>
                       setAlertSettings((v) => ({ ...v, ssh_outdated_version: e.target.checked }))
                     }
+                    disabled={useDefaultAlerts}
                     className="peer sr-only"
                   />
-                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-disabled:opacity-50 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
                 </label>
               </div>
 
@@ -1504,7 +1507,8 @@ const NetworkDetail = () => {
                     onChange={(e) =>
                       setAlertSettings((v) => ({ ...v, ssh_version_threshold: e.target.value }))
                     }
-                    className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                    disabled={useDefaultAlerts}
+                    className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                   />
                   <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
                     Minimum acceptable SSH version (default: 8.0.0)
@@ -1529,9 +1533,10 @@ const NetworkDetail = () => {
                     onChange={(e) =>
                       setAlertSettings((v) => ({ ...v, ssh_config_regression: e.target.checked }))
                     }
+                    disabled={useDefaultAlerts}
                     className="peer sr-only"
                   />
-                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-disabled:opacity-50 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-slate-600 dark:bg-slate-700 dark:peer-focus:ring-cyan-800" />
                 </label>
               </div>
 

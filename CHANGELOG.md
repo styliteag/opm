@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Global SSH alert settings: Configure default SSH security alert settings from the SSH Security Dashboard
+- Network-level SSH alert override: Networks can now use global defaults or define custom SSH alert settings
+- "Use Global Defaults" toggle in network alert settings to easily switch between default and custom configurations
+
 ### Security
 - Added defensive input sanitization in scanner to prevent potential command injection attacks
   - New `sanitize_cidr()` function validates CIDR notation and rejects shell metacharacters
