@@ -460,8 +460,14 @@ async def trigger_host_rescan(
             detail=f"Host {host_ip} not found",
         )
     
-    # Get the network for this host
-    network = await networks_service.get_network_by_id(db, host.network_id)
+    # Get the network for this host (use first network from seen_by_networks)
+    if not host.seen_by_networks:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No network found for host {host_ip}",
+        )
+
+    network = await networks_service.get_network_by_id(db, host.seen_by_networks[0])
     if network is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
