@@ -552,20 +552,20 @@ async def trigger_ssh_recheck(
     perform SSH security analysis including authentication methods, ciphers,
     and version detection.
     """
-    from ipaddress import ip_address
+    from ipaddress import ip_address, ip_network
     from app.services import networks as networks_service
     from app.services import scans as scans_service
     from app.services import hosts as hosts_service
-    
+
     # Validate IP address format
     try:
-        parsed_ip = ip_address(host_ip)
+        ip_address(host_ip)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid IP address: {host_ip}",
         ) from exc
-    
+
     # Find the host to get its network
     host = await hosts_service.get_host_by_ip(db, host_ip)
     if host is None:
@@ -573,14 +573,35 @@ async def trigger_ssh_recheck(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Host {host_ip} not found",
         )
-    
-    # Get the network for this host
-    network = await networks_service.get_network_by_id(db, host.network_id)
-    if network is None:
+
+    # Get the most specific network for this host (largest prefix = smallest subnet)
+    # Similar to Linux routing table - prefer more specific routes
+    if not host.seen_by_networks:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Network not found for host {host_ip}",
+            detail=f"No network found for host {host_ip}",
         )
+
+    # Fetch all existing networks and find the most specific one
+    candidate_networks = []
+    for network_id in host.seen_by_networks:
+        net = await networks_service.get_network_by_id(db, network_id)
+        if net is not None:
+            try:
+                prefix_len = ip_network(net.cidr, strict=False).prefixlen
+                candidate_networks.append((prefix_len, net))
+            except ValueError:
+                continue
+
+    if not candidate_networks:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No valid network found for host {host_ip}",
+        )
+
+    # Sort by prefix length descending (most specific first) and pick the first
+    candidate_networks.sort(key=lambda x: x[0], reverse=True)
+    network = candidate_networks[0][1]
     
     # Create a single-host scan (SSH probe will be performed on the discovered port)
     scan = await scans_service.create_single_host_scan(db, network, host_ip)
