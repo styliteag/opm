@@ -460,19 +460,35 @@ async def trigger_host_rescan(
             detail=f"Host {host_ip} not found",
         )
     
-    # Get the network for this host (use first network from seen_by_networks)
+    # Get the most specific network for this host (largest prefix = smallest subnet)
+    # Similar to Linux routing table - prefer more specific routes
     if not host.seen_by_networks:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No network found for host {host_ip}",
         )
 
-    network = await networks_service.get_network_by_id(db, host.seen_by_networks[0])
-    if network is None:
+    # Fetch all existing networks and find the most specific one
+    candidate_networks = []
+    for network_id in host.seen_by_networks:
+        net = await networks_service.get_network_by_id(db, network_id)
+        if net is not None:
+            try:
+                prefix_len = ip_network(net.cidr, strict=False).prefixlen
+                candidate_networks.append((prefix_len, net))
+            except ValueError:
+                # Skip networks with invalid CIDR
+                continue
+
+    if not candidate_networks:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Network not found for host {host_ip}",
+            detail=f"No valid network found for host {host_ip}",
         )
+
+    # Sort by prefix length descending (most specific first) and pick the first
+    candidate_networks.sort(key=lambda x: x[0], reverse=True)
+    network = candidate_networks[0][1]
     
     # Create a single-host scan
     scan = await scans_service.create_single_host_scan(db, network, host_ip)
