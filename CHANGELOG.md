@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Scheduled scans triggering multiple times (once per uvicorn worker) due to race condition in multi-worker setup. Added database row-level locking with `SELECT ... FOR UPDATE SKIP LOCKED` to ensure only one worker creates a scan per network.
+- Clearing scan schedule by sending empty string not saving. The API now properly detects when `scan_schedule` is explicitly set to empty/null and clears it.
+
 ## [1.1.15] - 2026-02-03
 
 ## [1.1.14] - 2026-02-03
