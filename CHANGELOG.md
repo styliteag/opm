@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.17] - 2026-02-04
 
 ### Fixed
-- Cron schedules now use local timezone instead of UTC. Previously, a schedule like `03 1 * * *` would run at 01:03 UTC instead of 01:03 local time.
+- Cron schedules were incorrectly interpreted as UTC times. A schedule like `03 1 * * *` now correctly runs at 01:03 local time (e.g., CET) instead of 01:03 UTC (which was 02:03 CET).
 
 ### Added
 - `TZ` environment variable support in all Docker containers (app, db, scanner) with default `Europe/Berlin`
