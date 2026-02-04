@@ -154,6 +154,8 @@ async def update_network(
         scan_protocol=request.scan_protocol,
         alert_config=request.alert_config,
         host_discovery_enabled=request.host_discovery_enabled,
+        clear_schedule="scan_schedule" in request.model_fields_set,
+        clear_alert_config="alert_config" in request.model_fields_set,
     )
     await db.commit()
     return NetworkResponse.model_validate(updated_network)
