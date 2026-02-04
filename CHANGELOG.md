@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.17] - 2026-02-04
+
 ### Fixed
 - Cron schedules now use local timezone instead of UTC. Previously, a schedule like `03 1 * * *` would run at 01:03 UTC instead of 01:03 local time.
 
