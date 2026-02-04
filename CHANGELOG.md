@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Cron schedules now use local timezone instead of UTC. Previously, a schedule like `03 1 * * *` would run at 01:03 UTC instead of 01:03 local time.
+
+### Added
+- `TZ` environment variable support in all Docker containers (app, db, scanner) with default `Europe/Berlin`
+- `SCHEDULE_TIMEZONE` configuration option to explicitly set the timezone for cron schedule interpretation
+- `tzdata` package installed in all Docker images for proper timezone support
+
+### Changed
+- Scheduler now defaults to server's local timezone when `SCHEDULE_TIMEZONE` is not set
+- MariaDB container now respects `TZ` environment variable for log timestamps
+
 ## [1.1.16] - 2026-02-04
 
 ### Fixed

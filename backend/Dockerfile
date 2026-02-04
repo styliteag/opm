@@ -21,9 +21,12 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
+ENV TZ=UTC
 
-# Install uv in runtime as well (needed for 'uv run' in start.sh)
-RUN pip install --no-cache-dir uv
+# Install tzdata for timezone support and uv (needed for 'uv run' in start.sh)
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir uv
 
 # Copy virtual environment and source code
 COPY --from=builder /app/.venv /app/.venv

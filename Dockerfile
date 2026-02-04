@@ -47,12 +47,15 @@ ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 
-# Install nginx, wget, bash, and uv
+# Install nginx, wget, bash, tzdata, and uv
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends nginx wget bash && \
+    apt-get install -y --no-install-recommends nginx wget bash tzdata && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     pip install --no-cache-dir uv
+
+# Set default timezone (can be overridden via TZ env var)
+ENV TZ=UTC
 
 # Copy backend virtual environment and source
 COPY --from=backend-builder /app/.venv /app/.venv

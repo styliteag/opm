@@ -3,6 +3,8 @@ services:
     image: mariadb:11
     restart: unless-stopped
     env_file: prod-mysql.env
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
     volumes:
       - ./data/db:/var/lib/mysql
     networks:
@@ -30,6 +32,8 @@ services:
       # Only on dev we need to mount the VERSION file, on prod it is set in the Dockerfile
       - ./VERSION:/app/VERSION:ro
     env_file: prod-app.env
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
     networks:
       - opm-network
     depends_on:

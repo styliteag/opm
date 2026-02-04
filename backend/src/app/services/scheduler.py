@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
 from apscheduler.triggers.cron import CronTrigger  # type: ignore[import-untyped]
@@ -9,6 +10,7 @@ from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import async_session_factory
 from app.models.network import Network
 from app.models.scan import Scan, ScanStatus, TriggerType
@@ -18,8 +20,25 @@ logger = logging.getLogger(__name__)
 _scheduler: AsyncIOScheduler | None = None
 
 
+def _get_schedule_timezone() -> timezone | ZoneInfo:
+    """Get the timezone for cron schedules from settings or system default."""
+    tz_name = settings.schedule_timezone.strip()
+    if not tz_name:
+        # Use server's local timezone
+        local_tz = datetime.now().astimezone().tzinfo
+        if local_tz is not None:
+            return local_tz
+        return timezone.utc
+    try:
+        return ZoneInfo(tz_name)
+    except (KeyError, ValueError):
+        logger.warning("Invalid schedule_timezone '%s', falling back to UTC", tz_name)
+        return timezone.utc
+
+
 def _build_cron_trigger(schedule: str) -> CronTrigger | None:
     """Build a CronTrigger from 5 or 6-field cron syntax."""
+    schedule_tz = _get_schedule_timezone()
     fields = schedule.split()
     if len(fields) == 5:
         minute, hour, day, month, day_of_week = fields
@@ -29,7 +48,7 @@ def _build_cron_trigger(schedule: str) -> CronTrigger | None:
             day=day,
             month=month,
             day_of_week=day_of_week,
-            timezone=timezone.utc,
+            timezone=schedule_tz,
         )
     if len(fields) == 6:
         second, minute, hour, day, month, day_of_week = fields
@@ -40,7 +59,7 @@ def _build_cron_trigger(schedule: str) -> CronTrigger | None:
             day=day,
             month=month,
             day_of_week=day_of_week,
-            timezone=timezone.utc,
+            timezone=schedule_tz,
         )
     return None
 

@@ -17,7 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     psmisc \
     socat \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=UTC
 
 RUN pip install uv ssh-audit
 

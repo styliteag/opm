@@ -7,6 +7,7 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-openportmonitor}
       MYSQL_USER: ${DB_USER:-opm}
       MYSQL_PASSWORD: ${DB_PASSWORD:-opmpassword}
+      TZ: ${TZ:-Europe/Berlin}
     ports:
       - "3306:3306"
     volumes:
@@ -36,6 +37,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      TZ: ${TZ:-Europe/Berlin}
+      SCHEDULE_TIMEZONE: ${SCHEDULE_TIMEZONE:-}
     ports:
       - "8000:8000"
     volumes:
@@ -54,6 +57,7 @@ services:
     container_name: opm-frontend
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      TZ: ${TZ:-Europe/Berlin}
     ports:
       - "5173:5173"
     volumes:
@@ -74,6 +78,7 @@ services:
       API_KEY: ${SCANNER_API_KEY:-}
       POLL_INTERVAL: ${SCANNER_POLL_INTERVAL:-60}
       LOG_LEVEL: ${SCANNER_LOG_LEVEL:-INFO}
+      TZ: ${TZ:-Europe/Berlin}
     volumes:
       - ./scanner/src:/app/src
       - ./VERSION:/app/VERSION:ro

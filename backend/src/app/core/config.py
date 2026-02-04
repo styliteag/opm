@@ -40,5 +40,9 @@ class Settings(BaseSettings):
     # Application
     debug: bool = False
 
+    # Timezone for cron schedules (e.g., "Europe/Berlin", "America/New_York")
+    # Defaults to server's local timezone if not set
+    schedule_timezone: str = ""
+
 
 settings = Settings()

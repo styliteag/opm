@@ -2,8 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install uv for fast Python package management
-RUN pip install uv
+# Install tzdata for timezone support and uv for package management
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install uv
+
+ENV TZ=UTC
 
 # Copy project configuration
 COPY pyproject.toml ./

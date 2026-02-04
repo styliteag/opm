@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install masscan and networking tools
+# Install masscan, networking tools, and tzdata for timezone support
 RUN apt-get update && apt-get install -y --no-install-recommends \
     masscan \
     nmap \
@@ -18,7 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     psmisc \
     socat \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=UTC
 
 # Install uv for fast Python package management
 # Install ssh-audit for SSH security probing
