@@ -72,6 +72,7 @@ async def evaluate_schedules() -> None:
     """Evaluate network schedules and create planned scans when due."""
     now = datetime.now(timezone.utc)
     async with async_session_factory() as db:
+        # Get networks with schedules (read-only query)
         result = await db.execute(select(Network).where(Network.scan_schedule.is_not(None)))
         networks = result.scalars().all()
 
@@ -80,6 +81,19 @@ async def evaluate_schedules() -> None:
                 continue
             if not _is_schedule_due(network.scan_schedule, now):
                 continue
+
+            # Lock this network row - other workers will skip it
+            lock_result = await db.execute(
+                select(Network)
+                .where(Network.id == network.id)
+                .with_for_update(skip_locked=True)
+            )
+            locked_network = lock_result.scalar_one_or_none()
+            if locked_network is None:
+                # Another worker has the lock, skip
+                continue
+
+            # Double-check for active scan after acquiring lock
             if await _has_active_scan(db, network.id):
                 continue
 
