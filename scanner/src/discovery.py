@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING
 
+from src.hostname_enrichment import enrich_host_results
 from src.models import HostResult, OpenPortResult
 from src.ssh_probe import SSHProbeResult, probe_ssh
 from src.utils import format_command, sanitize_cidr
@@ -154,7 +155,12 @@ def run_host_discovery(
         with open(output_path, "r", encoding="utf-8") as handle:
             content = handle.read()
 
-        return parse_nmap_host_discovery_xml(content, logger)
+        hosts = parse_nmap_host_discovery_xml(content, logger)
+
+        # Enrich hostnames via external APIs for hosts without reverse DNS
+        hosts = enrich_host_results(hosts, logger)
+
+        return hosts
 
     finally:
         try:

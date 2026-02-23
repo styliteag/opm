@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Hostname enrichment via external APIs during host discovery scan. When nmap reverse DNS finds no hostname, the scanner now queries additional free services:
+  1. **ip-api.com** — PTR / reverse DNS (batch, fast)
+  2. **HackerTarget** — DNS A-record reverse lookup (finds domains pointing to the IP)
+  3. **crt.sh** — certificate transparency logs (fallback)
 - Host Detail dashboard page (`/hosts/:hostId`) — a single overview page per host/IP showing all relevant information at a glance:
   - Host info card with IP, hostname, MAC address/vendor, pingable status, networks, editable comment, and rescan button
   - Active alerts section with severity badges and quick-acknowledge button, plus collapsible acknowledged alerts
