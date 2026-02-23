@@ -32,6 +32,7 @@ from src.ssh_probe import (
     _parse_kex,
     _parse_macs,
     _parse_ssh_audit_json,
+    _probe_auth_methods_nmap,
     probe_ssh,
 )
 
@@ -781,6 +782,147 @@ class TestAlgorithmInfo:
 # =============================================================================
 
 
+class TestProbeAuthMethodsNmap:
+    """Tests for _probe_auth_methods_nmap function."""
+
+    NMAP_XML_PASSWORD_PUBKEY = """<?xml version="1.0"?>
+<nmaprun>
+<host><ports><port protocol="tcp" portid="22">
+<state state="open"/>
+<script id="ssh-auth-methods" output="Supported authentication methods: publickey password">
+<table key="Supported authentication methods">
+<elem>publickey</elem>
+<elem>password</elem>
+</table>
+</script>
+</port></ports></host>
+</nmaprun>"""
+
+    NMAP_XML_ALL_METHODS = """<?xml version="1.0"?>
+<nmaprun>
+<host><ports><port protocol="tcp" portid="22">
+<state state="open"/>
+<script id="ssh-auth-methods">
+<table key="Supported authentication methods">
+<elem>publickey</elem>
+<elem>password</elem>
+<elem>keyboard-interactive</elem>
+</table>
+</script>
+</port></ports></host>
+</nmaprun>"""
+
+    NMAP_XML_PUBKEY_ONLY = """<?xml version="1.0"?>
+<nmaprun>
+<host><ports><port protocol="tcp" portid="22">
+<state state="open"/>
+<script id="ssh-auth-methods">
+<table key="Supported authentication methods">
+<elem>publickey</elem>
+</table>
+</script>
+</port></ports></host>
+</nmaprun>"""
+
+    NMAP_XML_NO_SCRIPT = """<?xml version="1.0"?>
+<nmaprun>
+<host><ports><port protocol="tcp" portid="22">
+<state state="open"/>
+</port></ports></host>
+</nmaprun>"""
+
+    def test_password_and_publickey(self) -> None:
+        """Test detection of password and publickey auth."""
+        mock_result = MagicMock()
+        mock_result.stdout = self.NMAP_XML_PASSWORD_PUBKEY
+
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result):
+            pubkey, password, kbd = _probe_auth_methods_nmap("192.168.1.1", 22)
+
+        assert pubkey is True
+        assert password is True
+        assert kbd is False
+
+    def test_all_methods(self) -> None:
+        """Test detection of all auth methods."""
+        mock_result = MagicMock()
+        mock_result.stdout = self.NMAP_XML_ALL_METHODS
+
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result):
+            pubkey, password, kbd = _probe_auth_methods_nmap("192.168.1.1", 22)
+
+        assert pubkey is True
+        assert password is True
+        assert kbd is True
+
+    def test_publickey_only(self) -> None:
+        """Test detection of publickey-only auth."""
+        mock_result = MagicMock()
+        mock_result.stdout = self.NMAP_XML_PUBKEY_ONLY
+
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result):
+            pubkey, password, kbd = _probe_auth_methods_nmap("192.168.1.1", 22)
+
+        assert pubkey is True
+        assert password is False
+        assert kbd is False
+
+    def test_no_script_output(self) -> None:
+        """Test graceful handling when NSE script is absent."""
+        mock_result = MagicMock()
+        mock_result.stdout = self.NMAP_XML_NO_SCRIPT
+
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result):
+            pubkey, password, kbd = _probe_auth_methods_nmap("192.168.1.1", 22)
+
+        assert pubkey is False
+        assert password is False
+        assert kbd is False
+
+    def test_timeout(self) -> None:
+        """Test timeout returns all False."""
+        import subprocess
+
+        with patch(
+            "src.ssh_probe.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="nmap", timeout=10),
+        ):
+            pubkey, password, kbd = _probe_auth_methods_nmap("192.168.1.1", 22)
+
+        assert pubkey is False
+        assert password is False
+        assert kbd is False
+
+    def test_nmap_not_found(self) -> None:
+        """Test nmap not installed returns all False."""
+        with patch(
+            "src.ssh_probe.subprocess.run",
+            side_effect=FileNotFoundError("nmap"),
+        ):
+            pubkey, password, kbd = _probe_auth_methods_nmap("192.168.1.1", 22)
+
+        assert pubkey is False
+        assert password is False
+        assert kbd is False
+
+    def test_empty_output(self) -> None:
+        """Test empty nmap output returns all False."""
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result):
+            pubkey, password, kbd = _probe_auth_methods_nmap("192.168.1.1", 22)
+
+        assert pubkey is False
+        assert password is False
+        assert kbd is False
+
+
+_NMAP_AUTH_MOCK = patch(
+    "src.ssh_probe._probe_auth_methods_nmap", return_value=(False, False, False)
+)
+
+
 class TestProbeSSH:
     """Tests for probe_ssh function with subprocess mocking."""
 
@@ -793,7 +935,7 @@ class TestProbeSSH:
         mock_result.stderr = ""
         mock_result.returncode = 0
 
-        with patch("src.ssh_probe.subprocess.run", return_value=mock_result):
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result), _NMAP_AUTH_MOCK:
             result = probe_ssh("192.168.1.1", 22)
 
         assert result.success is True
@@ -805,9 +947,12 @@ class TestProbeSSH:
         """Test SSH probe timeout handling."""
         import subprocess
 
-        with patch(
-            "src.ssh_probe.subprocess.run",
-            side_effect=subprocess.TimeoutExpired(cmd="ssh-audit", timeout=10),
+        with (
+            patch(
+                "src.ssh_probe.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(cmd="ssh-audit", timeout=10),
+            ),
+            _NMAP_AUTH_MOCK,
         ):
             result = probe_ssh("192.168.1.1", 22, timeout=10)
 
@@ -823,7 +968,7 @@ class TestProbeSSH:
         mock_result.stderr = "Connection refused"
         mock_result.returncode = 1
 
-        with patch("src.ssh_probe.subprocess.run", return_value=mock_result):
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result), _NMAP_AUTH_MOCK:
             result = probe_ssh("192.168.1.1", 22)
 
         assert result.success is False
@@ -831,9 +976,12 @@ class TestProbeSSH:
 
     def test_probe_ssh_command_not_found(self) -> None:
         """Test handling when ssh-audit is not installed."""
-        with patch(
-            "src.ssh_probe.subprocess.run",
-            side_effect=FileNotFoundError("ssh-audit"),
+        with (
+            patch(
+                "src.ssh_probe.subprocess.run",
+                side_effect=FileNotFoundError("ssh-audit"),
+            ),
+            _NMAP_AUTH_MOCK,
         ):
             result = probe_ssh("192.168.1.1", 22)
 
@@ -847,7 +995,7 @@ class TestProbeSSH:
         mock_result.stderr = ""
         mock_result.returncode = 0
 
-        with patch("src.ssh_probe.subprocess.run", return_value=mock_result):
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result), _NMAP_AUTH_MOCK:
             result = probe_ssh("192.168.1.1", 22)
 
         assert result.success is False
@@ -860,7 +1008,7 @@ class TestProbeSSH:
         mock_result.stderr = "Connection timed out"
         mock_result.returncode = 1
 
-        with patch("src.ssh_probe.subprocess.run", return_value=mock_result):
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result), _NMAP_AUTH_MOCK:
             result = probe_ssh("192.168.1.1", 22)
 
         assert result.success is False
@@ -868,9 +1016,12 @@ class TestProbeSSH:
 
     def test_probe_ssh_os_error(self) -> None:
         """Test handling OS errors during probe."""
-        with patch(
-            "src.ssh_probe.subprocess.run",
-            side_effect=OSError("Permission denied"),
+        with (
+            patch(
+                "src.ssh_probe.subprocess.run",
+                side_effect=OSError("Permission denied"),
+            ),
+            _NMAP_AUTH_MOCK,
         ):
             result = probe_ssh("192.168.1.1", 22)
 
@@ -886,7 +1037,7 @@ class TestProbeSSH:
         mock_result.stderr = ""
         mock_result.returncode = 0
 
-        with patch("src.ssh_probe.subprocess.run", return_value=mock_result) as mock_run:
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result) as mock_run, _NMAP_AUTH_MOCK:
             result = probe_ssh("192.168.1.1", 2222)
 
         assert result.success is True
@@ -904,9 +1055,42 @@ class TestProbeSSH:
         mock_result.stderr = ""
         mock_result.returncode = 0
 
-        with patch("src.ssh_probe.subprocess.run", return_value=mock_result) as mock_run:
+        with patch("src.ssh_probe.subprocess.run", return_value=mock_result) as mock_run, _NMAP_AUTH_MOCK:
             probe_ssh("192.168.1.1", 22, timeout=30)
 
         # Verify timeout was passed (subprocess timeout should be timeout + 5)
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["timeout"] == 35
+
+    def test_probe_ssh_nmap_supplements_auth(self) -> None:
+        """Test that nmap auth methods supplement ssh-audit results."""
+        import json
+
+        # ssh-audit returns no auth methods (realistic scenario)
+        ssh_audit_data = {
+            "banner": "SSH-2.0-OpenSSH_8.9p1",
+            "kex": [{"algorithm": "curve25519-sha256"}],
+            "enc": [{"algorithm": "aes256-gcm@openssh.com"}],
+            "mac": [{"algorithm": "hmac-sha2-256"}],
+            "key": [{"algorithm": "ssh-ed25519"}],
+        }
+
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps(ssh_audit_data)
+        mock_result.stderr = ""
+        mock_result.returncode = 0
+
+        # nmap detects password and publickey
+        with (
+            patch("src.ssh_probe.subprocess.run", return_value=mock_result),
+            patch(
+                "src.ssh_probe._probe_auth_methods_nmap",
+                return_value=(True, True, False),
+            ),
+        ):
+            result = probe_ssh("192.168.1.1", 22)
+
+        assert result.success is True
+        assert result.publickey_enabled is True
+        assert result.password_enabled is True
+        assert result.keyboard_interactive_enabled is False

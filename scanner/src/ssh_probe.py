@@ -11,6 +11,7 @@ import ipaddress
 import json
 import logging
 import subprocess
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -454,6 +455,91 @@ def _parse_ssh_audit_json(data: dict[str, Any], host: str, port: int) -> SSHProb
     )
 
 
+def _probe_auth_methods_nmap(
+    host: str,
+    port: int,
+    timeout: int = DEFAULT_SSH_PROBE_TIMEOUT,
+) -> tuple[bool, bool, bool]:
+    """Probe SSH authentication methods using nmap's ssh-auth-methods NSE script.
+
+    This supplements ssh-audit which does not report auth methods.
+
+    Returns:
+        Tuple of (publickey_enabled, password_enabled, keyboard_interactive_enabled)
+    """
+    try:
+        ip = ipaddress.ip_address(host)
+        nmap_target = f"[{host}]" if ip.version == 6 else host
+        ipv6_flag = ["-6"] if ip.version == 6 else []
+    except ValueError:
+        nmap_target = host
+        ipv6_flag = []
+
+    command = [
+        "nmap",
+        *ipv6_flag,
+        "-p",
+        str(port),
+        "-Pn",
+        "-sV",
+        "--script",
+        "ssh-auth-methods",
+        "--script-args",
+        "ssh.user=root",
+        "-oX",
+        "-",
+        nmap_target,
+    ]
+
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout + 10,
+        )
+
+        if not result.stdout.strip():
+            logger.warning("nmap ssh-auth-methods returned no output for %s:%d", host, port)
+            return (False, False, False)
+
+        root = ET.fromstring(result.stdout)
+
+        for script in root.iter("script"):
+            if script.get("id") != "ssh-auth-methods":
+                continue
+            methods: list[str] = []
+            for table in script.iter("table"):
+                if table.get("key") == "Supported authentication methods":
+                    methods = [elem.text.lower() for elem in table.iter("elem") if elem.text]
+                    break
+            if not methods:
+                # Fallback: parse all <elem> children
+                methods = [elem.text.lower() for elem in script.iter("elem") if elem.text]
+
+            if methods:
+                publickey = any("publickey" in m for m in methods)
+                password = any("password" in m for m in methods)
+                keyboard_interactive = any("keyboard-interactive" in m for m in methods)
+                logger.info(
+                    "nmap ssh-auth-methods for %s:%d: %s",
+                    host,
+                    port,
+                    ", ".join(methods),
+                )
+                return (publickey, password, keyboard_interactive)
+
+        logger.debug("nmap ssh-auth-methods script not found in output for %s:%d", host, port)
+        return (False, False, False)
+
+    except subprocess.TimeoutExpired:
+        logger.warning("nmap ssh-auth-methods timed out for %s:%d", host, port)
+        return (False, False, False)
+    except (FileNotFoundError, OSError, ET.ParseError) as e:
+        logger.warning("nmap ssh-auth-methods failed for %s:%d: %s", host, port, e)
+        return (False, False, False)
+
+
 def probe_ssh(
     host: str,
     port: int = 22,
@@ -529,11 +615,11 @@ def probe_ssh(
                 error_message=f"Invalid JSON output: {e}",
             )
 
-        return _parse_ssh_audit_json(data, host, port)
+        probe_result = _parse_ssh_audit_json(data, host, port)
 
     except subprocess.TimeoutExpired:
         logger.warning("SSH probe timed out for %s after %d seconds", target, timeout)
-        return SSHProbeResult(
+        probe_result = SSHProbeResult(
             host=host,
             port=port,
             success=False,
@@ -542,7 +628,7 @@ def probe_ssh(
 
     except FileNotFoundError:
         logger.error("ssh-audit command not found; ensure it is installed")
-        return SSHProbeResult(
+        probe_result = SSHProbeResult(
             host=host,
             port=port,
             success=False,
@@ -551,9 +637,33 @@ def probe_ssh(
 
     except OSError as e:
         logger.error("Failed to execute ssh-audit for %s: %s", target, e)
-        return SSHProbeResult(
+        probe_result = SSHProbeResult(
             host=host,
             port=port,
             success=False,
             error_message=f"Execution error: {e}",
         )
+
+    # Supplement auth methods via nmap ssh-auth-methods NSE script,
+    # since ssh-audit does not report authentication methods.
+    nmap_pubkey, nmap_password, nmap_kbd = _probe_auth_methods_nmap(host, port, timeout)
+
+    if nmap_pubkey or nmap_password or nmap_kbd:
+        probe_result = SSHProbeResult(
+            host=probe_result.host,
+            port=probe_result.port,
+            success=probe_result.success or True,
+            error_message=probe_result.error_message,
+            publickey_enabled=probe_result.publickey_enabled or nmap_pubkey,
+            password_enabled=probe_result.password_enabled or nmap_password,
+            keyboard_interactive_enabled=probe_result.keyboard_interactive_enabled or nmap_kbd,
+            ssh_version=probe_result.ssh_version,
+            protocol_version=probe_result.protocol_version,
+            server_banner=probe_result.server_banner,
+            ciphers=probe_result.ciphers,
+            kex_algorithms=probe_result.kex_algorithms,
+            mac_algorithms=probe_result.mac_algorithms,
+            host_key_types=probe_result.host_key_types,
+        )
+
+    return probe_result
