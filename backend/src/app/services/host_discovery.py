@@ -6,6 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.global_open_port import GlobalOpenPort
+from app.models.host import Host
 from app.models.host_discovery_scan import (
     HostDiscoveryScan,
     HostDiscoveryScanStatus,
@@ -154,3 +156,52 @@ async def fail_host_discovery_scan(
     await db.flush()
     await db.refresh(scan)
     return scan
+
+
+async def get_known_hostnames(
+    db: AsyncSession,
+    network_id: int,
+) -> dict[str, str]:
+    """Get a map of IP -> hostname for hosts with known hostnames in a network.
+
+    Args:
+        db: Database session.
+        network_id: Network ID to filter hosts by.
+
+    Returns:
+        Dict mapping IP addresses to their known hostnames.
+    """
+    from sqlalchemy import func
+
+    result = await db.execute(
+        select(Host.ip, Host.hostname).where(
+            Host.hostname.isnot(None),
+            func.json_contains(Host.seen_by_networks, str(network_id)),
+        )
+    )
+    return {row.ip: row.hostname for row in result.all()}
+
+
+async def get_ips_with_open_ports(
+    db: AsyncSession,
+    network_id: int,
+) -> list[str]:
+    """Get distinct IPs that have open ports and belong to a network.
+
+    Joins GlobalOpenPort with Host (via host_id) and filters by network membership.
+
+    Args:
+        db: Database session.
+        network_id: Network ID to filter hosts by.
+
+    Returns:
+        List of IP addresses that have at least one open port.
+    """
+    from sqlalchemy import distinct, func
+
+    result = await db.execute(
+        select(distinct(GlobalOpenPort.ip))
+        .join(Host, GlobalOpenPort.host_id == Host.id)
+        .where(func.json_contains(Host.seen_by_networks, str(network_id)))
+    )
+    return [row[0] for row in result.all()]

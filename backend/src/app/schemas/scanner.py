@@ -268,6 +268,8 @@ class HostDiscoveryJobClaimResponse(BaseModel):
     network_id: int
     cidr: str
     is_ipv6: bool
+    known_hostnames: dict[str, str] = {}
+    ips_with_open_ports: list[str] = []
     message: str = "Host discovery job claimed successfully"
 
 

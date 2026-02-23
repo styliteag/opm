@@ -297,6 +297,8 @@ class ScannerClient:
             network_id=int(payload["network_id"]),
             cidr=str(payload["cidr"]),
             is_ipv6=bool(payload.get("is_ipv6", False)),
+            known_hostnames=payload.get("known_hostnames") or {},
+            ips_with_open_ports=payload.get("ips_with_open_ports") or [],
         )
 
     def submit_host_discovery_results(

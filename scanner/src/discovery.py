@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from src.hostname_enrichment import enrich_host_results
@@ -88,6 +89,8 @@ def run_host_discovery(
     is_ipv6: bool,
     logger: logging.Logger,
     timeout: int = 300,
+    known_hostnames: dict[str, str] | None = None,
+    ips_with_open_ports: list[str] | None = None,
 ) -> list[HostResult]:
     """
     Run host discovery using nmap ping scan with reverse DNS.
@@ -157,8 +160,26 @@ def run_host_discovery(
 
         hosts = parse_nmap_host_discovery_xml(content, logger)
 
+        # Apply known hostnames from backend before API enrichment
+        if known_hostnames:
+            applied = 0
+            updated: list[HostResult] = []
+            for host in hosts:
+                if not host.hostname and host.ip in known_hostnames:
+                    updated.append(replace(host, hostname=known_hostnames[host.ip]))
+                    applied += 1
+                else:
+                    updated.append(host)
+            hosts = updated
+            if applied:
+                logger.info(
+                    "Skipping enrichment for %d IPs with known hostnames", applied
+                )
+
         # Enrich hostnames via external APIs for hosts without reverse DNS
-        hosts = enrich_host_results(hosts, logger)
+        hosts = enrich_host_results(
+            hosts, logger, ips_with_open_ports=ips_with_open_ports
+        )
 
         return hosts
 

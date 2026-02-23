@@ -214,9 +214,20 @@ def _is_ip_address(value: str) -> bool:
     return ":" in value and all(c in "0123456789abcdefABCDEF:" for c in value)
 
 
+def _is_private_ip(ip: str) -> bool:
+    """Check if an IP address is private (RFC1918, ULA, link-local, loopback, etc.)."""
+    import ipaddress
+
+    try:
+        return ipaddress.ip_address(ip).is_private
+    except ValueError:
+        return False
+
+
 def enrich_host_results(
     hosts: list[HostResult],
     logger: logging.Logger,
+    ips_with_open_ports: list[str] | None = None,
 ) -> list[HostResult]:
     """Enrich host results with hostnames from external APIs.
 
@@ -237,25 +248,50 @@ def enrich_host_results(
         logger.info("All %d hosts already have hostnames, skipping enrichment", len(hosts))
         return hosts
 
+    # Filter out RFC1918 private addresses (external APIs have no useful data for these)
+    open_ports_set = set(ips_with_open_ports) if ips_with_open_ports is not None else None
+    enrichable: list[str] = []
+    skipped_private = 0
+    skipped_no_ports = 0
+    for ip in ips_without_hostname:
+        if _is_private_ip(ip):
+            skipped_private += 1
+            continue
+        if open_ports_set is not None and ip not in open_ports_set:
+            skipped_no_ports += 1
+            continue
+        enrichable.append(ip)
+
+    if skipped_private:
+        logger.info("Skipping %d private IPs from enrichment", skipped_private)
+    if skipped_no_ports:
+        logger.info("Skipping %d IPs without open ports from enrichment", skipped_no_ports)
+
+    if not enrichable:
+        logger.info("No IPs eligible for hostname enrichment after filtering")
+        return hosts
+
     logger.info(
         "Enriching hostnames for %d/%d hosts without reverse DNS",
-        len(ips_without_hostname),
+        len(enrichable),
         len(hosts),
     )
 
     # Step 1: Try ip-api.com (batch, fast — PTR records)
-    hostname_map = enrich_hostnames_ip_api(ips_without_hostname, logger)
+    hostname_map = enrich_hostnames_ip_api(enrichable, logger)
 
-    # Step 2: Try HackerTarget (DNS A-record reverse lookup)
-    remaining_ips = [ip for ip in ips_without_hostname if ip not in hostname_map]
-    if remaining_ips:
-        ht_results = enrich_hostnames_hackertarget(remaining_ips, logger)
+    # Step 2 & 3: HackerTarget and crt.sh only work with IPv4
+    remaining_ipv4 = [ip for ip in enrichable if ip not in hostname_map and ":" not in ip]
+
+    # Step 2: Try HackerTarget (DNS A-record reverse lookup, IPv4 only)
+    if remaining_ipv4:
+        ht_results = enrich_hostnames_hackertarget(remaining_ipv4, logger)
         hostname_map.update(ht_results)
 
-    # Step 3: For remaining IPs, try crt.sh (certificate transparency, fallback)
-    remaining_ips = [ip for ip in ips_without_hostname if ip not in hostname_map]
-    if remaining_ips:
-        crt_results = enrich_hostnames_crt_sh(remaining_ips, logger)
+    # Step 3: For remaining IPv4 IPs, try crt.sh (certificate transparency, fallback)
+    remaining_ipv4 = [ip for ip in remaining_ipv4 if ip not in hostname_map]
+    if remaining_ipv4:
+        crt_results = enrich_hostnames_crt_sh(remaining_ipv4, logger)
         hostname_map.update(crt_results)
 
     if not hostname_map:
@@ -265,7 +301,7 @@ def enrich_host_results(
     logger.info(
         "Hostname enrichment complete: resolved %d/%d additional hostnames",
         len(hostname_map),
-        len(ips_without_hostname),
+        len(enrichable),
     )
 
     # Build updated host list

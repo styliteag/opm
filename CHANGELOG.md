@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Hostname enrichment caching: backend sends known hostnames with the host discovery claim response, so the scanner skips external API calls for already-resolved IPs
+- Hostname enrichment filtering: skip private IPs (RFC1918, ULA, link-local) and IPs without open ports from external API lookups
+- Skip HackerTarget and crt.sh for IPv6 addresses (only ip-api.com supports IPv6 PTR lookups)
 - Hostname enrichment via external APIs during host discovery scan. When nmap reverse DNS finds no hostname, the scanner now queries additional free services:
   1. **ip-api.com** — PTR / reverse DNS (batch, fast)
   2. **HackerTarget** — DNS A-record reverse lookup (finds domains pointing to the IP)

@@ -369,12 +369,17 @@ async def claim_host_discovery_job(
             detail="Host discovery job not found or not assigned to this scanner",
         )
 
+    known_hostnames = await host_discovery_service.get_known_hostnames(db, scan.network_id)
+    ips_with_open_ports = await host_discovery_service.get_ips_with_open_ports(db, scan.network_id)
+
     await db.commit()
     return HostDiscoveryJobClaimResponse(
         scan_id=scan.id,
         network_id=scan.network_id,
         cidr=scan.network.cidr,
         is_ipv6=scan.network.is_ipv6,
+        known_hostnames=known_hostnames,
+        ips_with_open_ports=ips_with_open_ports,
     )
 
 

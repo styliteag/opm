@@ -93,6 +93,8 @@ class HostDiscoveryJob:
     network_id: int
     cidr: str
     is_ipv6: bool = False
+    known_hostnames: dict[str, str] | None = None
+    ips_with_open_ports: list[str] | None = None
 
 
 @dataclass(frozen=True)
