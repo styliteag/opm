@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.18] - 2026-02-24
+
 ### Fixed
 - Host hostname no longer overwritten by subsequent scans — once a hostname is set (manually or via enrichment), it is preserved
 
