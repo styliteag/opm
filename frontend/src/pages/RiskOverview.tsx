@@ -955,13 +955,25 @@ const RiskOverview = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        <p className="font-mono text-slate-600 dark:text-slate-300">
-                                                            {alert.ip}
-                                                        </p>
-                                                        {alert.hostname && (
-                                                            <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">
-                                                                {alert.hostname}
+                                                        {alert.host_id ? (
+                                                            <Link to={`/hosts/${alert.host_id}`} className="font-mono text-indigo-600 dark:text-indigo-400 hover:underline">
+                                                                {alert.ip}
+                                                            </Link>
+                                                        ) : (
+                                                            <p className="font-mono text-slate-600 dark:text-slate-300">
+                                                                {alert.ip}
                                                             </p>
+                                                        )}
+                                                        {alert.hostname && (
+                                                            alert.host_id ? (
+                                                                <Link to={`/hosts/${alert.host_id}`} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-0.5 block">
+                                                                    {alert.hostname}
+                                                                </Link>
+                                                            ) : (
+                                                                <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">
+                                                                    {alert.hostname}
+                                                                </p>
+                                                            )
                                                         )}
                                                     </td>
                                                     <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
