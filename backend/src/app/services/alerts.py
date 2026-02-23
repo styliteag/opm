@@ -53,6 +53,7 @@ async def get_alerts(
     alert_type: AlertType | None = None,
     network_id: int | None = None,
     acknowledged: bool | None = None,
+    ip: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
     offset: int = 0,
@@ -68,6 +69,8 @@ async def get_alerts(
         filters.append(Alert.network_id == network_id)
     if acknowledged is not None:
         filters.append(Alert.acknowledged.is_(acknowledged))
+    if ip is not None:
+        filters.append(Alert.ip == ip)
     if start_date is not None:
         filters.append(Alert.created_at >= start_date)
     if end_date is not None:

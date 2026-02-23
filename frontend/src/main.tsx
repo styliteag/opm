@@ -21,6 +21,7 @@ import RiskOverview from './pages/RiskOverview.tsx'
 import Hosts from './pages/Hosts.tsx'
 import Trends from './pages/Trends.tsx'
 import SSHSecurity from './pages/SSHSecurity.tsx'
+import HostDetail from './pages/HostDetail'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -64,6 +65,10 @@ const router = createBrowserRouter([
       {
         path: 'hosts',
         element: <Hosts />,
+      },
+      {
+        path: 'hosts/:hostId',
+        element: <HostDetail />,
       },
       {
         path: 'alerts',

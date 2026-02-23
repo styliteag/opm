@@ -440,7 +440,13 @@ const Alerts = () => {
                           )}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
-                          {alert.ip}
+                          {alert.host_id ? (
+                            <Link to={`/hosts/${alert.host_id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                              {alert.ip}
+                            </Link>
+                          ) : (
+                            alert.ip
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
                           {alert.port}

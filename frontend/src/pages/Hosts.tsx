@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
 import type {
@@ -585,9 +585,12 @@ const Hosts = () => {
                         </td>
                       )}
                       <td className="px-6 py-2 font-mono text-sm">
-                        <span className="text-slate-900 dark:text-slate-100 font-bold tracking-tight">
+                        <Link
+                          to={`/hosts/${host.id}`}
+                          className="text-blue-600 dark:text-blue-400 hover:underline font-bold tracking-tight"
+                        >
                           {formatIpAddress(host.ip)}
-                        </span>
+                        </Link>
                       </td>
                       <td className="px-6 py-2 text-slate-600 dark:text-slate-400 text-sm">
                         {host.hostname || '-'}

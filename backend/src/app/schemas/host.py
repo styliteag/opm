@@ -98,3 +98,62 @@ class BulkDeleteHostsResponse(BaseModel):
 
     deleted_ids: list[int]
     deleted_count: int
+
+
+class HostNetworkInfo(BaseModel):
+    """Network info for host overview."""
+
+    id: int
+    name: str
+    cidr: str
+
+
+class HostAlertSummary(BaseModel):
+    """Alert summary for host overview."""
+
+    id: int
+    type: str
+    port: int
+    message: str
+    severity: str
+    acknowledged: bool
+    resolution_status: str
+    created_at: datetime
+
+
+class HostSSHSummary(BaseModel):
+    """SSH security summary for host overview."""
+
+    port: int
+    ssh_version: str | None
+    publickey_enabled: bool
+    password_enabled: bool
+    keyboard_interactive_enabled: bool
+    has_weak_ciphers: bool
+    has_weak_kex: bool
+    last_scanned: datetime
+
+
+class HostScanEntry(BaseModel):
+    """Recent scan entry for host overview."""
+
+    id: int
+    network_id: int
+    network_name: str | None
+    status: str
+    started_at: datetime | None
+    completed_at: datetime | None
+    trigger_type: str
+    port_count: int
+
+
+class HostOverviewResponse(BaseModel):
+    """Aggregated host overview dashboard data."""
+
+    host: HostResponse
+    ports: list[HostOpenPortResponse]
+    networks: list[HostNetworkInfo]
+    alerts: list[HostAlertSummary]
+    acknowledged_alert_count: int
+    ssh: HostSSHSummary | None
+    recent_scans: list[HostScanEntry]

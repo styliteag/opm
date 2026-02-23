@@ -508,3 +508,53 @@ export type SSHHostHistoryResponse = {
   history: SSHHostHistoryEntry[]
   total: number
 }
+
+// Host Overview types
+export type HostNetworkInfo = {
+  id: number
+  name: string
+  cidr: string
+}
+
+export type HostAlertSummary = {
+  id: number
+  type: string
+  port: number
+  message: string
+  severity: string
+  acknowledged: boolean
+  resolution_status: string
+  created_at: string
+}
+
+export type HostSSHSummary = {
+  port: number
+  ssh_version: string | null
+  publickey_enabled: boolean
+  password_enabled: boolean
+  keyboard_interactive_enabled: boolean
+  has_weak_ciphers: boolean
+  has_weak_kex: boolean
+  last_scanned: string
+}
+
+export type HostScanEntry = {
+  id: number
+  network_id: number
+  network_name: string | null
+  status: string
+  started_at: string | null
+  completed_at: string | null
+  trigger_type: string
+  port_count: number
+}
+
+export type HostOverviewResponse = {
+  host: Host
+  ports: HostOpenPort[]
+  networks: HostNetworkInfo[]
+  alerts: HostAlertSummary[]
+  acknowledged_alert_count: number
+  ssh: HostSSHSummary | null
+  recent_scans: HostScanEntry[]
+}

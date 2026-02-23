@@ -17,10 +17,15 @@ from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.schemas.host import (
     BulkDeleteHostsRequest,
     BulkDeleteHostsResponse,
+    HostAlertSummary,
     HostListResponse,
+    HostNetworkInfo,
     HostOpenPortListResponse,
     HostOpenPortResponse,
+    HostOverviewResponse,
     HostResponse,
+    HostScanEntry,
+    HostSSHSummary,
     HostUpdateRequest,
 )
 from app.schemas.scan import ScanTriggerResponse
@@ -162,6 +167,138 @@ async def get_host_ports(
     ports = await hosts_service.get_host_open_ports(db, host_id)
     return HostOpenPortListResponse(
         ports=[HostOpenPortResponse.model_validate(port) for port in ports]
+    )
+
+
+@router.get("/{host_id}/overview", response_model=HostOverviewResponse)
+async def get_host_overview(
+    user: CurrentUser,
+    db: DbSession,
+    host_id: int,
+) -> HostOverviewResponse:
+    """Get aggregated overview dashboard data for a specific host."""
+    from app.models.alert import AlertType
+    from app.services import alerts as alerts_service
+    from app.services import networks as networks_service
+    from app.services import scans as scans_service
+    from app.services import ssh_results as ssh_service
+    from app.services.global_port_rules import is_port_blocked
+
+    host = await hosts_service.get_host_by_id(db, host_id)
+    if host is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Host not found",
+        )
+
+    # Host info
+    port_count = await hosts_service.get_open_port_count_for_host(db, host.id)
+    host_response = HostResponse.model_validate(host)
+    host_response.open_port_count = port_count
+
+    # Open ports
+    ports = await hosts_service.get_host_open_ports(db, host_id)
+    port_responses = [HostOpenPortResponse.model_validate(p) for p in ports]
+
+    # Networks
+    network_infos = []
+    for nid in (host.seen_by_networks or []):
+        net = await networks_service.get_network_by_id(db, nid)
+        if net:
+            network_infos.append(HostNetworkInfo(id=net.id, name=net.name, cidr=net.cidr))
+
+    # Alerts (unacknowledged)
+    active_alerts_raw = await alerts_service.get_alerts(
+        db, ip=host.ip, acknowledged=False, limit=100,
+    )
+    alert_summaries = []
+    for alert, _network_name in active_alerts_raw:
+        severity = "medium"
+        if alert.acknowledged:
+            severity = "info"
+        elif await is_port_blocked(db, alert.ip, alert.port):
+            severity = "critical"
+        elif alert.alert_type in (AlertType.NEW_PORT,):
+            severity = "high"
+        elif alert.alert_type in (
+            AlertType.SSH_INSECURE_AUTH, AlertType.SSH_WEAK_CIPHER,
+            AlertType.SSH_WEAK_KEX, AlertType.SSH_OUTDATED_VERSION,
+            AlertType.SSH_CONFIG_REGRESSION,
+        ):
+            severity = "high"
+        alert_summaries.append(HostAlertSummary(
+            id=alert.id,
+            type=alert.alert_type.value,
+            port=alert.port,
+            message=alert.message,
+            severity=severity,
+            acknowledged=alert.acknowledged,
+            resolution_status=alert.resolution_status.value,
+            created_at=alert.created_at,
+        ))
+
+    # Acknowledged alert count
+    acked_alerts = await alerts_service.get_alerts(
+        db, ip=host.ip, acknowledged=True, limit=1,
+    )
+    # We need the count, but the service returns a list. Let's get a rough count.
+    acked_all = await alerts_service.get_alerts(
+        db, ip=host.ip, acknowledged=True, limit=10000,
+    )
+    acknowledged_count = len(acked_all)
+
+    # SSH summary (latest)
+    ssh_summary = None
+    try:
+        ssh_hosts_data, ssh_total = await ssh_service.get_ssh_hosts(
+            db, offset=0, limit=200,
+        )
+        for ssh_host in ssh_hosts_data:
+            if ssh_host["host_ip"] == host.ip:
+                ssh_summary = HostSSHSummary(
+                    port=ssh_host["port"],
+                    ssh_version=ssh_host.get("ssh_version"),
+                    publickey_enabled=ssh_host["publickey_enabled"],
+                    password_enabled=ssh_host["password_enabled"],
+                    keyboard_interactive_enabled=ssh_host["keyboard_interactive_enabled"],
+                    has_weak_ciphers=ssh_host["has_weak_ciphers"],
+                    has_weak_kex=ssh_host["has_weak_kex"],
+                    last_scanned=ssh_host["last_scanned"],
+                )
+                break
+    except Exception:
+        pass
+
+    # Recent scans (from networks this host belongs to)
+    scan_entries = []
+    for nid in (host.seen_by_networks or []):
+        net = await networks_service.get_network_by_id(db, nid)
+        if not net:
+            continue
+        scans = await scans_service.get_scans_by_network_id(db, nid, offset=0, limit=5)
+        for scan, scan_port_count in scans:
+            scan_entries.append(HostScanEntry(
+                id=scan.id,
+                network_id=nid,
+                network_name=net.name,
+                status=scan.status.value if hasattr(scan.status, 'value') else str(scan.status),
+                started_at=scan.started_at,
+                completed_at=scan.completed_at,
+                trigger_type=scan.trigger_type.value if hasattr(scan.trigger_type, 'value') else str(scan.trigger_type),
+                port_count=scan_port_count,
+            ))
+    # Sort by most recent first and limit to 10
+    scan_entries.sort(key=lambda s: s.started_at or datetime.min, reverse=True)
+    scan_entries = scan_entries[:10]
+
+    return HostOverviewResponse(
+        host=host_response,
+        ports=port_responses,
+        networks=network_infos,
+        alerts=alert_summaries,
+        acknowledged_alert_count=acknowledged_count,
+        ssh=ssh_summary,
+        recent_scans=scan_entries,
     )
 
 

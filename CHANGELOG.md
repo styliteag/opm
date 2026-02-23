@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Host Detail dashboard page (`/hosts/:hostId`) — a single overview page per host/IP showing all relevant information at a glance:
+  - Host info card with IP, hostname, MAC address/vendor, pingable status, networks, editable comment, and rescan button
+  - Active alerts section with severity badges and quick-acknowledge button, plus collapsible acknowledged alerts
+  - Open ports table with service names and banners
+  - SSH security summary showing auth methods, version, and weak cipher/KEX warnings
+  - Recent scan history with links to scan details
+- `GET /api/hosts/{host_id}/overview` backend endpoint that aggregates all host data in a single API call
+- `ip` query parameter on `GET /api/alerts` to filter alerts by host IP address
+- Clickable IP addresses in Hosts, Alerts, and Open Ports pages linking to the host detail dashboard
+
 ## [1.1.17] - 2026-02-04
 
 ### Fixed

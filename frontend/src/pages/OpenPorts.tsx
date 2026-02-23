@@ -756,9 +756,12 @@ const OpenPorts = () => {
                     <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group">
                       <td className="px-10 py-8 font-mono text-sm">
                         <div className="flex items-center gap-4">
-                          <span className="text-slate-900 dark:text-slate-100 font-black tracking-tight text-base">
+                          <Link
+                            to={`/hosts?ip=${encodeURIComponent(p.ip)}`}
+                            className="text-blue-600 dark:text-blue-400 hover:underline font-black tracking-tight text-base"
+                          >
                             {formatIpAddress(p.ip)}
-                          </span>
+                          </Link>
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(p.ip)
