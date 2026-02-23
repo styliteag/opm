@@ -57,8 +57,8 @@ async def upsert_host(
             networks.add(network_id)
             existing.seen_by_networks = sorted(networks)
 
-        # Update optional fields if provided
-        if hostname is not None:
+        # Update hostname only if the host doesn't have one yet
+        if hostname is not None and not existing.hostname:
             existing.hostname = hostname
         if is_pingable is not None:
             existing.is_pingable = is_pingable

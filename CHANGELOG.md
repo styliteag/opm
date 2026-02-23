@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Host hostname no longer overwritten by subsequent scans — once a hostname is set (manually or via enrichment), it is preserved
+
 ### Added
 - Hostname enrichment caching: backend sends known hostnames with the host discovery claim response, so the scanner skips external API calls for already-resolved IPs
 - Hostname enrichment filtering: skip private IPs (RFC1918, ULA, link-local) and IPs without open ports from external API lookups
