@@ -9,12 +9,15 @@ import httpx
 import pytest
 
 from src.hostname_enrichment import (
+    _extract_hostname_from_nmap_ssl_cert,
     _is_ip_address,
+    _parse_ssl_cert_xml,
     enrich_host_results,
     enrich_hostnames_crt_sh,
     enrich_hostnames_google_dns,
     enrich_hostnames_hackertarget,
     enrich_hostnames_ip_api,
+    enrich_hostnames_ssl_cert,
 )
 from src.models import HostResult
 
@@ -41,6 +44,112 @@ class TestIsIpAddress:
 
     def test_subdomain(self) -> None:
         assert _is_ip_address("mail.example.com") is False
+
+
+# =============================================================================
+# SSL certificate hostname extraction
+# =============================================================================
+
+
+class TestExtractHostnameFromNmapSslCert:
+    """Test _extract_hostname_from_nmap_ssl_cert with XML elements."""
+
+    def test_extracts_san_dns_name(self) -> None:
+        import xml.etree.ElementTree as ET
+
+        xml = """<script id="ssl-cert">
+            <table key="subject"><elem key="commonName">fallback.example.com</elem></table>
+            <table key="extensions">
+                <table>
+                    <elem key="name">X509v3 Subject Alternative Name</elem>
+                    <elem key="value">DNS:san.example.com, DNS:other.example.com</elem>
+                </table>
+            </table>
+        </script>"""
+        elem = ET.fromstring(xml)
+        assert _extract_hostname_from_nmap_ssl_cert(elem) == "san.example.com"
+
+    def test_falls_back_to_cn(self) -> None:
+        import xml.etree.ElementTree as ET
+
+        xml = """<script id="ssl-cert">
+            <table key="subject"><elem key="commonName">cn.example.com</elem></table>
+        </script>"""
+        elem = ET.fromstring(xml)
+        assert _extract_hostname_from_nmap_ssl_cert(elem) == "cn.example.com"
+
+    def test_skips_wildcard_san(self) -> None:
+        import xml.etree.ElementTree as ET
+
+        xml = """<script id="ssl-cert">
+            <table key="subject"><elem key="commonName">cn.example.com</elem></table>
+            <table key="extensions">
+                <table>
+                    <elem key="name">X509v3 Subject Alternative Name</elem>
+                    <elem key="value">DNS:*.example.com</elem>
+                </table>
+            </table>
+        </script>"""
+        elem = ET.fromstring(xml)
+        # Wildcard SAN skipped, should fall back to CN
+        assert _extract_hostname_from_nmap_ssl_cert(elem) == "cn.example.com"
+
+    def test_skips_wildcard_cn(self) -> None:
+        import xml.etree.ElementTree as ET
+
+        xml = """<script id="ssl-cert">
+            <table key="subject"><elem key="commonName">*.example.com</elem></table>
+        </script>"""
+        elem = ET.fromstring(xml)
+        assert _extract_hostname_from_nmap_ssl_cert(elem) is None
+
+    def test_no_cert_data(self) -> None:
+        import xml.etree.ElementTree as ET
+
+        xml = """<script id="ssl-cert"></script>"""
+        elem = ET.fromstring(xml)
+        assert _extract_hostname_from_nmap_ssl_cert(elem) is None
+
+
+class TestParseSslCertXml:
+    def test_parses_full_xml(self, logger: logging.Logger) -> None:
+        xml = """<?xml version="1.0"?>
+        <nmaprun>
+            <host>
+                <address addr="1.2.3.4" addrtype="ipv4"/>
+                <ports>
+                    <port protocol="tcp" portid="443">
+                        <state state="open"/>
+                        <script id="ssl-cert">
+                            <table key="subject">
+                                <elem key="commonName">server.example.com</elem>
+                            </table>
+                        </script>
+                    </port>
+                </ports>
+            </host>
+        </nmaprun>"""
+        result = _parse_ssl_cert_xml(xml, logger)
+        assert result == {"1.2.3.4": "server.example.com"}
+
+    def test_empty_xml(self, logger: logging.Logger) -> None:
+        xml = """<?xml version="1.0"?><nmaprun></nmaprun>"""
+        assert _parse_ssl_cert_xml(xml, logger) == {}
+
+    def test_invalid_xml(self, logger: logging.Logger) -> None:
+        assert _parse_ssl_cert_xml("not xml", logger) == {}
+
+
+class TestEnrichSslCert:
+    def test_empty_list(self, logger: logging.Logger) -> None:
+        result = enrich_hostnames_ssl_cert([], logger)
+        assert result == {}
+
+    @patch("src.hostname_enrichment.subprocess.Popen")
+    def test_nmap_failure(self, mock_popen: MagicMock, logger: logging.Logger) -> None:
+        mock_popen.side_effect = OSError("nmap not found")
+        result = enrich_hostnames_ssl_cert(["1.1.1.1"], logger)
+        assert result == {}
 
 
 # =============================================================================
@@ -380,20 +489,24 @@ class TestEnrichHostResults:
         assert result[0].hostname == "one.one.one.one"
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
-    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
-    def test_enriches_via_ip_api(
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_ssl_cert_resolves_first(
         self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
-        mock_google_dns: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
-        mock_ip_api.return_value = {"1.1.1.1": "one.one.one.one"}
-        mock_ht.return_value = {}
+        """SSL cert is queried first; later providers skip resolved IPs."""
+        mock_ssl.return_value = {"1.1.1.1": "one.one.one.one"}
         mock_google_dns.return_value = {}
+        mock_ip_api.return_value = {}
+        mock_ht.return_value = {}
         mock_crt_sh.return_value = {}
 
         hosts = [
@@ -404,23 +517,28 @@ class TestEnrichHostResults:
         result = enrich_host_results(hosts, logger)
         assert result[0].hostname == "one.one.one.one"
         assert result[1].hostname == "dns.google"
+        mock_ht.assert_not_called()
+        mock_crt_sh.assert_not_called()
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
-    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
-    def test_hackertarget_fallback(
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_google_dns_fallback(
         self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
-        mock_google_dns: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
-        """HackerTarget should be queried for IPs that ip-api.com didn't resolve."""
+        """Google DNS is queried for IPs not resolved by SSL cert."""
+        mock_ssl.return_value = {}
+        mock_google_dns.return_value = {"213.183.76.103": "web-prod.stylite.eu"}
         mock_ip_api.return_value = {}
-        mock_ht.return_value = {"213.183.76.103": "web-prod.stylite.eu"}
-        mock_google_dns.return_value = {}
+        mock_ht.return_value = {}
         mock_crt_sh.return_value = {}
 
         hosts = [
@@ -429,26 +547,28 @@ class TestEnrichHostResults:
 
         result = enrich_host_results(hosts, logger)
         assert result[0].hostname == "web-prod.stylite.eu"
-        # Google DNS and crt.sh should not be called since HackerTarget resolved it
-        mock_google_dns.assert_not_called()
+        mock_ht.assert_not_called()
         mock_crt_sh.assert_not_called()
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
-    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
-    def test_google_dns_fallback(
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_hackertarget_fallback(
         self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
-        mock_google_dns: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
-        """Google DNS should be queried for IPs not resolved by ip-api or HackerTarget."""
+        """HackerTarget is queried for IPs not resolved by earlier steps."""
+        mock_ssl.return_value = {}
+        mock_google_dns.return_value = {}
         mock_ip_api.return_value = {}
-        mock_ht.return_value = {}
-        mock_google_dns.return_value = {"213.183.76.103": "server.example.com"}
+        mock_ht.return_value = {"213.183.76.103": "web-prod.stylite.eu"}
         mock_crt_sh.return_value = {}
 
         hosts = [
@@ -456,25 +576,28 @@ class TestEnrichHostResults:
         ]
 
         result = enrich_host_results(hosts, logger)
-        assert result[0].hostname == "server.example.com"
+        assert result[0].hostname == "web-prod.stylite.eu"
         mock_crt_sh.assert_not_called()
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
-    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
-    def test_crt_sh_fallback(
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_crt_sh_last_resort(
         self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
-        mock_google_dns: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
-        """crt.sh should only be queried for IPs not resolved by earlier steps."""
-        mock_ip_api.return_value = {"1.1.1.1": "one.one.one.one"}
-        mock_ht.return_value = {}
+        """crt.sh is only queried for IPs not resolved by any earlier provider."""
+        mock_ssl.return_value = {"1.1.1.1": "one.one.one.one"}
         mock_google_dns.return_value = {}
+        mock_ip_api.return_value = {}
+        mock_ht.return_value = {}
         mock_crt_sh.return_value = {"93.184.216.34": "server.example.com"}
 
         hosts = [
@@ -491,21 +614,24 @@ class TestEnrichHostResults:
         assert call_args[0][0] == ["93.184.216.34"]
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
-    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
     def test_nmap_hostname_not_overwritten(
         self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
-        mock_google_dns: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
         """Existing nmap hostnames should never be overwritten by API results."""
-        mock_ip_api.return_value = {"1.1.1.1": "different.name.com"}
+        mock_ssl.return_value = {}
+        mock_google_dns.return_value = {"1.1.1.1": "different.name.com"}
+        mock_ip_api.return_value = {}
         mock_ht.return_value = {}
-        mock_google_dns.return_value = {}
         mock_crt_sh.return_value = {}
 
         hosts = [
@@ -514,5 +640,33 @@ class TestEnrichHostResults:
 
         result = enrich_host_results(hosts, logger)
         assert result[0].hostname == "original.nmap.com"
-        # ip-api should not have been called since all hosts have hostnames
-        mock_ip_api.assert_not_called()
+        mock_ssl.assert_not_called()
+
+    @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
+    @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_non_pingable_hosts_skipped(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """Non-pingable hosts should not be enriched."""
+        mock_ssl.return_value = {}
+        mock_google_dns.return_value = {}
+        mock_ip_api.return_value = {}
+        mock_ht.return_value = {}
+        mock_crt_sh.return_value = {}
+
+        hosts = [
+            HostResult(ip="1.1.1.1", hostname=None, is_pingable=False, mac_address=None, mac_vendor=None),
+        ]
+
+        result = enrich_host_results(hosts, logger)
+        assert result[0].hostname is None
+        mock_ssl.assert_not_called()

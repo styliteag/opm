@@ -1,19 +1,24 @@
-"""Hostname enrichment via external APIs.
+"""Hostname enrichment via external APIs and local probes.
 
 Enriches discovered hosts that have no hostname from nmap reverse DNS
-by querying free external services.
+by querying free external services and local certificate inspection.
 
 Lookup priority:
-1. ip-api.com  — PTR / reverse DNS (batch, fast)
-2. HackerTarget — reverse IP lookup via DNS A-records (20 free req/day)
-3. Google DNS — PTR lookup via dns.google JSON API
-4. crt.sh — certificate transparency logs (last resort)
+1. SSL Certificate — nmap ssl-cert script on common SSL ports (local, most authoritative)
+2. Google DNS — PTR lookup via dns.google JSON API (fast, reliable)
+3. ip-api.com  — PTR / reverse DNS (batch, fast)
+4. HackerTarget — reverse IP lookup via DNS A-records (20 free req/day)
+5. crt.sh — certificate transparency logs (last resort)
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import subprocess
+import tempfile
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import replace
 
 import httpx
@@ -41,6 +46,170 @@ _CRT_SH_DELAY = 0.5  # delay between crt.sh requests to be polite
 _CRT_SH_MAX_CONSECUTIVE_FAILURES = 3  # bail out after N consecutive failures
 _HACKERTARGET_DELAY = 0.3  # delay between HackerTarget requests
 _GOOGLE_DNS_DELAY = 0.1  # delay between Google DNS requests
+
+# SSL certificate lookup via nmap ssl-cert script
+_SSL_CERT_PORTS = "443,8443,993,995,465,636,989,990,5061,8080,8843"
+_SSL_CERT_TIMEOUT = 30  # nmap host timeout in seconds
+
+
+def enrich_hostnames_ssl_cert(
+    ips: list[str],
+    logger: logging.Logger,
+    timeout: int = _SSL_CERT_TIMEOUT,
+) -> dict[str, str]:
+    """Grab hostnames from SSL certificates using nmap's ssl-cert script.
+
+    Runs nmap with --script ssl-cert on common SSL/STARTTLS ports for all
+    target IPs. Extracts the certificate CN or SAN from the XML output.
+    Works with any SSL/TLS port, including STARTTLS services.
+
+    Args:
+        ips: List of IP addresses to check.
+        logger: Logger instance.
+        timeout: Nmap host timeout in seconds.
+
+    Returns:
+        Dict mapping IP -> hostname for IPs where a certificate hostname was found.
+    """
+    if not ips:
+        return {}
+
+    with tempfile.NamedTemporaryFile(
+        delete=False, suffix=".xml", mode="w"
+    ) as output_file:
+        output_path = output_file.name
+
+    # Write targets to a file to avoid command-line length limits
+    with tempfile.NamedTemporaryFile(
+        delete=False, suffix=".txt", mode="w"
+    ) as targets_file:
+        targets_file.write("\n".join(ips))
+        targets_path = targets_file.name
+
+    command = [
+        "nmap",
+        "-Pn",  # Skip host discovery (hosts are already known to be up)
+        "-n",  # No DNS resolution
+        f"-p{_SSL_CERT_PORTS}",
+        "--open",
+        "--script",
+        "ssl-cert",
+        "--host-timeout",
+        f"{timeout}s",
+        "-T4",
+        "-oX",
+        output_path,
+        "-iL",
+        targets_path,
+    ]
+
+    logger.info("SSLCert: scanning %d IPs for certificates on ports %s", len(ips), _SSL_CERT_PORTS)
+
+    try:
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+        if process.stdout:
+            for line in process.stdout:
+                line = line.strip()
+                if line:
+                    logger.debug("SSLCert nmap: %s", line)
+
+        returncode = process.wait()
+        if returncode != 0:
+            logger.warning("SSLCert: nmap exited with code %d", returncode)
+            return {}
+
+        with open(output_path, encoding="utf-8") as handle:
+            xml_content = handle.read()
+
+        results = _parse_ssl_cert_xml(xml_content, logger)
+
+        if results:
+            logger.info("SSLCert: resolved %d/%d hostnames", len(results), len(ips))
+
+        return results
+
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning("SSLCert: nmap failed: %s", exc)
+        return {}
+    finally:
+        for path in (output_path, targets_path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def _parse_ssl_cert_xml(xml_content: str, logger: logging.Logger) -> dict[str, str]:
+    """Parse nmap ssl-cert script XML output to extract hostnames.
+
+    Extracts the commonName from the certificate subject, preferring
+    SAN dNSName entries when available. Skips wildcard names.
+
+    Returns:
+        Dict mapping IP -> hostname.
+    """
+    results: dict[str, str] = {}
+
+    try:
+        root = ET.fromstring(xml_content)
+    except ET.ParseError as exc:
+        logger.warning("SSLCert: failed to parse nmap XML: %s", exc)
+        return results
+
+    for host in root.findall(".//host"):
+        ip_elem = host.find("address[@addrtype='ipv4']")
+        if ip_elem is None:
+            ip_elem = host.find("address[@addrtype='ipv6']")
+        if ip_elem is None:
+            continue
+        ip = ip_elem.get("addr", "")
+        if not ip or ip in results:
+            continue
+
+        # Look for ssl-cert script output in any port
+        for script in host.findall(".//script[@id='ssl-cert']"):
+            hostname = _extract_hostname_from_nmap_ssl_cert(script)
+            if hostname:
+                results[ip] = hostname
+                logger.info("SSLCert: %s -> %s", ip, hostname)
+                break  # Take the first valid hostname per IP
+
+    return results
+
+
+def _extract_hostname_from_nmap_ssl_cert(script_elem: ET.Element) -> str | None:
+    """Extract a non-wildcard hostname from nmap ssl-cert script XML element.
+
+    Checks SAN extensions first (dNSName), then falls back to subject CN.
+    """
+    # Check for SAN extensions first (in <table> elements)
+    for table in script_elem.findall(".//table[@key='extensions']"):
+        for ext_table in table.findall("table"):
+            name_elem = ext_table.find("elem[@key='name']")
+            if name_elem is not None and "Subject Alternative Name" in (name_elem.text or ""):
+                value_elem = ext_table.find("elem[@key='value']")
+                if value_elem is not None and value_elem.text:
+                    # Parse "DNS:host1, DNS:host2, ..."
+                    for part in value_elem.text.split(","):
+                        part = part.strip()
+                        if part.startswith("DNS:"):
+                            name = part[4:].strip()
+                            if name and not name.startswith("*"):
+                                return name
+
+    # Fall back to subject commonName
+    for table in script_elem.findall(".//table[@key='subject']"):
+        cn_elem = table.find("elem[@key='commonName']")
+        if cn_elem is not None and cn_elem.text and not cn_elem.text.startswith("*"):
+            return cn_elem.text
+
+    return None
 
 
 def enrich_hostnames_ip_api(
@@ -321,12 +490,14 @@ def _is_private_ip(ip: str) -> bool:
 def enrich_host_results(
     hosts: list[HostResult],
     logger: logging.Logger,
-    ips_with_open_ports: list[str] | None = None,
 ) -> list[HostResult]:
     """Enrich host results with hostnames from external APIs.
 
-    Hosts that already have a hostname from nmap are not modified.
-    Priority: nmap reverse DNS > ip-api.com > HackerTarget > Google DNS > crt.sh
+    Enriches all pingable public hosts that have no hostname.
+    Each provider is queried until its limit is reached; over daily runs
+    all hostnames will eventually be resolved.
+
+    Priority: nmap reverse DNS > SSL Cert CN > Google DNS > ip-api.com > HackerTarget > crt.sh
 
     Args:
         hosts: List of discovered hosts from nmap.
@@ -335,31 +506,24 @@ def enrich_host_results(
     Returns:
         Updated list of HostResult with enriched hostnames.
     """
-    # Collect IPs that need hostname enrichment
-    ips_without_hostname = [h.ip for h in hosts if not h.hostname]
+    # Collect pingable IPs that need hostname enrichment
+    ips_without_hostname = [h.ip for h in hosts if not h.hostname and h.is_pingable]
 
     if not ips_without_hostname:
         logger.info("All %d hosts already have hostnames, skipping enrichment", len(hosts))
         return hosts
 
     # Filter out RFC1918 private addresses (external APIs have no useful data for these)
-    open_ports_set = set(ips_with_open_ports) if ips_with_open_ports is not None else None
     enrichable: list[str] = []
     skipped_private = 0
-    skipped_no_ports = 0
     for ip in ips_without_hostname:
         if _is_private_ip(ip):
             skipped_private += 1
-            continue
-        if open_ports_set is not None and ip not in open_ports_set:
-            skipped_no_ports += 1
             continue
         enrichable.append(ip)
 
     if skipped_private:
         logger.info("Skipping %d private IPs from enrichment", skipped_private)
-    if skipped_no_ports:
-        logger.info("Skipping %d IPs without open ports from enrichment", skipped_no_ports)
 
     if not enrichable:
         logger.info("No IPs eligible for hostname enrichment after filtering")
@@ -371,27 +535,35 @@ def enrich_host_results(
         len(hosts),
     )
 
-    # Step 1: Try ip-api.com (batch, fast — PTR records)
-    hostname_map = enrich_hostnames_ip_api(enrichable, logger)
+    hostname_map: dict[str, str] = {}
 
-    # Step 2-4: HackerTarget, Google DNS, and crt.sh only work with IPv4
-    remaining_ipv4 = [ip for ip in enrichable if ip not in hostname_map and ":" not in ip]
+    # Step 1: SSL certificate CN/SAN from port 443 (local, no API, most authoritative)
+    if enrichable:
+        ssl_results = enrich_hostnames_ssl_cert(enrichable, logger)
+        hostname_map.update(ssl_results)
 
-    # Step 2: Try HackerTarget (DNS A-record reverse lookup, IPv4 only)
-    if remaining_ipv4:
-        ht_results = enrich_hostnames_hackertarget(remaining_ipv4, logger)
-        hostname_map.update(ht_results)
-
-    # Step 3: Try Google DNS PTR lookup for remaining IPs
-    remaining_ipv4 = [ip for ip in remaining_ipv4 if ip not in hostname_map]
-    if remaining_ipv4:
-        google_results = enrich_hostnames_google_dns(remaining_ipv4, logger)
+    # Step 2: Google DNS PTR lookup (fast, reliable, no hard limit, IPv4 only)
+    remaining = [ip for ip in enrichable if ip not in hostname_map and ":" not in ip]
+    if remaining:
+        google_results = enrich_hostnames_google_dns(remaining, logger)
         hostname_map.update(google_results)
 
-    # Step 4: For remaining IPv4 IPs, try crt.sh (certificate transparency, last resort)
-    remaining_ipv4 = [ip for ip in remaining_ipv4 if ip not in hostname_map]
-    if remaining_ipv4:
-        crt_results = enrich_hostnames_crt_sh(remaining_ipv4, logger)
+    # Step 3: ip-api.com (batch PTR, covers IPv6 too)
+    remaining = [ip for ip in enrichable if ip not in hostname_map]
+    if remaining:
+        ipapi_results = enrich_hostnames_ip_api(remaining, logger)
+        hostname_map.update(ipapi_results)
+
+    # Step 4: HackerTarget (DNS A-record reverse, 20 free req/day, IPv4 only)
+    remaining = [ip for ip in enrichable if ip not in hostname_map and ":" not in ip]
+    if remaining:
+        ht_results = enrich_hostnames_hackertarget(remaining, logger)
+        hostname_map.update(ht_results)
+
+    # Step 5: crt.sh (certificate transparency, last resort, IPv4 only)
+    remaining = [ip for ip in enrichable if ip not in hostname_map and ":" not in ip]
+    if remaining:
+        crt_results = enrich_hostnames_crt_sh(remaining, logger)
         hostname_map.update(crt_results)
 
     if not hostname_map:

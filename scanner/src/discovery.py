@@ -90,7 +90,6 @@ def run_host_discovery(
     logger: logging.Logger,
     timeout: int = 300,
     known_hostnames: dict[str, str] | None = None,
-    ips_with_open_ports: list[str] | None = None,
 ) -> list[HostResult]:
     """
     Run host discovery using nmap ping scan with reverse DNS.
@@ -177,9 +176,7 @@ def run_host_discovery(
                 )
 
         # Enrich hostnames via external APIs for hosts without reverse DNS
-        hosts = enrich_host_results(
-            hosts, logger, ips_with_open_ports=ips_with_open_ports
-        )
+        hosts = enrich_host_results(hosts, logger)
 
         return hosts
 
