@@ -1,4 +1,4 @@
-"""Hostname enrichment via external APIs (ip-api.com, HackerTarget, crt.sh).
+"""Hostname enrichment via external APIs.
 
 Enriches discovered hosts that have no hostname from nmap reverse DNS
 by querying free external services.
@@ -6,7 +6,8 @@ by querying free external services.
 Lookup priority:
 1. ip-api.com  — PTR / reverse DNS (batch, fast)
 2. HackerTarget — reverse IP lookup via DNS A-records (20 free req/day)
-3. crt.sh — certificate transparency logs (fallback)
+3. Google DNS — PTR lookup via dns.google JSON API
+4. crt.sh — certificate transparency logs (last resort)
 """
 
 from __future__ import annotations
@@ -27,14 +28,19 @@ _IP_API_FIELDS = "query,reverse,status"
 # HackerTarget: reverse IP lookup via DNS A-records, 20 free req/day
 _HACKERTARGET_URL = "https://api.hackertarget.com/reverseiplookup/"
 
+# Google DNS: PTR lookup via JSON API (no key needed, generous limits)
+_GOOGLE_DNS_URL = "https://dns.google/resolve"
+
 # crt.sh: certificate transparency log search
 _CRT_SH_URL = "https://crt.sh/"
 
 # Timeouts
 _API_TIMEOUT = 10.0
-_CRT_SH_TIMEOUT = 15.0
+_CRT_SH_TIMEOUT = 5.0
 _CRT_SH_DELAY = 0.5  # delay between crt.sh requests to be polite
+_CRT_SH_MAX_CONSECUTIVE_FAILURES = 3  # bail out after N consecutive failures
 _HACKERTARGET_DELAY = 0.3  # delay between HackerTarget requests
+_GOOGLE_DNS_DELAY = 0.1  # delay between Google DNS requests
 
 
 def enrich_hostnames_ip_api(
@@ -124,7 +130,13 @@ def enrich_hostnames_hackertarget(
 
                 # HackerTarget returns plain text, one domain per line
                 # Error responses start with "error" or "API count exceeded"
-                if not text or text.startswith("error") or text.startswith("API count"):
+                # "No DNS A records found" means no results (not an error)
+                if (
+                    not text
+                    or text.startswith("error")
+                    or text.startswith("API count")
+                    or "No DNS" in text
+                ):
                     if "API count" in text:
                         logger.warning("HackerTarget: daily API limit reached, skipping remaining")
                         break
@@ -154,6 +166,67 @@ def enrich_hostnames_hackertarget(
     return results
 
 
+def _ip_to_ptr_name(ip: str) -> str:
+    """Convert an IPv4 address to its PTR lookup name."""
+    return ".".join(reversed(ip.split("."))) + ".in-addr.arpa"
+
+
+def enrich_hostnames_google_dns(
+    ips: list[str],
+    logger: logging.Logger,
+    timeout: float = _API_TIMEOUT,
+) -> dict[str, str]:
+    """Query Google Public DNS for PTR records.
+
+    Uses https://dns.google/resolve — fast, reliable, no API key needed.
+
+    Args:
+        ips: List of IP addresses to look up.
+        logger: Logger instance.
+        timeout: HTTP request timeout in seconds.
+
+    Returns:
+        Dict mapping IP -> hostname for IPs where a PTR record was found.
+    """
+    if not ips:
+        return {}
+
+    results: dict[str, str] = {}
+
+    with httpx.Client(timeout=timeout) as client:
+        for ip in ips:
+            try:
+                ptr_name = _ip_to_ptr_name(ip)
+                response = client.get(
+                    _GOOGLE_DNS_URL,
+                    params={"name": ptr_name, "type": "PTR"},
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                # Status 0 = NOERROR, Answer contains PTR records
+                if data.get("Status") == 0 and data.get("Answer"):
+                    for answer in data["Answer"]:
+                        # Type 12 = PTR
+                        if answer.get("type") == 12:
+                            hostname = answer.get("data", "").rstrip(".")
+                            if hostname and not _is_ip_address(hostname):
+                                results[ip] = hostname
+                                logger.info("GoogleDNS: %s -> %s", ip, hostname)
+                                break
+
+            except (httpx.HTTPError, ValueError) as exc:
+                logger.debug("GoogleDNS lookup failed for %s: %s", ip, exc)
+
+            if len(ips) > 1:
+                time.sleep(_GOOGLE_DNS_DELAY)
+
+    if results:
+        logger.info("GoogleDNS: resolved %d/%d hostnames", len(results), len(ips))
+
+    return results
+
+
 def enrich_hostnames_crt_sh(
     ips: list[str],
     logger: logging.Logger,
@@ -173,6 +246,7 @@ def enrich_hostnames_crt_sh(
         return {}
 
     results: dict[str, str] = {}
+    consecutive_failures = 0
 
     with httpx.Client(timeout=timeout) as client:
         for ip in ips:
@@ -182,6 +256,7 @@ def enrich_hostnames_crt_sh(
 
                 entries = response.json()
                 if not isinstance(entries, list) or not entries:
+                    consecutive_failures = 0  # successful request, just no data
                     continue
 
                 # Pick the most recent certificate's common_name
@@ -193,8 +268,27 @@ def enrich_hostnames_crt_sh(
                         logger.info("crt.sh: %s -> %s", ip, common_name)
                         break
 
+                consecutive_failures = 0
+
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 404:
+                    # 404 is expected for IPs without certificate records
+                    logger.debug("crt.sh: no certificates for %s", ip)
+                    consecutive_failures = 0
+                else:
+                    consecutive_failures += 1
+                    logger.debug("crt.sh lookup failed for %s: %s", ip, exc)
             except (httpx.HTTPError, ValueError) as exc:
-                logger.warning("crt.sh lookup failed for %s: %s", ip, exc)
+                consecutive_failures += 1
+                logger.debug("crt.sh lookup failed for %s: %s", ip, exc)
+
+            if consecutive_failures >= _CRT_SH_MAX_CONSECUTIVE_FAILURES:
+                logger.warning(
+                    "crt.sh: %d consecutive failures, skipping remaining %d IPs",
+                    consecutive_failures,
+                    len(ips) - ips.index(ip) - 1,
+                )
+                break
 
             # Rate-limit politeness delay
             time.sleep(_CRT_SH_DELAY)
@@ -232,7 +326,7 @@ def enrich_host_results(
     """Enrich host results with hostnames from external APIs.
 
     Hosts that already have a hostname from nmap are not modified.
-    Priority: nmap reverse DNS > ip-api.com > HackerTarget > crt.sh
+    Priority: nmap reverse DNS > ip-api.com > HackerTarget > Google DNS > crt.sh
 
     Args:
         hosts: List of discovered hosts from nmap.
@@ -280,7 +374,7 @@ def enrich_host_results(
     # Step 1: Try ip-api.com (batch, fast — PTR records)
     hostname_map = enrich_hostnames_ip_api(enrichable, logger)
 
-    # Step 2 & 3: HackerTarget and crt.sh only work with IPv4
+    # Step 2-4: HackerTarget, Google DNS, and crt.sh only work with IPv4
     remaining_ipv4 = [ip for ip in enrichable if ip not in hostname_map and ":" not in ip]
 
     # Step 2: Try HackerTarget (DNS A-record reverse lookup, IPv4 only)
@@ -288,7 +382,13 @@ def enrich_host_results(
         ht_results = enrich_hostnames_hackertarget(remaining_ipv4, logger)
         hostname_map.update(ht_results)
 
-    # Step 3: For remaining IPv4 IPs, try crt.sh (certificate transparency, fallback)
+    # Step 3: Try Google DNS PTR lookup for remaining IPs
+    remaining_ipv4 = [ip for ip in remaining_ipv4 if ip not in hostname_map]
+    if remaining_ipv4:
+        google_results = enrich_hostnames_google_dns(remaining_ipv4, logger)
+        hostname_map.update(google_results)
+
+    # Step 4: For remaining IPv4 IPs, try crt.sh (certificate transparency, last resort)
     remaining_ipv4 = [ip for ip in remaining_ipv4 if ip not in hostname_map]
     if remaining_ipv4:
         crt_results = enrich_hostnames_crt_sh(remaining_ipv4, logger)
