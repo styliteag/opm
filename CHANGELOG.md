@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.19] - 2026-02-24
+
 ### Changed
 - Hostname enrichment now enriches all pingable public hosts, not just those with known open ports
 - Hostname enrichment reordered and expanded. New lookup priority:
