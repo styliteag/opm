@@ -605,15 +605,18 @@ def probe_ssh(
 
         try:
             data = json.loads(output)
-        except json.JSONDecodeError as e:
-            # Try to extract useful information from partial output
-            logger.warning("Failed to parse ssh-audit JSON for %s: %s", target, e)
-            return SSHProbeResult(
-                host=host,
-                port=port,
-                success=False,
-                error_message=f"Invalid JSON output: {e}",
-            )
+        except json.JSONDecodeError:
+            # ssh-audit may emit multiple JSON objects (one per line); try first line
+            try:
+                data = json.loads(output.split("\n", 1)[0])
+            except json.JSONDecodeError as e2:
+                logger.warning("Failed to parse ssh-audit JSON for %s: %s", target, e2)
+                return SSHProbeResult(
+                    host=host,
+                    port=port,
+                    success=False,
+                    error_message=f"Invalid JSON output: {e2}",
+                )
 
         probe_result = _parse_ssh_audit_json(data, host, port)
 
