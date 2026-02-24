@@ -309,8 +309,20 @@ async def update_host(
     host_id: int,
     request: HostUpdateRequest,
 ) -> HostResponse:
-    """Update a host's comment (admin only)."""
-    host = await hosts_service.update_host_comment(db, host_id, request.user_comment)
+    """Update a host (admin only). Supports user_comment and hostname."""
+    fields = {}
+    if "user_comment" in request.model_fields_set:
+        fields["user_comment"] = request.user_comment
+    if "hostname" in request.model_fields_set:
+        fields["hostname"] = request.hostname
+
+    if not fields:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields to update",
+        )
+
+    host = await hosts_service.update_host_fields(db, host_id, fields)
     if host is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

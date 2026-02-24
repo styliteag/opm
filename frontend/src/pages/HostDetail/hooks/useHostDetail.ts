@@ -50,6 +50,26 @@ export function useHostDetail(hostId: number) {
     },
   })
 
+  const updateHostnameMutation = useMutation({
+    mutationFn: async (hostname: string | null) => {
+      const response = await fetch(`${API_BASE_URL}/api/hosts/${hostId}`, {
+        method: 'PATCH',
+        headers: {
+          ...getAuthHeaders(token ?? ''),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ hostname }),
+      })
+      if (!response.ok) {
+        const message = await extractErrorMessage(response)
+        throw new Error(message)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['hosts', hostId, 'overview'] })
+    },
+  })
+
   const rescanMutation = useMutation({
     mutationFn: async (hostIp: string) => {
       const response = await fetch(`${API_BASE_URL}/api/hosts/${hostIp}/rescan`, {
@@ -71,6 +91,7 @@ export function useHostDetail(hostId: number) {
     overviewQuery,
     acknowledgeMutation,
     updateCommentMutation,
+    updateHostnameMutation,
     rescanMutation,
     isAdmin,
     token,

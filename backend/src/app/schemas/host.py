@@ -35,6 +35,7 @@ class HostUpdateRequest(BaseModel):
     """Request schema for updating a host."""
 
     user_comment: str | None = None
+    hostname: str | None = None
 
 
 class HostOpenPortResponse(BaseModel):

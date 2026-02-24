@@ -28,6 +28,7 @@ type Props = {
   networks: HostNetworkInfo[]
   isAdmin: boolean
   onUpdateComment: (comment: string | null) => void
+  onUpdateHostname: (hostname: string | null) => void
   onRescan: () => void
   isRescanPending: boolean
 }
@@ -37,11 +38,14 @@ export default function HostInfoCard({
   networks,
   isAdmin,
   onUpdateComment,
+  onUpdateHostname,
   onRescan,
   isRescanPending,
 }: Props) {
   const [editingComment, setEditingComment] = useState(false)
   const [commentValue, setCommentValue] = useState(host.user_comment ?? '')
+  const [editingHostname, setEditingHostname] = useState(false)
+  const [hostnameValue, setHostnameValue] = useState(host.hostname ?? '')
 
   const handleSaveComment = () => {
     onUpdateComment(commentValue.trim() || null)
@@ -55,8 +59,59 @@ export default function HostInfoCard({
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-mono">
             {host.ip}
           </h2>
-          {host.hostname && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{host.hostname}</p>
+          {editingHostname ? (
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                type="text"
+                value={hostnameValue}
+                onChange={(e) => setHostnameValue(e.target.value)}
+                className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 text-sm text-slate-900 dark:text-white"
+                placeholder="Hostname..."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    onUpdateHostname(hostnameValue.trim() || null)
+                    setEditingHostname(false)
+                  }
+                  if (e.key === 'Escape') setEditingHostname(false)
+                }}
+              />
+              <button
+                onClick={() => {
+                  onUpdateHostname(hostnameValue.trim() || null)
+                  setEditingHostname(false)
+                }}
+                className="px-2 py-1 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingHostname(false)}
+                className="px-2 py-1 text-xs font-medium rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 mt-1">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {host.hostname || <span className="italic">No hostname</span>}
+              </p>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setHostnameValue(host.hostname ?? '')
+                    setEditingHostname(true)
+                  }}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  title="Edit hostname"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">

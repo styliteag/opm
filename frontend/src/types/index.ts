@@ -377,7 +377,8 @@ export type BulkDeleteHostsResponse = {
 }
 
 export type HostUpdatePayload = {
-  user_comment: string | null
+  user_comment?: string | null
+  hostname?: string | null
 }
 
 export type HostOpenPort = {

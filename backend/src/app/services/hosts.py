@@ -105,6 +105,23 @@ async def update_host_comment(
     return host
 
 
+async def update_host_fields(
+    db: AsyncSession,
+    host_id: int,
+    fields: dict,
+) -> Host | None:
+    """Update specified fields on a host."""
+    host = await get_host_by_id(db, host_id)
+    if host is None:
+        return None
+
+    for key, value in fields.items():
+        setattr(host, key, value)
+    await db.flush()
+    await db.refresh(host)
+    return host
+
+
 async def get_hosts(
     db: AsyncSession,
     *,

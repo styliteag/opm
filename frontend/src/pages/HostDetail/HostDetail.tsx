@@ -15,6 +15,7 @@ const HostDetail = () => {
     overviewQuery,
     acknowledgeMutation,
     updateCommentMutation,
+    updateHostnameMutation,
     rescanMutation,
     isAdmin,
   } = useHostDetail(isValidId ? parsedHostId : 0)
@@ -75,6 +76,7 @@ const HostDetail = () => {
         networks={data.networks}
         isAdmin={isAdmin}
         onUpdateComment={(comment) => updateCommentMutation.mutate(comment)}
+        onUpdateHostname={(hostname) => updateHostnameMutation.mutate(hostname)}
         onRescan={() => rescanMutation.mutate(data.host.ip)}
         isRescanPending={rescanMutation.isPending}
       />
