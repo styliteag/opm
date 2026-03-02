@@ -47,6 +47,7 @@ class HostOpenPortResponse(BaseModel):
     protocol: str
     banner: str | None
     service_guess: str | None
+    user_comment: str | None = None
     first_seen_at: datetime
     last_seen_at: datetime
 
@@ -120,6 +121,7 @@ class HostAlertSummary(BaseModel):
     acknowledged: bool
     resolution_status: str
     created_at: datetime
+    ack_reason: str | None = None
 
 
 class HostSSHSummary(BaseModel):
@@ -155,6 +157,7 @@ class HostOverviewResponse(BaseModel):
     ports: list[HostOpenPortResponse]
     networks: list[HostNetworkInfo]
     alerts: list[HostAlertSummary]
+    acknowledged_alerts: list[HostAlertSummary]
     acknowledged_alert_count: int
     ssh: HostSSHSummary | None
     recent_scans: list[HostScanEntry]

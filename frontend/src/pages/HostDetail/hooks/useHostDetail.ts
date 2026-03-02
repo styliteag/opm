@@ -15,8 +15,28 @@ export function useHostDetail(hostId: number) {
   })
 
   const acknowledgeMutation = useMutation({
-    mutationFn: async (alertId: number) => {
+    mutationFn: async ({ alertId, reason }: { alertId: number; reason?: string }) => {
       const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/acknowledge`, {
+        method: 'PUT',
+        headers: {
+          ...getAuthHeaders(token ?? ''),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason: reason || null }),
+      })
+      if (!response.ok) {
+        const message = await extractErrorMessage(response)
+        throw new Error(message)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['hosts', hostId, 'overview'] })
+    },
+  })
+
+  const unacknowledgeMutation = useMutation({
+    mutationFn: async (alertId: number) => {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/unacknowledge`, {
         method: 'PUT',
         headers: getAuthHeaders(token ?? ''),
       })
@@ -90,6 +110,7 @@ export function useHostDetail(hostId: number) {
   return {
     overviewQuery,
     acknowledgeMutation,
+    unacknowledgeMutation,
     updateCommentMutation,
     updateHostnameMutation,
     rescanMutation,

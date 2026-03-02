@@ -235,17 +235,27 @@ async def get_host_overview(
             acknowledged=alert.acknowledged,
             resolution_status=alert.resolution_status.value,
             created_at=alert.created_at,
+            ack_reason=alert.ack_reason,
         ))
 
-    # Acknowledged alert count
-    acked_alerts = await alerts_service.get_alerts(
-        db, ip=host.ip, acknowledged=True, limit=1,
-    )
-    # We need the count, but the service returns a list. Let's get a rough count.
+    # Acknowledged alerts
     acked_all = await alerts_service.get_alerts(
         db, ip=host.ip, acknowledged=True, limit=10000,
     )
     acknowledged_count = len(acked_all)
+    acked_summaries = []
+    for acked_alert, _net_name in acked_all:
+        acked_summaries.append(HostAlertSummary(
+            id=acked_alert.id,
+            type=acked_alert.alert_type.value,
+            port=acked_alert.port,
+            message=acked_alert.message,
+            severity="info",
+            acknowledged=acked_alert.acknowledged,
+            resolution_status=acked_alert.resolution_status.value,
+            created_at=acked_alert.created_at,
+            ack_reason=acked_alert.ack_reason,
+        ))
 
     # SSH summary (latest)
     ssh_summary = None
@@ -296,6 +306,7 @@ async def get_host_overview(
         ports=port_responses,
         networks=network_infos,
         alerts=alert_summaries,
+        acknowledged_alerts=acked_summaries,
         acknowledged_alert_count=acknowledged_count,
         ssh=ssh_summary,
         recent_scans=scan_entries,

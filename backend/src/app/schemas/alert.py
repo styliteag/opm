@@ -33,6 +33,7 @@ class AlertResponse(BaseModel):
     assigned_to_email: str | None = None
     resolution_status: ResolutionStatus = ResolutionStatus.OPEN
     created_at: datetime
+    ack_reason: str | None = None
     severity: Severity = Severity.MEDIUM  # Computed field
     # Host information (if available)
     host_id: int | None = None
@@ -73,6 +74,12 @@ class AlertAssignRequest(BaseModel):
     """Request schema for assigning an alert to a user."""
 
     user_id: int | None = None  # None to unassign
+
+
+class AcknowledgeRequest(BaseModel):
+    """Request schema for acknowledging an alert with optional reason."""
+
+    reason: str | None = None
 
 
 class AlertStatusRequest(BaseModel):

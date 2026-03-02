@@ -35,6 +35,7 @@ export default function OpenPortsSection({ ports }: Props) {
               <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Protocol</th>
               <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Service</th>
               <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Banner</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Comment</th>
               <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">First Seen</th>
               <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Last Seen</th>
             </tr>
@@ -53,6 +54,9 @@ export default function OpenPortsSection({ ports }: Props) {
                 </td>
                 <td className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400 font-mono text-xs max-w-xs truncate" title={port.banner ?? undefined}>
                   {port.banner || <span className="text-slate-400">-</span>}
+                </td>
+                <td className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400 max-w-xs truncate" title={port.user_comment ?? undefined}>
+                  {port.user_comment || <span className="text-slate-400">-</span>}
                 </td>
                 <td className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
                   {formatDateTime(parseUtcDate(port.first_seen_at))}

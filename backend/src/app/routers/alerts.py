@@ -18,6 +18,7 @@ from app.models.global_port_rule import GlobalRuleType
 from app.models.port_rule import RuleType
 from app.models.user import UserRole
 from app.schemas.alert import (
+    AcknowledgeRequest,
     AlertAssignRequest,
     AlertBulkAcknowledgeResponse,
     AlertBulkWhitelistRequest,
@@ -119,6 +120,16 @@ async def list_alerts(
         if host:
             host_cache[ip] = (host.id, host.hostname, host.user_comment)
 
+    # Build a cache of assigned user emails to avoid N+1 queries
+    unique_user_ids = set(
+        alert.assigned_to_user_id for alert, _ in alerts if alert.assigned_to_user_id is not None
+    )
+    user_email_cache: dict[int, str] = {}
+    for uid in unique_user_ids:
+        u = await users_service.get_user_by_id(db, uid)
+        if u is not None:
+            user_email_cache[uid] = u.email
+
     # Compute severity for each alert
     alert_responses = []
     for alert, network_name in alerts:
@@ -131,6 +142,8 @@ async def list_alerts(
         hostname = host_info[1] if host_info else None
         user_comment = host_info[2] if host_info else None
 
+        assigned_to_email = user_email_cache.get(alert.assigned_to_user_id) if alert.assigned_to_user_id else None
+
         alert_responses.append(
             AlertResponse(
                 id=alert.id,
@@ -142,6 +155,9 @@ async def list_alerts(
                 port=alert.port,
                 message=alert.message,
                 acknowledged=alert.acknowledged,
+                assigned_to_user_id=alert.assigned_to_user_id,
+                assigned_to_email=assigned_to_email,
+                resolution_status=alert.resolution_status,
                 created_at=alert.created_at,
                 severity=severity,
                 host_id=host_id,
@@ -344,6 +360,7 @@ async def acknowledge_alert(
     admin: AdminUser,
     db: DbSession,
     alert_id: int,
+    request: AcknowledgeRequest | None = None,
 ) -> AlertResponse:
     """Acknowledge a single alert (admin only)."""
     alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
@@ -354,7 +371,27 @@ async def acknowledge_alert(
         )
 
     alert, network_name = alert_with_network
-    alert = await alerts_service.acknowledge_alert(db, alert)
+    reason = request.reason if request else None
+    alert = await alerts_service.acknowledge_alert(db, alert, ack_reason=reason)
+
+    # Auto-create comment if reason provided
+    if reason:
+        await alert_comments_service.create_comment(
+            db, alert_id=alert.id, user_id=admin.id, comment=reason
+        )
+
+        # For new_port alerts, copy reason to GlobalOpenPort.user_comment
+        if alert.alert_type == AlertType.NEW_PORT and alert.global_open_port_id:
+            from sqlalchemy import select
+            from app.models.global_open_port import GlobalOpenPort
+
+            result = await db.execute(
+                select(GlobalOpenPort).where(GlobalOpenPort.id == alert.global_open_port_id)
+            )
+            global_port = result.scalar_one_or_none()
+            if global_port:
+                global_port.user_comment = reason
+
     await db.commit()
 
     severity = await compute_alert_severity(
@@ -371,6 +408,7 @@ async def acknowledge_alert(
         port=alert.port,
         message=alert.message,
         acknowledged=alert.acknowledged,
+        ack_reason=alert.ack_reason,
         created_at=alert.created_at,
         severity=severity,
     )
@@ -438,6 +476,7 @@ async def unacknowledge_alert(
         port=alert.port,
         message=alert.message,
         acknowledged=alert.acknowledged,
+        ack_reason=alert.ack_reason,
         created_at=alert.created_at,
         severity=severity,
     )
