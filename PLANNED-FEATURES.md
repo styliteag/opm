@@ -283,6 +283,4 @@ Example of new scanner types:
 - Hunter
 
 **Implementing:** yes
-**Current state:** The system is extensible with new scanners and alert types. The DB schema is ready to be extended with new scanner types and alert types.
-
----
+**Current state:** Unknown
