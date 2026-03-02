@@ -131,6 +131,10 @@ async def list_alerts(
         if u is not None:
             user_email_cache[uid] = u.email
 
+    # Build a cache of latest comments per alert
+    alert_ids = [alert.id for alert, _ in alerts]
+    latest_comments = await alert_comments_service.get_latest_comments_for_alerts(db, alert_ids)
+
     # Compute severity for each alert
     alert_responses = []
     for alert, network_name in alerts:
@@ -144,6 +148,12 @@ async def list_alerts(
         user_comment = host_info[2] if host_info else None
 
         assigned_to_email = user_email_cache.get(alert.assigned_to_user_id) if alert.assigned_to_user_id else None
+
+        # Get latest comment from cache
+        comment_info = latest_comments.get(alert.id)
+        last_comment = comment_info[0] if comment_info else None
+        last_comment_by = comment_info[1] if comment_info else None
+        last_comment_at = comment_info[2] if comment_info else None
 
         alert_responses.append(
             AlertResponse(
@@ -164,6 +174,9 @@ async def list_alerts(
                 host_id=host_id,
                 hostname=hostname,
                 user_comment=user_comment,
+                last_comment=last_comment,
+                last_comment_by=last_comment_by,
+                last_comment_at=last_comment_at,
             )
         )
 

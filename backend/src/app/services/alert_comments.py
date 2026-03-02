@@ -71,3 +71,36 @@ async def delete_comment(db: AsyncSession, comment: AlertComment) -> None:
     """Delete a comment."""
     await db.delete(comment)
     await db.flush()
+
+
+async def get_latest_comments_for_alerts(
+    db: AsyncSession, alert_ids: list[int]
+) -> dict[int, tuple[str, str, "datetime"]]:
+    """Get the latest comment for each alert ID. Returns {alert_id: (comment, user_email, created_at)}."""
+    from datetime import datetime as datetime_type
+    from sqlalchemy import func
+
+    if not alert_ids:
+        return {}
+
+    # Subquery to find max comment id per alert (latest comment)
+    subq = (
+        select(
+            AlertComment.alert_id,
+            func.max(AlertComment.id).label("max_id"),
+        )
+        .where(AlertComment.alert_id.in_(alert_ids))
+        .group_by(AlertComment.alert_id)
+        .subquery()
+    )
+
+    result = await db.execute(
+        select(AlertComment, User.email)
+        .join(subq, AlertComment.id == subq.c.max_id)
+        .join(User, AlertComment.user_id == User.id)
+    )
+
+    return {
+        row[0].alert_id: (row[0].comment, row[1], row[0].created_at)
+        for row in result.all()
+    }

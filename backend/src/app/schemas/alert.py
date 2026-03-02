@@ -39,6 +39,10 @@ class AlertResponse(BaseModel):
     host_id: int | None = None
     hostname: str | None = None
     user_comment: str | None = None
+    # Latest comment (if any)
+    last_comment: str | None = None
+    last_comment_by: str | None = None
+    last_comment_at: datetime | None = None
 
 
 class AlertListResponse(BaseModel):
