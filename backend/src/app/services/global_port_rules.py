@@ -28,11 +28,26 @@ async def create_global_rule(
     description: str | None = None,
     created_by: int | None = None,
 ) -> GlobalPortRule:
-    """Create a new global port rule."""
+    """Create a new global port rule. Returns existing rule if a duplicate exists."""
     if not description or not description.strip():
         raise ValueError(
             "A reason/description is required for transparency in global security rules."
         )
+
+    # Check for existing duplicate (same ip, port, rule_type)
+    stmt = select(GlobalPortRule).where(
+        GlobalPortRule.port == port,
+        GlobalPortRule.rule_type == rule_type,
+    )
+    if ip is None:
+        stmt = stmt.where(GlobalPortRule.ip.is_(None))
+    else:
+        stmt = stmt.where(GlobalPortRule.ip == ip)
+
+    result = await db.execute(stmt)
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        return existing
 
     rule = GlobalPortRule(
         ip=ip,
