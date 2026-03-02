@@ -904,3 +904,39 @@ def run_nmap(
             os.unlink(phase2_targets_file)
         except OSError:
             pass
+
+
+class NmapScanner:
+    """Registry-compatible wrapper around run_nmap."""
+
+    name = "nmap"
+    label = "Nmap"
+
+    def run(
+        self,
+        client: ScannerClient,
+        scan_id: int,
+        target: str,
+        port_spec: str,
+        rate: int | None,
+        scan_timeout: int,
+        port_timeout: int,
+        scan_protocol: str,
+        is_ipv6: bool,
+        logger: logging.Logger,
+        progress_reporter: ProgressReporter | None = None,
+    ) -> ScanRunResult:
+        result = run_nmap(
+            client,
+            scan_id,
+            target,
+            port_spec,
+            scan_timeout,
+            port_timeout,
+            scan_protocol,
+            is_ipv6,
+            logger,
+            progress_reporter,
+        )
+        logger.info("Nmap completed with %s open ports", len(result.open_ports))
+        return result

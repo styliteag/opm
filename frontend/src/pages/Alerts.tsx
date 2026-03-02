@@ -11,7 +11,7 @@ import type {
   NetworkListResponse,
   PortRuleUnifiedListResponse,
 } from '../types'
-import { ALERT_TYPE_LABELS, ALERT_TYPE_STYLES } from '../constants/alerts'
+import { getAlertLabel, getAlertStyle } from '../constants/alerts'
 
 const formatDateTime = (value: Date) =>
   new Intl.DateTimeFormat(undefined, {
@@ -429,9 +429,9 @@ const Alerts = () => {
                         )}
                         <td className="px-4 py-3">
                           <span
-                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${ALERT_TYPE_STYLES[alert.type] || 'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300'}`}
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getAlertStyle(alert.type)}`}
                           >
-                            {ALERT_TYPE_LABELS[alert.type] || alert.type}
+                            {getAlertLabel(alert.type)}
                           </span>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-slate-900 dark:text-white">

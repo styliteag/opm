@@ -112,6 +112,21 @@ const Networks = () => {
 
   const [showCreate, setShowCreate] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [scannerTypes, setScannerTypes] = useState<{ name: string; label: string }[]>([
+    { name: 'masscan', label: 'Masscan' },
+    { name: 'nmap', label: 'Nmap' },
+  ])
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/metadata/scanner-types`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.scanner_types?.length) {
+          setScannerTypes(data.scanner_types)
+        }
+      })
+      .catch(() => {})
+  }, [])
   const [formValues, setFormValues] = useState({
     name: '',
     cidr: '',
@@ -683,8 +698,11 @@ const Networks = () => {
                     }
                     className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                   >
-                    <option value="masscan">Masscan</option>
-                    <option value="nmap">Nmap</option>
+                    {scannerTypes.map((st) => (
+                      <option key={st.name} value={st.name}>
+                        {st.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label className="space-y-2 text-xs font-semibold text-slate-500 dark:text-slate-400">

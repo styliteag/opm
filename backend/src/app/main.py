@@ -15,6 +15,7 @@ from .routers import (
     global_ports,
     global_settings,
     hosts,
+    metadata,
     networks,
     policy,
     ports,
@@ -77,6 +78,7 @@ app.include_router(alerts.router)
 app.include_router(global_ports.router)
 app.include_router(global_settings.router)
 app.include_router(hosts.router)
+app.include_router(metadata.router)
 app.include_router(networks.router)
 app.include_router(policy.router)
 app.include_router(ports.router)

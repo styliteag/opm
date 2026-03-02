@@ -14,8 +14,11 @@ from src.discovery import (
     run_ssh_probes,
 )
 from src.models import HostDiscoveryJob, ScannerJob, ScanRunResult
-from src.scanners.masscan import run_masscan
-from src.scanners.nmap import run_nmap, run_nmap_service_detection
+from src.scanners.nmap import run_nmap
+from src.scanners.registry import get_scanner
+
+# Ensure scanners are registered at import time
+import src.scanners  # noqa: F401
 from src.ssh_probe import SSHProbeResult
 from src.threading_utils import LogBufferHandler, LogStreamer, ProgressReporter
 from src.utils import check_ipv6_connectivity
@@ -134,24 +137,11 @@ def process_job(
                 progress_reporter,
             )
             logger.info("Nmap single-host scan completed with %s open ports", len(result.open_ports))
-        # Dispatch to appropriate scanner based on scanner_type for full network scans
-        elif job.scanner_type == "nmap":
-            result = run_nmap(
-                client,
-                scan_id,
-                job.cidr,
-                job.port_spec,
-                job.scan_timeout,
-                job.port_timeout,
-                job.scan_protocol,
-                job.is_ipv6,
-                logger,
-                progress_reporter,
-            )
-            logger.info("Nmap completed with %s open ports", len(result.open_ports))
         else:
-            # Default to masscan for backward compatibility
-            result = run_masscan(
+            # Dispatch to registered scanner
+            scanner = get_scanner(job.scanner_type)
+            logger.info("Using scanner: %s (%s)", scanner.name, scanner.label)
+            result = scanner.run(
                 client,
                 scan_id,
                 job.cidr,
@@ -160,29 +150,10 @@ def process_job(
                 job.scan_timeout,
                 job.port_timeout,
                 job.scan_protocol,
+                job.is_ipv6,
                 logger,
                 progress_reporter,
             )
-            logger.info("Masscan completed with %s open ports", len(result.open_ports))
-
-            # Run nmap service detection on discovered ports (hybrid approach)
-            if result.open_ports and not result.cancelled:
-                logger.info("Starting service detection phase...")
-                updated_ports = run_nmap_service_detection(
-                    client,
-                    scan_id,
-                    result.open_ports,
-                    job.scan_timeout,
-                    logger,
-                    progress_reporter,
-                )
-                result = ScanRunResult(open_ports=updated_ports, cancelled=result.cancelled)
-                services_found = sum(1 for p in updated_ports if p.service_guess)
-                logger.info(
-                    "Service detection complete: %d/%d ports identified",
-                    services_found,
-                    len(updated_ports),
-                )
 
         # SSH probing phase - runs after port scanning
         ssh_results: list[SSHProbeResult] = []
