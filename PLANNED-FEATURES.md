@@ -274,3 +274,15 @@ When an open port alert is acknowledged with a reason, that reason should automa
 **Current state:** Each alert is independent. When a scan discovers 50 new ports across 10 hosts, it creates 50 individual alerts with no grouping. The analyst must mentally correlate them. There is no incident/case concept, no way to link alerts together, and no shared resolution tracking.
 
 ---
+
+## 33. Extend with new Scanners and Alert Types
+**As a** Programmer, **I want to** extend the system with new scanners and alert types, **so that** I can add new scanner types and other types of alerts.
+
+Example of new scanner types:
+- Censys
+- Hunter
+
+**Implementing:** yes
+**Current state:** The system is extensible with new scanners and alert types. The DB schema is ready to be extended with new scanner types and alert types.
+
+---
