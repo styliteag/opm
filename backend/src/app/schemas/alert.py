@@ -82,6 +82,13 @@ class AcknowledgeRequest(BaseModel):
     reason: str | None = None
 
 
+class BulkAcknowledgeRequest(BaseModel):
+    """Request schema for bulk acknowledging alerts with optional reason."""
+
+    alert_ids: list[int]
+    reason: str | None = None
+
+
 class AlertStatusRequest(BaseModel):
     """Request schema for updating alert resolution status."""
 
