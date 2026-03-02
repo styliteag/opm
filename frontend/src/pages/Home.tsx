@@ -9,7 +9,7 @@ import type {
   NetworkListResponse,
   ScannerListResponse,
 } from '../types'
-import { ALERT_TYPE_LABELS_COMPACT, ALERT_TYPE_STYLES_COMPACT } from '../constants/alerts'
+import { getAlertLabelCompact, getAlertStyleCompact } from '../constants/alerts'
 
 const formatDateTime = (value: Date) =>
   new Intl.DateTimeFormat(undefined, {
@@ -298,11 +298,9 @@ const Home = () => {
                   >
                     <div className="flex flex-wrap items-center gap-3">
                       <span
-                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${
-                          ALERT_TYPE_STYLES_COMPACT[alert.type]
-                        }`}
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${getAlertStyleCompact(alert.type)}`}
                       >
-                        {ALERT_TYPE_LABELS_COMPACT[alert.type]}
+                        {getAlertLabelCompact(alert.type)}
                       </span>
                       <span className="text-sm font-semibold text-slate-900 dark:text-white">
                         {alert.network_name ?? 'Global'}

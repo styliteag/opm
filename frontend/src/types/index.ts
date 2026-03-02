@@ -8,6 +8,7 @@ export type AlertType =
   | 'ssh_weak_kex'
   | 'ssh_outdated_version'
   | 'ssh_config_regression'
+  | (string & {})
 
 // SSH Alert Configuration
 export type SSHAlertConfig = {
@@ -62,7 +63,7 @@ export type BulkAcknowledgeResponse = {
 }
 
 // Network types
-export type ScannerType = 'masscan' | 'nmap'
+export type ScannerType = 'masscan' | 'nmap' | (string & {})
 export type ScanProtocol = 'tcp' | 'udp' | 'both'
 
 export type Network = {

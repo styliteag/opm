@@ -95,14 +95,16 @@ def validate_cron_schedule(value: str | None) -> str | None:
     return value
 
 
-VALID_SCANNER_TYPES = ("masscan", "nmap")
+from app.core.scanner_types import get_valid_scanner_types
+
 VALID_SCAN_PROTOCOLS = ("tcp", "udp", "both")
 
 
 def validate_scanner_type(value: str) -> str:
-    """Validate scanner_type is one of the allowed values."""
-    if value not in VALID_SCANNER_TYPES:
-        raise ValueError(f"Invalid scanner_type: must be one of {VALID_SCANNER_TYPES}")
+    """Validate scanner_type is one of the registered types."""
+    valid = get_valid_scanner_types()
+    if value not in valid:
+        raise ValueError(f"Invalid scanner_type: must be one of {valid}")
     return value
 
 

@@ -1,6 +1,15 @@
+import { useEffect, useState } from 'react'
 import ScanEstimateSummary from '../../../../components/ScanEstimateSummary'
+import { API_BASE_URL } from '../../../../lib/api'
 import type { Scanner, ScannerType } from '../../../../types'
 import type { EditFormValues } from '../../types'
+
+type ScannerTypeOption = { name: string; label: string }
+
+const FALLBACK_SCANNER_TYPES: ScannerTypeOption[] = [
+  { name: 'masscan', label: 'Masscan' },
+  { name: 'nmap', label: 'Nmap' },
+]
 
 type Props = {
   formValues: EditFormValues
@@ -21,6 +30,21 @@ export function EditNetworkModal({
   onSubmit,
   onClose,
 }: Props) {
+  const [scannerTypes, setScannerTypes] = useState<ScannerTypeOption[]>(FALLBACK_SCANNER_TYPES)
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/metadata/scanner-types`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.scanner_types?.length) {
+          setScannerTypes(data.scanner_types)
+        }
+      })
+      .catch(() => {
+        // Keep fallback
+      })
+  }, [])
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
       <div className="w-full max-w-xl rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
@@ -171,8 +195,11 @@ export function EditNetworkModal({
                 }
                 className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
               >
-                <option value="masscan">Masscan</option>
-                <option value="nmap">Nmap</option>
+                {scannerTypes.map((st) => (
+                  <option key={st.name} value={st.name}>
+                    {st.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="space-y-2 text-xs font-semibold text-slate-500 dark:text-slate-400">

@@ -291,3 +291,61 @@ def run_masscan(
 
     entries = parse_masscan_json(content, logger)
     return ScanRunResult(open_ports=extract_open_ports(entries), cancelled=False)
+
+
+class MasscanScanner:
+    """Registry-compatible wrapper around run_masscan + hybrid nmap service detection."""
+
+    name = "masscan"
+    label = "Masscan"
+
+    def run(
+        self,
+        client: ScannerClient,
+        scan_id: int,
+        target: str,
+        port_spec: str,
+        rate: int | None,
+        scan_timeout: int,
+        port_timeout: int,
+        scan_protocol: str,
+        is_ipv6: bool,
+        logger: logging.Logger,
+        progress_reporter: ProgressReporter | None = None,
+    ) -> ScanRunResult:
+        from src.scanners.nmap import run_nmap_service_detection
+
+        result = run_masscan(
+            client,
+            scan_id,
+            target,
+            port_spec,
+            rate,
+            scan_timeout,
+            port_timeout,
+            scan_protocol,
+            logger,
+            progress_reporter,
+        )
+        logger.info("Masscan completed with %s open ports", len(result.open_ports))
+
+        # Run nmap service detection on discovered ports (hybrid approach)
+        if result.open_ports and not result.cancelled:
+            logger.info("Starting service detection phase...")
+            updated_ports = run_nmap_service_detection(
+                client,
+                scan_id,
+                result.open_ports,
+                scan_timeout,
+                logger,
+                progress_reporter,
+            )
+            result = ScanRunResult(open_ports=updated_ports, cancelled=result.cancelled)
+            services_found = sum(1 for p in updated_ports if p.service_guess)
+            logger.info(
+                "Service detection complete: %d/%d ports identified",
+                services_found,
+                len(updated_ports),
+            )
+
+        return result

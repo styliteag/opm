@@ -11,11 +11,7 @@ from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
 from app.models.ssh_scan_result import SSHScanResult
 from app.schemas.scanner import ScannerResultRequest, ScannerResultResponse
-from app.services.alerts import (
-    generate_global_alerts_for_scan,
-    generate_ssh_alerts_for_scan,
-    generate_ssh_regression_alerts_for_scan,
-)
+from app.services.alert_generators import get_alert_generators
 
 
 async def find_existing_port(
@@ -187,12 +183,9 @@ async def submit_scan_results(
         ssh_results_recorded += 1
 
     if scan.status == ScanStatus.COMPLETED:
-        await generate_global_alerts_for_scan(db, scan, recorded_ports_data)
-        # Generate SSH security alerts if SSH results were recorded
-        if ssh_results_recorded > 0:
-            await generate_ssh_alerts_for_scan(db, scan)
-            # Generate regression alerts by comparing to previous scan
-            await generate_ssh_regression_alerts_for_scan(db, scan)
+        context = {"recorded_ports_data": recorded_ports_data}
+        for generator in get_alert_generators(has_ssh_results=ssh_results_recorded > 0):
+            await generator.fn(db, scan, context)
 
     return ScannerResultResponse(
         scan_id=scan.id,
