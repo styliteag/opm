@@ -1256,22 +1256,12 @@ const RiskOverview = () => {
                     <div className="mx-4 w-full max-w-md rounded-2xl border border-slate-200/70 bg-white p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-900">
                         <div className="mb-4 flex items-start justify-between">
                             <div>
-                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                    Resolve Alert{actionModal.mode === 'bulk' ? 's' : ''}
-                                </p>
-                                <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
-                                    {actionModal.mode === 'bulk'
-                                        ? `${actionModal.alerts.length} alerts selected`
-                                        : 'Target Host and Port'}
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                                    Acknowledge {actionModal.mode === 'bulk' ? `${actionModal.alerts.length} Alerts` : 'Alert'}
                                 </h3>
                                 {actionModal.mode === 'single' && (
                                     <p className="mt-2 font-mono text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                                         {actionModal.alerts[0].ip}:{actionModal.alerts[0].port}
-                                    </p>
-                                )}
-                                {actionModal.mode === 'bulk' && (
-                                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                                        Targeting {actionModal.alerts.length} unique host:port combinations
                                     </p>
                                 )}
                             </div>
@@ -1294,26 +1284,25 @@ const RiskOverview = () => {
                         </div>
 
                         <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-                            Choose how to handle {actionModal.mode === 'bulk' ? 'these ports' : 'this port'}. A
-                            justification is required for adding new rules:
+                            Why is {actionModal.mode === 'bulk' ? 'this' : 'this port'} okay? You can also add an allow-rule so future scans won't alert again.
                         </p>
 
                         <div className="mb-6 space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                Justification / Reason
+                                Reason
                             </label>
                             <input
                                 type="text"
                                 autoFocus
                                 value={whitelistReason}
                                 onChange={(e) => setWhitelistReason(e.target.value)}
-                                placeholder="e.g. Authorized customer API, internal management service..."
+                                placeholder="e.g. Known web server, authorized management interface..."
                                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-600"
                             />
                         </div>
 
                         <div className="space-y-3">
-                            {/* Add Global Rule */}
+                            {/* Acknowledge + allow everywhere */}
                             <div className="group rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 transition-all hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/5 dark:hover:bg-emerald-500/10">
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
@@ -1321,10 +1310,10 @@ const RiskOverview = () => {
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-medium text-emerald-700 dark:text-emerald-200">
-                                            Grant Global Authorization
+                                            Allow everywhere
                                         </p>
                                         <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">
-                                            Apply rule to all networks
+                                            Add a global allow-rule so this port won't trigger alerts on any network
                                         </p>
                                     </div>
                                 </div>
@@ -1333,11 +1322,11 @@ const RiskOverview = () => {
                                     disabled={!whitelistReason.trim() || bulkWhitelistGlobalMutation.isPending}
                                     className="mt-3 w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-emerald-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
                                 >
-                                    {bulkWhitelistGlobalMutation.isPending ? 'Processing...' : 'Add Global Rule'}
+                                    {bulkWhitelistGlobalMutation.isPending ? 'Processing...' : 'Allow & Acknowledge'}
                                 </button>
                             </div>
 
-                            {/* Add Network Rule */}
+                            {/* Acknowledge + allow in this network */}
                             <div className="group rounded-xl border border-blue-200 bg-blue-50/50 p-4 transition-all hover:bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/5 dark:hover:bg-blue-500/10">
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
@@ -1345,12 +1334,12 @@ const RiskOverview = () => {
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-medium text-blue-700 dark:text-blue-200">
-                                            Network Specific Authorization
+                                            Allow in this network only
                                         </p>
                                         <p className="text-xs text-blue-600/80 dark:text-blue-300/70">
                                             {actionModal.mode === 'single' && actionModal.alerts[0].network_name
-                                                ? `Apply only to ${actionModal.alerts[0].network_name}`
-                                                : 'Apply to specific networks only'}
+                                                ? `Add an allow-rule only for ${actionModal.alerts[0].network_name}`
+                                                : 'Add allow-rules scoped to each alert\'s network'}
                                         </p>
                                     </div>
                                 </div>
@@ -1359,7 +1348,7 @@ const RiskOverview = () => {
                                     disabled={!whitelistReason.trim() || bulkWhitelistNetworkMutation.isPending}
                                     className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-blue-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
                                 >
-                                    {bulkWhitelistNetworkMutation.isPending ? 'Processing...' : 'Add Network Rule'}
+                                    {bulkWhitelistNetworkMutation.isPending ? 'Processing...' : 'Allow & Acknowledge'}
                                 </button>
                             </div>
 
@@ -1369,12 +1358,12 @@ const RiskOverview = () => {
                                 </div>
                                 <div className="relative flex justify-center">
                                     <span className="bg-white px-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:bg-slate-900">
-                                        Alternative
+                                        or
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Just Reviewed */}
+                            {/* Acknowledge only, no rule */}
                             <button
                                 onClick={handleAcknowledgeOnly}
                                 disabled={bulkAcknowledgeMutation.isPending || singleAcknowledgeMutation.isPending}
@@ -1385,10 +1374,10 @@ const RiskOverview = () => {
                                 </div>
                                 <div className="flex-1">
                                     <p className="font-medium text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
-                                        Just Acknowledge
+                                        Acknowledge only
                                     </p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        Mark as reviewed without any rule updates
+                                        Mark as seen — no allow-rule, future scans will still alert
                                     </p>
                                 </div>
                             </button>
