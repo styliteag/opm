@@ -84,9 +84,12 @@ async def get_alerts(
     return [(row[0], str(row[1]) if row[1] is not None else None) for row in result.all()]
 
 
-async def acknowledge_alert(db: AsyncSession, alert: Alert) -> Alert:
+async def acknowledge_alert(
+    db: AsyncSession, alert: Alert, ack_reason: str | None = None
+) -> Alert:
     """Mark an alert as acknowledged."""
     alert.acknowledged = True
+    alert.ack_reason = ack_reason
     await db.flush()
     await db.refresh(alert)
     return alert
@@ -105,6 +108,7 @@ async def acknowledge_alerts(db: AsyncSession, alerts: list[Alert]) -> list[Aler
 async def unacknowledge_alert(db: AsyncSession, alert: Alert) -> Alert:
     """Mark an alert as unacknowledged (reopen)."""
     alert.acknowledged = False
+    alert.ack_reason = None
     await db.flush()
     await db.refresh(alert)
     return alert

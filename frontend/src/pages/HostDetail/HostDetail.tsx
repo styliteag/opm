@@ -14,6 +14,7 @@ const HostDetail = () => {
   const {
     overviewQuery,
     acknowledgeMutation,
+    unacknowledgeMutation,
     updateCommentMutation,
     updateHostnameMutation,
     rescanMutation,
@@ -84,9 +85,12 @@ const HostDetail = () => {
       {/* Alerts */}
       <AlertsSection
         alerts={data.alerts}
+        acknowledgedAlerts={data.acknowledged_alerts}
         acknowledgedCount={data.acknowledged_alert_count}
-        onAcknowledge={(alertId) => acknowledgeMutation.mutate(alertId)}
+        onAcknowledge={(alertId, reason) => acknowledgeMutation.mutate({ alertId, reason })}
+        onUnacknowledge={(alertId) => unacknowledgeMutation.mutate(alertId)}
         isAcknowledging={acknowledgeMutation.isPending}
+        isUnacknowledging={unacknowledgeMutation.isPending}
       />
 
       {/* Open Ports */}

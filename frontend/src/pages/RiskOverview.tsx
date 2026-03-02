@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import React, { useState, useMemo, useCallback, useEffect } from 'react'
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import AlertComments from '../components/AlertComments'
 import { useAuth } from '../context/AuthContext'
@@ -96,6 +96,7 @@ const RiskOverview = () => {
     const [statusDropdownOpen, setStatusDropdownOpen] = useState<number | null>(null)
     const [updatingAssignment, setUpdatingAssignment] = useState<number | null>(null)
     const [updatingStatus, setUpdatingStatus] = useState<number | null>(null)
+    const tableRef = useRef<HTMLTableElement>(null)
     const now = new Date()
 
     const isAdmin = user?.role === 'admin'
@@ -105,6 +106,20 @@ const RiskOverview = () => {
         const t = setTimeout(() => setToast(null), 3000)
         return () => clearTimeout(t)
     }, [toast])
+
+    // Close dropdowns when clicking outside
+    useEffect(() => {
+        if (assignDropdownOpen === null && statusDropdownOpen === null) return
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement
+            if (!target.closest('[data-dropdown]')) {
+                setAssignDropdownOpen(null)
+                setStatusDropdownOpen(null)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [assignDropdownOpen, statusDropdownOpen])
 
     // Fetch alerts
     const alertsQuery = useQuery({
@@ -988,37 +1003,43 @@ const RiskOverview = () => {
                                                     </td>
                                                     {/* Assigned To column */}
                                                     <td className="whitespace-nowrap px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                                        <div className="relative">
+                                                        <div className="relative" data-dropdown>
                                                             <button
-                                                                onClick={() => setAssignDropdownOpen(assignDropdownOpen === alert.id ? null : alert.id)}
+                                                                onClick={() => {
+                                                                    setStatusDropdownOpen(null)
+                                                                    setAssignDropdownOpen(assignDropdownOpen === alert.id ? null : alert.id)
+                                                                }}
                                                                 disabled={updatingAssignment === alert.id}
-                                                                className="flex items-center gap-2 rounded-xl border border-slate-200/70 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 disabled:opacity-50"
+                                                                className="flex items-center gap-1.5 rounded-lg border border-slate-200/60 bg-white/80 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-white dark:border-slate-600/60 dark:bg-slate-700/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-700 disabled:opacity-50"
                                                             >
                                                                 {updatingAssignment === alert.id ? (
                                                                     <span className="animate-pulse">Updating...</span>
                                                                 ) : alert.assigned_to_email ? (
-                                                                    <span className="max-w-[100px] truncate">{alert.assigned_to_email}</span>
+                                                                    <span className="max-w-[120px] truncate">{alert.assigned_to_email}</span>
                                                                 ) : (
-                                                                    <span className="text-slate-400">Unassigned</span>
+                                                                    <span className="text-slate-400 dark:text-slate-500">Unassigned</span>
                                                                 )}
-                                                                <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <svg className="h-3 w-3 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                                 </svg>
                                                             </button>
                                                             {assignDropdownOpen === alert.id && (
-                                                                <div className="absolute left-0 top-full z-30 mt-1 w-48 rounded-xl border border-slate-200/70 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                                                                <div className="absolute left-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-750 dark:bg-slate-800">
                                                                     <button
                                                                         onClick={() => handleAssignAlert(alert.id, null)}
-                                                                        className="w-full px-3 py-2 text-left text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 rounded-t-xl transition"
+                                                                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-slate-50 dark:hover:bg-slate-700 ${!alert.assigned_to_user_id ? 'font-semibold text-slate-700 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}
                                                                     >
+                                                                        {!alert.assigned_to_user_id && <span className="text-cyan-500">&#10003;</span>}
                                                                         Unassigned
                                                                     </button>
+                                                                    <div className="mx-2 my-0.5 border-t border-slate-100 dark:border-slate-700" />
                                                                     {users.map((u) => (
                                                                         <button
                                                                             key={u.id}
                                                                             onClick={() => handleAssignAlert(alert.id, u.id)}
-                                                                            className={`w-full px-3 py-2 text-left text-xs font-medium transition hover:bg-slate-100 dark:hover:bg-slate-700 last:rounded-b-xl ${alert.assigned_to_user_id === u.id ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}
+                                                                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-slate-50 dark:hover:bg-slate-700 ${alert.assigned_to_user_id === u.id ? 'font-semibold text-slate-700 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}
                                                                         >
+                                                                            {alert.assigned_to_user_id === u.id && <span className="text-cyan-500">&#10003;</span>}
                                                                             {u.email}
                                                                         </button>
                                                                     ))}
@@ -1028,32 +1049,37 @@ const RiskOverview = () => {
                                                     </td>
                                                     {/* Status column */}
                                                     <td className="whitespace-nowrap px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                                        <div className="relative">
+                                                        <div className="relative" data-dropdown>
                                                             <button
-                                                                onClick={() => setStatusDropdownOpen(statusDropdownOpen === alert.id ? null : alert.id)}
+                                                                onClick={() => {
+                                                                    setAssignDropdownOpen(null)
+                                                                    setStatusDropdownOpen(statusDropdownOpen === alert.id ? null : alert.id)
+                                                                }}
                                                                 disabled={updatingStatus === alert.id}
-                                                                className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${resolutionStatusStyles[alert.resolution_status]} disabled:opacity-50`}
+                                                                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${resolutionStatusStyles[alert.resolution_status]} disabled:opacity-50`}
                                                             >
                                                                 {updatingStatus === alert.id ? (
                                                                     <span className="animate-pulse">Updating...</span>
                                                                 ) : (
                                                                     resolutionStatusLabels[alert.resolution_status]
                                                                 )}
-                                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <svg className="h-3 w-3 shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                                 </svg>
                                                             </button>
                                                             {statusDropdownOpen === alert.id && (
-                                                                <div className="absolute left-0 top-full z-30 mt-1 w-36 rounded-xl border border-slate-200/70 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                                                                <div className="absolute left-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
                                                                     {(['open', 'in_progress', 'resolved'] as ResolutionStatus[]).map((status) => (
                                                                         <button
                                                                             key={status}
                                                                             onClick={() => handleUpdateStatus(alert.id, status)}
-                                                                            className={`w-full px-3 py-2 text-left text-xs font-medium transition hover:bg-slate-100 dark:hover:bg-slate-700 first:rounded-t-xl last:rounded-b-xl ${alert.resolution_status === status ? 'bg-slate-100 dark:bg-slate-700' : ''}`}
+                                                                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-slate-50 dark:hover:bg-slate-700 ${alert.resolution_status === status ? 'bg-slate-50 dark:bg-slate-700' : ''}`}
                                                                         >
-                                                                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${resolutionStatusStyles[status]}`}>
+                                                                            <span className={`inline-block h-2 w-2 rounded-full ${status === 'open' ? 'bg-amber-500' : status === 'in_progress' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
+                                                                            <span className={alert.resolution_status === status ? 'font-semibold text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'}>
                                                                                 {resolutionStatusLabels[status]}
                                                                             </span>
+                                                                            {alert.resolution_status === status && <span className="ml-auto text-cyan-500">&#10003;</span>}
                                                                         </button>
                                                                     ))}
                                                                 </div>

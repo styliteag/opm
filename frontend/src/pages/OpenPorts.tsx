@@ -897,15 +897,27 @@ const OpenPorts = () => {
                                 </p>
                               </div>
                             </div>
-                            <div className="border-l border-slate-100 dark:border-slate-800/50 pl-16">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">
-                                Application Banner
-                              </p>
-                              <div className="bg-slate-950 rounded-[2rem] p-8 overflow-hidden border border-slate-800 relative group/code shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
-                                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 opacity-60" />
-                                <pre className="text-[12px] font-mono text-emerald-400/80 whitespace-pre-wrap leading-loose select-all italic">
-                                  {p.banner || 'NO PAYLOAD DATA DETECTED'}
-                                </pre>
+                            <div className="border-l border-slate-100 dark:border-slate-800/50 pl-16 space-y-8">
+                              {p.user_comment && (
+                                <div>
+                                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.25em] mb-2">
+                                    Comment
+                                  </p>
+                                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300 italic">
+                                    {p.user_comment}
+                                  </p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">
+                                  Application Banner
+                                </p>
+                                <div className="bg-slate-950 rounded-[2rem] p-8 overflow-hidden border border-slate-800 relative group/code shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
+                                  <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 opacity-60" />
+                                  <pre className="text-[12px] font-mono text-emerald-400/80 whitespace-pre-wrap leading-loose select-all italic">
+                                    {p.banner || 'NO PAYLOAD DATA DETECTED'}
+                                  </pre>
+                                </div>
                               </div>
                             </div>
                           </div>

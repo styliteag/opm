@@ -36,15 +36,56 @@ const alertTypeLabels: Record<string, string> = {
 
 type Props = {
   alerts: HostAlertSummary[]
+  acknowledgedAlerts: HostAlertSummary[]
   acknowledgedCount: number
-  onAcknowledge: (alertId: number) => void
+  onAcknowledge: (alertId: number, reason?: string) => void
+  onUnacknowledge: (alertId: number) => void
   isAcknowledging: boolean
+  isUnacknowledging: boolean
 }
 
-export default function AlertsSection({ alerts, acknowledgedCount, onAcknowledge, isAcknowledging }: Props) {
+export default function AlertsSection({
+  alerts,
+  acknowledgedAlerts,
+  acknowledgedCount,
+  onAcknowledge,
+  onUnacknowledge,
+  isAcknowledging,
+  isUnacknowledging,
+}: Props) {
   const [showAcknowledged, setShowAcknowledged] = useState(false)
+  const [ackingAlertId, setAckingAlertId] = useState<number | null>(null)
+  const [ackReason, setAckReason] = useState('')
+  const [editingAlertId, setEditingAlertId] = useState<number | null>(null)
+  const [editReason, setEditReason] = useState('')
   const activeAlerts = alerts.filter((a) => !a.acknowledged)
-  const ackedAlerts = alerts.filter((a) => a.acknowledged)
+
+  const handleAckSubmit = (alertId: number) => {
+    onAcknowledge(alertId, ackReason.trim() || undefined)
+    setAckingAlertId(null)
+    setAckReason('')
+  }
+
+  const handleAckCancel = () => {
+    setAckingAlertId(null)
+    setAckReason('')
+  }
+
+  const handleEditStart = (alert: HostAlertSummary) => {
+    setEditingAlertId(alert.id)
+    setEditReason(alert.ack_reason ?? '')
+  }
+
+  const handleEditSubmit = (alertId: number) => {
+    onAcknowledge(alertId, editReason.trim() || undefined)
+    setEditingAlertId(null)
+    setEditReason('')
+  }
+
+  const handleEditCancel = () => {
+    setEditingAlertId(null)
+    setEditReason('')
+  }
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
@@ -78,61 +119,145 @@ export default function AlertsSection({ alerts, acknowledgedCount, onAcknowledge
       {activeAlerts.length > 0 && (
         <div className="space-y-2">
           {activeAlerts.map((alert) => (
-            <div
-              key={alert.id}
-              className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${severityColors[alert.severity] ?? severityColors.medium}`}>
-                  {alert.severity}
-                </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-                  {alertTypeLabels[alert.type] ?? alert.type}
-                </span>
-                <span className="text-sm font-mono text-slate-500 dark:text-slate-400">
-                  :{alert.port}
-                </span>
-                <span className="text-sm text-slate-700 dark:text-slate-300 truncate">
-                  {alert.message}
-                </span>
+            <div key={alert.id}>
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${severityColors[alert.severity] ?? severityColors.medium}`}>
+                    {alert.severity}
+                  </span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                    {alertTypeLabels[alert.type] ?? alert.type}
+                  </span>
+                  <span className="text-sm font-mono text-slate-500 dark:text-slate-400">
+                    :{alert.port}
+                  </span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300 truncate">
+                    {alert.message}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 ml-2 shrink-0">
+                  <span className="text-xs text-slate-400" title={parseUtcDate(alert.created_at).toLocaleString()}>
+                    {formatRelativeTime(parseUtcDate(alert.created_at))}
+                  </span>
+                  <button
+                    onClick={() => setAckingAlertId(ackingAlertId === alert.id ? null : alert.id)}
+                    disabled={isAcknowledging}
+                    className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                    title="Acknowledge"
+                  >
+                    Ack
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 ml-2 shrink-0">
-                <span className="text-xs text-slate-400" title={parseUtcDate(alert.created_at).toLocaleString()}>
-                  {formatRelativeTime(parseUtcDate(alert.created_at))}
-                </span>
-                <button
-                  onClick={() => onAcknowledge(alert.id)}
-                  disabled={isAcknowledging}
-                  className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                  title="Acknowledge"
-                >
-                  Ack
-                </button>
-              </div>
+              {ackingAlertId === alert.id && (
+                <div className="flex items-center gap-2 mt-1 ml-4">
+                  <input
+                    type="text"
+                    value={ackReason}
+                    onChange={(e) => setAckReason(e.target.value)}
+                    placeholder="Reason (optional)"
+                    className="flex-1 px-2 py-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAckSubmit(alert.id)
+                      if (e.key === 'Escape') handleAckCancel()
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => handleAckSubmit(alert.id)}
+                    disabled={isAcknowledging}
+                    className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                  >
+                    Submit
+                  </button>
+                  <button
+                    onClick={handleAckCancel}
+                    className="px-2 py-1 text-xs font-medium rounded bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {showAcknowledged && ackedAlerts.length > 0 && (
+      {showAcknowledged && acknowledgedAlerts.length > 0 && (
         <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
           <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Acknowledged</h4>
           <div className="space-y-2">
-            {ackedAlerts.map((alert) => (
+            {acknowledgedAlerts.map((alert) => (
               <div
                 key={alert.id}
-                className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/30 opacity-60"
+                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-700/50"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
-                    {alertTypeLabels[alert.type] ?? alert.type}
-                  </span>
-                  <span className="text-sm font-mono text-slate-400">:{alert.port}</span>
-                  <span className="text-sm text-slate-500 dark:text-slate-400 truncate">{alert.message}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${severityColors.info}`}>
+                      acked
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                      {alertTypeLabels[alert.type] ?? alert.type}
+                    </span>
+                    <span className="text-sm font-mono text-slate-400">:{alert.port}</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400 truncate">{alert.message}</span>
+                  </div>
+                  <div className="flex items-center gap-2 ml-2 shrink-0">
+                    <span className="text-xs text-slate-400" title={parseUtcDate(alert.created_at).toLocaleString()}>
+                      {formatRelativeTime(parseUtcDate(alert.created_at))}
+                    </span>
+                    <button
+                      onClick={() => handleEditStart(alert)}
+                      disabled={isAcknowledging}
+                      className="px-2 py-1 text-xs font-medium rounded bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 disabled:opacity-50"
+                      title="Edit reason"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => onUnacknowledge(alert.id)}
+                      disabled={isUnacknowledging}
+                      className="px-2 py-1 text-xs font-medium rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
+                      title="Reopen this alert"
+                    >
+                      Unack
+                    </button>
+                  </div>
                 </div>
-                <span className="text-xs text-slate-400">
-                  {formatRelativeTime(parseUtcDate(alert.created_at))}
-                </span>
+                {editingAlertId === alert.id ? (
+                  <div className="flex items-center gap-2 mt-2 ml-1">
+                    <input
+                      type="text"
+                      value={editReason}
+                      onChange={(e) => setEditReason(e.target.value)}
+                      placeholder="Reason (optional)"
+                      className="flex-1 px-2 py-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleEditSubmit(alert.id)
+                        if (e.key === 'Escape') handleEditCancel()
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleEditSubmit(alert.id)}
+                      disabled={isAcknowledging}
+                      className="px-2 py-1 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={handleEditCancel}
+                      className="px-2 py-1 text-xs font-medium rounded bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : alert.ack_reason ? (
+                  <p className="mt-1 ml-1 text-xs text-slate-500 dark:text-slate-400 italic">
+                    Reason: {alert.ack_reason}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>

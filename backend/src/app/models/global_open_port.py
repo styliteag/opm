@@ -28,6 +28,7 @@ class GlobalOpenPort(Base):
         DateTime, nullable=False, server_default=func.now()
     )
     seen_by_networks: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
+    user_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     host_id: Mapped[int | None] = mapped_column(
         ForeignKey("hosts.id"), nullable=True, index=True
     )

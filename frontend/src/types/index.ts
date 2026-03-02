@@ -284,6 +284,7 @@ export type GlobalOpenPort = {
   first_seen_at: string
   last_seen_at: string
   seen_by_networks: number[]
+  user_comment: string | null
 }
 
 export type GlobalOpenPortListResponse = {
@@ -388,6 +389,7 @@ export type HostOpenPort = {
   protocol: string
   banner: string | null
   service_guess: string | null
+  user_comment: string | null
   first_seen_at: string
   last_seen_at: string
 }
@@ -526,6 +528,7 @@ export type HostAlertSummary = {
   acknowledged: boolean
   resolution_status: string
   created_at: string
+  ack_reason: string | null
 }
 
 export type HostSSHSummary = {
@@ -555,6 +558,7 @@ export type HostOverviewResponse = {
   ports: HostOpenPort[]
   networks: HostNetworkInfo[]
   alerts: HostAlertSummary[]
+  acknowledged_alerts: HostAlertSummary[]
   acknowledged_alert_count: number
   ssh: HostSSHSummary | null
   recent_scans: HostScanEntry[]
