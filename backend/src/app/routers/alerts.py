@@ -26,6 +26,7 @@ from app.schemas.alert import (
     AlertListResponse,
     AlertResponse,
     AlertStatusRequest,
+    BulkAcknowledgeRequest,
     Severity,
 )
 from app.schemas.alert_comment import (
@@ -421,18 +422,42 @@ async def acknowledge_alert(
 async def acknowledge_alerts_bulk(
     admin: AdminUser,
     db: DbSession,
-    alert_ids: list[int] = Body(...),
+    request: BulkAcknowledgeRequest = Body(...),
 ) -> AlertBulkAcknowledgeResponse:
     """Acknowledge multiple alerts (admin only)."""
-    if not alert_ids:
+    if not request.alert_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="alert_ids cannot be empty",
         )
 
-    unique_ids = sorted(set(alert_ids))
+    unique_ids = sorted(set(request.alert_ids))
     alerts = await alerts_service.get_alerts_by_ids(db, unique_ids)
+    reason = request.reason.strip() if request.reason else None
+
+    # Set ack_reason on each alert and acknowledge
+    for alert in alerts:
+        if reason:
+            alert.ack_reason = reason
     await alerts_service.acknowledge_alerts(db, alerts)
+
+    # Auto-create comments and copy reason to GlobalOpenPort for new_port alerts
+    if reason:
+        from sqlalchemy import select
+        from app.models.global_open_port import GlobalOpenPort
+
+        for alert in alerts:
+            await alert_comments_service.create_comment(
+                db, alert_id=alert.id, user_id=admin.id, comment=reason
+            )
+            if alert.alert_type == AlertType.NEW_PORT and alert.global_open_port_id:
+                result = await db.execute(
+                    select(GlobalOpenPort).where(GlobalOpenPort.id == alert.global_open_port_id)
+                )
+                global_port = result.scalar_one_or_none()
+                if global_port:
+                    global_port.user_comment = reason
+
     await db.commit()
 
     acknowledged_ids = sorted(alert.id for alert in alerts)

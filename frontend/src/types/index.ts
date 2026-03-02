@@ -46,6 +46,7 @@ export type Alert = {
   host_id: number | null
   hostname: string | null
   user_comment: string | null
+  ack_reason: string | null
 }
 
 export type AlertListResponse = {

@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import AlertComments from '../components/AlertComments'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
-import type { Alert, AlertListResponse, NetworkListResponse, PortRuleUnifiedListResponse, GlobalOpenPort, GlobalOpenPortListResponse, UserListResponse, ResolutionStatus } from '../types'
+import type { Alert, AlertListResponse, NetworkListResponse, PortRuleUnifiedListResponse, GlobalOpenPort, GlobalOpenPortListResponse, UserListResponse } from '../types'
 
 const formatDateTime = (value: Date) =>
     new Intl.DateTimeFormat(undefined, {
@@ -53,18 +53,6 @@ const severityLabels: Record<Severity, string> = {
     info: '🔵 Info',
 }
 
-const resolutionStatusLabels: Record<ResolutionStatus, string> = {
-    open: 'Open',
-    in_progress: 'In Progress',
-    resolved: 'Resolved',
-}
-
-const resolutionStatusStyles: Record<ResolutionStatus, string> = {
-    open: 'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:text-amber-200',
-    in_progress: 'border-blue-300/50 bg-blue-500/15 text-blue-700 dark:text-blue-200',
-    resolved: 'border-emerald-300/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200',
-}
-
 type ActionModalState = {
     alerts: Alert[]
     mode: 'single' | 'bulk'
@@ -91,12 +79,8 @@ const RiskOverview = () => {
     const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
     const [isExporting, setIsExporting] = useState(false)
     const [assignedUserFilter, setAssignedUserFilter] = useState<number | 'all' | 'unassigned'>('all')
-    const [resolutionStatusFilter, setResolutionStatusFilter] = useState<ResolutionStatus | 'all'>('all')
     const [assignDropdownOpen, setAssignDropdownOpen] = useState<number | null>(null)
-    const [statusDropdownOpen, setStatusDropdownOpen] = useState<number | null>(null)
     const [updatingAssignment, setUpdatingAssignment] = useState<number | null>(null)
-    const [updatingStatus, setUpdatingStatus] = useState<number | null>(null)
-    const tableRef = useRef<HTMLTableElement>(null)
     const now = new Date()
 
     const isAdmin = user?.role === 'admin'
@@ -109,17 +93,16 @@ const RiskOverview = () => {
 
     // Close dropdowns when clicking outside
     useEffect(() => {
-        if (assignDropdownOpen === null && statusDropdownOpen === null) return
+        if (assignDropdownOpen === null) return
         const handleClickOutside = (e: MouseEvent) => {
             const target = e.target as HTMLElement
             if (!target.closest('[data-dropdown]')) {
                 setAssignDropdownOpen(null)
-                setStatusDropdownOpen(null)
             }
         }
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [assignDropdownOpen, statusDropdownOpen])
+    }, [assignDropdownOpen])
 
     // Fetch alerts
     const alertsQuery = useQuery({
@@ -245,11 +228,6 @@ const RiskOverview = () => {
                 }
             }
 
-            // Resolution status filter
-            if (resolutionStatusFilter !== 'all') {
-                if (alert.resolution_status !== resolutionStatusFilter) return false
-            }
-
             return true
         })
 
@@ -330,7 +308,7 @@ const RiskOverview = () => {
 
             return sortDirection === 'asc' ? comparison : -comparison
         })
-    }, [alerts, severityFilter, networkFilter, statusFilter, searchQuery, isAlertAllowed, portMap, sortColumn, sortDirection, assignedUserFilter, resolutionStatusFilter])
+    }, [alerts, severityFilter, networkFilter, statusFilter, searchQuery, isAlertAllowed, portMap, sortColumn, sortDirection, assignedUserFilter])
 
     const toggleRow = (alertId: number) => {
         setExpandedRows(prev => {
@@ -400,14 +378,14 @@ const RiskOverview = () => {
     })
 
     const bulkAcknowledgeMutation = useMutation({
-        mutationFn: async (alertIds: number[]) => {
+        mutationFn: async ({ alertIds, reason }: { alertIds: number[]; reason?: string }) => {
             const response = await fetch(`${API_BASE_URL}/api/alerts/acknowledge-bulk`, {
                 method: 'PUT',
                 headers: {
                     ...getAuthHeaders(token ?? ''),
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(alertIds),
+                body: JSON.stringify({ alert_ids: alertIds, reason: reason || null }),
             })
             if (!response.ok) throw new Error(await extractErrorMessage(response))
             return response.json()
@@ -415,8 +393,32 @@ const RiskOverview = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['alerts'] })
             setActionModal(null)
+            setWhitelistReason('')
             setSelectedIds(new Set())
             setActionMessage('Alerts acknowledged.')
+            setTimeout(() => setActionMessage(null), 3000)
+        },
+    })
+
+    const singleAcknowledgeMutation = useMutation({
+        mutationFn: async ({ alertId, reason }: { alertId: number; reason?: string }) => {
+            const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/acknowledge`, {
+                method: 'PUT',
+                headers: {
+                    ...getAuthHeaders(token ?? ''),
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ reason: reason || null }),
+            })
+            if (!response.ok) throw new Error(await extractErrorMessage(response))
+            return response.json()
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['alerts'] })
+            setActionModal(null)
+            setWhitelistReason('')
+            setSelectedIds(new Set())
+            setActionMessage('Alert acknowledged.')
             setTimeout(() => setActionMessage(null), 3000)
         },
     })
@@ -461,26 +463,20 @@ const RiskOverview = () => {
         },
     })
 
-    const updateStatusMutation = useMutation({
-        mutationFn: async ({ alertId, status }: { alertId: number; status: ResolutionStatus }) => {
-            const res = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', ...getAuthHeaders(token ?? '') },
-                body: JSON.stringify({ resolution_status: status }),
+    const unacknowledgeMutation = useMutation({
+        mutationFn: async (alertId: number) => {
+            const res = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/unacknowledge`, {
+                method: 'PUT',
+                headers: getAuthHeaders(token ?? ''),
             })
             if (!res.ok) throw new Error(await extractErrorMessage(res))
             return res.json()
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['alerts'] })
-            setToast({ message: 'Alert status updated', tone: 'success' })
-            setStatusDropdownOpen(null)
-            setUpdatingStatus(null)
+            setToast({ message: 'Alert reopened', tone: 'success' })
         },
-        onError: (e) => {
-            setToast({ message: e instanceof Error ? e.message : 'Failed to update status', tone: 'error' })
-            setUpdatingStatus(null)
-        },
+        onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
     })
 
     const rescanHostMutation = useMutation({
@@ -502,11 +498,6 @@ const RiskOverview = () => {
     const handleAssignAlert = (alertId: number, userId: number | null) => {
         setUpdatingAssignment(alertId)
         assignAlertMutation.mutate({ alertId, userId })
-    }
-
-    const handleUpdateStatus = (alertId: number, status: ResolutionStatus) => {
-        setUpdatingStatus(alertId)
-        updateStatusMutation.mutate({ alertId, status })
     }
 
     const handleExportCsv = async () => {
@@ -620,8 +611,13 @@ const RiskOverview = () => {
 
     const handleAcknowledgeOnly = () => {
         if (!actionModal) return
-        const alertIds = actionModal.alerts.map((a) => a.id)
-        bulkAcknowledgeMutation.mutate(alertIds)
+        const reason = whitelistReason.trim() || undefined
+        if (actionModal.mode === 'single') {
+            singleAcknowledgeMutation.mutate({ alertId: actionModal.alerts[0].id, reason })
+        } else {
+            const alertIds = actionModal.alerts.map((a) => a.id)
+            bulkAcknowledgeMutation.mutate({ alertIds, reason })
+        }
     }
 
     const unacknowledgedCount = filteredAlerts.filter((a) => !a.acknowledged).length
@@ -805,16 +801,6 @@ const RiskOverview = () => {
                             ))}
                         </select>
 
-                        <select
-                            value={resolutionStatusFilter}
-                            onChange={(e) => setResolutionStatusFilter(e.target.value as ResolutionStatus | 'all')}
-                            className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
-                        >
-                            <option value="all">All Resolution Status</option>
-                            <option value="open">🟡 Open</option>
-                            <option value="in_progress">🔵 In Progress</option>
-                            <option value="resolved">🟢 Resolved</option>
-                        </select>
                     </div>
 
                     {/* Action message */}
@@ -907,20 +893,19 @@ const RiskOverview = () => {
                                         </div>
                                     </th>
                                     <th className="px-4 py-3">Assigned To</th>
-                                    <th className="px-4 py-3">Status</th>
                                     <th className="px-4 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
                                 {alertsQuery.isLoading || policyQuery.isLoading ? (
                                     <tr>
-                                        <td colSpan={isAdmin ? 11 : 10} className="px-4 py-6 text-sm text-slate-500">
+                                        <td colSpan={isAdmin ? 10 : 9} className="px-4 py-6 text-sm text-slate-500">
                                             Loading security context...
                                         </td>
                                     </tr>
                                 ) : filteredAlerts.length === 0 ? (
                                     <tr>
-                                        <td colSpan={isAdmin ? 11 : 10} className="px-4 py-6 text-sm text-slate-500">
+                                        <td colSpan={isAdmin ? 10 : 9} className="px-4 py-6 text-sm text-slate-500">
                                             No alerts found.
                                         </td>
                                     </tr>
@@ -1006,7 +991,6 @@ const RiskOverview = () => {
                                                         <div className="relative" data-dropdown>
                                                             <button
                                                                 onClick={() => {
-                                                                    setStatusDropdownOpen(null)
                                                                     setAssignDropdownOpen(assignDropdownOpen === alert.id ? null : alert.id)
                                                                 }}
                                                                 disabled={updatingAssignment === alert.id}
@@ -1047,67 +1031,34 @@ const RiskOverview = () => {
                                                             )}
                                                         </div>
                                                     </td>
-                                                    {/* Status column */}
-                                                    <td className="whitespace-nowrap px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                                        <div className="relative" data-dropdown>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setAssignDropdownOpen(null)
-                                                                    setStatusDropdownOpen(statusDropdownOpen === alert.id ? null : alert.id)
-                                                                }}
-                                                                disabled={updatingStatus === alert.id}
-                                                                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${resolutionStatusStyles[alert.resolution_status]} disabled:opacity-50`}
-                                                            >
-                                                                {updatingStatus === alert.id ? (
-                                                                    <span className="animate-pulse">Updating...</span>
-                                                                ) : (
-                                                                    resolutionStatusLabels[alert.resolution_status]
-                                                                )}
-                                                                <svg className="h-3 w-3 shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                                </svg>
-                                                            </button>
-                                                            {statusDropdownOpen === alert.id && (
-                                                                <div className="absolute left-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
-                                                                    {(['open', 'in_progress', 'resolved'] as ResolutionStatus[]).map((status) => (
-                                                                        <button
-                                                                            key={status}
-                                                                            onClick={() => handleUpdateStatus(alert.id, status)}
-                                                                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition hover:bg-slate-50 dark:hover:bg-slate-700 ${alert.resolution_status === status ? 'bg-slate-50 dark:bg-slate-700' : ''}`}
-                                                                        >
-                                                                            <span className={`inline-block h-2 w-2 rounded-full ${status === 'open' ? 'bg-amber-500' : status === 'in_progress' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
-                                                                            <span className={alert.resolution_status === status ? 'font-semibold text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'}>
-                                                                                {resolutionStatusLabels[status]}
-                                                                            </span>
-                                                                            {alert.resolution_status === status && <span className="ml-auto text-cyan-500">&#10003;</span>}
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </td>
+                                                    {/* Actions column */}
                                                     <td className="whitespace-nowrap px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                                                         <div className="flex items-center justify-end gap-2">
-                                                            {isAdmin && (
-                                                                <button
-                                                                    onClick={() => rescanHostMutation.mutate(alert.ip)}
-                                                                    disabled={rescanHostMutation.isPending}
-                                                                    className="rounded-full border border-cyan-300 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-700 transition hover:border-cyan-400 hover:bg-cyan-500/20 dark:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
-                                                                    title="Rescan this host with nmap"
-                                                                >
-                                                                    {rescanHostMutation.isPending ? 'Scanning...' : 'Rescan'}
-                                                                </button>
-                                                            )}
                                                             {alert.acknowledged ? (
-                                                                <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
-                                                                    Acknowledged
-                                                                </span>
+                                                                <>
+                                                                    <span
+                                                                        className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 cursor-default"
+                                                                        title={alert.ack_reason || undefined}
+                                                                    >
+                                                                        Acknowledged
+                                                                    </span>
+                                                                    {isAdmin && (
+                                                                        <button
+                                                                            onClick={() => unacknowledgeMutation.mutate(alert.id)}
+                                                                            disabled={unacknowledgeMutation.isPending}
+                                                                            className="rounded-full border border-slate-200 bg-slate-100/50 px-3 py-1 text-xs font-semibold text-slate-500 transition hover:border-rose-300 hover:bg-rose-500/10 hover:text-rose-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:border-rose-500/40 dark:hover:text-rose-400 disabled:opacity-50"
+                                                                            title="Reopen this alert"
+                                                                        >
+                                                                            Reopen
+                                                                        </button>
+                                                                    )}
+                                                                </>
                                                             ) : isAdmin ? (
                                                                 <button
                                                                     onClick={() => handleResolve(alert)}
-                                                                    className="rounded-full border border-amber-300 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-500/20 dark:text-amber-200"
+                                                                    className="rounded-full border border-emerald-300 bg-emerald-500/10 px-4 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300"
                                                                 >
-                                                                    Resolve
+                                                                    Ack
                                                                 </button>
                                                             ) : (
                                                                 <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
@@ -1119,7 +1070,7 @@ const RiskOverview = () => {
                                                 </tr>
                                                 {isExpanded && (
                                                     <tr className="bg-slate-50/20 dark:bg-slate-800/10">
-                                                        <td colSpan={isAdmin ? 11 : 10} className="px-16 py-12">
+                                                        <td colSpan={isAdmin ? 10 : 9} className="px-16 py-12">
                                                             {portData ? (
                                                                 <div className="space-y-8">
                                                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
@@ -1201,8 +1152,20 @@ const RiskOverview = () => {
                                                                             </div>
                                                                         </div>
                                                                     </div>
-                                                                    {/* Alert Comments Section */}
+                                                                    {/* Rescan + Alert Comments Section */}
                                                                     <div className="pt-8 border-t border-slate-100 dark:border-slate-800/50">
+                                                                        {isAdmin && (
+                                                                            <div className="mb-6">
+                                                                                <button
+                                                                                    onClick={() => rescanHostMutation.mutate(alert.ip)}
+                                                                                    disabled={rescanHostMutation.isPending}
+                                                                                    className="rounded-full border border-cyan-300 bg-cyan-500/10 px-4 py-1.5 text-xs font-semibold text-cyan-700 transition hover:border-cyan-400 hover:bg-cyan-500/20 dark:border-cyan-500/40 dark:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                                    title="Rescan this host with nmap"
+                                                                                >
+                                                                                    {rescanHostMutation.isPending ? 'Scanning...' : 'Rescan Host'}
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
                                                                         <AlertComments
                                                                             alertId={alert.id}
                                                                             onToast={(message, tone) => setToast({ message, tone })}
@@ -1253,8 +1216,20 @@ const RiskOverview = () => {
                                                                             </p>
                                                                         </div>
                                                                     </div>
-                                                                    {/* Alert Comments Section */}
+                                                                    {/* Rescan + Alert Comments Section */}
                                                                     <div className="pt-8 border-t border-slate-100 dark:border-slate-800/50">
+                                                                        {isAdmin && (
+                                                                            <div className="mb-6">
+                                                                                <button
+                                                                                    onClick={() => rescanHostMutation.mutate(alert.ip)}
+                                                                                    disabled={rescanHostMutation.isPending}
+                                                                                    className="rounded-full border border-cyan-300 bg-cyan-500/10 px-4 py-1.5 text-xs font-semibold text-cyan-700 transition hover:border-cyan-400 hover:bg-cyan-500/20 dark:border-cyan-500/40 dark:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                                    title="Rescan this host with nmap"
+                                                                                >
+                                                                                    {rescanHostMutation.isPending ? 'Scanning...' : 'Rescan Host'}
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
                                                                         <AlertComments
                                                                             alertId={alert.id}
                                                                             onToast={(message, tone) => setToast({ message, tone })}
@@ -1402,7 +1377,7 @@ const RiskOverview = () => {
                             {/* Just Reviewed */}
                             <button
                                 onClick={handleAcknowledgeOnly}
-                                disabled={bulkAcknowledgeMutation.isPending}
+                                disabled={bulkAcknowledgeMutation.isPending || singleAcknowledgeMutation.isPending}
                                 className="group flex w-full items-center gap-3 rounded-xl border border-slate-200 p-4 text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
                             >
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition-colors group-hover:bg-indigo-100 group-hover:text-indigo-600 dark:bg-slate-800">
