@@ -178,6 +178,16 @@ async def list_alerts(
         key=lambda a: (severity_order.get(a.severity, 999), -a.created_at.timestamp())
     )
 
+    # Deduplicate: keep only the highest-severity alert per (ip, port)
+    seen: set[tuple[str, int]] = set()
+    deduped: list[AlertResponse] = []
+    for a in alert_responses:
+        key = (a.ip, a.port)
+        if key not in seen:
+            seen.add(key)
+            deduped.append(a)
+    alert_responses = deduped
+
     return AlertListResponse(alerts=alert_responses)
 
 
