@@ -28,7 +28,23 @@ async def create_rule(
     ip: str | None = None,
     description: str | None = None,
 ) -> PortRule:
-    """Create a new port rule."""
+    """Create a new port rule. Returns existing rule if a duplicate exists."""
+    # Check for existing duplicate (same network_id, ip, port, rule_type)
+    stmt = select(PortRule).where(
+        PortRule.network_id == network_id,
+        PortRule.port == port,
+        PortRule.rule_type == rule_type,
+    )
+    if ip is None:
+        stmt = stmt.where(PortRule.ip.is_(None))
+    else:
+        stmt = stmt.where(PortRule.ip == ip)
+
+    result = await db.execute(stmt)
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        return existing
+
     rule = PortRule(
         network_id=network_id,
         ip=ip,
