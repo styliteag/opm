@@ -198,7 +198,7 @@
 **Key behavior — ACK reason propagates to open port comment:**
 When an open port alert is acknowledged with a reason, that reason should automatically be set as the `user_comment` on the matching `GlobalOpenPort` record (and optionally on the `Host` comment if empty). This way, the Hosts page and Open Ports page show *why* a port was accepted, not just that it exists.
 
-**Implementing:** yes
+**Implementing:** done
 **Current state:** The building blocks exist (alert types, acknowledgment with reason, comments, whitelisting) but the ACK reason does NOT propagate to the open port entry. Acknowledging a `new_port` alert with a global_open_port_id already copies the reason to `GlobalOpenPort.user_comment`, but network-scoped alerts and the host-level port view don't receive this information. The workflow works but requires the admin to document the same justification in multiple places manually.
 
 ---
@@ -283,4 +283,4 @@ Example of new scanner types:
 - Hunter
 
 **Implementing:** yes
-**Current state:** Unknown
+**Current state:** Partially implemented. Alert types are enum-based and relatively easy to extend manually (add enum value + generation logic + frontend constant). Scanner types are hardcoded to masscan/nmap with a job-polling architecture that doesn't accommodate API-based scanners like Censys/Hunter. No plugin, registry, or adapter pattern exists for either scanners or alert types.
