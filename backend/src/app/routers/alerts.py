@@ -391,17 +391,8 @@ async def acknowledge_alert(
             db, alert_id=alert.id, user_id=admin.id, comment=reason
         )
 
-        # For new_port alerts, copy reason to GlobalOpenPort.user_comment
-        if alert.alert_type == AlertType.NEW_PORT and alert.global_open_port_id:
-            from sqlalchemy import select
-            from app.models.global_open_port import GlobalOpenPort
-
-            result = await db.execute(
-                select(GlobalOpenPort).where(GlobalOpenPort.id == alert.global_open_port_id)
-            )
-            global_port = result.scalar_one_or_none()
-            if global_port:
-                global_port.user_comment = reason
+        # Propagate reason to GlobalOpenPort and Host
+        await alerts_service.propagate_ack_reason_to_port_and_host(db, alert, reason)
 
     await db.commit()
 
@@ -451,22 +442,13 @@ async def acknowledge_alerts_bulk(
             alert.ack_reason = reason
     await alerts_service.acknowledge_alerts(db, alerts)
 
-    # Auto-create comments and copy reason to GlobalOpenPort for new_port alerts
+    # Auto-create comments and propagate reason to GlobalOpenPort/Host
     if reason:
-        from sqlalchemy import select
-        from app.models.global_open_port import GlobalOpenPort
-
         for alert in alerts:
             await alert_comments_service.create_comment(
                 db, alert_id=alert.id, user_id=admin.id, comment=reason
             )
-            if alert.alert_type == AlertType.NEW_PORT and alert.global_open_port_id:
-                result = await db.execute(
-                    select(GlobalOpenPort).where(GlobalOpenPort.id == alert.global_open_port_id)
-                )
-                global_port = result.scalar_one_or_none()
-                if global_port:
-                    global_port.user_comment = reason
+            await alerts_service.propagate_ack_reason_to_port_and_host(db, alert, reason)
 
     await db.commit()
 

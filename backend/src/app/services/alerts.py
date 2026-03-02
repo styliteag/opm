@@ -13,7 +13,11 @@ from app.models.port_rule import PortRule, RuleType
 from app.models.scan import Scan, ScanStatus
 from app.models.ssh_scan_result import SSHScanResult
 from app.services.email_alerts import queue_alert_emails, queue_global_alert_emails
-from app.services.global_open_ports import upsert_global_open_port
+from app.services.global_open_ports import (
+    get_global_open_port,
+    get_global_open_port_by_id,
+    upsert_global_open_port,
+)
 from app.services.global_port_rules import is_port_whitelisted
 from app.services.hosts import get_host_by_ip
 import app.services.global_settings as global_settings_service
@@ -112,6 +116,31 @@ async def unacknowledge_alert(db: AsyncSession, alert: Alert) -> Alert:
     await db.flush()
     await db.refresh(alert)
     return alert
+
+
+async def propagate_ack_reason_to_port_and_host(
+    db: AsyncSession, alert: Alert, reason: str
+) -> None:
+    """Propagate an ACK reason to the related GlobalOpenPort and Host.
+
+    - Always overwrites GlobalOpenPort.user_comment with the reason.
+    - Sets Host.user_comment only if currently empty/null.
+    - Does not commit — caller handles the transaction.
+    """
+    # Update GlobalOpenPort
+    global_port = None
+    if alert.global_open_port_id:
+        global_port = await get_global_open_port_by_id(db, alert.global_open_port_id)
+    else:
+        global_port = await get_global_open_port(db, alert.ip, alert.port)
+
+    if global_port:
+        global_port.user_comment = reason
+
+    # Update Host (only if comment is empty)
+    host = await get_host_by_ip(db, alert.ip)
+    if host and not host.user_comment:
+        host.user_comment = reason
 
 
 def _parse_port_range(value: str) -> tuple[int, int] | None:
