@@ -344,6 +344,7 @@ const RiskOverview = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['alerts'] })
+            queryClient.invalidateQueries({ queryKey: ['alert-comments'] })
             queryClient.invalidateQueries({ queryKey: ['port-rules'] })
             setActionModal(null)
             setWhitelistReason('')
@@ -368,6 +369,7 @@ const RiskOverview = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['alerts'] })
+            queryClient.invalidateQueries({ queryKey: ['alert-comments'] })
             queryClient.invalidateQueries({ queryKey: ['port-rules'] })
             setActionModal(null)
             setWhitelistReason('')

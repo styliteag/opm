@@ -562,8 +562,16 @@ async def bulk_whitelist_global(
         except Exception as e:
             errors.append(f"Failed to whitelist {ip}:{port}: {str(e)}")
 
-    # Acknowledge all alerts
+    # Acknowledge all alerts and create comments
+    reason = request.reason.strip()
+    for alert in alerts:
+        alert.ack_reason = reason
     await alerts_service.acknowledge_alerts(db, alerts)
+    for alert in alerts:
+        await alert_comments_service.create_comment(
+            db, alert_id=alert.id, user_id=admin.id, comment=reason
+        )
+        await alerts_service.propagate_ack_reason_to_port_and_host(db, alert, reason)
     await db.commit()
 
     acknowledged_ids = sorted(alert.id for alert in alerts)
@@ -646,8 +654,16 @@ async def bulk_whitelist_network(
             except Exception as e:
                 errors.append(f"Failed to whitelist {ip}:{port} on network {network_id}: {str(e)}")
 
-    # Acknowledge all alerts
+    # Acknowledge all alerts and create comments
+    reason = request.reason.strip()
+    for alert in alerts:
+        alert.ack_reason = reason
     await alerts_service.acknowledge_alerts(db, alerts)
+    for alert in alerts:
+        await alert_comments_service.create_comment(
+            db, alert_id=alert.id, user_id=admin.id, comment=reason
+        )
+        await alerts_service.propagate_ack_reason_to_port_and_host(db, alert, reason)
     await db.commit()
 
     acknowledged_ids = sorted(alert.id for alert in alerts)
