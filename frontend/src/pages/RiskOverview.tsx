@@ -1306,16 +1306,16 @@ const RiskOverview = () => {
                             <button
                                 onClick={handleAcknowledgeOnly}
                                 disabled={bulkAcknowledgeMutation.isPending || singleAcknowledgeMutation.isPending}
-                                className="group flex w-full items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/5 dark:hover:bg-emerald-500/10"
+                                className="group flex w-full items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50 dark:border-indigo-500/30 dark:bg-indigo-500/5 dark:hover:bg-indigo-500/10"
                             >
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors dark:bg-emerald-500/20 dark:text-emerald-300">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 transition-colors dark:bg-indigo-500/20 dark:text-indigo-300">
                                     👁️
                                 </div>
                                 <div className="flex-1">
-                                    <p className="font-medium text-emerald-700 dark:text-emerald-200">
+                                    <p className="font-medium text-indigo-700 dark:text-indigo-200">
                                         Acknowledge only
                                     </p>
-                                    <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">
+                                    <p className="text-xs text-indigo-600/80 dark:text-indigo-300/70">
                                         Mark as seen — no allow-rule, future scans will still alert
                                     </p>
                                 </div>
@@ -1333,16 +1333,16 @@ const RiskOverview = () => {
                             </div>
 
                             {/* Acknowledge + allow everywhere */}
-                            <div className="group rounded-xl border border-slate-200 p-4 transition-all hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50">
+                            <div className="group rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 transition-all hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/5 dark:hover:bg-emerald-500/10">
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
                                         ✅
                                     </div>
                                     <div className="flex-1">
-                                        <p className="font-medium text-slate-900 dark:text-white">
+                                        <p className="font-medium text-emerald-700 dark:text-emerald-200">
                                             Allow everywhere
                                         </p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">
                                             Add a global allow-rule so this port won't trigger alerts on any network
                                         </p>
                                     </div>
@@ -1350,23 +1350,23 @@ const RiskOverview = () => {
                                 <button
                                     onClick={handleWhitelistGlobal}
                                     disabled={!whitelistReason.trim() || bulkWhitelistGlobalMutation.isPending}
-                                    className="mt-3 w-full rounded-lg bg-slate-800 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-slate-600 dark:hover:bg-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+                                    className="mt-3 w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-emerald-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
                                 >
                                     {bulkWhitelistGlobalMutation.isPending ? 'Processing...' : 'Allow & Acknowledge'}
                                 </button>
                             </div>
 
                             {/* Acknowledge + allow in this network */}
-                            <div className="group rounded-xl border border-slate-200 p-4 transition-all hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50">
+                            <div className="group rounded-xl border border-blue-200 bg-blue-50/50 p-4 transition-all hover:bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/5 dark:hover:bg-blue-500/10">
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
                                         📍
                                     </div>
                                     <div className="flex-1">
-                                        <p className="font-medium text-slate-900 dark:text-white">
+                                        <p className="font-medium text-blue-700 dark:text-blue-200">
                                             Allow in this network only
                                         </p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        <p className="text-xs text-blue-600/80 dark:text-blue-300/70">
                                             {actionModal.mode === 'single' && actionModal.alerts[0].network_name
                                                 ? `Add an allow-rule only for ${actionModal.alerts[0].network_name}`
                                                 : 'Add allow-rules scoped to each alert\'s network'}
@@ -1376,7 +1376,7 @@ const RiskOverview = () => {
                                 <button
                                     onClick={handleWhitelistNetwork}
                                     disabled={!whitelistReason.trim() || bulkWhitelistNetworkMutation.isPending}
-                                    className="mt-3 w-full rounded-lg bg-slate-800 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-slate-600 dark:hover:bg-slate-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+                                    className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-blue-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
                                 >
                                     {bulkWhitelistNetworkMutation.isPending ? 'Processing...' : 'Allow & Acknowledge'}
                                 </button>
