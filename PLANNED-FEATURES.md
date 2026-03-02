@@ -282,5 +282,5 @@ Example of new scanner types:
 - Censys
 - Hunter
 
-**Implementing:** yes
+**Implementing:** done
 **Current state:** Partially implemented. Alert types are enum-based and relatively easy to extend manually (add enum value + generation logic + frontend constant). Scanner types are hardcoded to masscan/nmap with a job-polling architecture that doesn't accommodate API-based scanners like Censys/Hunter. No plugin, registry, or adapter pattern exists for either scanners or alert types.
