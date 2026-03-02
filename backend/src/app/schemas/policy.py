@@ -1,4 +1,4 @@
-"""Schemas for unified policy (port rule) endpoints."""
+"""Schemas for unified port rule endpoints."""
 
 from datetime import datetime
 
@@ -8,7 +8,7 @@ from app.models.global_port_rule import GlobalRuleType
 from app.schemas.port_rule import validate_ip_address, validate_port_or_range
 
 
-class PolicyRuleResponse(BaseModel):
+class PortRuleUnifiedResponse(BaseModel):
     """Unified response schema for both global and network rules."""
 
     id: int
@@ -24,14 +24,14 @@ class PolicyRuleResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class PolicyListResponse(BaseModel):
-    """Response schema for list of policy rules."""
+class PortRuleUnifiedListResponse(BaseModel):
+    """Response schema for list of port rules."""
 
-    rules: list[PolicyRuleResponse]
+    rules: list[PortRuleUnifiedResponse]
 
 
-class PolicyCreateRequest(BaseModel):
-    """Request schema for creating a policy rule (global or network)."""
+class PortRuleUnifiedCreateRequest(BaseModel):
+    """Request schema for creating a port rule (global or network)."""
 
     network_id: int | None = None  # None means global
     ip: str | None = None
@@ -50,8 +50,8 @@ class PolicyCreateRequest(BaseModel):
         return validate_ip_address(v)
 
 
-class PolicyUpdateRequest(BaseModel):
-    """Request schema for updating an existing policy rule."""
+class PortRuleUnifiedUpdateRequest(BaseModel):
+    """Request schema for updating an existing port rule."""
 
     ip: str | None = None
     port: str | None = None

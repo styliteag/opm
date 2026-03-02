@@ -177,9 +177,9 @@ const Home = () => {
       to: '/ports',
     },
     {
-      title: 'Policy',
-      description: 'Manage security governance rules.',
-      to: '/policy',
+      title: 'Port Rules',
+      description: 'Define expected and forbidden ports.',
+      to: '/port-rules',
     },
   ]
 

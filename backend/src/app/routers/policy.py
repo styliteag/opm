@@ -1,4 +1,4 @@
-"""Unified policy management router for global and network-specific port rules."""
+"""Unified port rule management router for global and network-specific port rules."""
 
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
@@ -9,25 +9,25 @@ from app.models.global_port_rule import GlobalRuleType
 from app.models.network import Network
 from app.models.port_rule import PortRule, RuleType
 from app.schemas.policy import (
-    PolicyCreateRequest,
-    PolicyListResponse,
-    PolicyRuleResponse,
-    PolicyUpdateRequest,
+    PortRuleUnifiedCreateRequest,
+    PortRuleUnifiedListResponse,
+    PortRuleUnifiedResponse,
+    PortRuleUnifiedUpdateRequest,
 )
 from app.services import global_port_rules as global_rules_service
 from app.services import networks as networks_service
 from app.services import port_rules as network_rules_service
 
-router = APIRouter(prefix="/api/policy", tags=["policy"])
+router = APIRouter(prefix="/api/port-rules", tags=["port-rules"])
 
 
-@router.get("", response_model=PolicyListResponse)
-async def list_policy_rules(
+@router.get("", response_model=PortRuleUnifiedListResponse)
+async def list_port_rules(
     user: CurrentUser,
     db: DbSession,
     network_id: int | None = Query(None),
-) -> PolicyListResponse:
-    """List all policy rules (global and optionally filtered by network)."""
+) -> PortRuleUnifiedListResponse:
+    """List all port rules (global and optionally filtered by network)."""
 
     rules = []
 
@@ -35,7 +35,7 @@ async def list_policy_rules(
     global_rules = await global_rules_service.get_all_global_rules(db)
     for g_rule in global_rules:
         rules.append(
-            PolicyRuleResponse(
+            PortRuleUnifiedResponse(
                 id=g_rule.id,
                 network_id=None,
                 network_name="Global",
@@ -55,7 +55,7 @@ async def list_policy_rules(
         network_name = network.name if network else f"Network {network_id}"
         for n_rule in network_rules:
             rules.append(
-                PolicyRuleResponse(
+                PortRuleUnifiedResponse(
                     id=n_rule.id,
                     network_id=n_rule.network_id,
                     network_name=network_name,
@@ -72,7 +72,7 @@ async def list_policy_rules(
         all_network_rules = list(result.scalars().all())
         for n_rule in all_network_rules:
             rules.append(
-                PolicyRuleResponse(
+                PortRuleUnifiedResponse(
                     id=n_rule.id,
                     network_id=n_rule.network_id,
                     network_name=n_rule.network.name,
@@ -86,16 +86,16 @@ async def list_policy_rules(
     # Sort: Global first, then by network name, then by port
     rules.sort(key=lambda x: (x.network_id is not None, x.network_name or "", x.port))
 
-    return PolicyListResponse(rules=rules)
+    return PortRuleUnifiedListResponse(rules=rules)
 
 
-@router.post("", response_model=PolicyRuleResponse, status_code=status.HTTP_201_CREATED)
-async def create_policy_rule(
+@router.post("", response_model=PortRuleUnifiedResponse, status_code=status.HTTP_201_CREATED)
+async def create_port_rule(
     admin: AdminUser,
     db: DbSession,
-    request: PolicyCreateRequest,
-) -> PolicyRuleResponse:
-    """Create a new policy rule (global if network_id is null, otherwise network-specific)."""
+    request: PortRuleUnifiedCreateRequest,
+) -> PortRuleUnifiedResponse:
+    """Create a new port rule (global if network_id is null, otherwise network-specific)."""
 
     if request.network_id is None:
         # Create global rule
@@ -109,7 +109,7 @@ async def create_policy_rule(
                 created_by=admin.id,
             )
             await db.commit()
-            return PolicyRuleResponse(
+            return PortRuleUnifiedResponse(
                 id=g_rule.id,
                 network_id=None,
                 network_name="Global",
@@ -137,7 +137,7 @@ async def create_policy_rule(
             description=request.description,
         )
         await db.commit()
-        return PolicyRuleResponse(
+        return PortRuleUnifiedResponse(
             id=n_rule.id,
             network_id=n_rule.network_id,
             network_name=network.name,
@@ -148,15 +148,15 @@ async def create_policy_rule(
         )
 
 
-@router.patch("/{scope}/{rule_id}", response_model=PolicyRuleResponse)
-async def update_policy_rule(
+@router.patch("/{scope}/{rule_id}", response_model=PortRuleUnifiedResponse)
+async def update_port_rule(
     admin: AdminUser,
     db: DbSession,
     scope: str,  # 'global' or 'network'
     rule_id: int,
-    request: PolicyUpdateRequest,
-) -> PolicyRuleResponse:
-    """Update an existing policy rule."""
+    request: PortRuleUnifiedUpdateRequest,
+) -> PortRuleUnifiedResponse:
+    """Update an existing port rule."""
 
     if scope == "global":
         g_rule = await global_rules_service.get_global_rule_by_id(db, rule_id)
@@ -174,7 +174,7 @@ async def update_policy_rule(
             description=request.description,
         )
         await db.commit()
-        return PolicyRuleResponse(
+        return PortRuleUnifiedResponse(
             id=updated.id,
             network_id=None,
             network_name="Global",
@@ -210,7 +210,7 @@ async def update_policy_rule(
         network = result.scalar_one_or_none()
 
         await db.commit()
-        return PolicyRuleResponse(
+        return PortRuleUnifiedResponse(
             id=n_rule.id,
             network_id=n_rule.network_id,
             network_name=network.name if network else f"Network {n_rule.network_id}",
@@ -227,13 +227,13 @@ async def update_policy_rule(
 
 
 @router.delete("/{scope}/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_policy_rule(
+async def delete_port_rule(
     admin: AdminUser,
     db: DbSession,
     scope: str,
     rule_id: int,
 ) -> None:
-    """Delete a policy rule."""
+    """Delete a port rule."""
 
     if scope == "global":
         g_rule = await global_rules_service.get_global_rule_by_id(db, rule_id)

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import App from './App.tsx'
 import Home from './pages/Home.tsx'
 import { ThemeProvider } from './context/ThemeContext.tsx'
@@ -16,7 +16,7 @@ import Alerts from './pages/Alerts.tsx'
 import Scanners from './pages/Scanners.tsx'
 import Users from './pages/Users.tsx'
 import OpenPorts from './pages/OpenPorts.tsx'
-import Policy from './pages/Policy.tsx'
+import PortRules from './pages/PortRules.tsx'
 import RiskOverview from './pages/RiskOverview.tsx'
 import Hosts from './pages/Hosts.tsx'
 import Trends from './pages/Trends.tsx'
@@ -79,8 +79,12 @@ const router = createBrowserRouter([
         element: <OpenPorts />,
       },
       {
+        path: 'port-rules',
+        element: <PortRules />,
+      },
+      {
         path: 'policy',
-        element: <Policy />,
+        element: <Navigate to="/port-rules" replace />,
       },
       {
         path: 'scanners',

@@ -6,7 +6,7 @@ import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '..
 import type {
   GlobalOpenPort,
   GlobalOpenPortListResponse,
-  PolicyListResponse,
+  PortRuleUnifiedListResponse,
   NetworkListResponse,
   SSHHostHistoryResponse,
 } from '../types'
@@ -505,8 +505,8 @@ const OpenPorts = () => {
   )
 
   const policyQuery = useQuery({
-    queryKey: ['policy'],
-    queryFn: () => fetchJson<PolicyListResponse>('/api/policy', token ?? ''),
+    queryKey: ['port-rules'],
+    queryFn: () => fetchJson<PortRuleUnifiedListResponse>('/api/port-rules', token ?? ''),
     enabled: !!token,
   })
 
@@ -527,7 +527,7 @@ const OpenPorts = () => {
 
   const whitelistMutation = useMutation({
     mutationFn: async (payload: WhitelistPayload) => {
-      const res = await fetch(`${API_BASE_URL}/api/policy`, {
+      const res = await fetch(`${API_BASE_URL}/api/port-rules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders(token ?? '') },
         body: JSON.stringify(payload),
@@ -536,8 +536,8 @@ const OpenPorts = () => {
       return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['policy'] })
-      setToast({ message: 'Added to security policy', tone: 'success' })
+      queryClient.invalidateQueries({ queryKey: ['port-rules'] })
+      setToast({ message: 'Port rule added', tone: 'success' })
       setWhitelistTarget(null)
       setWhitelistDescription('')
     },
@@ -549,12 +549,12 @@ const OpenPorts = () => {
       allowedSets.ruleIdMap.get(`${port.ip}:${port.port}`) ||
       allowedSets.ruleIdMap.get(String(port.port))
     if (rule) {
-      fetch(`${API_BASE_URL}/api/policy/${rule.scope}/${rule.id}`, {
+      fetch(`${API_BASE_URL}/api/port-rules/${rule.scope}/${rule.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(token ?? ''),
       }).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['policy'] })
-        setToast({ message: 'Removed from policy', tone: 'success' })
+        queryClient.invalidateQueries({ queryKey: ['port-rules'] })
+        setToast({ message: 'Port rule removed', tone: 'success' })
       })
     }
   }
@@ -663,10 +663,10 @@ const OpenPorts = () => {
             Export Metadata
           </button>
           <Link
-            to="/policy"
+            to="/port-rules"
             className="px-6 py-3 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-all"
           >
-            Policy Manager
+            Port Rules
           </Link>
         </div>
       </header>
@@ -991,7 +991,7 @@ const OpenPorts = () => {
                 </span>
               </p>
               <p className="text-xs text-slate-400 mt-6 uppercase tracking-[0.2em] font-black opacity-60 italic">
-                Global dynamic policy application in effect.
+                This rule will apply globally across all networks.
               </p>
 
               <form onSubmit={handleWhitelistSubmit} className="mt-12 space-y-10">
@@ -1041,7 +1041,7 @@ const OpenPorts = () => {
                     disabled={whitelistMutation.isPending || !whitelistDescription.trim()}
                     className="flex-1 py-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-30 disabled:grayscale"
                   >
-                    {whitelistMutation.isPending ? 'Propagating...' : 'Declare Authorized'}
+                    {whitelistMutation.isPending ? 'Adding...' : 'Add Allow Rule'}
                   </button>
                 </div>
               </form>

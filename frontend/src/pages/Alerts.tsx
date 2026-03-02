@@ -9,7 +9,7 @@ import type {
   AlertType,
   BulkAcknowledgeResponse,
   NetworkListResponse,
-  PolicyListResponse,
+  PortRuleUnifiedListResponse,
 } from '../types'
 import { ALERT_TYPE_LABELS, ALERT_TYPE_STYLES } from '../constants/alerts'
 
@@ -106,8 +106,8 @@ const Alerts = () => {
   })
 
   const policyQuery = useQuery({
-    queryKey: ['policy'],
-    queryFn: () => fetchJson<PolicyListResponse>('/api/policy', token ?? ''),
+    queryKey: ['port-rules'],
+    queryFn: () => fetchJson<PortRuleUnifiedListResponse>('/api/port-rules', token ?? ''),
     enabled: Boolean(token),
   })
 
@@ -211,7 +211,7 @@ const Alerts = () => {
 
   const whitelistMutation = useMutation({
     mutationFn: async ({ alert, reason }: { alert: Alert; reason: string }) => {
-      const response = await fetch(`${API_BASE_URL}/api/policy`, {
+      const response = await fetch(`${API_BASE_URL}/api/port-rules`, {
         method: 'POST',
         headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -230,10 +230,10 @@ const Alerts = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] })
-      queryClient.invalidateQueries({ queryKey: ['policy'] })
+      queryClient.invalidateQueries({ queryKey: ['port-rules'] })
       setActionModal(null)
       setWhitelistReason('')
-      setActionMessage('Commiting security policy rule and acknowledged.')
+      setActionMessage('Port rule added and alert acknowledged.')
       setTimeout(() => setActionMessage(null), 3000)
     },
   })
@@ -463,7 +463,7 @@ const Alerts = () => {
                           <div className="flex items-center justify-end gap-2">
                             {isAllowed(alert) && (
                               <span className="inline-flex items-center rounded-full border border-emerald-300/60 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/20 dark:text-emerald-200">
-                                Whitelisted
+                                Allowed
                               </span>
                             )}
                             {alert.acknowledged ? (
@@ -556,7 +556,7 @@ const Alerts = () => {
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-emerald-700 dark:text-emerald-200">
-                      Whitelist Globally
+                      Allow Globally
                     </p>
                     <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">
                       Clear alert and allow on all networks

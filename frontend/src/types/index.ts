@@ -315,8 +315,8 @@ export type GlobalPortRuleCreatePayload = {
   description?: string | null
 }
 
-// Policy types
-export type PolicyRule = {
+// Port rule (unified) types
+export type PortRuleUnified = {
   id: number
   network_id: number | null
   network_name: string | null
@@ -328,11 +328,11 @@ export type PolicyRule = {
   created_by?: number | null
 }
 
-export type PolicyListResponse = {
-  rules: PolicyRule[]
+export type PortRuleUnifiedListResponse = {
+  rules: PortRuleUnified[]
 }
 
-export type PolicyCreatePayload = {
+export type PortRuleUnifiedCreatePayload = {
   network_id?: number | null
   ip?: string | null
   port: string
@@ -340,7 +340,7 @@ export type PolicyCreatePayload = {
   description?: string | null
 }
 
-export type PolicyUpdatePayload = {
+export type PortRuleUnifiedUpdatePayload = {
   ip?: string | null
   port?: string | null
   rule_type?: 'allow' | 'block'
