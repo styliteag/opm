@@ -392,6 +392,7 @@ const RiskOverview = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['alerts'] })
+            queryClient.invalidateQueries({ queryKey: ['alert-comments'] })
             setActionModal(null)
             setWhitelistReason('')
             setSelectedIds(new Set())
@@ -415,6 +416,7 @@ const RiskOverview = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['alerts'] })
+            queryClient.invalidateQueries({ queryKey: ['alert-comments'] })
             setActionModal(null)
             setWhitelistReason('')
             setSelectedIds(new Set())
@@ -892,6 +894,7 @@ const RiskOverview = () => {
                                             )}
                                         </div>
                                     </th>
+                                    <th className="px-4 py-3">Last Comment</th>
                                     <th className="px-4 py-3">Assigned To</th>
                                     <th className="px-4 py-3 text-right">Actions</th>
                                 </tr>
@@ -899,13 +902,13 @@ const RiskOverview = () => {
                             <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
                                 {alertsQuery.isLoading || policyQuery.isLoading ? (
                                     <tr>
-                                        <td colSpan={isAdmin ? 10 : 9} className="px-4 py-6 text-sm text-slate-500">
+                                        <td colSpan={isAdmin ? 11 : 10} className="px-4 py-6 text-sm text-slate-500">
                                             Loading security context...
                                         </td>
                                     </tr>
                                 ) : filteredAlerts.length === 0 ? (
                                     <tr>
-                                        <td colSpan={isAdmin ? 10 : 9} className="px-4 py-6 text-sm text-slate-500">
+                                        <td colSpan={isAdmin ? 11 : 10} className="px-4 py-6 text-sm text-slate-500">
                                             No alerts found.
                                         </td>
                                     </tr>
@@ -985,6 +988,22 @@ const RiskOverview = () => {
                                                     <td className="whitespace-nowrap px-4 py-3">
                                                         <p className="text-slate-700 dark:text-slate-200">{relativeTime}</p>
                                                         <p className="text-xs text-slate-500 dark:text-slate-400">{fullTime}</p>
+                                                    </td>
+                                                    {/* Last Comment column */}
+                                                    <td className="px-4 py-3 max-w-[200px]">
+                                                        {alert.last_comment ? (
+                                                            <div title={`${alert.last_comment_by}: ${alert.last_comment}`}>
+                                                                <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
+                                                                    {alert.last_comment}
+                                                                </p>
+                                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                                                                    {alert.last_comment_by}
+                                                                    {alert.last_comment_at && ` \u00b7 ${formatRelativeTime(parseUtcDate(alert.last_comment_at), now)}`}
+                                                                </p>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-slate-400 dark:text-slate-500 italic">None</span>
+                                                        )}
                                                     </td>
                                                     {/* Assigned To column */}
                                                     <td className="whitespace-nowrap px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -1070,7 +1089,7 @@ const RiskOverview = () => {
                                                 </tr>
                                                 {isExpanded && (
                                                     <tr className="bg-slate-50/20 dark:bg-slate-800/10">
-                                                        <td colSpan={isAdmin ? 10 : 9} className="px-16 py-12">
+                                                        <td colSpan={isAdmin ? 11 : 10} className="px-16 py-12">
                                                             {portData ? (
                                                                 <div className="space-y-8">
                                                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
