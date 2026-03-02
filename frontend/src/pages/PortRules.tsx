@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { fetchJson, API_BASE_URL, getAuthHeaders } from '../lib/api'
-import type { PolicyRule, PolicyListResponse, NetworkListResponse } from '../types'
+import type { PortRuleUnified, PortRuleUnifiedListResponse, NetworkListResponse } from '../types'
 import React from 'react'
 
-const Policy = () => {
+const PortRules = () => {
   const { token, user } = useAuth()
   const queryClient = useQueryClient()
   const isAdmin = user?.role === 'admin'
@@ -23,7 +23,7 @@ const Policy = () => {
   })
 
   // Editing state
-  const [editingRule, setEditingRule] = useState<PolicyRule | null>(null)
+  const [editingRule, setEditingRule] = useState<PortRuleUnified | null>(null)
   const [editFields, setEditFields] = useState({
     ip: '',
     port: '',
@@ -37,12 +37,12 @@ const Policy = () => {
     enabled: Boolean(token),
   })
 
-  const policyQuery = useQuery({
-    queryKey: ['policy', filterNetworkId],
+  const portRulesQuery = useQuery({
+    queryKey: ['port-rules', filterNetworkId],
     queryFn: () => {
       const url =
-        filterNetworkId === 'all' ? '/api/policy' : `/api/policy?network_id=${filterNetworkId}`
-      return fetchJson<PolicyListResponse>(url, token ?? '')
+        filterNetworkId === 'all' ? '/api/port-rules' : `/api/port-rules?network_id=${filterNetworkId}`
+      return fetchJson<PortRuleUnifiedListResponse>(url, token ?? '')
     },
     enabled: Boolean(token),
   })
@@ -55,7 +55,7 @@ const Policy = () => {
       rule_type: 'allow' | 'block'
       description: string | null
     }) => {
-      const response = await fetch(`${API_BASE_URL}/api/policy`, {
+      const response = await fetch(`${API_BASE_URL}/api/port-rules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,12 +65,12 @@ const Policy = () => {
       })
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
-        throw new Error(err.detail || 'Failed to create policy rule')
+        throw new Error(err.detail || 'Failed to create port rule')
       }
       return response.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['policy'] })
+      queryClient.invalidateQueries({ queryKey: ['port-rules'] })
       setShowAddForm(false)
       setNewRule({ network_id: 'all', ip: '', port: '', rule_type: 'allow', description: '' })
       setError(null)
@@ -80,14 +80,14 @@ const Policy = () => {
 
   const updateMutation = useMutation({
     mutationFn: async (payload: {
-      rule: PolicyRule
+      rule: PortRuleUnified
       ip: string | null
       port: string
       rule_type: 'allow' | 'block'
       description: string
     }) => {
       const scope = payload.rule.network_id === null ? 'global' : 'network'
-      const response = await fetch(`${API_BASE_URL}/api/policy/${scope}/${payload.rule.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/port-rules/${scope}/${payload.rule.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -102,12 +102,12 @@ const Policy = () => {
       })
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
-        throw new Error(err.detail || 'Failed to update policy rule')
+        throw new Error(err.detail || 'Failed to update port rule')
       }
       return response.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['policy'] })
+      queryClient.invalidateQueries({ queryKey: ['port-rules'] })
       setEditingRule(null)
       setError(null)
     },
@@ -115,19 +115,19 @@ const Policy = () => {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: async (rule: PolicyRule) => {
+    mutationFn: async (rule: PortRuleUnified) => {
       const scope = rule.network_id === null ? 'global' : 'network'
-      const response = await fetch(`${API_BASE_URL}/api/policy/${scope}/${rule.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/port-rules/${scope}/${rule.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(token ?? ''),
       })
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
-        throw new Error(err.detail || 'Failed to delete policy rule')
+        throw new Error(err.detail || 'Failed to delete port rule')
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['policy'] })
+      queryClient.invalidateQueries({ queryKey: ['port-rules'] })
       setError(null)
     },
     onError: (err: Error) => setError(err.message),
@@ -145,7 +145,7 @@ const Policy = () => {
     })
   }
 
-  const handleStartEdit = (rule: PolicyRule) => {
+  const handleStartEdit = (rule: PortRuleUnified) => {
     setEditingRule(rule)
     setEditFields({
       ip: rule.ip || '',
@@ -166,7 +166,7 @@ const Policy = () => {
     })
   }
 
-  const rules = policyQuery.data?.rules ?? []
+  const rules = portRulesQuery.data?.rules ?? []
   const networks = networksQuery.data?.networks ?? []
 
   return (
@@ -177,11 +177,10 @@ const Policy = () => {
         <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
-              Security Policy
+              Port Rules
             </h1>
-            <p className="text-slate-500 mt-3 uppercase text-[11px] font-black tracking-[0.3em] flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
-              Unified Rule Governance
+            <p className="text-slate-500 mt-3 text-sm">
+              Define which ports are expected or forbidden across your networks
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -276,7 +275,7 @@ const Policy = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                  Classification
+                  Rule Type
                 </label>
                 <select
                   value={newRule.rule_type}
@@ -285,19 +284,19 @@ const Policy = () => {
                   }
                   className="w-full bg-slate-50 dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:border-cyan-500 outline-none transition-all shadow-inner"
                 >
-                  <option value="allow">Whitelist (Allow)</option>
-                  <option value="block">Blacklist (Block)</option>
+                  <option value="allow">Allow (Expected)</option>
+                  <option value="block">Block (Forbidden)</option>
                 </select>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                  Description
+                  Reason
                 </label>
                 <input
                   type="text"
                   value={newRule.description}
                   onChange={(e) => setNewRule({ ...newRule, description: e.target.value })}
-                  placeholder="Justification"
+                  placeholder="Reason for this rule"
                   className="w-full bg-slate-50 dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:border-cyan-500 outline-none transition-all shadow-inner"
                 />
               </div>
@@ -308,7 +307,7 @@ const Policy = () => {
                 disabled={createMutation.isPending}
                 className="px-10 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl hover:scale-105 transition-all"
               >
-                {createMutation.isPending ? 'Committing...' : 'Commit Rule'}
+                {createMutation.isPending ? 'Adding...' : 'Add Rule'}
               </button>
             </div>
           </form>
@@ -317,17 +316,17 @@ const Policy = () => {
 
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden min-h-[400px]">
         <header className="px-10 py-6 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800/50 flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-          <div className="flex-1">Source / Scope</div>
-          <div className="flex-[1.5]">Target Identifier (IP:Port)</div>
+          <div className="flex-1">Scope</div>
+          <div className="flex-[1.5]">Target (IP:Port)</div>
           <div className="flex-1 text-center">Type</div>
-          <div className="flex-[2]">Justification</div>
+          <div className="flex-[2]">Reason</div>
           <div className="w-48 text-right">Actions</div>
         </header>
 
         <div className="divide-y divide-slate-50 dark:divide-slate-800/30">
-          {policyQuery.isLoading ? (
+          {portRulesQuery.isLoading ? (
             <div className="p-20 text-center text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">
-              Syncing Cryptographic Security Layer...
+              Loading rules...
             </div>
           ) : rules.length === 0 ? (
             <div className="p-20 text-center">
@@ -507,4 +506,4 @@ const Policy = () => {
   )
 }
 
-export default Policy
+export default PortRules

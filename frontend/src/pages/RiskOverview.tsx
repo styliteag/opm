@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import AlertComments from '../components/AlertComments'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
-import type { Alert, AlertListResponse, NetworkListResponse, PolicyListResponse, GlobalOpenPort, GlobalOpenPortListResponse, UserListResponse, ResolutionStatus } from '../types'
+import type { Alert, AlertListResponse, NetworkListResponse, PortRuleUnifiedListResponse, GlobalOpenPort, GlobalOpenPortListResponse, UserListResponse, ResolutionStatus } from '../types'
 
 const formatDateTime = (value: Date) =>
     new Intl.DateTimeFormat(undefined, {
@@ -137,8 +137,8 @@ const RiskOverview = () => {
 
     // Fetch policy rules
     const policyQuery = useQuery({
-        queryKey: ['policy'],
-        queryFn: () => fetchJson<PolicyListResponse>('/api/policy', token ?? ''),
+        queryKey: ['port-rules'],
+        queryFn: () => fetchJson<PortRuleUnifiedListResponse>('/api/port-rules', token ?? ''),
         enabled: Boolean(token),
     })
 
@@ -366,7 +366,7 @@ const RiskOverview = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['alerts'] })
-            queryClient.invalidateQueries({ queryKey: ['policy'] })
+            queryClient.invalidateQueries({ queryKey: ['port-rules'] })
             setActionModal(null)
             setWhitelistReason('')
             setSelectedIds(new Set())
@@ -390,7 +390,7 @@ const RiskOverview = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['alerts'] })
-            queryClient.invalidateQueries({ queryKey: ['policy'] })
+            queryClient.invalidateQueries({ queryKey: ['port-rules'] })
             setActionModal(null)
             setWhitelistReason('')
             setSelectedIds(new Set())
@@ -693,10 +693,10 @@ const RiskOverview = () => {
                                 )}
                             </div>
                             <Link
-                                to="/policy"
+                                to="/port-rules"
                                 className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
                             >
-                                Policy
+                                Port Rules
                             </Link>
                             <Link
                                 to="/"

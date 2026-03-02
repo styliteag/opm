@@ -12,8 +12,8 @@ class Severity(str, Enum):
     """Alert severity levels for risk-based triage."""
 
     CRITICAL = "critical"  # Blocked port detected
-    HIGH = "high"  # New port not in whitelist
-    MEDIUM = "medium"  # Port not allowed by policy
+    HIGH = "high"  # New port not in allow list
+    MEDIUM = "medium"  # Port not in allow list
     INFO = "info"  # Acknowledged/monitoring
 
 
