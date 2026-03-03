@@ -17,6 +17,17 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Step 1: Expand ENUM to accept both old and new values
+    op.execute(sa.text(
+        "ALTER TABLE port_rules MODIFY COLUMN rule_type "
+        "ENUM('allow','block','accepted','critical') NOT NULL"
+    ))
+    op.execute(sa.text(
+        "ALTER TABLE global_port_rules MODIFY COLUMN rule_type "
+        "ENUM('allow','block','accepted','critical') NOT NULL"
+    ))
+
+    # Step 2: Migrate data
     op.execute(sa.text(
         "UPDATE port_rules SET rule_type = 'accepted' WHERE rule_type = 'allow'"
     ))
@@ -30,8 +41,27 @@ def upgrade() -> None:
         "UPDATE global_port_rules SET rule_type = 'critical' WHERE rule_type = 'block'"
     ))
 
+    # Step 3: Shrink ENUM to only new values
+    op.execute(sa.text(
+        "ALTER TABLE port_rules MODIFY COLUMN rule_type "
+        "ENUM('accepted','critical') NOT NULL"
+    ))
+    op.execute(sa.text(
+        "ALTER TABLE global_port_rules MODIFY COLUMN rule_type "
+        "ENUM('accepted','critical') NOT NULL"
+    ))
+
 
 def downgrade() -> None:
+    op.execute(sa.text(
+        "ALTER TABLE port_rules MODIFY COLUMN rule_type "
+        "ENUM('allow','block','accepted','critical') NOT NULL"
+    ))
+    op.execute(sa.text(
+        "ALTER TABLE global_port_rules MODIFY COLUMN rule_type "
+        "ENUM('allow','block','accepted','critical') NOT NULL"
+    ))
+
     op.execute(sa.text(
         "UPDATE port_rules SET rule_type = 'allow' WHERE rule_type = 'accepted'"
     ))
@@ -43,4 +73,13 @@ def downgrade() -> None:
     ))
     op.execute(sa.text(
         "UPDATE global_port_rules SET rule_type = 'block' WHERE rule_type = 'critical'"
+    ))
+
+    op.execute(sa.text(
+        "ALTER TABLE port_rules MODIFY COLUMN rule_type "
+        "ENUM('allow','block') NOT NULL"
+    ))
+    op.execute(sa.text(
+        "ALTER TABLE global_port_rules MODIFY COLUMN rule_type "
+        "ENUM('allow','block') NOT NULL"
     ))
