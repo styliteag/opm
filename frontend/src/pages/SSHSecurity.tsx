@@ -1,9 +1,31 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, fetchJson, getAuthHeaders, extractErrorMessage } from '../lib/api'
-import type { NetworkListResponse, SSHHostListResponse, SSHHostSummary, SSHAlertConfig } from '../types'
+import type {
+  Alert,
+  AlertListResponse,
+  NetworkListResponse,
+  SSHHostListResponse,
+  SSHHostSummary,
+  SSHAlertConfig,
+} from '../types'
+
+type WhitelistScope = 'none' | 'global' | 'network'
+
+type SSHAcknowledgeResponse = {
+  acknowledged_alert_ids: number[]
+  created_alert_ids: number[]
+  host_ip: string
+  port: number
+}
+
+type SSHUnacknowledgeResponse = {
+  unacknowledged_alert_ids: number[]
+  host_ip: string
+  port: number
+}
 
 const parseUtcDate = (dateStr: string) => {
   return new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
@@ -48,24 +70,41 @@ const parseSSHVersion = (versionStr: string | null): number | null => {
 
 const DEFAULT_MIN_SSH_VERSION = 8.0
 
+const SSH_ALERT_TYPES = new Set([
+  'ssh_insecure_auth',
+  'ssh_weak_cipher',
+  'ssh_weak_kex',
+  'ssh_outdated_version',
+  'ssh_config_regression',
+])
+
+type ActionModalState = {
+  host: SSHHostSummary
+} | null
+
 type FilterType = 'all' | 'insecure_auth' | 'weak_ciphers' | 'outdated_version'
 type SortKey = 'ip' | 'port' | 'ssh_version' | 'auth' | 'change' | 'last_scanned'
 type SortDirection = 'asc' | 'desc'
 type AuthFilterType = 'all' | 'secure' | 'insecure'
+type AckFilterType = 'all' | 'acked' | 'unacked'
 
 const SSHSecurity = () => {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const now = new Date()
+  const isAdmin = user?.role === 'admin'
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [networkFilter, setNetworkFilter] = useState<number | null>(null)
   const [authFilter, setAuthFilter] = useState<AuthFilterType>('all')
+  const [ackFilter, setAckFilter] = useState<AckFilterType>('all')
   const [sortKey, setSortKey] = useState<SortKey>('last_scanned')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [isExporting, setIsExporting] = useState(false)
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
   const [showGlobalSettings, setShowGlobalSettings] = useState(false)
+  const [actionModal, setActionModal] = useState<ActionModalState>(null)
+  const [whitelistReason, setWhitelistReason] = useState('')
   const [globalSettings, setGlobalSettings] = useState<SSHAlertConfig>({
     ssh_insecure_auth: true,
     ssh_weak_cipher: false,
@@ -128,7 +167,7 @@ const SSHSecurity = () => {
         {
           method: 'POST',
           headers: getAuthHeaders(token ?? ''),
-        }
+        },
       )
       if (!res.ok) throw new Error(await extractErrorMessage(res))
       return res.json()
@@ -137,20 +176,151 @@ const SSHSecurity = () => {
       queryClient.invalidateQueries({ queryKey: ['ssh-hosts'] })
       setToast({ message: `SSH recheck started for ${hostIp}`, tone: 'success' })
     },
-    onError: (e) =>
-      setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
+    onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
   })
 
-  const hosts = useMemo(
-    () => sshHostsQuery.data?.hosts ?? [],
-    [sshHostsQuery.data?.hosts]
-  )
+  // Fetch SSH-related alerts (both acked and unacked) to enable ACK from this page
+  const sshAlertsUnackedQuery = useQuery({
+    queryKey: ['alerts', 'ssh', 'unacked'],
+    queryFn: () =>
+      fetchJson<AlertListResponse>('/api/alerts?limit=200&acknowledged=false', token ?? ''),
+    enabled: Boolean(token),
+  })
+  const sshAlertsAckedQuery = useQuery({
+    queryKey: ['alerts', 'ssh', 'acked'],
+    queryFn: () =>
+      fetchJson<AlertListResponse>('/api/alerts?limit=200&acknowledged=true', token ?? ''),
+    enabled: Boolean(token),
+  })
+
+  // Map ip:port → SSH alerts (combining acked + unacked queries)
+  const sshAlertsByHost = useMemo(() => {
+    const map = new Map<string, Alert[]>()
+    const allAlerts = [
+      ...(sshAlertsUnackedQuery.data?.alerts ?? []),
+      ...(sshAlertsAckedQuery.data?.alerts ?? []),
+    ]
+    for (const alert of allAlerts) {
+      if (!SSH_ALERT_TYPES.has(alert.type)) continue
+      const key = `${alert.ip}:${alert.port}`
+      const existing = map.get(key)
+      if (existing) {
+        existing.push(alert)
+      } else {
+        map.set(key, [alert])
+      }
+    }
+    return map
+  }, [sshAlertsUnackedQuery.data?.alerts, sshAlertsAckedQuery.data?.alerts])
+
+  const invalidateAlerts = () => {
+    queryClient.invalidateQueries({ queryKey: ['alerts'] })
+  }
+
+  const sshAcknowledgeMutation = useMutation({
+    mutationFn: async ({
+      hostIp,
+      port,
+      reason,
+      whitelistScope,
+    }: {
+      hostIp: string
+      port: number
+      reason?: string
+      whitelistScope: WhitelistScope
+    }) => {
+      const response = await fetch(
+        `${API_BASE_URL}/api/ssh/hosts/${encodeURIComponent(hostIp)}/acknowledge`,
+        {
+          method: 'POST',
+          headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            port,
+            reason: reason || null,
+            whitelist_scope: whitelistScope,
+          }),
+        },
+      )
+      if (!response.ok) throw new Error(await extractErrorMessage(response))
+      return response.json() as Promise<SSHAcknowledgeResponse>
+    },
+    onSuccess: (_, { whitelistScope }) => {
+      invalidateAlerts()
+      if (whitelistScope !== 'none') {
+        queryClient.invalidateQueries({ queryKey: ['port-rules'] })
+      }
+      setActionModal(null)
+      setWhitelistReason('')
+      const scopeMsg =
+        whitelistScope === 'global'
+          ? 'Rule committed and SSH alerts acknowledged'
+          : whitelistScope === 'network'
+            ? 'Rule committed per network and SSH alerts acknowledged'
+            : 'SSH alerts acknowledged'
+      setToast({ message: scopeMsg, tone: 'success' })
+    },
+    onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
+  })
+
+  const sshUnacknowledgeMutation = useMutation({
+    mutationFn: async ({ hostIp, port }: { hostIp: string; port: number }) => {
+      const response = await fetch(
+        `${API_BASE_URL}/api/ssh/hosts/${encodeURIComponent(hostIp)}/unacknowledge`,
+        {
+          method: 'PUT',
+          headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ port }),
+        },
+      )
+      if (!response.ok) throw new Error(await extractErrorMessage(response))
+      return response.json() as Promise<SSHUnacknowledgeResponse>
+    },
+    onSuccess: () => {
+      invalidateAlerts()
+      setToast({ message: 'SSH alerts reopened', tone: 'success' })
+    },
+    onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
+  })
+
+  const handleAcknowledgeOnly = () => {
+    if (!actionModal) return
+    sshAcknowledgeMutation.mutate({
+      hostIp: actionModal.host.host_ip,
+      port: actionModal.host.port,
+      reason: whitelistReason.trim() || undefined,
+      whitelistScope: 'none',
+    })
+  }
+
+  const handleWhitelistGlobal = () => {
+    if (!actionModal || !whitelistReason.trim()) return
+    sshAcknowledgeMutation.mutate({
+      hostIp: actionModal.host.host_ip,
+      port: actionModal.host.port,
+      reason: whitelistReason,
+      whitelistScope: 'global',
+    })
+  }
+
+  const handleWhitelistNetwork = () => {
+    if (!actionModal || !whitelistReason.trim()) return
+    sshAcknowledgeMutation.mutate({
+      hostIp: actionModal.host.host_ip,
+      port: actionModal.host.port,
+      reason: whitelistReason,
+      whitelistScope: 'network',
+    })
+  }
+
+  const isMutating = sshAcknowledgeMutation.isPending
+
+  const hosts = useMemo(() => sshHostsQuery.data?.hosts ?? [], [sshHostsQuery.data?.hosts])
   const totalHosts = sshHostsQuery.data?.total ?? 0
 
   // Compute metrics from hosts data
   const metrics = useMemo(() => {
     const hostsWithInsecureAuth = hosts.filter(
-      (h) => h.password_enabled || h.keyboard_interactive_enabled
+      (h) => h.password_enabled || h.keyboard_interactive_enabled,
     )
     const hostsWithWeakCiphers = hosts.filter((h) => h.has_weak_ciphers || h.has_weak_kex)
     const hostsWithOutdatedVersion = hosts.filter((h) => {
@@ -168,6 +338,15 @@ const SSHSecurity = () => {
       hostsWithOutdatedVersion,
     }
   }, [hosts, totalHosts])
+
+  // Determine whether a host has any SSH security findings
+  const hostHasFindings = (h: SSHHostSummary) => {
+    const hasInsecureAuth = h.password_enabled || h.keyboard_interactive_enabled
+    const hasWeakCrypto = h.has_weak_ciphers || h.has_weak_kex
+    const version = parseSSHVersion(h.ssh_version)
+    const hasOutdated = version !== null && version < DEFAULT_MIN_SSH_VERSION
+    return hasInsecureAuth || hasWeakCrypto || hasOutdated
+  }
 
   // Filter hosts based on selected card, network, and auth status
   const filteredHosts = useMemo(() => {
@@ -196,14 +375,25 @@ const SSHSecurity = () => {
     // Apply auth method filter
     if (authFilter === 'secure') {
       result = result.filter(
-        (h) => h.publickey_enabled && !h.password_enabled && !h.keyboard_interactive_enabled
+        (h) => h.publickey_enabled && !h.password_enabled && !h.keyboard_interactive_enabled,
       )
     } else if (authFilter === 'insecure') {
       result = result.filter((h) => h.password_enabled || h.keyboard_interactive_enabled)
     }
 
+    // Apply ack status filter
+    if (ackFilter !== 'all') {
+      result = result.filter((h) => {
+        const hasFindings = hostHasFindings(h)
+        if (!hasFindings) return ackFilter === 'acked' // no findings = nothing to ack
+        const alerts = sshAlertsByHost.get(`${h.host_ip}:${h.port}`) ?? []
+        const allAcked = alerts.length > 0 && alerts.every((a) => a.acknowledged)
+        return ackFilter === 'unacked' ? !allAcked : allAcked
+      })
+    }
+
     return result
-  }, [activeFilter, hosts, metrics, networkFilter, authFilter])
+  }, [activeFilter, hosts, metrics, networkFilter, authFilter, ackFilter, sshAlertsByHost])
 
   // Sort filtered hosts
   const sortedHosts = useMemo(() => {
@@ -389,9 +579,11 @@ const SSHSecurity = () => {
   }
 
   // Auto-dismiss toast after 3 seconds
-  if (toast) {
-    setTimeout(() => setToast(null), 3000)
-  }
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const openGlobalSettingsModal = () => {
     if (!globalDefaultsQuery.data) return
@@ -496,12 +688,7 @@ const SSHSecurity = () => {
           className="group relative inline-flex cursor-help items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-200"
           title={host.changes.map((c) => c.description).join('\n')}
         >
-          <svg
-            className="h-3 w-3"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -520,12 +707,7 @@ const SSHSecurity = () => {
         className="group relative inline-flex cursor-help items-center gap-1 rounded-full border border-rose-400/40 bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-200"
         title={host.changes.map((c) => c.description).join('\n')}
       >
-        <svg
-          className="h-3 w-3"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
+        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -560,11 +742,21 @@ const SSHSecurity = () => {
               <span className="mt-0.5">
                 {change.is_regression ? (
                   <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                    />
                   </svg>
                 ) : (
                   <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 10l7-7m0 0l7 7m-7-7v18"
+                    />
                   </svg>
                 )}
               </span>
@@ -698,6 +890,20 @@ const SSHSecurity = () => {
                 <option value="insecure">Insecure (Password/Kbd)</option>
               </select>
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Ack Status
+              </label>
+              <select
+                value={ackFilter}
+                onChange={(e) => setAckFilter(e.target.value as AckFilterType)}
+                className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition-colors focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700/70 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <option value="all">All</option>
+                <option value="unacked">Unacknowledged</option>
+                <option value="acked">Acknowledged</option>
+              </select>
+            </div>
           </div>
 
           {hasError ? (
@@ -710,7 +916,10 @@ const SSHSecurity = () => {
             </div>
           ) : sortedHosts.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-sm text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-400">
-              {activeFilter === 'all' && networkFilter === null && authFilter === 'all'
+              {activeFilter === 'all' &&
+              networkFilter === null &&
+              authFilter === 'all' &&
+              ackFilter === 'all'
                 ? 'No SSH hosts discovered yet. Run a scan to discover SSH services.'
                 : 'No hosts match the current filter criteria.'}
             </div>
@@ -730,7 +939,12 @@ const SSHSecurity = () => {
                     <th className="pb-3 pr-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       Network
                     </th>
-                    <th className="pb-3 pr-4">{renderSortHeader('Last Scanned', 'last_scanned')}</th>
+                    <th className="pb-3 pr-4">
+                      {renderSortHeader('Last Scanned', 'last_scanned')}
+                    </th>
+                    <th className="pb-3 pr-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Status
+                    </th>
                     <th className="pb-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       Actions
                     </th>
@@ -780,12 +994,76 @@ const SSHSecurity = () => {
                           {formatRelativeTime(parseUtcDate(host.last_scanned), now)}
                         </span>
                       </td>
-                      <td className="py-3">
+                      <td className="py-3 pr-4" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const hasFindings = hostHasFindings(host)
+                          if (!hasFindings) {
+                            return (
+                              <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                                Clean
+                              </span>
+                            )
+                          }
+
+                          const hostAlerts =
+                            sshAlertsByHost.get(`${host.host_ip}:${host.port}`) ?? []
+                          const acked = hostAlerts.filter((a) => a.acknowledged)
+                          const allAcked =
+                            hostAlerts.length > 0 && acked.length === hostAlerts.length
+
+                          if (allAcked) {
+                            const reasons = acked.map((a) => a.ack_reason).filter(Boolean)
+                            return (
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-200 cursor-default"
+                                  title={reasons.length > 0 ? reasons.join('; ') : undefined}
+                                >
+                                  Acked ({acked.length})
+                                </span>
+                                {isAdmin && (
+                                  <button
+                                    onClick={() =>
+                                      sshUnacknowledgeMutation.mutate({
+                                        hostIp: host.host_ip,
+                                        port: host.port,
+                                      })
+                                    }
+                                    disabled={sshUnacknowledgeMutation.isPending}
+                                    className="rounded-full border border-slate-200 bg-slate-100/50 px-2 py-0.5 text-xs font-semibold text-slate-500 transition hover:border-rose-300 hover:bg-rose-500/10 hover:text-rose-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:border-rose-500/40 dark:hover:text-rose-400 disabled:opacity-50"
+                                    title="Reopen all SSH alerts for this host"
+                                  >
+                                    Reopen
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          }
+
+                          // Has findings but not all acknowledged
+                          return (
+                            <div className="flex items-center gap-2">
+                              {isAdmin ? (
+                                <button
+                                  onClick={() => setActionModal({ host })}
+                                  className="rounded-full border border-emerald-300 bg-emerald-500/10 px-3 py-0.5 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300"
+                                >
+                                  Ack
+                                </button>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-200">
+                                  Pending
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </td>
+                      <td className="py-3" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
+                          onClick={() =>
                             recheckSSHMutation.mutate({ hostIp: host.host_ip, port: host.port })
-                          }}
+                          }
                           disabled={recheckSSHMutation.isPending}
                           className="rounded-lg border border-emerald-200 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
                           title="Recheck SSH security for this host"
@@ -825,7 +1103,8 @@ const SSHSecurity = () => {
             </div>
             <form className="mt-6 space-y-5" onSubmit={handleGlobalSettingsSubmit}>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                These settings apply to networks that use default alert configuration. Networks with custom alert settings will not be affected.
+                These settings apply to networks that use default alert configuration. Networks with
+                custom alert settings will not be affected.
               </p>
 
               {/* SSH Insecure Auth Toggle */}
@@ -984,6 +1263,141 @@ const SSHSecurity = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ACK Action Modal */}
+      {actionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-2xl border border-slate-200/70 bg-white p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-900">
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                  Acknowledge SSH Alerts
+                </h3>
+                <p className="mt-2 font-mono text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                  {actionModal.host.host_ip}:{actionModal.host.port}
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  SSH findings detected on this host
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setActionModal(null)
+                  setWhitelistReason('')
+                }}
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+              Why are these SSH findings okay? You can also add an acceptance rule so future scans
+              won't alert again.
+            </p>
+
+            <div className="mb-6 space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                Reason
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={whitelistReason}
+                onChange={(e) => setWhitelistReason(e.target.value)}
+                placeholder="e.g. Legacy system, compensating controls in place..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-600"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handleAcknowledgeOnly}
+                disabled={isMutating}
+                className="group flex w-full items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50 dark:border-indigo-500/30 dark:bg-indigo-500/5 dark:hover:bg-indigo-500/10"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+                  👁️
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-indigo-700 dark:text-indigo-200">
+                    Acknowledge only
+                  </p>
+                  <p className="text-xs text-indigo-600/80 dark:text-indigo-300/70">
+                    Mark as seen — no acceptance rule, future scans will still alert
+                  </p>
+                </div>
+              </button>
+
+              <div className="relative py-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-100 dark:border-slate-800"></div>
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-white px-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:bg-slate-900">
+                    also add acceptance rule
+                  </span>
+                </div>
+              </div>
+
+              <div className="group rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 transition-all hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/5 dark:hover:bg-emerald-500/10">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
+                    ✅
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-emerald-700 dark:text-emerald-200">
+                      Accept everywhere
+                    </p>
+                    <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">
+                      Add a global acceptance rule so this port won't trigger alerts on any network
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleWhitelistGlobal}
+                  disabled={!whitelistReason.trim() || isMutating}
+                  className="mt-3 w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-emerald-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+                >
+                  {sshAcknowledgeMutation.isPending ? 'Processing...' : 'Accept & Acknowledge'}
+                </button>
+              </div>
+
+              <div className="group rounded-xl border border-blue-200 bg-blue-50/50 p-4 transition-all hover:bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/5 dark:hover:bg-blue-500/10">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
+                    📍
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-blue-700 dark:text-blue-200">
+                      Accept in this network only
+                    </p>
+                    <p className="text-xs text-blue-600/80 dark:text-blue-300/70">
+                      {actionModal.host.network_name
+                        ? `Add an acceptance rule only for ${actionModal.host.network_name}`
+                        : "Add an acceptance rule scoped to this alert's network"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleWhitelistNetwork}
+                  disabled={!whitelistReason.trim() || isMutating}
+                  className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-blue-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+                >
+                  {sshAcknowledgeMutation.isPending ? 'Processing...' : 'Accept & Acknowledge'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
