@@ -284,3 +284,34 @@ Example of new scanner types:
 
 **Implementing:** done
 **Current state:** Partially implemented. Alert types are enum-based and relatively easy to extend manually (add enum value + generation logic + frontend constant). Scanner types are hardcoded to masscan/nmap with a job-polling architecture that doesn't accommodate API-based scanners like Censys/Hunter. No plugin, registry, or adapter pattern exists for either scanners or alert types.
+
+---
+
+## 34. Unified Open Port + SSH Security Workflow
+**As a** security administrator, **I want to** manage open port alerts and SSH security findings for the same host in one place, **so that** when I discover an open SSH port I can review its security posture (authentication methods, ciphers, version) and acknowledge it in a single workflow — whether the port is expected and secure, expected but insecure, or unexpected entirely.
+
+**The workflow should cover three real-world scenarios:**
+
+1. **Expected SSH port, secure configuration** (e.g., a jump host running OpenSSH 9.x with publickey-only auth and strong ciphers):
+   - The `new_port` alert for port 22 appears in Risk Overview.
+   - The admin sees the SSH security summary inline (auth method, cipher strength, version) without navigating to a separate page.
+   - They ACK the open port alert with a reason like "Production jump host — SSH expected" and optionally whitelist it. Done in one action.
+
+2. **Expected SSH port, insecure configuration** (e.g., a legacy server with password auth enabled and weak ciphers):
+   - Both a `new_port` alert and SSH security findings (insecure auth, weak ciphers) exist for the same host.
+   - The admin sees the SSH findings alongside the open port alert — they understand the port is expected but the configuration needs fixing.
+   - They ACK the SSH security findings with a reason like "Legacy system — password auth required until migration Q3" to suppress noise, while leaving the open port alert acknowledged separately. Both actions are accessible from a single host view.
+
+3. **Unexpected SSH port** (e.g., port 2222 appears on a web server that shouldn't have SSH):
+   - A `new_port` alert fires for port 2222. The SSH security scan reveals it's running an outdated OpenSSH with keyboard-interactive auth.
+   - The admin sees both the unexpected port and the SSH security findings together, immediately understanding the severity.
+   - They investigate, then either remediate (close the port) or ACK both the open port and SSH findings if it turns out to be authorized.
+
+**Key requirements:**
+- SSH security status (auth methods, cipher strength, version) should be visible from the Risk Overview or Host Detail page, not only on the separate SSH Security page.
+- Acknowledging an open SSH port should surface related SSH findings and offer to ACK them in the same action.
+- Conversely, the SSH Security page should show whether the port itself is already acknowledged as an expected open port.
+- A single "host security summary" view should consolidate open port status, SSH findings, and acknowledgment state.
+
+**Implementing:** partial
+**Current state:** Open port alerts are managed from Risk Overview, and SSH security findings are managed from the SSH Security page (`/ssh-security`). Both have independent ACK workflows — the SSH Security page now supports acknowledge/unacknowledge with the same 3-option modal (acknowledge only, accept everywhere, accept in this network). However, these are two separate pages with no cross-references. An admin handling an open SSH port must visit Risk Overview to ACK the `new_port` alert, then navigate to SSH Security to review and ACK the SSH findings. There is no unified view showing both aspects together, and acknowledging in one place does not inform or link to the other.
