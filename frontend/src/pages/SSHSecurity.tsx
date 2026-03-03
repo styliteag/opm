@@ -19,6 +19,7 @@ type SSHAcknowledgeResponse = {
   created_alert_ids: number[]
   host_ip: string
   port: number
+  port_alert_ids: number[]
 }
 
 type SSHUnacknowledgeResponse = {
@@ -105,6 +106,7 @@ const SSHSecurity = () => {
   const [showGlobalSettings, setShowGlobalSettings] = useState(false)
   const [actionModal, setActionModal] = useState<ActionModalState>(null)
   const [whitelistReason, setWhitelistReason] = useState('')
+  const [includePortAlerts, setIncludePortAlerts] = useState(true)
   const [globalSettings, setGlobalSettings] = useState<SSHAlertConfig>({
     ssh_insecure_auth: true,
     ssh_weak_cipher: false,
@@ -223,11 +225,13 @@ const SSHSecurity = () => {
       port,
       reason,
       whitelistScope,
+      include_port_alerts,
     }: {
       hostIp: string
       port: number
       reason?: string
       whitelistScope: WhitelistScope
+      include_port_alerts?: boolean
     }) => {
       const response = await fetch(
         `${API_BASE_URL}/api/ssh/hosts/${encodeURIComponent(hostIp)}/acknowledge`,
@@ -238,6 +242,7 @@ const SSHSecurity = () => {
             port,
             reason: reason || null,
             whitelist_scope: whitelistScope,
+            include_port_alerts: include_port_alerts ?? false,
           }),
         },
       )
@@ -246,11 +251,13 @@ const SSHSecurity = () => {
     },
     onSuccess: (_, { whitelistScope }) => {
       invalidateAlerts()
+      queryClient.invalidateQueries({ queryKey: ['ssh-hosts'] })
       if (whitelistScope !== 'none') {
         queryClient.invalidateQueries({ queryKey: ['port-rules'] })
       }
       setActionModal(null)
       setWhitelistReason('')
+      setIncludePortAlerts(true)
       const scopeMsg =
         whitelistScope === 'global'
           ? 'Rule committed and SSH alerts acknowledged'
@@ -284,31 +291,40 @@ const SSHSecurity = () => {
 
   const handleAcknowledgeOnly = () => {
     if (!actionModal) return
+    const hasPortAlert =
+      actionModal.host.port_alert_id != null && !actionModal.host.port_alert_acknowledged
     sshAcknowledgeMutation.mutate({
       hostIp: actionModal.host.host_ip,
       port: actionModal.host.port,
       reason: whitelistReason.trim() || undefined,
       whitelistScope: 'none',
+      include_port_alerts: hasPortAlert && includePortAlerts,
     })
   }
 
   const handleWhitelistGlobal = () => {
     if (!actionModal || !whitelistReason.trim()) return
+    const hasPortAlert =
+      actionModal.host.port_alert_id != null && !actionModal.host.port_alert_acknowledged
     sshAcknowledgeMutation.mutate({
       hostIp: actionModal.host.host_ip,
       port: actionModal.host.port,
       reason: whitelistReason,
       whitelistScope: 'global',
+      include_port_alerts: hasPortAlert && includePortAlerts,
     })
   }
 
   const handleWhitelistNetwork = () => {
     if (!actionModal || !whitelistReason.trim()) return
+    const hasPortAlert =
+      actionModal.host.port_alert_id != null && !actionModal.host.port_alert_acknowledged
     sshAcknowledgeMutation.mutate({
       hostIp: actionModal.host.host_ip,
       port: actionModal.host.port,
       reason: whitelistReason,
       whitelistScope: 'network',
+      include_port_alerts: hasPortAlert && includePortAlerts,
     })
   }
 
@@ -943,6 +959,9 @@ const SSHSecurity = () => {
                       {renderSortHeader('Last Scanned', 'last_scanned')}
                     </th>
                     <th className="pb-3 pr-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Port Alert
+                    </th>
+                    <th className="pb-3 pr-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       Status
                     </th>
                     <th className="pb-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -993,6 +1012,24 @@ const SSHSecurity = () => {
                         >
                           {formatRelativeTime(parseUtcDate(host.last_scanned), now)}
                         </span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        {host.port_alert_id != null ? (
+                          host.port_alert_acknowledged ? (
+                            <span
+                              className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-200 cursor-default"
+                              title={host.port_alert_ack_reason ?? undefined}
+                            >
+                              Acked
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full border border-rose-300/50 bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-200">
+                              Open
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-xs text-slate-400 dark:text-slate-500">—</span>
+                        )}
                       </td>
                       <td className="py-3 pr-4" onClick={(e) => e.stopPropagation()}>
                         {(() => {
@@ -1287,6 +1324,7 @@ const SSHSecurity = () => {
                 onClick={() => {
                   setActionModal(null)
                   setWhitelistReason('')
+                  setIncludePortAlerts(true)
                 }}
                 className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
@@ -1319,6 +1357,27 @@ const SSHSecurity = () => {
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-600"
               />
             </div>
+
+            {actionModal.host.port_alert_id != null &&
+              !actionModal.host.port_alert_acknowledged && (
+                <label className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3 cursor-pointer transition hover:bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/5 dark:hover:bg-amber-500/10">
+                  <input
+                    type="checkbox"
+                    checked={includePortAlerts}
+                    onChange={(e) => setIncludePortAlerts(e.target.checked)}
+                    className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500 dark:border-amber-600"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-200">
+                      Also acknowledge the open port alert
+                    </p>
+                    <p className="text-xs text-amber-600/80 dark:text-amber-300/60">
+                      Marks the port alert on {actionModal.host.host_ip}:{actionModal.host.port} as
+                      acknowledged
+                    </p>
+                  </div>
+                </label>
+              )}
 
             <div className="space-y-3">
               <button

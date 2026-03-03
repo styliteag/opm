@@ -17,6 +17,18 @@ class Severity(str, Enum):
     INFO = "info"  # Acknowledged/monitoring
 
 
+class AlertSSHSummary(BaseModel):
+    """Lightweight SSH security summary attached to alerts on SSH ports."""
+
+    ssh_version: str | None
+    publickey_enabled: bool
+    password_enabled: bool
+    keyboard_interactive_enabled: bool
+    has_weak_ciphers: bool
+    has_weak_kex: bool
+    last_scanned: datetime
+
+
 class AlertResponse(BaseModel):
     """Alert response payload."""
 
@@ -43,6 +55,10 @@ class AlertResponse(BaseModel):
     last_comment: str | None = None
     last_comment_by: str | None = None
     last_comment_at: datetime | None = None
+    # SSH context (for alerts on ports with SSH scan data)
+    ssh_summary: AlertSSHSummary | None = None
+    related_ssh_alert_count: int = 0
+    related_ssh_alerts_acknowledged: bool = True
 
 
 class AlertListResponse(BaseModel):
@@ -84,6 +100,7 @@ class AcknowledgeRequest(BaseModel):
     """Request schema for acknowledging an alert with optional reason."""
 
     reason: str | None = None
+    include_ssh_findings: bool = False
 
 
 class BulkAcknowledgeRequest(BaseModel):

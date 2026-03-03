@@ -34,11 +34,13 @@ const alertTypeLabels: Record<string, string> = {
   ssh_config_regression: 'SSH Regression',
 }
 
+const PORT_ALERT_TYPES = new Set(['new_port', 'not_allowed', 'blocked'])
+
 type Props = {
   alerts: HostAlertSummary[]
   acknowledgedAlerts: HostAlertSummary[]
   acknowledgedCount: number
-  onAcknowledge: (alertId: number, reason?: string) => void
+  onAcknowledge: (alertId: number, reason?: string, includeSSH?: boolean) => void
   onUnacknowledge: (alertId: number) => void
   isAcknowledging: boolean
   isUnacknowledging: boolean
@@ -56,19 +58,23 @@ export default function AlertsSection({
   const [showAcknowledged, setShowAcknowledged] = useState(false)
   const [ackingAlertId, setAckingAlertId] = useState<number | null>(null)
   const [ackReason, setAckReason] = useState('')
+  const [includeSSH, setIncludeSSH] = useState(true)
   const [editingAlertId, setEditingAlertId] = useState<number | null>(null)
   const [editReason, setEditReason] = useState('')
   const activeAlerts = alerts.filter((a) => !a.acknowledged)
 
-  const handleAckSubmit = (alertId: number) => {
-    onAcknowledge(alertId, ackReason.trim() || undefined)
+  const handleAckSubmit = (alert: HostAlertSummary) => {
+    const hasSSH = PORT_ALERT_TYPES.has(alert.type) && alert.related_ssh_alert_count > 0
+    onAcknowledge(alert.id, ackReason.trim() || undefined, hasSSH && includeSSH)
     setAckingAlertId(null)
     setAckReason('')
+    setIncludeSSH(true)
   }
 
   const handleAckCancel = () => {
     setAckingAlertId(null)
     setAckReason('')
+    setIncludeSSH(true)
   }
 
   const handleEditStart = (alert: HostAlertSummary) => {
@@ -122,7 +128,9 @@ export default function AlertsSection({
             <div key={alert.id}>
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-3 min-w-0">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${severityColors[alert.severity] ?? severityColors.medium}`}>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${severityColors[alert.severity] ?? severityColors.medium}`}
+                  >
                     {alert.severity}
                   </span>
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
@@ -131,12 +139,31 @@ export default function AlertsSection({
                   <span className="text-sm font-mono text-slate-500 dark:text-slate-400">
                     :{alert.port}
                   </span>
+                  {PORT_ALERT_TYPES.has(alert.type) && alert.related_ssh_alert_count > 0 && (
+                    <span
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                        alert.related_ssh_alerts_acknowledged
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
+                      }`}
+                      title={
+                        alert.related_ssh_alerts_acknowledged
+                          ? `${alert.related_ssh_alert_count} SSH finding(s) acknowledged`
+                          : `${alert.related_ssh_alert_count} SSH finding(s) pending`
+                      }
+                    >
+                      SSH {alert.related_ssh_alert_count}
+                    </span>
+                  )}
                   <span className="text-sm text-slate-700 dark:text-slate-300 truncate">
                     {alert.message}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 ml-2 shrink-0">
-                  <span className="text-xs text-slate-400" title={parseUtcDate(alert.created_at).toLocaleString()}>
+                  <span
+                    className="text-xs text-slate-400"
+                    title={parseUtcDate(alert.created_at).toLocaleString()}
+                  >
                     {formatRelativeTime(parseUtcDate(alert.created_at))}
                   </span>
                   <button
@@ -150,32 +177,48 @@ export default function AlertsSection({
                 </div>
               </div>
               {ackingAlertId === alert.id && (
-                <div className="flex items-center gap-2 mt-1 ml-4">
-                  <input
-                    type="text"
-                    value={ackReason}
-                    onChange={(e) => setAckReason(e.target.value)}
-                    placeholder="Reason (optional)"
-                    className="flex-1 px-2 py-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAckSubmit(alert.id)
-                      if (e.key === 'Escape') handleAckCancel()
-                    }}
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => handleAckSubmit(alert.id)}
-                    disabled={isAcknowledging}
-                    className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                  >
-                    Submit
-                  </button>
-                  <button
-                    onClick={handleAckCancel}
-                    className="px-2 py-1 text-xs font-medium rounded bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
-                  >
-                    Cancel
-                  </button>
+                <div className="mt-1 ml-4 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={ackReason}
+                      onChange={(e) => setAckReason(e.target.value)}
+                      placeholder="Reason (optional)"
+                      className="flex-1 px-2 py-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAckSubmit(alert)
+                        if (e.key === 'Escape') handleAckCancel()
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleAckSubmit(alert)}
+                      disabled={isAcknowledging}
+                      className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      Submit
+                    </button>
+                    <button
+                      onClick={handleAckCancel}
+                      className="px-2 py-1 text-xs font-medium rounded bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {PORT_ALERT_TYPES.has(alert.type) &&
+                    alert.related_ssh_alert_count > 0 &&
+                    !alert.related_ssh_alerts_acknowledged && (
+                      <label className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={includeSSH}
+                          onChange={(e) => setIncludeSSH(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                        />
+                        Also acknowledge {alert.related_ssh_alert_count} SSH{' '}
+                        {alert.related_ssh_alert_count === 1 ? 'finding' : 'findings'}
+                      </label>
+                    )}
                 </div>
               )}
             </div>
@@ -185,7 +228,9 @@ export default function AlertsSection({
 
       {showAcknowledged && acknowledgedAlerts.length > 0 && (
         <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-          <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Acknowledged</h4>
+          <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
+            Acknowledged
+          </h4>
           <div className="space-y-2">
             {acknowledgedAlerts.map((alert) => (
               <div
@@ -194,17 +239,24 @@ export default function AlertsSection({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${severityColors.info}`}>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${severityColors.info}`}
+                    >
                       acked
                     </span>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
                       {alertTypeLabels[alert.type] ?? alert.type}
                     </span>
                     <span className="text-sm font-mono text-slate-400">:{alert.port}</span>
-                    <span className="text-sm text-slate-500 dark:text-slate-400 truncate">{alert.message}</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                      {alert.message}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 ml-2 shrink-0">
-                    <span className="text-xs text-slate-400" title={parseUtcDate(alert.created_at).toLocaleString()}>
+                    <span
+                      className="text-xs text-slate-400"
+                      title={parseUtcDate(alert.created_at).toLocaleString()}
+                    >
                       {formatRelativeTime(parseUtcDate(alert.created_at))}
                     </span>
                     <button

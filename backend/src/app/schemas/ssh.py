@@ -21,6 +21,7 @@ class SSHAcknowledgeRequest(BaseModel):
     port: int = Field(default=22, ge=1, le=65535)
     reason: str | None = None
     whitelist_scope: WhitelistScope = WhitelistScope.NONE
+    include_port_alerts: bool = False
 
 
 class SSHAcknowledgeResponse(BaseModel):
@@ -30,6 +31,7 @@ class SSHAcknowledgeResponse(BaseModel):
     created_alert_ids: list[int]
     host_ip: str
     port: int
+    port_alert_ids: list[int] = []
 
 
 class SSHUnacknowledgeRequest(BaseModel):
@@ -115,6 +117,10 @@ class SSHHostSummary(BaseModel):
     # Change tracking: "improved", "degraded", "unchanged", or None (no prior scan)
     change_status: str | None = None
     changes: list[SSHConfigChange] = []
+    # Port alert cross-reference
+    port_alert_acknowledged: bool | None = None
+    port_alert_id: int | None = None
+    port_alert_ack_reason: str | None = None
 
 
 class SSHHostListResponse(BaseModel):

@@ -207,6 +207,34 @@ async def get_host_overview(
         if net:
             network_infos.append(HostNetworkInfo(id=net.id, name=net.name, cidr=net.cidr))
 
+    # Batch-fetch SSH data and SSH alert counts for this host
+    host_ips = {host.ip}
+    ssh_data_cache = await ssh_service.get_latest_ssh_results_for_ips(db, host_ips)
+    ssh_alert_cache = await alerts_service.get_ssh_alert_summary_for_ips(db, host_ips)
+
+    def _build_alert_summary(
+        alert: "Alert", severity: str,
+    ) -> HostAlertSummary:
+        ssh_data = ssh_data_cache.get((alert.ip, alert.port))
+        host_ssh = None
+        if ssh_data:
+            host_ssh = HostSSHSummary(**ssh_data)
+        ssh_info = ssh_alert_cache.get((alert.ip, alert.port))
+        return HostAlertSummary(
+            id=alert.id,
+            type=alert.alert_type.value,
+            port=alert.port,
+            message=alert.message,
+            severity=severity,
+            acknowledged=alert.acknowledged,
+            resolution_status=alert.resolution_status.value,
+            created_at=alert.created_at,
+            ack_reason=alert.ack_reason,
+            ssh_summary=host_ssh,
+            related_ssh_alert_count=ssh_info[0] if ssh_info else 0,
+            related_ssh_alerts_acknowledged=ssh_info[1] if ssh_info else True,
+        )
+
     # Alerts (unacknowledged)
     active_alerts_raw = await alerts_service.get_alerts(
         db, ip=host.ip, acknowledged=False, limit=100,
@@ -226,17 +254,7 @@ async def get_host_overview(
             AlertType.SSH_CONFIG_REGRESSION,
         ):
             severity = "high"
-        alert_summaries.append(HostAlertSummary(
-            id=alert.id,
-            type=alert.alert_type.value,
-            port=alert.port,
-            message=alert.message,
-            severity=severity,
-            acknowledged=alert.acknowledged,
-            resolution_status=alert.resolution_status.value,
-            created_at=alert.created_at,
-            ack_reason=alert.ack_reason,
-        ))
+        alert_summaries.append(_build_alert_summary(alert, severity))
 
     # Acknowledged alerts
     acked_all = await alerts_service.get_alerts(
@@ -245,39 +263,14 @@ async def get_host_overview(
     acknowledged_count = len(acked_all)
     acked_summaries = []
     for acked_alert, _net_name in acked_all:
-        acked_summaries.append(HostAlertSummary(
-            id=acked_alert.id,
-            type=acked_alert.alert_type.value,
-            port=acked_alert.port,
-            message=acked_alert.message,
-            severity="info",
-            acknowledged=acked_alert.acknowledged,
-            resolution_status=acked_alert.resolution_status.value,
-            created_at=acked_alert.created_at,
-            ack_reason=acked_alert.ack_reason,
-        ))
+        acked_summaries.append(_build_alert_summary(acked_alert, "info"))
 
-    # SSH summary (latest)
+    # SSH summary — reuse the batch cache we already fetched
     ssh_summary = None
-    try:
-        ssh_hosts_data, ssh_total = await ssh_service.get_ssh_hosts(
-            db, offset=0, limit=200,
-        )
-        for ssh_host in ssh_hosts_data:
-            if ssh_host["host_ip"] == host.ip:
-                ssh_summary = HostSSHSummary(
-                    port=ssh_host["port"],
-                    ssh_version=ssh_host.get("ssh_version"),
-                    publickey_enabled=ssh_host["publickey_enabled"],
-                    password_enabled=ssh_host["password_enabled"],
-                    keyboard_interactive_enabled=ssh_host["keyboard_interactive_enabled"],
-                    has_weak_ciphers=ssh_host["has_weak_ciphers"],
-                    has_weak_kex=ssh_host["has_weak_kex"],
-                    last_scanned=ssh_host["last_scanned"],
-                )
-                break
-    except Exception:
-        pass
+    for (ip, port), ssh_data in ssh_data_cache.items():
+        if ip == host.ip:
+            ssh_summary = HostSSHSummary(**ssh_data)
+            break
 
     # Recent scans (from networks this host belongs to)
     scan_entries = []

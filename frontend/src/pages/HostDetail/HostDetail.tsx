@@ -25,7 +25,10 @@ const HostDetail = () => {
     return (
       <div className="p-6">
         <p className="text-red-600 dark:text-red-400">Invalid host ID.</p>
-        <Link to="/hosts" className="text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block">
+        <Link
+          to="/hosts"
+          className="text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block"
+        >
           Back to Hosts
         </Link>
       </div>
@@ -50,7 +53,10 @@ const HostDetail = () => {
         <p className="text-red-600 dark:text-red-400">
           Failed to load host: {overviewQuery.error?.message ?? 'Unknown error'}
         </p>
-        <Link to="/hosts" className="text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block">
+        <Link
+          to="/hosts"
+          className="text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block"
+        >
           Back to Hosts
         </Link>
       </div>
@@ -87,7 +93,9 @@ const HostDetail = () => {
         alerts={data.alerts}
         acknowledgedAlerts={data.acknowledged_alerts}
         acknowledgedCount={data.acknowledged_alert_count}
-        onAcknowledge={(alertId, reason) => acknowledgeMutation.mutate({ alertId, reason })}
+        onAcknowledge={(alertId, reason, includeSSH) =>
+          acknowledgeMutation.mutate({ alertId, reason, include_ssh_findings: includeSSH })
+        }
         onUnacknowledge={(alertId) => unacknowledgeMutation.mutate(alertId)}
         isAcknowledging={acknowledgeMutation.isPending}
         isUnacknowledging={unacknowledgeMutation.isPending}

@@ -15,14 +15,25 @@ export function useHostDetail(hostId: number) {
   })
 
   const acknowledgeMutation = useMutation({
-    mutationFn: async ({ alertId, reason }: { alertId: number; reason?: string }) => {
+    mutationFn: async ({
+      alertId,
+      reason,
+      include_ssh_findings,
+    }: {
+      alertId: number
+      reason?: string
+      include_ssh_findings?: boolean
+    }) => {
       const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/acknowledge`, {
         method: 'PUT',
         headers: {
           ...getAuthHeaders(token ?? ''),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ reason: reason || null }),
+        body: JSON.stringify({
+          reason: reason || null,
+          include_ssh_findings: include_ssh_findings ?? false,
+        }),
       })
       if (!response.ok) {
         const message = await extractErrorMessage(response)

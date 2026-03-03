@@ -28,6 +28,16 @@ export type SSHAlertConfig = {
 export type Severity = 'critical' | 'high' | 'medium' | 'info'
 export type ResolutionStatus = 'open' | 'in_progress' | 'resolved'
 
+export type AlertSSHSummary = {
+  ssh_version: string | null
+  publickey_enabled: boolean
+  password_enabled: boolean
+  keyboard_interactive_enabled: boolean
+  has_weak_ciphers: boolean
+  has_weak_kex: boolean
+  last_scanned: string
+}
+
 export type Alert = {
   id: number
   type: AlertType
@@ -51,6 +61,10 @@ export type Alert = {
   last_comment: string | null
   last_comment_by: string | null
   last_comment_at: string | null
+  // SSH context (for alerts on SSH ports)
+  ssh_summary: AlertSSHSummary | null
+  related_ssh_alert_count: number
+  related_ssh_alerts_acknowledged: boolean
 }
 
 export type AlertListResponse = {
@@ -487,6 +501,10 @@ export type SSHHostSummary = {
   // Change tracking fields
   change_status: 'improved' | 'degraded' | 'unchanged' | null
   changes: SSHConfigChange[]
+  // Port alert cross-reference
+  port_alert_acknowledged: boolean | null
+  port_alert_id: number | null
+  port_alert_ack_reason: string | null
 }
 
 export type SSHHostListResponse = {
@@ -534,6 +552,10 @@ export type HostAlertSummary = {
   resolution_status: string
   created_at: string
   ack_reason: string | null
+  // SSH context (for alerts on SSH ports)
+  ssh_summary: HostSSHSummary | null
+  related_ssh_alert_count: number
+  related_ssh_alerts_acknowledged: boolean
 }
 
 export type HostSSHSummary = {

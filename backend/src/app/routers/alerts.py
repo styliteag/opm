@@ -25,6 +25,7 @@ from app.schemas.alert import (
     AlertBulkWhitelistResponse,
     AlertListResponse,
     AlertResponse,
+    AlertSSHSummary,
     AlertStatusRequest,
     BulkAcknowledgeRequest,
     Severity,
@@ -41,6 +42,7 @@ from app.services import global_port_rules as global_rules_service
 from app.services import hosts as hosts_service
 from app.services import networks as networks_service
 from app.services import port_rules as port_rules_service
+from app.services import ssh_results as ssh_service
 from app.services import users as users_service
 from app.services.global_port_rules import is_port_blocked
 
@@ -179,6 +181,20 @@ async def list_alerts(
                 last_comment_at=last_comment_at,
             )
         )
+
+    # Enrich with SSH context: batch-fetch SSH data and SSH alert counts
+    unique_ips = set(a.ip for a in alert_responses)
+    ssh_data_cache = await ssh_service.get_latest_ssh_results_for_ips(db, unique_ips)
+    ssh_alert_cache = await alerts_service.get_ssh_alert_summary_for_ips(db, unique_ips)
+
+    for resp in alert_responses:
+        ssh_data = ssh_data_cache.get((resp.ip, resp.port))
+        if ssh_data:
+            resp.ssh_summary = AlertSSHSummary(**ssh_data)
+        ssh_alert_info = ssh_alert_cache.get((resp.ip, resp.port))
+        if ssh_alert_info:
+            resp.related_ssh_alert_count = ssh_alert_info[0]
+            resp.related_ssh_alerts_acknowledged = ssh_alert_info[1]
 
     # Sort by severity (critical first), then by created_at (newest first)
     severity_order = {
@@ -386,7 +402,14 @@ async def acknowledge_alert(
     alert_id: int,
     request: AcknowledgeRequest | None = None,
 ) -> AlertResponse:
-    """Acknowledge a single alert (admin only)."""
+    """Acknowledge a single alert (admin only).
+
+    When include_ssh_findings=True, also acknowledges related SSH security
+    alerts for the same ip:port (creating them on-the-fly if needed).
+    """
+    from app.services.alerts import _extract_weak_algorithms, _is_version_outdated, DEFAULT_SSH_VERSION_THRESHOLD
+    from sqlalchemy import select as sa_select, update as sa_update
+
     alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
     if alert_with_network is None:
         raise HTTPException(
@@ -396,6 +419,7 @@ async def acknowledge_alert(
 
     alert, network_name = alert_with_network
     reason = request.reason if request else None
+    include_ssh = request.include_ssh_findings if request else False
     alert = await alerts_service.acknowledge_alert(db, alert, ack_reason=reason)
 
     # Auto-create comment if reason provided
@@ -406,6 +430,89 @@ async def acknowledge_alert(
 
         # Propagate reason to GlobalOpenPort and Host
         await alerts_service.propagate_ack_reason_to_port_and_host(db, alert, reason)
+
+    # Unified ACK: also acknowledge SSH findings for the same ip:port
+    ssh_alert_count = 0
+    ssh_all_acked = True
+    if include_ssh:
+        ssh_result = await ssh_service.get_latest_ssh_result(db, alert.ip, alert.port)
+        if ssh_result:
+            ssh_types = [
+                AlertType.SSH_INSECURE_AUTH,
+                AlertType.SSH_WEAK_CIPHER,
+                AlertType.SSH_WEAK_KEX,
+                AlertType.SSH_OUTDATED_VERSION,
+            ]
+            # Find existing SSH alerts
+            existing = await db.execute(
+                sa_select(Alert.id, Alert.alert_type).where(
+                    Alert.ip == alert.ip,
+                    Alert.port == alert.port,
+                    Alert.alert_type.in_(ssh_types),
+                )
+            )
+            existing_rows = existing.all()
+            existing_types = {row[1] for row in existing_rows}
+            ssh_alert_ids = [row[0] for row in existing_rows]
+
+            # Create missing SSH alerts
+            if (ssh_result.password_enabled or ssh_result.keyboard_interactive_enabled) and AlertType.SSH_INSECURE_AUTH not in existing_types:
+                auth_methods = []
+                if ssh_result.password_enabled:
+                    auth_methods.append("password")
+                if ssh_result.keyboard_interactive_enabled:
+                    auth_methods.append("keyboard-interactive")
+                new_alert = Alert(
+                    scan_id=ssh_result.scan_id, network_id=alert.network_id,
+                    alert_type=AlertType.SSH_INSECURE_AUTH, ip=alert.ip, port=alert.port,
+                    message=f"SSH server allows insecure authentication methods: {', '.join(auth_methods)} on {alert.ip}:{alert.port}",
+                )
+                db.add(new_alert)
+                await db.flush()
+                ssh_alert_ids.append(new_alert.id)
+
+            weak_ciphers = _extract_weak_algorithms(ssh_result.supported_ciphers)
+            if weak_ciphers and AlertType.SSH_WEAK_CIPHER not in existing_types:
+                new_alert = Alert(
+                    scan_id=ssh_result.scan_id, network_id=alert.network_id,
+                    alert_type=AlertType.SSH_WEAK_CIPHER, ip=alert.ip, port=alert.port,
+                    message=f"SSH server supports weak ciphers: {', '.join(weak_ciphers)} on {alert.ip}:{alert.port}",
+                )
+                db.add(new_alert)
+                await db.flush()
+                ssh_alert_ids.append(new_alert.id)
+
+            weak_kex = _extract_weak_algorithms(ssh_result.kex_algorithms)
+            if weak_kex and AlertType.SSH_WEAK_KEX not in existing_types:
+                new_alert = Alert(
+                    scan_id=ssh_result.scan_id, network_id=alert.network_id,
+                    alert_type=AlertType.SSH_WEAK_KEX, ip=alert.ip, port=alert.port,
+                    message=f"SSH server supports weak key exchange algorithms: {', '.join(weak_kex)} on {alert.ip}:{alert.port}",
+                )
+                db.add(new_alert)
+                await db.flush()
+                ssh_alert_ids.append(new_alert.id)
+
+            if _is_version_outdated(ssh_result.ssh_version, DEFAULT_SSH_VERSION_THRESHOLD) and AlertType.SSH_OUTDATED_VERSION not in existing_types:
+                new_alert = Alert(
+                    scan_id=ssh_result.scan_id, network_id=alert.network_id,
+                    alert_type=AlertType.SSH_OUTDATED_VERSION, ip=alert.ip, port=alert.port,
+                    message=f"SSH server running outdated version: {ssh_result.ssh_version or 'unknown'} on {alert.ip}:{alert.port}",
+                )
+                db.add(new_alert)
+                await db.flush()
+                ssh_alert_ids.append(new_alert.id)
+
+            # Acknowledge all SSH alerts
+            if ssh_alert_ids:
+                ack_values: dict[str, object] = {"acknowledged": True}
+                if reason:
+                    ack_values["ack_reason"] = reason
+                await db.execute(
+                    sa_update(Alert).where(Alert.id.in_(ssh_alert_ids)).values(**ack_values)
+                )
+                ssh_alert_count = len(ssh_alert_ids)
+                ssh_all_acked = True
 
     await db.commit()
 
@@ -426,6 +533,8 @@ async def acknowledge_alert(
         ack_reason=alert.ack_reason,
         created_at=alert.created_at,
         severity=severity,
+        related_ssh_alert_count=ssh_alert_count,
+        related_ssh_alerts_acknowledged=ssh_all_acked,
     )
 
 
