@@ -122,6 +122,10 @@ class HostAlertSummary(BaseModel):
     resolution_status: str
     created_at: datetime
     ack_reason: str | None = None
+    # SSH context (for alerts on SSH ports)
+    ssh_summary: "HostSSHSummary | None" = None
+    related_ssh_alert_count: int = 0
+    related_ssh_alerts_acknowledged: bool = True
 
 
 class HostSSHSummary(BaseModel):

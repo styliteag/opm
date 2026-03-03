@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Iterable
 
-from sqlalchemy import and_, select
+from sqlalchemy import Integer, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert, AlertType
@@ -141,6 +141,83 @@ async def propagate_ack_reason_to_port_and_host(
     host = await get_host_by_ip(db, alert.ip)
     if host and not host.user_comment:
         host.user_comment = reason
+
+
+SSH_ALERT_TYPES = frozenset({
+    AlertType.SSH_INSECURE_AUTH,
+    AlertType.SSH_WEAK_CIPHER,
+    AlertType.SSH_WEAK_KEX,
+    AlertType.SSH_OUTDATED_VERSION,
+    AlertType.SSH_CONFIG_REGRESSION,
+})
+
+PORT_ALERT_TYPES = frozenset({
+    AlertType.NEW_PORT,
+    AlertType.NOT_ALLOWED,
+    AlertType.BLOCKED,
+})
+
+
+async def get_ssh_alert_summary_for_ips(
+    db: AsyncSession,
+    ips: set[str],
+) -> dict[tuple[str, int], tuple[int, bool]]:
+    """Get SSH alert count and all-acknowledged status for (ip, port) pairs.
+
+    Returns dict keyed by (ip, port) → (total_count, all_acknowledged).
+    """
+    if not ips:
+        return {}
+
+    result = await db.execute(
+        select(
+            Alert.ip,
+            Alert.port,
+            func.count(Alert.id),
+            func.min(Alert.acknowledged.cast(Integer)),  # 0 if any unacked
+        )
+        .where(
+            Alert.ip.in_(ips),
+            Alert.alert_type.in_(list(SSH_ALERT_TYPES)),
+        )
+        .group_by(Alert.ip, Alert.port)
+    )
+
+    lookup: dict[tuple[str, int], tuple[int, bool]] = {}
+    for ip, port, count, min_acked in result.all():
+        lookup[(ip, port)] = (count, bool(min_acked))
+    return lookup
+
+
+async def get_port_alert_status_for_ips(
+    db: AsyncSession,
+    ip_port_pairs: set[tuple[str, int]],
+) -> dict[tuple[str, int], tuple[int, bool, str | None]]:
+    """Get the most relevant port-type alert for each (ip, port).
+
+    Returns dict keyed by (ip, port) → (alert_id, acknowledged, ack_reason).
+    Picks the highest-priority unacknowledged alert, or the latest acknowledged one.
+    """
+    if not ip_port_pairs:
+        return {}
+
+    ips = {pair[0] for pair in ip_port_pairs}
+    result = await db.execute(
+        select(Alert)
+        .where(
+            Alert.ip.in_(ips),
+            Alert.alert_type.in_(list(PORT_ALERT_TYPES)),
+        )
+        .order_by(Alert.acknowledged.asc(), Alert.created_at.desc())
+    )
+    alerts = result.scalars().all()
+
+    lookup: dict[tuple[str, int], tuple[int, bool, str | None]] = {}
+    for alert in alerts:
+        key = (alert.ip, alert.port)
+        if key in ip_port_pairs and key not in lookup:
+            lookup[key] = (alert.id, alert.acknowledged, alert.ack_reason)
+    return lookup
 
 
 def _parse_port_range(value: str) -> tuple[int, int] | None:

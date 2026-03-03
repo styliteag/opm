@@ -492,6 +492,71 @@ async def get_ssh_hosts_for_report(
     return hosts
 
 
+async def get_latest_ssh_results_for_ips(
+    db: AsyncSession,
+    ips: set[str],
+) -> dict[tuple[str, int], dict[str, Any]]:
+    """Get latest SSH scan result for each (host_ip, port) where host_ip is in ips.
+
+    Returns a dict keyed by (host_ip, port) with SSH summary data.
+    Efficient batch query — no N+1.
+    """
+    if not ips:
+        return {}
+
+    latest_subq = (
+        select(
+            SSHScanResult.host_ip,
+            SSHScanResult.port,
+            func.max(SSHScanResult.id).label("max_id"),
+        )
+        .join(Scan, Scan.id == SSHScanResult.scan_id)
+        .where(
+            Scan.status == ScanStatus.COMPLETED,
+            SSHScanResult.host_ip.in_(ips),
+        )
+        .group_by(SSHScanResult.host_ip, SSHScanResult.port)
+        .subquery()
+    )
+
+    query = (
+        select(SSHScanResult)
+        .join(
+            latest_subq,
+            and_(
+                SSHScanResult.host_ip == latest_subq.c.host_ip,
+                SSHScanResult.port == latest_subq.c.port,
+                SSHScanResult.id == latest_subq.c.max_id,
+            ),
+        )
+    )
+
+    result = await db.execute(query)
+    rows = result.scalars().all()
+
+    lookup: dict[tuple[str, int], dict[str, Any]] = {}
+    for r in rows:
+        has_weak_ciphers = bool(
+            r.supported_ciphers
+            and any(c.get("is_weak", False) for c in r.supported_ciphers)
+        )
+        has_weak_kex = bool(
+            r.kex_algorithms
+            and any(k.get("is_weak", False) for k in r.kex_algorithms)
+        )
+        lookup[(r.host_ip, r.port)] = {
+            "ssh_version": r.ssh_version,
+            "publickey_enabled": r.publickey_enabled,
+            "password_enabled": r.password_enabled,
+            "keyboard_interactive_enabled": r.keyboard_interactive_enabled,
+            "has_weak_ciphers": has_weak_ciphers,
+            "has_weak_kex": has_weak_kex,
+            "last_scanned": r.timestamp,
+        }
+
+    return lookup
+
+
 async def get_latest_ssh_result(
     db: AsyncSession,
     host_ip: str,

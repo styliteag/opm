@@ -28,6 +28,7 @@ from app.schemas.ssh import (
     SSHUnacknowledgeResponse,
     WhitelistScope,
 )
+from app.services import alerts as alerts_service
 from app.services import scans as scans_service
 from app.services import ssh_results as ssh_service
 from app.services.alerts import (
@@ -109,6 +110,19 @@ async def list_ssh_hosts(
         offset=offset,
         limit=limit,
     )
+
+    # Enrich with port alert status (cross-reference)
+    ip_port_pairs = {(h["host_ip"], h["port"]) for h in hosts}
+    port_alert_cache = await alerts_service.get_port_alert_status_for_ips(
+        db, ip_port_pairs
+    )
+
+    for h in hosts:
+        port_alert = port_alert_cache.get((h["host_ip"], h["port"]))
+        if port_alert:
+            h["port_alert_id"] = port_alert[0]
+            h["port_alert_acknowledged"] = port_alert[1]
+            h["port_alert_ack_reason"] = port_alert[2]
 
     return SSHHostListResponse(
         hosts=[SSHHostSummary(**h) for h in hosts],
@@ -792,6 +806,27 @@ async def acknowledge_ssh_host(
         update(Alert).where(Alert.id.in_(all_alert_ids)).values(**ack_values)
     )
 
+    # Unified ACK: also acknowledge port-type alerts for same ip:port
+    port_alert_ids: list[int] = []
+    if request.include_port_alerts:
+        port_types = [AlertType.NEW_PORT, AlertType.NOT_ALLOWED, AlertType.BLOCKED]
+        port_result = await db.execute(
+            select(Alert.id).where(
+                Alert.ip == host_ip,
+                Alert.port == port,
+                Alert.alert_type.in_(port_types),
+                Alert.acknowledged.is_(False),
+            )
+        )
+        port_alert_ids = [row[0] for row in port_result.all()]
+        if port_alert_ids:
+            port_ack_values: dict[str, object] = {"acknowledged": True}
+            if reason:
+                port_ack_values["ack_reason"] = reason
+            await db.execute(
+                update(Alert).where(Alert.id.in_(port_alert_ids)).values(**port_ack_values)
+            )
+
     # Optionally create whitelist rules
     if request.whitelist_scope == WhitelistScope.GLOBAL and reason:
         from app.models.global_port_rule import GlobalRuleType
@@ -825,6 +860,7 @@ async def acknowledge_ssh_host(
         created_alert_ids=created_ids,
         host_ip=host_ip,
         port=port,
+        port_alert_ids=port_alert_ids,
     )
 
 
