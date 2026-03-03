@@ -490,3 +490,26 @@ async def get_ssh_hosts_for_report(
         })
 
     return hosts
+
+
+async def get_latest_ssh_result(
+    db: AsyncSession,
+    host_ip: str,
+    port: int,
+) -> SSHScanResult | None:
+    """Get the latest SSH scan result for a specific host/port combination.
+
+    Only considers results from completed scans, consistent with other queries.
+    """
+    result = await db.execute(
+        select(SSHScanResult)
+        .join(Scan, Scan.id == SSHScanResult.scan_id)
+        .where(
+            SSHScanResult.host_ip == host_ip,
+            SSHScanResult.port == port,
+            Scan.status == ScanStatus.COMPLETED,
+        )
+        .order_by(SSHScanResult.id.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()

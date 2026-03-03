@@ -1,9 +1,49 @@
 """SSH security scan schemas for API responses."""
 
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class WhitelistScope(str, Enum):
+    """Scope for whitelist rule creation during SSH acknowledge."""
+
+    NONE = "none"
+    GLOBAL = "global"
+    NETWORK = "network"
+
+
+class SSHAcknowledgeRequest(BaseModel):
+    """Request schema for acknowledging SSH findings for a host."""
+
+    port: int = Field(default=22, ge=1, le=65535)
+    reason: str | None = None
+    whitelist_scope: WhitelistScope = WhitelistScope.NONE
+
+
+class SSHAcknowledgeResponse(BaseModel):
+    """Response schema for SSH acknowledge results."""
+
+    acknowledged_alert_ids: list[int]
+    created_alert_ids: list[int]
+    host_ip: str
+    port: int
+
+
+class SSHUnacknowledgeRequest(BaseModel):
+    """Request schema for unacknowledging SSH findings for a host."""
+
+    port: int = Field(default=22, ge=1, le=65535)
+
+
+class SSHUnacknowledgeResponse(BaseModel):
+    """Response schema for SSH unacknowledge results."""
+
+    unacknowledged_alert_ids: list[int]
+    host_ip: str
+    port: int
 
 
 class SSHAlgorithmResponse(BaseModel):

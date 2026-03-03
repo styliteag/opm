@@ -11,18 +11,30 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from sqlalchemy import select, update
 
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.models.alert import Alert, AlertType
 from app.schemas.ssh import (
+    SSHAcknowledgeRequest,
+    SSHAcknowledgeResponse,
     SSHHostHistoryEntry,
     SSHHostHistoryResponse,
     SSHHostListResponse,
     SSHHostSummary,
     SSHScanResultListResponse,
     SSHScanResultResponse,
+    SSHUnacknowledgeRequest,
+    SSHUnacknowledgeResponse,
+    WhitelistScope,
 )
 from app.services import scans as scans_service
 from app.services import ssh_results as ssh_service
+from app.services.alerts import (
+    DEFAULT_SSH_VERSION_THRESHOLD,
+    _extract_weak_algorithms,
+    _is_version_outdated,
+)
 
 router = APIRouter(prefix="/api", tags=["ssh"])
 
@@ -615,3 +627,268 @@ async def trigger_ssh_recheck(
         "status": "planned",
         "message": f"SSH security recheck triggered for {host_ip}:{port}",
     }
+
+
+@router.post("/ssh/hosts/{host_ip}/acknowledge", response_model=SSHAcknowledgeResponse)
+async def acknowledge_ssh_host(
+    admin: AdminUser,
+    db: DbSession,
+    host_ip: str,
+    request: SSHAcknowledgeRequest,
+) -> SSHAcknowledgeResponse:
+    """Acknowledge SSH security findings for a host.
+
+    Creates SSH alert records from the host's current findings (regardless of
+    alert settings) and marks them all as acknowledged. Optionally creates
+    whitelist rules (global or per-network).
+
+    This endpoint exists because SSH alert types may be disabled in alert
+    settings, so normal scan-based alert generation may never create them.
+    """
+    from ipaddress import ip_address as parse_ip
+
+    try:
+        parse_ip(host_ip)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid IP address: {host_ip}",
+        ) from exc
+
+    port = request.port
+    reason = request.reason.strip() if request.reason else None
+
+    # Reject whitelist scope without a reason
+    if request.whitelist_scope != WhitelistScope.NONE and not reason:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A reason is required when creating a whitelist rule.",
+        )
+
+    # Get the latest SSH scan result for this host:port
+    ssh_result = await ssh_service.get_latest_ssh_result(db, host_ip, port)
+    if ssh_result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No SSH scan results found for {host_ip}:{port}",
+        )
+
+    # Find the scan to get network_id
+    scan = await scans_service.get_scan_by_id(db, ssh_result.scan_id)
+    network_id = scan.network_id if scan else None
+
+    ssh_alert_types = [
+        AlertType.SSH_INSECURE_AUTH,
+        AlertType.SSH_WEAK_CIPHER,
+        AlertType.SSH_WEAK_KEX,
+        AlertType.SSH_OUTDATED_VERSION,
+    ]
+
+    # Find ALL existing SSH alerts for this host:port (both acked and unacked)
+    existing_result = await db.execute(
+        select(Alert.id, Alert.alert_type).where(
+            Alert.ip == host_ip,
+            Alert.port == port,
+            Alert.alert_type.in_(ssh_alert_types),
+        )
+    )
+    existing_rows = existing_result.all()
+    existing_types = {row[1] for row in existing_rows}
+    all_alert_ids: list[int] = [row[0] for row in existing_rows]
+
+    version_info = f" (SSH {ssh_result.ssh_version})" if ssh_result.ssh_version else ""
+    created_ids: list[int] = []
+
+    # Create alerts for findings that don't have any existing alert
+    if ssh_result.password_enabled or ssh_result.keyboard_interactive_enabled:
+        if AlertType.SSH_INSECURE_AUTH not in existing_types:
+            auth_methods: list[str] = []
+            if ssh_result.password_enabled:
+                auth_methods.append("password")
+            if ssh_result.keyboard_interactive_enabled:
+                auth_methods.append("keyboard-interactive")
+            alert = Alert(
+                scan_id=ssh_result.scan_id,
+                network_id=network_id,
+                alert_type=AlertType.SSH_INSECURE_AUTH,
+                ip=host_ip,
+                port=port,
+                message=(
+                    f"SSH server allows insecure authentication methods: "
+                    f"{', '.join(auth_methods)}{version_info} on {host_ip}:{port}"
+                ),
+            )
+            db.add(alert)
+            await db.flush()
+            created_ids.append(alert.id)
+            all_alert_ids.append(alert.id)
+
+    weak_ciphers = _extract_weak_algorithms(ssh_result.supported_ciphers)
+    if weak_ciphers and AlertType.SSH_WEAK_CIPHER not in existing_types:
+        alert = Alert(
+            scan_id=ssh_result.scan_id,
+            network_id=network_id,
+            alert_type=AlertType.SSH_WEAK_CIPHER,
+            ip=host_ip,
+            port=port,
+            message=(
+                f"SSH server supports weak ciphers: "
+                f"{', '.join(weak_ciphers)}{version_info} on {host_ip}:{port}"
+            ),
+        )
+        db.add(alert)
+        await db.flush()
+        created_ids.append(alert.id)
+        all_alert_ids.append(alert.id)
+
+    weak_kex = _extract_weak_algorithms(ssh_result.kex_algorithms)
+    if weak_kex and AlertType.SSH_WEAK_KEX not in existing_types:
+        alert = Alert(
+            scan_id=ssh_result.scan_id,
+            network_id=network_id,
+            alert_type=AlertType.SSH_WEAK_KEX,
+            ip=host_ip,
+            port=port,
+            message=(
+                f"SSH server supports weak key exchange algorithms: "
+                f"{', '.join(weak_kex)}{version_info} on {host_ip}:{port}"
+            ),
+        )
+        db.add(alert)
+        await db.flush()
+        created_ids.append(alert.id)
+        all_alert_ids.append(alert.id)
+
+    if _is_version_outdated(ssh_result.ssh_version, DEFAULT_SSH_VERSION_THRESHOLD):
+        if AlertType.SSH_OUTDATED_VERSION not in existing_types:
+            detected_version = ssh_result.ssh_version or "unknown"
+            alert = Alert(
+                scan_id=ssh_result.scan_id,
+                network_id=network_id,
+                alert_type=AlertType.SSH_OUTDATED_VERSION,
+                ip=host_ip,
+                port=port,
+                message=(
+                    f"SSH server running outdated version: {detected_version} "
+                    f"(recommended minimum: {DEFAULT_SSH_VERSION_THRESHOLD}) on {host_ip}:{port}"
+                ),
+            )
+            db.add(alert)
+            await db.flush()
+            created_ids.append(alert.id)
+            all_alert_ids.append(alert.id)
+
+    if not all_alert_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No SSH security findings to acknowledge for {host_ip}:{port}",
+        )
+
+    # Acknowledge ALL SSH alerts for this host:port via bulk update
+    ack_values: dict[str, object] = {"acknowledged": True}
+    if reason:
+        ack_values["ack_reason"] = reason
+    await db.execute(
+        update(Alert).where(Alert.id.in_(all_alert_ids)).values(**ack_values)
+    )
+
+    # Optionally create whitelist rules
+    if request.whitelist_scope == WhitelistScope.GLOBAL and reason:
+        from app.models.global_port_rule import GlobalRuleType
+        from app.services import global_port_rules as global_rules_service
+
+        await global_rules_service.create_global_rule(
+            db=db,
+            port=str(port),
+            rule_type=GlobalRuleType.ACCEPTED,
+            ip=host_ip,
+            description=reason,
+            created_by=admin.id,
+        )
+    elif request.whitelist_scope == WhitelistScope.NETWORK and reason and network_id:
+        from app.models.port_rule import RuleType
+        from app.services import port_rules as port_rules_service
+
+        await port_rules_service.create_rule(
+            db=db,
+            network_id=network_id,
+            port=str(port),
+            rule_type=RuleType.ACCEPTED,
+            ip=host_ip,
+            description=reason,
+        )
+
+    await db.commit()
+
+    return SSHAcknowledgeResponse(
+        acknowledged_alert_ids=all_alert_ids,
+        created_alert_ids=created_ids,
+        host_ip=host_ip,
+        port=port,
+    )
+
+
+@router.put("/ssh/hosts/{host_ip}/unacknowledge", response_model=SSHUnacknowledgeResponse)
+async def unacknowledge_ssh_host(
+    admin: AdminUser,
+    db: DbSession,
+    host_ip: str,
+    request: SSHUnacknowledgeRequest,
+) -> SSHUnacknowledgeResponse:
+    """Unacknowledge (reopen) all SSH alerts for a host.
+
+    Finds all acknowledged SSH alerts for the given host:port and marks them
+    as unacknowledged, clearing the ack_reason.
+    """
+    from ipaddress import ip_address as parse_ip
+
+    try:
+        parse_ip(host_ip)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid IP address: {host_ip}",
+        ) from exc
+
+    port = request.port
+
+    ssh_alert_types = [
+        AlertType.SSH_INSECURE_AUTH,
+        AlertType.SSH_WEAK_CIPHER,
+        AlertType.SSH_WEAK_KEX,
+        AlertType.SSH_OUTDATED_VERSION,
+        AlertType.SSH_CONFIG_REGRESSION,
+    ]
+
+    # First get the IDs of acknowledged SSH alerts
+    result = await db.execute(
+        select(Alert.id).where(
+            Alert.ip == host_ip,
+            Alert.port == port,
+            Alert.acknowledged.is_(True),
+            Alert.alert_type.in_(ssh_alert_types),
+        )
+    )
+    unacked_ids = [row[0] for row in result.all()]
+
+    if not unacked_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No acknowledged SSH alerts found for {host_ip}:{port}",
+        )
+
+    # Bulk update to unacknowledge
+
+    await db.execute(
+        update(Alert)
+        .where(Alert.id.in_(unacked_ids))
+        .values(acknowledged=False, ack_reason=None)
+    )
+
+    await db.commit()
+
+    return SSHUnacknowledgeResponse(
+        unacknowledged_alert_ids=unacked_ids,
+        host_ip=host_ip,
+        port=port,
+    )
