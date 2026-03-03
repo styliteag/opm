@@ -54,13 +54,13 @@ export function AddPortRuleModal({
               onChange={(e) =>
                 setFormValues((v) => ({
                   ...v,
-                  ruleType: e.target.value as 'allow' | 'block',
+                  ruleType: e.target.value as 'accepted' | 'critical',
                 }))
               }
               className="w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
             >
-              <option value="allow">Allow</option>
-              <option value="block">Block</option>
+              <option value="accepted">Accepted</option>
+              <option value="critical">Critical</option>
             </select>
           </label>
           <label className="block space-y-2 text-xs font-semibold text-slate-500 dark:text-slate-400">

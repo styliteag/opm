@@ -66,7 +66,7 @@ const NetworkDetail = () => {
 
   const [ruleFormValues, setRuleFormValues] = useState<RuleFormValues>({
     port: '',
-    ruleType: 'allow',
+    ruleType: 'accepted',
     description: '',
   })
 
@@ -214,7 +214,7 @@ const NetworkDetail = () => {
         onSuccess: () => {
           setShowAddRule(false)
           setRuleFormError(null)
-          setRuleFormValues({ port: '', ruleType: 'allow', description: '' })
+          setRuleFormValues({ port: '', ruleType: 'accepted', description: '' })
         },
         onError: (error) =>
           setRuleFormError(error instanceof Error ? error.message : 'Failed to create rule'),
@@ -420,7 +420,7 @@ const NetworkDetail = () => {
           isAdmin={isAdmin}
           onAddRule={() => {
             setRuleFormError(null)
-            setRuleFormValues({ port: '', ruleType: 'allow', description: '' })
+            setRuleFormValues({ port: '', ruleType: 'accepted', description: '' })
             setShowAddRule(true)
           }}
           onDeleteRule={(rule) => {

@@ -1,4 +1,4 @@
-"""GlobalPortRule model for global whitelist/blocklist rules."""
+"""GlobalPortRule model for global accepted/critical rules."""
 
 from datetime import datetime
 from enum import Enum
@@ -17,12 +17,12 @@ if TYPE_CHECKING:
 class GlobalRuleType(str, Enum):
     """Global port rule types."""
 
-    ALLOW = "allow"
-    BLOCK = "block"
+    ACCEPTED = "accepted"
+    CRITICAL = "critical"
 
 
 class GlobalPortRule(Base):
-    """Global port rule model for defining allowed/blocked ports globally."""
+    """Global port rule model for defining accepted/critical ports globally."""
 
     __tablename__ = "global_port_rules"
 

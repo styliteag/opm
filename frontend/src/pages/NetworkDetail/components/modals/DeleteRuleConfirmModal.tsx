@@ -29,7 +29,7 @@ export function DeleteRuleConfirmModal({ rule, isPending, onConfirm, onClose }: 
         <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
           Are you sure you want to delete the{' '}
           <span
-            className={`font-semibold ${rule.rule_type === 'allow' ? 'text-emerald-600' : 'text-rose-600'}`}
+            className={`font-semibold ${rule.rule_type === 'accepted' ? 'text-emerald-600' : 'text-rose-600'}`}
           >
             {rule.rule_type}
           </span>{' '}

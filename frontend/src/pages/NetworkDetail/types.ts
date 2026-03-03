@@ -35,7 +35,7 @@ export type EditFormValues = {
 
 export type RuleFormValues = {
   port: string
-  ruleType: 'allow' | 'block'
+  ruleType: 'accepted' | 'critical'
   description: string
 }
 

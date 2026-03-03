@@ -18,7 +18,7 @@ const PortRules = () => {
     network_id: 'all', // 'all' means Global
     ip: '',
     port: '',
-    rule_type: 'allow' as 'allow' | 'block',
+    rule_type: 'accepted' as 'accepted' | 'critical',
     description: '',
   })
 
@@ -27,7 +27,7 @@ const PortRules = () => {
   const [editFields, setEditFields] = useState({
     ip: '',
     port: '',
-    rule_type: 'allow' as 'allow' | 'block',
+    rule_type: 'accepted' as 'accepted' | 'critical',
     description: '',
   })
 
@@ -52,7 +52,7 @@ const PortRules = () => {
       network_id: number | null
       ip: string | null
       port: string
-      rule_type: 'allow' | 'block'
+      rule_type: 'accepted' | 'critical'
       description: string | null
     }) => {
       const response = await fetch(`${API_BASE_URL}/api/port-rules`, {
@@ -72,7 +72,7 @@ const PortRules = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['port-rules'] })
       setShowAddForm(false)
-      setNewRule({ network_id: 'all', ip: '', port: '', rule_type: 'allow', description: '' })
+      setNewRule({ network_id: 'all', ip: '', port: '', rule_type: 'accepted', description: '' })
       setError(null)
     },
     onError: (err: Error) => setError(err.message),
@@ -83,7 +83,7 @@ const PortRules = () => {
       rule: PortRuleUnified
       ip: string | null
       port: string
-      rule_type: 'allow' | 'block'
+      rule_type: 'accepted' | 'critical'
       description: string
     }) => {
       const scope = payload.rule.network_id === null ? 'global' : 'network'
@@ -280,12 +280,12 @@ const PortRules = () => {
                 <select
                   value={newRule.rule_type}
                   onChange={(e) =>
-                    setNewRule({ ...newRule, rule_type: e.target.value as 'allow' | 'block' })
+                    setNewRule({ ...newRule, rule_type: e.target.value as 'accepted' | 'critical' })
                   }
                   className="w-full bg-slate-50 dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:border-cyan-500 outline-none transition-all shadow-inner"
                 >
-                  <option value="allow">Allow (Expected)</option>
-                  <option value="block">Block (Forbidden)</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="critical">Critical</option>
                 </select>
               </div>
               <div className="space-y-2">
@@ -393,18 +393,18 @@ const PortRules = () => {
                         onChange={(e) =>
                           setEditFields({
                             ...editFields,
-                            rule_type: e.target.value as 'allow' | 'block',
+                            rule_type: e.target.value as 'accepted' | 'critical',
                           })
                         }
                         className="bg-white dark:bg-slate-950 border border-cyan-500 rounded px-2 py-1 text-xs font-bold"
                       >
-                        <option value="allow">ALLOW</option>
-                        <option value="block">BLOCK</option>
+                        <option value="accepted">ACCEPTED</option>
+                        <option value="critical">CRITICAL</option>
                       </select>
                     ) : (
                       <span
                         className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter border ${
-                          rule.rule_type === 'allow'
+                          rule.rule_type === 'accepted'
                             ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-600'
                             : 'bg-rose-500/5 border-rose-500/20 text-rose-600'
                         }`}

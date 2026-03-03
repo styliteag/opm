@@ -1,4 +1,4 @@
-"""Service for managing global port rules (whitelist/blocklist)."""
+"""Service for managing global port rules (accepted/critical)."""
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -116,7 +116,7 @@ async def is_port_whitelisted(
     rules = await get_all_global_rules(db)
 
     for rule in rules:
-        if rule.rule_type != GlobalRuleType.ALLOW:
+        if rule.rule_type != GlobalRuleType.ACCEPTED:
             continue
 
         parsed = _parse_port_range(rule.port)
@@ -153,7 +153,7 @@ async def is_port_blocked(
     rules = await get_all_global_rules(db)
 
     for rule in rules:
-        if rule.rule_type != GlobalRuleType.BLOCK:
+        if rule.rule_type != GlobalRuleType.CRITICAL:
             continue
 
         parsed = _parse_port_range(rule.port)
@@ -176,10 +176,10 @@ async def is_port_blocked(
 
 
 async def get_whitelist_rules(db: AsyncSession) -> list[GlobalPortRule]:
-    """Get all ALLOW rules."""
+    """Get all ACCEPTED rules."""
     stmt = (
         select(GlobalPortRule)
-        .where(GlobalPortRule.rule_type == GlobalRuleType.ALLOW)
+        .where(GlobalPortRule.rule_type == GlobalRuleType.ACCEPTED)
         .order_by(GlobalPortRule.id)
     )
     result = await db.execute(stmt)
@@ -187,10 +187,10 @@ async def get_whitelist_rules(db: AsyncSession) -> list[GlobalPortRule]:
 
 
 async def get_blocklist_rules(db: AsyncSession) -> list[GlobalPortRule]:
-    """Get all BLOCK rules."""
+    """Get all CRITICAL rules."""
     stmt = (
         select(GlobalPortRule)
-        .where(GlobalPortRule.rule_type == GlobalRuleType.BLOCK)
+        .where(GlobalPortRule.rule_type == GlobalRuleType.CRITICAL)
         .order_by(GlobalPortRule.id)
     )
     result = await db.execute(stmt)

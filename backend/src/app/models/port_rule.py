@@ -1,4 +1,4 @@
-"""Port rule model for allow/block lists."""
+"""Port rule model for accepted/critical classifications."""
 
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -16,12 +16,12 @@ if TYPE_CHECKING:
 class RuleType(str, Enum):
     """Port rule types."""
 
-    ALLOW = "allow"
-    BLOCK = "block"
+    ACCEPTED = "accepted"
+    CRITICAL = "critical"
 
 
 class PortRule(Base):
-    """Port rule model for defining allowed/blocked ports per network."""
+    """Port rule model for defining accepted/critical ports per network."""
 
     __tablename__ = "port_rules"
 

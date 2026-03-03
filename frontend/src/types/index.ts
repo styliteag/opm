@@ -245,7 +245,7 @@ export type PortRule = {
   network_id: number
   ip: string | null
   port: string
-  rule_type: 'allow' | 'block'
+  rule_type: 'accepted' | 'critical'
   description: string | null
 }
 
@@ -256,7 +256,7 @@ export type PortRuleListResponse = {
 export type PortRuleCreatePayload = {
   ip?: string | null
   port: string
-  rule_type: 'allow' | 'block'
+  rule_type: 'accepted' | 'critical'
   description?: string | null
 }
 
@@ -297,7 +297,7 @@ export type GlobalOpenPortListResponse = {
 }
 
 // Global Port Rule types
-export type GlobalRuleType = 'allow' | 'block'
+export type GlobalRuleType = 'accepted' | 'critical'
 
 export type GlobalPortRule = {
   id: number
@@ -327,7 +327,7 @@ export type PortRuleUnified = {
   network_name: string | null
   ip: string | null
   port: string
-  rule_type: 'allow' | 'block'
+  rule_type: 'accepted' | 'critical'
   description: string | null
   created_at?: string | null
   created_by?: number | null
@@ -341,14 +341,14 @@ export type PortRuleUnifiedCreatePayload = {
   network_id?: number | null
   ip?: string | null
   port: string
-  rule_type: 'allow' | 'block'
+  rule_type: 'accepted' | 'critical'
   description?: string | null
 }
 
 export type PortRuleUnifiedUpdatePayload = {
   ip?: string | null
   port?: string | null
-  rule_type?: 'allow' | 'block'
+  rule_type?: 'accepted' | 'critical'
   description?: string | null
 }
 
