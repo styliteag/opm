@@ -130,7 +130,7 @@ const Alerts = () => {
     return rawAlerts
   })()
 
-  const allowedSets = {
+  const acceptedSets = {
     ipKeys: new Set<string>(),
     networkKeys: new Set<string>(),
     globalIpKeys: new Set<string>(),
@@ -138,23 +138,23 @@ const Alerts = () => {
   }
 
   policyRules.forEach((rule) => {
-    if (rule.rule_type !== 'allow') return
+    if (rule.rule_type !== 'accepted') return
     if (rule.network_id === null) {
-      if (rule.ip) allowedSets.globalIpKeys.add(`${rule.ip}:${rule.port}`)
-      else allowedSets.globalPortKeys.add(rule.port)
+      if (rule.ip) acceptedSets.globalIpKeys.add(`${rule.ip}:${rule.port}`)
+      else acceptedSets.globalPortKeys.add(rule.port)
     } else {
-      if (rule.ip) allowedSets.ipKeys.add(`${rule.network_id}:${rule.ip}:${rule.port}`)
-      else allowedSets.networkKeys.add(`${rule.network_id}:${rule.port}`)
+      if (rule.ip) acceptedSets.ipKeys.add(`${rule.network_id}:${rule.ip}:${rule.port}`)
+      else acceptedSets.networkKeys.add(`${rule.network_id}:${rule.port}`)
     }
   })
 
-  const isAllowed = (alert: Alert) => {
-    if (allowedSets.globalIpKeys.has(`${alert.ip}:${alert.port}`)) return true
-    if (allowedSets.globalPortKeys.has(String(alert.port))) return true
+  const isAccepted = (alert: Alert) => {
+    if (acceptedSets.globalIpKeys.has(`${alert.ip}:${alert.port}`)) return true
+    if (acceptedSets.globalPortKeys.has(String(alert.port))) return true
     if (alert.network_id === null) return false
     return (
-      allowedSets.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`) ||
-      allowedSets.networkKeys.has(`${alert.network_id}:${alert.port}`)
+      acceptedSets.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`) ||
+      acceptedSets.networkKeys.has(`${alert.network_id}:${alert.port}`)
     )
   }
 
@@ -461,7 +461,7 @@ const Alerts = () => {
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {isAllowed(alert) && (
+                            {isAccepted(alert) && (
                               <span className="inline-flex items-center rounded-full border border-emerald-300/60 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/20 dark:text-emerald-200">
                                 Allowed
                               </span>
@@ -556,10 +556,10 @@ const Alerts = () => {
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-emerald-700 dark:text-emerald-200">
-                      Allow Globally
+                      Accept Globally
                     </p>
                     <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">
-                      Clear alert and allow on all networks
+                      Clear alert and accept on all networks
                     </p>
                   </div>
                 </div>

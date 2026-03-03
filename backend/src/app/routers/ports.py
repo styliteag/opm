@@ -142,7 +142,7 @@ async def whitelist_port(
         db=db,
         network_id=request.network_id,
         port=request.port,
-        rule_type=RuleType.ALLOW,
+        rule_type=RuleType.ACCEPTED,
         ip=request.ip,
         description=request.description,
     )

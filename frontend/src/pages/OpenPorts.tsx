@@ -510,13 +510,13 @@ const OpenPorts = () => {
     enabled: !!token,
   })
 
-  const allowedSets = useMemo(() => {
+  const acceptedSets = useMemo(() => {
     const ipKeys = new Set<string>(),
       portKeys = new Set<string>(),
       ruleIdMap = new Map<string, { id: number; scope: string }>()
     const rules = policyQuery.data?.rules ?? []
     rules.forEach((r) => {
-      if (r.rule_type !== 'allow') return
+      if (r.rule_type !== 'accepted') return
       const k = r.ip ? `${r.ip}:${r.port}` : String(r.port)
       if (r.ip) ipKeys.add(k)
       else portKeys.add(k)
@@ -546,8 +546,8 @@ const OpenPorts = () => {
 
   const handleRemoveWhitelist = (port: GlobalOpenPort) => {
     const rule =
-      allowedSets.ruleIdMap.get(`${port.ip}:${port.port}`) ||
-      allowedSets.ruleIdMap.get(String(port.port))
+      acceptedSets.ruleIdMap.get(`${port.ip}:${port.port}`) ||
+      acceptedSets.ruleIdMap.get(String(port.port))
     if (rule) {
       fetch(`${API_BASE_URL}/api/port-rules/${rule.scope}/${rule.id}`, {
         method: 'DELETE',
@@ -748,8 +748,8 @@ const OpenPorts = () => {
               {ports.map((p: GlobalOpenPort) => {
                 const k = `${p.ip}-${p.port}-${p.protocol}`
                 const allowed =
-                  allowedSets.portKeys.has(String(p.port)) ||
-                  allowedSets.ipKeys.has(`${p.ip}:${p.port}`)
+                  acceptedSets.portKeys.has(String(p.port)) ||
+                  acceptedSets.ipKeys.has(`${p.ip}:${p.port}`)
                 const isOpen = expandedRows.has(k)
                 return (
                   <React.Fragment key={k}>

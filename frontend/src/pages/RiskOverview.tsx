@@ -152,8 +152,8 @@ const RiskOverview = () => {
         return map
     }, [globalPortsQuery.data?.ports])
 
-    // Build allowed/blocked sets
-    const allowedSets = useMemo(() => {
+    // Build accepted/critical sets
+    const acceptedSets = useMemo(() => {
         const rules = policyQuery.data?.rules ?? []
         const sets = {
             ipKeys: new Set<string>(),
@@ -162,7 +162,7 @@ const RiskOverview = () => {
             globalPortKeys: new Set<string>(),
         }
         rules.forEach((rule) => {
-            if (rule.rule_type !== 'allow') return
+            if (rule.rule_type !== 'accepted') return
             if (rule.network_id === null) {
                 if (rule.ip) sets.globalIpKeys.add(`${rule.ip}:${rule.port}`)
                 else sets.globalPortKeys.add(rule.port)
@@ -174,17 +174,17 @@ const RiskOverview = () => {
         return sets
     }, [policyQuery.data?.rules])
 
-    const isAlertAllowed = useCallback(
+    const isAlertAccepted = useCallback(
         (alert: Alert) => {
-            if (allowedSets.globalIpKeys.has(`${alert.ip}:${alert.port}`)) return true
-            if (allowedSets.globalPortKeys.has(String(alert.port))) return true
+            if (acceptedSets.globalIpKeys.has(`${alert.ip}:${alert.port}`)) return true
+            if (acceptedSets.globalPortKeys.has(String(alert.port))) return true
             if (alert.network_id === null) return false
             return (
-                allowedSets.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`) ||
-                allowedSets.networkKeys.has(`${alert.network_id}:${alert.port}`)
+                acceptedSets.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`) ||
+                acceptedSets.networkKeys.has(`${alert.network_id}:${alert.port}`)
             )
         },
-        [allowedSets],
+        [acceptedSets],
     )
 
     // Filter and sort alerts
@@ -197,7 +197,7 @@ const RiskOverview = () => {
             if (statusFilter === 'blocked' && alert.severity !== 'critical') return false
             if (statusFilter === 'pending' && alert.acknowledged) return false
             if (statusFilter === 'approved') {
-                if (!isAlertAllowed(alert)) return false
+                if (!isAlertAccepted(alert)) return false
             }
             if (statusFilter === 'monitoring' && (!alert.acknowledged || alert.severity === 'critical'))
                 return false
@@ -308,7 +308,7 @@ const RiskOverview = () => {
 
             return sortDirection === 'asc' ? comparison : -comparison
         })
-    }, [alerts, severityFilter, networkFilter, statusFilter, searchQuery, isAlertAllowed, portMap, sortColumn, sortDirection, assignedUserFilter])
+    }, [alerts, severityFilter, networkFilter, statusFilter, searchQuery, isAlertAccepted, portMap, sortColumn, sortDirection, assignedUserFilter])
 
     const toggleRow = (alertId: number) => {
         setExpandedRows(prev => {
@@ -1305,7 +1305,7 @@ const RiskOverview = () => {
                         </div>
 
                         <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-                            Why is {actionModal.mode === 'bulk' ? 'this' : 'this port'} okay? You can also add an allow-rule so future scans won't alert again.
+                            Why is {actionModal.mode === 'bulk' ? 'this' : 'this port'} okay? You can also add an acceptance rule so future scans won't alert again.
                         </p>
 
                         <div className="mb-6 space-y-2">
@@ -1337,7 +1337,7 @@ const RiskOverview = () => {
                                         Acknowledge only
                                     </p>
                                     <p className="text-xs text-indigo-600/80 dark:text-indigo-300/70">
-                                        Mark as seen — no allow-rule, future scans will still alert
+                                        Mark as seen — no acceptance rule, future scans will still alert
                                     </p>
                                 </div>
                             </button>
@@ -1348,7 +1348,7 @@ const RiskOverview = () => {
                                 </div>
                                 <div className="relative flex justify-center">
                                     <span className="bg-white px-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:bg-slate-900">
-                                        also add allow-rule
+                                        also add acceptance rule
                                     </span>
                                 </div>
                             </div>
@@ -1361,10 +1361,10 @@ const RiskOverview = () => {
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-medium text-emerald-700 dark:text-emerald-200">
-                                            Allow everywhere
+                                            Accept everywhere
                                         </p>
                                         <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">
-                                            Add a global allow-rule so this port won't trigger alerts on any network
+                                            Add a global acceptance rule so this port won't trigger alerts on any network
                                         </p>
                                     </div>
                                 </div>
@@ -1373,7 +1373,7 @@ const RiskOverview = () => {
                                     disabled={!whitelistReason.trim() || bulkWhitelistGlobalMutation.isPending}
                                     className="mt-3 w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-emerald-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
                                 >
-                                    {bulkWhitelistGlobalMutation.isPending ? 'Processing...' : 'Allow & Acknowledge'}
+                                    {bulkWhitelistGlobalMutation.isPending ? 'Processing...' : 'Accept & Acknowledge'}
                                 </button>
                             </div>
 
@@ -1385,12 +1385,12 @@ const RiskOverview = () => {
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-medium text-blue-700 dark:text-blue-200">
-                                            Allow in this network only
+                                            Accept in this network only
                                         </p>
                                         <p className="text-xs text-blue-600/80 dark:text-blue-300/70">
                                             {actionModal.mode === 'single' && actionModal.alerts[0].network_name
-                                                ? `Add an allow-rule only for ${actionModal.alerts[0].network_name}`
-                                                : 'Add allow-rules scoped to each alert\'s network'}
+                                                ? `Add an acceptance rule only for ${actionModal.alerts[0].network_name}`
+                                                : 'Add acceptance rules scoped to each alert\'s network'}
                                         </p>
                                     </div>
                                 </div>
@@ -1399,7 +1399,7 @@ const RiskOverview = () => {
                                     disabled={!whitelistReason.trim() || bulkWhitelistNetworkMutation.isPending}
                                     className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-blue-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
                                 >
-                                    {bulkWhitelistNetworkMutation.isPending ? 'Processing...' : 'Allow & Acknowledge'}
+                                    {bulkWhitelistNetworkMutation.isPending ? 'Processing...' : 'Accept & Acknowledge'}
                                 </button>
                             </div>
                         </div>

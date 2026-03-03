@@ -36,7 +36,7 @@ class PortRuleUnifiedCreateRequest(BaseModel):
     network_id: int | None = None  # None means global
     ip: str | None = None
     port: str
-    rule_type: GlobalRuleType = GlobalRuleType.ALLOW
+    rule_type: GlobalRuleType = GlobalRuleType.ACCEPTED
     description: str | None = None
 
     @field_validator("port")

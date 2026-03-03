@@ -13,7 +13,7 @@ class GlobalPortRuleCreateRequest(BaseModel):
 
     ip: str | None = None
     port: str  # Can be single port or range (e.g., "80" or "80-443")
-    rule_type: GlobalRuleType = GlobalRuleType.ALLOW
+    rule_type: GlobalRuleType = GlobalRuleType.ACCEPTED
     description: str | None = None
 
     @field_validator("port")

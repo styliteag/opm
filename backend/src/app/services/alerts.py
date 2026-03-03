@@ -326,16 +326,16 @@ async def generate_alerts_for_scan(
     rules_result = await db.execute(select(PortRule).where(PortRule.network_id == scan.network_id))
     rules = list(rules_result.scalars().all())
     allow_global_ranges = _build_port_ranges(
-        rule for rule in rules if rule.rule_type == RuleType.ALLOW and rule.ip is None
+        rule for rule in rules if rule.rule_type == RuleType.ACCEPTED and rule.ip is None
     )
     block_global_ranges = _build_port_ranges(
-        rule for rule in rules if rule.rule_type == RuleType.BLOCK and rule.ip is None
+        rule for rule in rules if rule.rule_type == RuleType.CRITICAL and rule.ip is None
     )
     allow_ranges_by_ip = _build_ip_rule_ranges(
-        rule for rule in rules if rule.rule_type == RuleType.ALLOW and rule.ip is not None
+        rule for rule in rules if rule.rule_type == RuleType.ACCEPTED and rule.ip is not None
     )
     block_ranges_by_ip = _build_ip_rule_ranges(
-        rule for rule in rules if rule.rule_type == RuleType.BLOCK and rule.ip is not None
+        rule for rule in rules if rule.rule_type == RuleType.CRITICAL and rule.ip is not None
     )
     allow_range_cache: dict[str, list[tuple[int, int]]] = {}
     block_range_cache: dict[str, list[tuple[int, int]]] = {}

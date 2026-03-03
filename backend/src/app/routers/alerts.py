@@ -553,7 +553,7 @@ async def bulk_whitelist_global(
             await global_rules_service.create_global_rule(
                 db=db,
                 port=port,
-                rule_type=GlobalRuleType.ALLOW,
+                rule_type=GlobalRuleType.ACCEPTED,
                 ip=ip,
                 description=request.reason.strip(),
                 created_by=admin.id,
@@ -646,7 +646,7 @@ async def bulk_whitelist_network(
                     db=db,
                     network_id=network_id,
                     port=port,
-                    rule_type=RuleType.ALLOW,
+                    rule_type=RuleType.ACCEPTED,
                     ip=ip,
                     description=request.reason.strip(),
                 )

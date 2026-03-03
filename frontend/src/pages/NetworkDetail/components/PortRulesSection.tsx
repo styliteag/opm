@@ -15,7 +15,7 @@ export function PortRulesSection({ rules, isLoading, isAdmin, onAddRule, onDelet
         <div>
           <h3 className="font-display text-2xl text-slate-900 dark:text-white">Port Rules</h3>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Define which ports are allowed or blocked for this network.
+            Define which ports are accepted or critical for this network.
           </p>
         </div>
         {isAdmin && (
@@ -65,7 +65,7 @@ export function PortRulesSection({ rules, isLoading, isAdmin, onAddRule, onDelet
                 </div>
                 <div className="flex items-center">
                   <span
-                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${rule.rule_type === 'allow' ? 'border-emerald-300/50 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200' : 'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200'}`}
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${rule.rule_type === 'accepted' ? 'border-emerald-300/50 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200' : 'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200'}`}
                   >
                     {rule.rule_type}
                   </span>
