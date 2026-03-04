@@ -5,12 +5,15 @@ from typing import Any
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import exists as sql_exists
 
+from app.models.host_discovery_scan import HostDiscoveryScan, HostDiscoveryScanStatus
 from app.models.open_port import OpenPort
 from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
 from app.models.ssh_scan_result import SSHScanResult
 from app.schemas.scanner import ScannerResultRequest, ScannerResultResponse
+from app.services import host_discovery, networks
 from app.services.alert_generators import get_alert_generators
 from app.services.hosts import upsert_host
 
@@ -202,6 +205,22 @@ async def submit_scan_results(
         context = {"recorded_ports_data": recorded_ports_data}
         for generator in get_alert_generators(has_ssh_results=ssh_results_recorded > 0):
             await generator.fn(db, scan, context)
+
+        # Auto-trigger discovery scan if none has ever completed for this network
+        network = await networks.get_network_by_id(db, scan.network_id)
+        if network and network.host_discovery_enabled:
+            has_completed_discovery = await db.scalar(
+                select(
+                    sql_exists().where(
+                        and_(
+                            HostDiscoveryScan.network_id == scan.network_id,
+                            HostDiscoveryScan.status == HostDiscoveryScanStatus.COMPLETED,
+                        )
+                    )
+                )
+            )
+            if not has_completed_discovery:
+                await host_discovery.create_host_discovery_scan(db, network)
 
     return ScannerResultResponse(
         scan_id=scan.id,
