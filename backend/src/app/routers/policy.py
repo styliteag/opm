@@ -14,6 +14,7 @@ from app.schemas.policy import (
     PortRuleUnifiedResponse,
     PortRuleUnifiedUpdateRequest,
 )
+from app.services import alerts as alerts_service
 from app.services import global_port_rules as global_rules_service
 from app.services import networks as networks_service
 from app.services import port_rules as network_rules_service
@@ -97,6 +98,8 @@ async def create_port_rule(
 ) -> PortRuleUnifiedResponse:
     """Create a new port rule (global if network_id is null, otherwise network-specific)."""
 
+    reason = request.description or "Manual rule"
+
     if request.network_id is None:
         # Create global rule
         try:
@@ -105,23 +108,30 @@ async def create_port_rule(
                 port=request.port,
                 rule_type=request.rule_type,
                 ip=request.ip,
-                description=request.description or "Manual rule",
+                description=reason,
                 created_by=admin.id,
-            )
-            await db.commit()
-            return PortRuleUnifiedResponse(
-                id=g_rule.id,
-                network_id=None,
-                network_name="Global",
-                ip=g_rule.ip,
-                port=g_rule.port,
-                rule_type=GlobalRuleType(g_rule.rule_type.value),
-                description=g_rule.description,
-                created_at=g_rule.created_at,
-                created_by=g_rule.created_by,
             )
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+        # Auto-acknowledge matching alerts when creating an ACCEPTED rule
+        if request.rule_type == GlobalRuleType.ACCEPTED:
+            await alerts_service.auto_acknowledge_alerts_for_accepted_rule(
+                db, ip=request.ip, port_str=request.port, reason=reason,
+            )
+
+        await db.commit()
+        return PortRuleUnifiedResponse(
+            id=g_rule.id,
+            network_id=None,
+            network_name="Global",
+            ip=g_rule.ip,
+            port=g_rule.port,
+            rule_type=GlobalRuleType(g_rule.rule_type.value),
+            description=g_rule.description,
+            created_at=g_rule.created_at,
+            created_by=g_rule.created_by,
+        )
     else:
         # Create network rule
         network = await networks_service.get_network_by_id(db, request.network_id)
@@ -136,6 +146,17 @@ async def create_port_rule(
             ip=request.ip,
             description=request.description,
         )
+
+        # Auto-acknowledge matching alerts when creating an ACCEPTED rule
+        if request.rule_type == GlobalRuleType.ACCEPTED:
+            await alerts_service.auto_acknowledge_alerts_for_accepted_rule(
+                db,
+                ip=request.ip,
+                port_str=request.port,
+                reason=request.description or "Accepted by network rule",
+                network_id=request.network_id,
+            )
+
         await db.commit()
         return PortRuleUnifiedResponse(
             id=n_rule.id,
@@ -173,6 +194,16 @@ async def update_port_rule(
             rule_type=request.rule_type,
             description=request.description,
         )
+
+        # Auto-acknowledge matching alerts if rule is now ACCEPTED
+        if updated.rule_type == GlobalRuleType.ACCEPTED:
+            await alerts_service.auto_acknowledge_alerts_for_accepted_rule(
+                db,
+                ip=updated.ip,
+                port_str=updated.port,
+                reason=updated.description or "Accepted by global rule",
+            )
+
         await db.commit()
         return PortRuleUnifiedResponse(
             id=updated.id,
@@ -203,6 +234,16 @@ async def update_port_rule(
 
         await db.flush()
         await db.refresh(n_rule)
+
+        # Auto-acknowledge matching alerts if rule is now ACCEPTED
+        if n_rule.rule_type == RuleType.ACCEPTED:
+            await alerts_service.auto_acknowledge_alerts_for_accepted_rule(
+                db,
+                ip=n_rule.ip,
+                port_str=n_rule.port,
+                reason=n_rule.description or "Accepted by network rule",
+                network_id=n_rule.network_id,
+            )
 
         # Need to load network name
         stmt = select(Network).where(Network.id == n_rule.network_id)
