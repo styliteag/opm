@@ -172,6 +172,26 @@ async def get_host_ports(
     )
 
 
+def _resolve_effective_rule(rules: list[PortRuleMatch]) -> str | None:
+    """Pick the winning rule type by specificity. IP-specific > port-only.
+
+    At the same specificity level, 'accepted' wins over 'critical'
+    because it represents an explicit user override.
+    """
+    if not rules:
+        return None
+    best_score = 0
+    best_type: str | None = None
+    for r in rules:
+        score = 2 if r.ip else 1
+        if score > best_score or (
+            score == best_score and r.rule_type == "accepted"
+        ):
+            best_score = score
+            best_type = r.rule_type
+    return best_type
+
+
 @router.get("/{host_id}/overview", response_model=HostOverviewResponse)
 async def get_host_overview(
     user: CurrentUser,
@@ -343,6 +363,7 @@ async def get_host_overview(
             matches.append(PortRuleMatch(
                 id=gr.id, scope="global", network_id=None, network_name=None,
                 rule_type=gr.rule_type.value, description=gr.description,
+                ip=gr.ip,
             ))
         for nr, nid, nname in network_rules:
             parsed = _parse_port_range(nr.port)
@@ -356,6 +377,7 @@ async def get_host_overview(
             matches.append(PortRuleMatch(
                 id=nr.id, scope="network", network_id=nid, network_name=nname,
                 rule_type=nr.rule_type.value, description=nr.description,
+                ip=nr.ip,
             ))
         return matches
 
@@ -364,14 +386,8 @@ async def get_host_overview(
     for p in ports:
         rules = _find_matching_rules(p.ip, p.port)
         all_matching_rules.extend(rules)
-        # Determine dominant rule status
-        rule_status: str | None = None
-        for r in rules:
-            if r.rule_type == "critical":
-                rule_status = "critical"
-                break
-            if r.rule_type == "accepted":
-                rule_status = "accepted"
+        # Determine effective rule by specificity (IP-specific > port-only)
+        rule_status = _resolve_effective_rule(rules)
         # Alert status
         alert_info = alert_by_port.get(p.port)
         alert_id: int | None = None

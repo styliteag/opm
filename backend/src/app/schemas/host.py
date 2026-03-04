@@ -63,6 +63,7 @@ class PortRuleMatch(BaseModel):
     network_name: str | None = None
     rule_type: str  # 'accepted' | 'critical'
     description: str | None = None
+    ip: str | None = None
 
 
 class EnrichedHostPort(BaseModel):
