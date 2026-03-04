@@ -155,7 +155,7 @@ const Networks = () => {
   const alertsQuery = useQuery({
     queryKey: ['alerts', 'active-counts'],
     queryFn: () =>
-      fetchJson<AlertListResponse>('/api/alerts?acknowledged=false&limit=200', token ?? ''),
+      fetchJson<AlertListResponse>('/api/alerts?dismissed=false&limit=200', token ?? ''),
     enabled: Boolean(token),
   })
 

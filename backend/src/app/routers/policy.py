@@ -114,9 +114,9 @@ async def create_port_rule(
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-        # Auto-acknowledge matching alerts when creating an ACCEPTED rule
+        # Auto-dismiss matching alerts when creating an ACCEPTED rule
         if request.rule_type == GlobalRuleType.ACCEPTED:
-            await alerts_service.auto_acknowledge_alerts_for_accepted_rule(
+            await alerts_service.auto_dismiss_alerts_for_accepted_rule(
                 db, ip=request.ip, port_str=request.port, reason=reason,
             )
 
@@ -147,9 +147,9 @@ async def create_port_rule(
             description=request.description,
         )
 
-        # Auto-acknowledge matching alerts when creating an ACCEPTED rule
+        # Auto-dismiss matching alerts when creating an ACCEPTED rule
         if request.rule_type == GlobalRuleType.ACCEPTED:
-            await alerts_service.auto_acknowledge_alerts_for_accepted_rule(
+            await alerts_service.auto_dismiss_alerts_for_accepted_rule(
                 db,
                 ip=request.ip,
                 port_str=request.port,
@@ -195,9 +195,9 @@ async def update_port_rule(
             description=request.description,
         )
 
-        # Auto-acknowledge matching alerts if rule is now ACCEPTED
+        # Auto-dismiss matching alerts if rule is now ACCEPTED
         if updated.rule_type == GlobalRuleType.ACCEPTED:
-            await alerts_service.auto_acknowledge_alerts_for_accepted_rule(
+            await alerts_service.auto_dismiss_alerts_for_accepted_rule(
                 db,
                 ip=updated.ip,
                 port_str=updated.port,
@@ -235,9 +235,9 @@ async def update_port_rule(
         await db.flush()
         await db.refresh(n_rule)
 
-        # Auto-acknowledge matching alerts if rule is now ACCEPTED
+        # Auto-dismiss matching alerts if rule is now ACCEPTED
         if n_rule.rule_type == RuleType.ACCEPTED:
-            await alerts_service.auto_acknowledge_alerts_for_accepted_rule(
+            await alerts_service.auto_dismiss_alerts_for_accepted_rule(
                 db,
                 ip=n_rule.ip,
                 port_str=n_rule.port,

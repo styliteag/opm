@@ -59,8 +59,8 @@ class Alert(Base):
     ip: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
     port: Mapped[int] = mapped_column(nullable=False, index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    ack_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    dismiss_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     assigned_to_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True, index=True
     )

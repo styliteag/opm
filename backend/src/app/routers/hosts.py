@@ -232,10 +232,10 @@ async def get_host_overview(
             port=alert.port,
             message=alert.message,
             severity=severity,
-            acknowledged=alert.acknowledged,
+            dismissed=alert.dismissed,
             resolution_status=alert.resolution_status.value,
             created_at=alert.created_at,
-            ack_reason=alert.ack_reason,
+            dismiss_reason=alert.dismiss_reason,
             network_id=alert.network_id,
             network_name=(
                 alert_network_name or network_map.get(alert.network_id, None)
@@ -243,17 +243,17 @@ async def get_host_overview(
             ),
             ssh_summary=host_ssh,
             related_ssh_alert_count=ssh_info[0] if ssh_info else 0,
-            related_ssh_alerts_acknowledged=ssh_info[1] if ssh_info else True,
+            related_ssh_alerts_dismissed=ssh_info[1] if ssh_info else True,
         )
 
-    # Alerts (unacknowledged)
+    # Alerts (not dismissed)
     active_alerts_raw = await alerts_service.get_alerts(
-        db, ip=host.ip, acknowledged=False, limit=100,
+        db, ip=host.ip, dismissed=False, limit=100,
     )
     alert_summaries = []
     for alert, alert_net_name in active_alerts_raw:
         severity = "medium"
-        if alert.acknowledged:
+        if alert.dismissed:
             severity = "info"
         elif await is_port_blocked(db, alert.ip, alert.port):
             severity = "critical"
@@ -267,14 +267,15 @@ async def get_host_overview(
             severity = "high"
         alert_summaries.append(_build_alert_summary(alert, severity, alert_net_name))
 
-    # Acknowledged alerts
-    acked_all = await alerts_service.get_alerts(
-        db, ip=host.ip, acknowledged=True, limit=10000,
+    # Dismissed alerts
+    dismissed_all = await alerts_service.get_alerts(
+        db, ip=host.ip, dismissed=True, limit=10000,
     )
-    acknowledged_count = len(acked_all)
-    acked_summaries = []
-    for acked_alert, acked_net_name in acked_all:
-        acked_summaries.append(_build_alert_summary(acked_alert, "info", acked_net_name))
+    dismissed_count = len(dismissed_all)
+    dismissed_summaries = []
+    for dismissed_alert, dismissed_net_name in dismissed_all:
+        summary = _build_alert_summary(dismissed_alert, "info", dismissed_net_name)
+        dismissed_summaries.append(summary)
 
     # SSH summary — reuse the batch cache we already fetched
     ssh_summary = None
@@ -319,13 +320,13 @@ async def get_host_overview(
             network_rules.append((rule, nid, net_name))
 
     # Index alerts by (ip, port) for quick lookup
-    all_alert_list = list(active_alerts_raw) + list(acked_all)
+    all_alert_list = list(active_alerts_raw) + list(dismissed_all)
     alert_by_port: dict[int, tuple[Alert, str]] = {}
     for alert, _net in all_alert_list:
         if alert.port not in alert_by_port:
-            # Prefer unacknowledged alert
-            alert_by_port[alert.port] = (alert, "acknowledged" if alert.acknowledged else "new")
-        elif not alert.acknowledged:
+            # Prefer non-dismissed alert
+            alert_by_port[alert.port] = (alert, "dismissed" if alert.dismissed else "new")
+        elif not alert.dismissed:
             alert_by_port[alert.port] = (alert, "new")
 
     def _find_matching_rules(port_ip: str, port_num: int) -> list[PortRuleMatch]:
@@ -376,14 +377,14 @@ async def get_host_overview(
         alert_id: int | None = None
         alert_status: str | None = None
         alert_severity: str | None = None
-        ack_reason: str | None = None
+        dismiss_reason: str | None = None
         if alert_info:
             a, a_status = alert_info
             alert_id = a.id
             alert_status = a_status
-            ack_reason = a.ack_reason
+            dismiss_reason = a.dismiss_reason
             # Compute severity
-            if a.acknowledged:
+            if a.dismissed:
                 alert_severity = "info"
             elif rule_status == "critical":
                 alert_severity = "critical"
@@ -401,7 +402,7 @@ async def get_host_overview(
             user_comment=getattr(p, "user_comment", None),
             first_seen_at=p.first_seen_at, last_seen_at=p.last_seen_at,
             alert_id=alert_id, alert_status=alert_status,
-            alert_severity=alert_severity, ack_reason=ack_reason,
+            alert_severity=alert_severity, dismiss_reason=dismiss_reason,
             rule_status=rule_status, matching_rules=rules,
             ssh_summary=port_ssh,
         ))
@@ -420,8 +421,8 @@ async def get_host_overview(
         ports=enriched_ports,
         networks=network_infos,
         alerts=alert_summaries,
-        acknowledged_alerts=acked_summaries,
-        acknowledged_alert_count=acknowledged_count,
+        dismissed_alerts=dismissed_summaries,
+        dismissed_alert_count=dismissed_count,
         ssh=ssh_summary,
         recent_scans=scan_entries,
         matching_rules=deduped_rules,

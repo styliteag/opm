@@ -19,19 +19,19 @@ from app.models.global_port_rule import GlobalRuleType
 from app.models.port_rule import RuleType
 from app.models.user import UserRole
 from app.schemas.alert import (
-    AcknowledgeRequest,
-    AckSuggestionsResponse,
     AlertAssignRequest,
-    AlertBulkAcknowledgeResponse,
-    AlertBulkWhitelistRequest,
-    AlertBulkWhitelistResponse,
+    AlertBulkAcceptRequest,
+    AlertBulkAcceptResponse,
+    AlertBulkDismissResponse,
     AlertListResponse,
     AlertResponse,
     AlertSSHSummary,
     AlertStatusRequest,
-    BulkAcknowledgeRequest,
     BulkDeleteRequest,
     BulkDeleteResponse,
+    BulkDismissRequest,
+    DismissRequest,
+    DismissSuggestionsResponse,
     Severity,
 )
 from app.schemas.alert_comment import (
@@ -55,11 +55,11 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
 async def compute_alert_severity(
-    db: DbSession, alert_type: AlertType, ip: str, port: int, acknowledged: bool
+    db: DbSession, alert_type: AlertType, ip: str, port: int, dismissed: bool
 ) -> Severity:
     """Compute alert severity based on rules and status."""
-    # Acknowledged alerts are always INFO
-    if acknowledged:
+    # Dismissed alerts are always INFO
+    if dismissed:
         return Severity.INFO
 
     # Check if port is blocked (CRITICAL)
@@ -94,7 +94,7 @@ async def list_alerts(
     db: DbSession,
     alert_type: AlertType | None = Query(None, alias="type"),
     network_id: int | None = Query(None, ge=1),
-    acknowledged: bool | None = Query(None),
+    dismissed: bool | None = Query(None),
     ip: str | None = Query(None),
     start_date: datetime | None = Query(None),
     end_date: datetime | None = Query(None),
@@ -112,7 +112,7 @@ async def list_alerts(
         db,
         alert_type=alert_type,
         network_id=network_id,
-        acknowledged=acknowledged,
+        dismissed=dismissed,
         ip=ip,
         start_date=start_date,
         end_date=end_date,
@@ -146,7 +146,7 @@ async def list_alerts(
     alert_responses = []
     for alert, network_name in alerts:
         severity = await compute_alert_severity(
-            db, alert.alert_type, alert.ip, alert.port, alert.acknowledged
+            db, alert.alert_type, alert.ip, alert.port, alert.dismissed
         )
         # Get host info from cache
         host_info = host_cache.get(alert.ip)
@@ -176,7 +176,7 @@ async def list_alerts(
                 ip=alert.ip,
                 port=alert.port,
                 message=alert.message,
-                acknowledged=alert.acknowledged,
+                dismissed=alert.dismissed,
                 assigned_to_user_id=alert.assigned_to_user_id,
                 assigned_to_email=assigned_to_email,
                 resolution_status=alert.resolution_status,
@@ -203,7 +203,7 @@ async def list_alerts(
         ssh_alert_info = ssh_alert_cache.get((resp.ip, resp.port))
         if ssh_alert_info:
             resp.related_ssh_alert_count = ssh_alert_info[0]
-            resp.related_ssh_alerts_acknowledged = ssh_alert_info[1]
+            resp.related_ssh_alerts_dismissed = ssh_alert_info[1]
 
     # Enrich with matching port rules
     from app.services.global_port_rules import _parse_port_range
@@ -282,7 +282,7 @@ async def export_alerts_csv(
     user: CurrentUser,
     db: DbSession,
     alert_type: AlertType | None = Query(None, alias="type"),
-    acknowledged: bool | None = Query(None),
+    dismissed: bool | None = Query(None),
 ) -> StreamingResponse:
     """Export alerts as CSV with optional filters."""
     # Get all alerts with filters (no pagination for export)
@@ -290,7 +290,7 @@ async def export_alerts_csv(
         db,
         alert_type=alert_type,
         network_id=None,
-        acknowledged=acknowledged,
+        dismissed=dismissed,
         start_date=None,
         end_date=None,
         offset=0,
@@ -318,7 +318,7 @@ async def export_alerts_csv(
             alert.ip,
             alert.port,
             network_name or "",
-            "Acknowledged" if alert.acknowledged else "Open",
+            "Dismissed" if alert.dismissed else "Open",
             alert.created_at.isoformat(),
         ])
 
@@ -343,7 +343,7 @@ async def export_alerts_pdf(
     user: CurrentUser,
     db: DbSession,
     alert_type: AlertType | None = Query(None, alias="type"),
-    acknowledged: bool | None = Query(None),
+    dismissed: bool | None = Query(None),
 ) -> StreamingResponse:
     """Export alerts as PDF with optional filters."""
     # Get all alerts with filters (no pagination for export)
@@ -351,7 +351,7 @@ async def export_alerts_pdf(
         db,
         alert_type=alert_type,
         network_id=None,
-        acknowledged=acknowledged,
+        dismissed=dismissed,
         start_date=None,
         end_date=None,
         offset=0,
@@ -379,19 +379,19 @@ async def export_alerts_pdf(
     # Calculate summary statistics
     total_alerts = len(alerts)
     by_type: dict[str, int] = {}
-    acknowledged_count = 0
+    dismissed_count = 0
     for alert, _ in alerts:
         by_type[alert.alert_type.value] = by_type.get(alert.alert_type.value, 0) + 1
-        if alert.acknowledged:
-            acknowledged_count += 1
+        if alert.dismissed:
+            dismissed_count += 1
 
-    open_count = total_alerts - acknowledged_count
+    open_count = total_alerts - dismissed_count
 
     # Add summary statistics
     summary_lines = [
         f"<b>Total alerts:</b> {total_alerts}",
         f"<b>Open:</b> {open_count}",
-        f"<b>Acknowledged:</b> {acknowledged_count}",
+        f"<b>Dismissed:</b> {dismissed_count}",
     ]
     if by_type:
         summary_lines.append("<b>By type:</b>")
@@ -413,7 +413,7 @@ async def export_alerts_pdf(
                 alert.ip,
                 str(alert.port),
                 network_name or "",
-                "Acknowledged" if alert.acknowledged else "Open",
+                "Dismissed" if alert.dismissed else "Open",
                 alert.created_at.strftime('%Y-%m-%d %H:%M'),
             ])
 
@@ -452,31 +452,31 @@ async def export_alerts_pdf(
     )
 
 
-@router.get("/ack-suggestions", response_model=AckSuggestionsResponse)
-async def get_ack_suggestions(
+@router.get("/dismiss-suggestions", response_model=DismissSuggestionsResponse)
+async def get_dismiss_suggestions(
     user: CurrentUser,
     db: DbSession,
     port: int | None = Query(None, ge=1, le=65535),
     search: str | None = Query(None, max_length=200),
     limit: int = Query(20, ge=1, le=50),
-) -> AckSuggestionsResponse:
-    """Get previously used ACK reasons as suggestions, ranked by port affinity."""
-    suggestions = await alerts_service.get_ack_suggestions(
+) -> DismissSuggestionsResponse:
+    """Get previously used dismiss reasons as suggestions, ranked by port affinity."""
+    suggestions = await alerts_service.get_dismiss_reason_suggestions(
         db, port=port, search=search, limit=limit
     )
-    return AckSuggestionsResponse(suggestions=suggestions)
+    return DismissSuggestionsResponse(suggestions=suggestions)
 
 
-@router.put("/{alert_id}/acknowledge", response_model=AlertResponse)
-async def acknowledge_alert(
+@router.put("/{alert_id}/dismiss", response_model=AlertResponse)
+async def dismiss_alert(
     admin: AdminUser,
     db: DbSession,
     alert_id: int,
-    request: AcknowledgeRequest | None = None,
+    request: DismissRequest | None = None,
 ) -> AlertResponse:
-    """Acknowledge a single alert (admin only).
+    """Dismiss a single alert (admin only).
 
-    When include_ssh_findings=True, also acknowledges related SSH security
+    When include_ssh_findings=True, also dismisses related SSH security
     alerts for the same ip:port (creating them on-the-fly if needed).
     """
     from sqlalchemy import select as sa_select
@@ -498,7 +498,7 @@ async def acknowledge_alert(
     alert, network_name = alert_with_network
     reason = request.reason if request else None
     include_ssh = request.include_ssh_findings if request else False
-    alert = await alerts_service.acknowledge_alert(db, alert, ack_reason=reason)
+    alert = await alerts_service.dismiss_alert(db, alert, dismiss_reason=reason)
 
     # Auto-create comment if reason provided
     if reason:
@@ -507,9 +507,9 @@ async def acknowledge_alert(
         )
 
         # Propagate reason to GlobalOpenPort and Host
-        await alerts_service.propagate_ack_reason_to_port_and_host(db, alert, reason)
+        await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
 
-    # Unified ACK: also acknowledge SSH findings for the same ip:port
+    # Unified dismiss: also dismiss SSH findings for the same ip:port
     ssh_alert_count = 0
     ssh_all_acked = True
     if include_ssh:
@@ -600,13 +600,13 @@ async def acknowledge_alert(
                 await db.flush()
                 ssh_alert_ids.append(new_alert.id)
 
-            # Acknowledge all SSH alerts
+            # Dismiss all SSH alerts
             if ssh_alert_ids:
-                ack_values: dict[str, object] = {"acknowledged": True}
+                dismiss_values: dict[str, object] = {"dismissed": True}
                 if reason:
-                    ack_values["ack_reason"] = reason
+                    dismiss_values["dismiss_reason"] = reason
                 await db.execute(
-                    sa_update(Alert).where(Alert.id.in_(ssh_alert_ids)).values(**ack_values)
+                    sa_update(Alert).where(Alert.id.in_(ssh_alert_ids)).values(**dismiss_values)
                 )
                 ssh_alert_count = len(ssh_alert_ids)
                 ssh_all_acked = True
@@ -614,7 +614,7 @@ async def acknowledge_alert(
     await db.commit()
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port, alert.acknowledged
+        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
     )
 
     return AlertResponse(
@@ -626,25 +626,25 @@ async def acknowledge_alert(
         ip=alert.ip,
         port=alert.port,
         message=alert.message,
-        acknowledged=alert.acknowledged,
-        ack_reason=alert.ack_reason,
+        dismissed=alert.dismissed,
+        dismiss_reason=alert.dismiss_reason,
         created_at=alert.created_at,
         severity=severity,
         related_ssh_alert_count=ssh_alert_count,
-        related_ssh_alerts_acknowledged=ssh_all_acked,
+        related_ssh_alerts_dismissed=ssh_all_acked,
     )
 
 
 @router.put(
-    "/acknowledge-bulk",
-    response_model=AlertBulkAcknowledgeResponse,
+    "/dismiss-bulk",
+    response_model=AlertBulkDismissResponse,
 )
-async def acknowledge_alerts_bulk(
+async def dismiss_alerts_bulk(
     admin: AdminUser,
     db: DbSession,
-    request: BulkAcknowledgeRequest = Body(...),
-) -> AlertBulkAcknowledgeResponse:
-    """Acknowledge multiple alerts (admin only)."""
+    request: BulkDismissRequest = Body(...),
+) -> AlertBulkDismissResponse:
+    """Dismiss multiple alerts (admin only)."""
     if not request.alert_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -655,11 +655,11 @@ async def acknowledge_alerts_bulk(
     alerts = await alerts_service.get_alerts_by_ids(db, unique_ids)
     reason = request.reason.strip() if request.reason else None
 
-    # Set ack_reason on each alert and acknowledge
+    # Set dismiss_reason on each alert and dismiss
     for alert in alerts:
         if reason:
-            alert.ack_reason = reason
-    await alerts_service.acknowledge_alerts(db, alerts)
+            alert.dismiss_reason = reason
+    await alerts_service.dismiss_alerts(db, alerts)
 
     # Auto-create comments and propagate reason to GlobalOpenPort/Host
     if reason:
@@ -667,15 +667,15 @@ async def acknowledge_alerts_bulk(
             await alert_comments_service.create_comment(
                 db, alert_id=alert.id, user_id=admin.id, comment=reason
             )
-            await alerts_service.propagate_ack_reason_to_port_and_host(db, alert, reason)
+            await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
 
     await db.commit()
 
-    acknowledged_ids = sorted(alert.id for alert in alerts)
-    missing_ids = sorted(set(unique_ids) - set(acknowledged_ids))
+    dismissed_ids = sorted(alert.id for alert in alerts)
+    missing_ids = sorted(set(unique_ids) - set(dismissed_ids))
 
-    return AlertBulkAcknowledgeResponse(
-        acknowledged_ids=acknowledged_ids,
+    return AlertBulkDismissResponse(
+        dismissed_ids=dismissed_ids,
         missing_ids=missing_ids,
     )
 
@@ -706,13 +706,13 @@ async def delete_alerts_bulk(
     )
 
 
-@router.put("/{alert_id}/unacknowledge", response_model=AlertResponse)
-async def unacknowledge_alert(
+@router.put("/{alert_id}/reopen", response_model=AlertResponse)
+async def reopen_alert(
     admin: AdminUser,
     db: DbSession,
     alert_id: int,
 ) -> AlertResponse:
-    """Unacknowledge (reopen) a single alert (admin only)."""
+    """Reopen a single alert (admin only)."""
     alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
     if alert_with_network is None:
         raise HTTPException(
@@ -721,11 +721,11 @@ async def unacknowledge_alert(
         )
 
     alert, network_name = alert_with_network
-    alert = await alerts_service.unacknowledge_alert(db, alert)
+    alert = await alerts_service.reopen_alert(db, alert)
     await db.commit()
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port, alert.acknowledged
+        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
     )
 
     return AlertResponse(
@@ -737,24 +737,24 @@ async def unacknowledge_alert(
         ip=alert.ip,
         port=alert.port,
         message=alert.message,
-        acknowledged=alert.acknowledged,
-        ack_reason=alert.ack_reason,
+        dismissed=alert.dismissed,
+        dismiss_reason=alert.dismiss_reason,
         created_at=alert.created_at,
         severity=severity,
     )
 
 
 @router.post(
-    "/bulk-whitelist-global",
-    response_model=AlertBulkWhitelistResponse,
+    "/bulk-accept-global",
+    response_model=AlertBulkAcceptResponse,
     status_code=status.HTTP_200_OK,
 )
-async def bulk_whitelist_global(
+async def bulk_accept_global(
     admin: AdminUser,
     db: DbSession,
-    request: AlertBulkWhitelistRequest = Body(...),
-) -> AlertBulkWhitelistResponse:
-    """Add multiple alerts to global whitelist with single reason (admin only)."""
+    request: AlertBulkAcceptRequest = Body(...),
+) -> AlertBulkAcceptResponse:
+    """Add multiple alerts to global accept list with single reason (admin only)."""
     if not request.alert_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -764,23 +764,23 @@ async def bulk_whitelist_global(
     if not request.reason or not request.reason.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="reason is required for whitelisting",
+            detail="reason is required for accepting",
         )
 
     unique_ids = sorted(set(request.alert_ids))
     alerts = await alerts_service.get_alerts_by_ids(db, unique_ids)
 
-    # Track unique IP:port combinations to whitelist
-    ports_to_whitelist: set[tuple[str | None, str]] = set()
+    # Track unique IP:port combinations to accept
+    ports_to_accept: set[tuple[str | None, str]] = set()
     errors: list[str] = []
 
     for alert in alerts:
-        # Add to whitelist set (ip can be None for global rules)
-        ports_to_whitelist.add((alert.ip, str(alert.port)))
+        # Add to accept set (ip can be None for global rules)
+        ports_to_accept.add((alert.ip, str(alert.port)))
 
-    # Create global whitelist rules
-    whitelisted_count = 0
-    for ip, port in ports_to_whitelist:
+    # Create global accept rules
+    accepted_count = 0
+    for ip, port in ports_to_accept:
         try:
             await global_rules_service.create_global_rule(
                 db=db,
@@ -790,44 +790,44 @@ async def bulk_whitelist_global(
                 description=request.reason.strip(),
                 created_by=admin.id,
             )
-            whitelisted_count += 1
+            accepted_count += 1
         except Exception as e:
-            errors.append(f"Failed to whitelist {ip}:{port}: {str(e)}")
+            errors.append(f"Failed to accept {ip}:{port}: {str(e)}")
 
-    # Acknowledge all alerts and create comments
+    # Dismiss all alerts and create comments
     reason = request.reason.strip()
     for alert in alerts:
-        alert.ack_reason = reason
-    await alerts_service.acknowledge_alerts(db, alerts)
+        alert.dismiss_reason = reason
+    await alerts_service.dismiss_alerts(db, alerts)
     for alert in alerts:
         await alert_comments_service.create_comment(
             db, alert_id=alert.id, user_id=admin.id, comment=reason
         )
-        await alerts_service.propagate_ack_reason_to_port_and_host(db, alert, reason)
+        await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
     await db.commit()
 
-    acknowledged_ids = sorted(alert.id for alert in alerts)
-    missing_ids = sorted(set(unique_ids) - set(acknowledged_ids))
+    dismissed_ids = sorted(alert.id for alert in alerts)
+    missing_ids = sorted(set(unique_ids) - set(dismissed_ids))
 
-    return AlertBulkWhitelistResponse(
-        whitelisted_count=whitelisted_count,
-        acknowledged_ids=acknowledged_ids,
+    return AlertBulkAcceptResponse(
+        accepted_count=accepted_count,
+        dismissed_ids=dismissed_ids,
         missing_ids=missing_ids,
         errors=errors,
     )
 
 
 @router.post(
-    "/bulk-whitelist-network",
-    response_model=AlertBulkWhitelistResponse,
+    "/bulk-accept-network",
+    response_model=AlertBulkAcceptResponse,
     status_code=status.HTTP_200_OK,
 )
-async def bulk_whitelist_network(
+async def bulk_accept_network(
     admin: AdminUser,
     db: DbSession,
-    request: AlertBulkWhitelistRequest = Body(...),
-) -> AlertBulkWhitelistResponse:
-    """Add multiple alerts to network-specific whitelist with single reason (admin only)."""
+    request: AlertBulkAcceptRequest = Body(...),
+) -> AlertBulkAcceptResponse:
+    """Add multiple alerts to network-specific accept list with single reason (admin only)."""
     if not request.alert_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -837,7 +837,7 @@ async def bulk_whitelist_network(
     if not request.reason or not request.reason.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="reason is required for whitelisting",
+            detail="reason is required for accepting",
         )
 
     unique_ids = sorted(set(request.alert_ids))
@@ -857,8 +857,8 @@ async def bulk_whitelist_network(
             alerts_by_network[alert.network_id] = []
         alerts_by_network[alert.network_id].append(alert)
 
-    # Create network-specific whitelist rules
-    whitelisted_count = 0
+    # Create network-specific accept rules
+    accepted_count = 0
     for network_id, network_alerts in alerts_by_network.items():
         # Verify network exists
         network = await networks_service.get_network_by_id(db, network_id)
@@ -867,12 +867,12 @@ async def bulk_whitelist_network(
             continue
 
         # Track unique IP:port combinations per network
-        ports_to_whitelist: set[tuple[str | None, str]] = set()
+        ports_to_accept: set[tuple[str | None, str]] = set()
         for alert in network_alerts:
-            ports_to_whitelist.add((alert.ip, str(alert.port)))
+            ports_to_accept.add((alert.ip, str(alert.port)))
 
         # Create rules for this network
-        for ip, port in ports_to_whitelist:
+        for ip, port in ports_to_accept:
             try:
                 await port_rules_service.create_rule(
                     db=db,
@@ -882,28 +882,28 @@ async def bulk_whitelist_network(
                     ip=ip,
                     description=request.reason.strip(),
                 )
-                whitelisted_count += 1
+                accepted_count += 1
             except Exception as e:
-                errors.append(f"Failed to whitelist {ip}:{port} on network {network_id}: {str(e)}")
+                errors.append(f"Failed to accept {ip}:{port} on network {network_id}: {str(e)}")
 
-    # Acknowledge all alerts and create comments
+    # Dismiss all alerts and create comments
     reason = request.reason.strip()
     for alert in alerts:
-        alert.ack_reason = reason
-    await alerts_service.acknowledge_alerts(db, alerts)
+        alert.dismiss_reason = reason
+    await alerts_service.dismiss_alerts(db, alerts)
     for alert in alerts:
         await alert_comments_service.create_comment(
             db, alert_id=alert.id, user_id=admin.id, comment=reason
         )
-        await alerts_service.propagate_ack_reason_to_port_and_host(db, alert, reason)
+        await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
     await db.commit()
 
-    acknowledged_ids = sorted(alert.id for alert in alerts)
-    missing_ids = sorted(set(unique_ids) - set(acknowledged_ids))
+    dismissed_ids = sorted(alert.id for alert in alerts)
+    missing_ids = sorted(set(unique_ids) - set(dismissed_ids))
 
-    return AlertBulkWhitelistResponse(
-        whitelisted_count=whitelisted_count,
-        acknowledged_ids=acknowledged_ids,
+    return AlertBulkAcceptResponse(
+        accepted_count=accepted_count,
+        dismissed_ids=dismissed_ids,
         missing_ids=missing_ids,
         errors=errors,
     )
@@ -1132,7 +1132,7 @@ async def assign_alert(
 
     # Compute severity for response
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port, alert.acknowledged
+        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
     )
 
     return AlertResponse(
@@ -1144,7 +1144,7 @@ async def assign_alert(
         ip=alert.ip,
         port=alert.port,
         message=alert.message,
-        acknowledged=alert.acknowledged,
+        dismissed=alert.dismissed,
         assigned_to_user_id=alert.assigned_to_user_id,
         assigned_to_email=assigned_to_email,
         resolution_status=alert.resolution_status,
@@ -1186,7 +1186,7 @@ async def update_alert_status(
 
     # Compute severity for response
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port, alert.acknowledged
+        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
     )
 
     return AlertResponse(
@@ -1198,7 +1198,7 @@ async def update_alert_status(
         ip=alert.ip,
         port=alert.port,
         message=alert.message,
-        acknowledged=alert.acknowledged,
+        dismissed=alert.dismissed,
         assigned_to_user_id=alert.assigned_to_user_id,
         assigned_to_email=assigned_to_email,
         resolution_status=alert.resolution_status,

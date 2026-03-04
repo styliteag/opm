@@ -101,13 +101,13 @@ def _parse_port_range(value: str) -> tuple[int, int] | None:
     return port, port
 
 
-async def is_port_whitelisted(
+async def is_port_accepted(
     db: AsyncSession,
     ip: str,
     port: int,
 ) -> bool:
     """
-    Check if a port is whitelisted in global rules.
+    Check if a port is accepted in global rules.
 
     Checks both:
     - Global rules (ip is null) that match the port
@@ -175,7 +175,7 @@ async def is_port_blocked(
     return False
 
 
-async def get_whitelist_rules(db: AsyncSession) -> list[GlobalPortRule]:
+async def get_accepted_rules(db: AsyncSession) -> list[GlobalPortRule]:
     """Get all ACCEPTED rules."""
     stmt = (
         select(GlobalPortRule)

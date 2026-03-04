@@ -17,7 +17,7 @@ class AlertTrendDataPoint(BaseModel):
 
     date: date
     count: int
-    acknowledged_count: int
+    dismissed_count: int
 
 
 class TrendDataResponse(BaseModel):

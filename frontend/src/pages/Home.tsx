@@ -84,7 +84,7 @@ const Home = () => {
   const activeAlertsQuery = useQuery({
     queryKey: ['alerts', 'active-count'],
     queryFn: () =>
-      fetchJson<AlertListResponse>('/api/alerts?acknowledged=false&limit=200', token ?? ''),
+      fetchJson<AlertListResponse>('/api/alerts?dismissed=false&limit=200', token ?? ''),
     enabled: Boolean(token),
   })
 
@@ -142,7 +142,7 @@ const Home = () => {
     {
       label: 'Active alerts',
       value: activeAlertsLabel,
-      detail: 'Unacknowledged alerts',
+      detail: 'Pending alerts',
       accent: 'text-amber-600 dark:text-amber-200',
     },
     {

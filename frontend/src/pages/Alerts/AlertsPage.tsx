@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import AckModal from '../../components/AckModal'
+import ReviewModal from '../../components/ReviewModal'
 import { useAuth } from '../../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, getAuthHeaders } from '../../lib/api'
 import type { Alert } from '../../types'
@@ -16,7 +16,7 @@ import type {
   AlertFiltersState,
 } from './useAlerts'
 
-type ActionModalState = {
+type ReviewModalState = {
   alerts: Alert[]
   mode: 'single' | 'bulk'
 } | null
@@ -24,7 +24,7 @@ type ActionModalState = {
 const AlertsPage = () => {
   const { token } = useAuth()
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [actionModal, setActionModal] = useState<ActionModalState>(null)
+  const [reviewModal, setReviewModal] = useState<ReviewModalState>(null)
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
   const [editingComment, setEditingComment] = useState<{
@@ -67,11 +67,11 @@ const AlertsPage = () => {
     getAcceptedReason,
     getAcceptedRuleInfo,
     revokeAcceptanceMutation,
-    bulkWhitelistGlobalMutation,
-    bulkWhitelistNetworkMutation,
-    bulkAcknowledgeMutation,
-    singleAcknowledgeMutation,
-    unacknowledgeMutation,
+    acceptGloballyMutation,
+    acceptInNetworkMutation,
+    bulkDismissMutation,
+    singleDismissMutation,
+    reopenMutation,
     bulkDeleteMutation,
     assignAlertMutation,
     updateCommentMutation,
@@ -122,12 +122,12 @@ const AlertsPage = () => {
   const allSelected =
     filteredAlerts.length > 0 && filteredAlerts.every((a) => selectedIds.has(a.id))
 
-  // AckModal callbacks
-  const handleAckOnly = (reason: string, includeSSH: boolean) => {
-    if (!actionModal) return
-    if (actionModal.mode === 'single') {
-      const alert = actionModal.alerts[0]
-      singleAcknowledgeMutation.mutate(
+  // ReviewModal callbacks
+  const handleDismiss = (reason: string, includeSSH: boolean) => {
+    if (!reviewModal) return
+    if (reviewModal.mode === 'single') {
+      const alert = reviewModal.alerts[0]
+      singleDismissMutation.mutate(
         {
           alertId: alert.id,
           reason: reason || undefined,
@@ -136,18 +136,18 @@ const AlertsPage = () => {
         {
           onSuccess: () => {
             setToast({ message: 'Alert dismissed.', tone: 'success' })
-            setActionModal(null)
+            setReviewModal(null)
             setSelectedIds(new Set())
           },
         },
       )
     } else {
-      bulkAcknowledgeMutation.mutate(
-        { alertIds: actionModal.alerts.map((a) => a.id), reason: reason || undefined },
+      bulkDismissMutation.mutate(
+        { alertIds: reviewModal.alerts.map((a) => a.id), reason: reason || undefined },
         {
           onSuccess: () => {
             setToast({ message: 'Alerts dismissed.', tone: 'success' })
-            setActionModal(null)
+            setReviewModal(null)
             setSelectedIds(new Set())
           },
         },
@@ -156,14 +156,14 @@ const AlertsPage = () => {
   }
 
   const handleAcceptGlobal = (reason: string, _includeSSH: boolean) => {
-    if (!actionModal || !reason.trim()) return
-    const alertIds = actionModal.alerts.map((a) => a.id)
-    bulkWhitelistGlobalMutation.mutate(
+    if (!reviewModal || !reason.trim()) return
+    const alertIds = reviewModal.alerts.map((a) => a.id)
+    acceptGloballyMutation.mutate(
       { alertIds, reason },
       {
         onSuccess: () => {
           setToast({ message: 'Accepted globally.', tone: 'success' })
-          setActionModal(null)
+          setReviewModal(null)
           setSelectedIds(new Set())
         },
       },
@@ -171,14 +171,14 @@ const AlertsPage = () => {
   }
 
   const handleAcceptNetwork = (reason: string, _includeSSH: boolean) => {
-    if (!actionModal || !reason.trim()) return
-    const alertIds = actionModal.alerts.map((a) => a.id)
-    bulkWhitelistNetworkMutation.mutate(
+    if (!reviewModal || !reason.trim()) return
+    const alertIds = reviewModal.alerts.map((a) => a.id)
+    acceptInNetworkMutation.mutate(
       { alertIds, reason },
       {
         onSuccess: () => {
           setToast({ message: 'Accepted in network.', tone: 'success' })
-          setActionModal(null)
+          setReviewModal(null)
           setSelectedIds(new Set())
         },
       },
@@ -191,8 +191,8 @@ const AlertsPage = () => {
     try {
       const queryParams = new URLSearchParams()
       if (severityFilter) queryParams.append('type', severityFilter)
-      if (statusFilter === 'pending') queryParams.append('acknowledged', 'false')
-      else if (statusFilter === 'dismissed') queryParams.append('acknowledged', 'true')
+      if (statusFilter === 'pending') queryParams.append('dismissed', 'false')
+      else if (statusFilter === 'dismissed') queryParams.append('dismissed', 'true')
 
       const url = `${API_BASE_URL}/api/alerts/export/${format}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
       const response = await fetch(url, { headers: getAuthHeaders(token ?? '') })
@@ -233,10 +233,10 @@ const AlertsPage = () => {
   }
 
   const isProcessing =
-    bulkWhitelistGlobalMutation.isPending ||
-    bulkWhitelistNetworkMutation.isPending ||
-    bulkAcknowledgeMutation.isPending ||
-    singleAcknowledgeMutation.isPending
+    acceptGloballyMutation.isPending ||
+    acceptInNetworkMutation.isPending ||
+    bulkDismissMutation.isPending ||
+    singleDismissMutation.isPending
 
   return (
     <div className="relative">
@@ -268,7 +268,7 @@ const AlertsPage = () => {
                   <button
                     onClick={() => {
                       const selected = filteredAlerts.filter((a) => selectedIds.has(a.id))
-                      setActionModal({ alerts: selected, mode: 'bulk' })
+                      setReviewModal({ alerts: selected, mode: 'bulk' })
                     }}
                     className="rounded-full border border-indigo-200 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"
                   >
@@ -369,9 +369,9 @@ const AlertsPage = () => {
                           acceptedRuleInfo={getAcceptedRuleInfo(alert)}
                           onToggle={() => toggleRow(alert.id)}
                           onSelect={(checked) => handleSelectOne(alert.id, checked)}
-                          onResolve={() => setActionModal({ alerts: [alert], mode: 'single' })}
+                          onResolve={() => setReviewModal({ alerts: [alert], mode: 'single' })}
                           onReopen={(id) =>
-                            unacknowledgeMutation.mutate(id, {
+                            reopenMutation.mutate(id, {
                               onSuccess: () =>
                                 setToast({ message: 'Alert reopened', tone: 'success' }),
                               onError: (e) =>
@@ -396,7 +396,7 @@ const AlertsPage = () => {
                             )
                           }
                           isRevoking={revokeAcceptanceMutation.isPending}
-                          isReopening={unacknowledgeMutation.isPending}
+                          isReopening={reopenMutation.isPending}
                           users={users}
                           onAssign={handleAssign}
                           isAssigning={updatingAssignment === alert.id}
@@ -451,23 +451,23 @@ const AlertsPage = () => {
         </div>
       </section>
 
-      {/* AckModal */}
-      {actionModal && (
-        <AckModal
-          alerts={actionModal.alerts.map((a) => ({
+      {/* ReviewModal */}
+      {reviewModal && (
+        <ReviewModal
+          alerts={reviewModal.alerts.map((a) => ({
             id: a.id,
             ip: a.ip,
             port: a.port,
             network_id: a.network_id,
             network_name: a.network_name,
             related_ssh_alert_count: a.related_ssh_alert_count,
-            related_ssh_alerts_acknowledged: a.related_ssh_alerts_acknowledged,
+            related_ssh_alerts_dismissed: a.related_ssh_alerts_dismissed,
           }))}
-          mode={actionModal.mode}
-          onAcknowledgeOnly={handleAckOnly}
+          mode={reviewModal.mode}
+          onDismiss={handleDismiss}
           onAcceptGlobal={handleAcceptGlobal}
           onAcceptNetwork={handleAcceptNetwork}
-          onClose={() => setActionModal(null)}
+          onClose={() => setReviewModal(null)}
           isProcessing={isProcessing}
         />
       )}

@@ -47,7 +47,7 @@ export type Alert = {
   ip: string
   port: number
   message: string
-  acknowledged: boolean
+  dismissed: boolean
   assigned_to_user_id: number | null
   assigned_to_email: string | null
   resolution_status: ResolutionStatus
@@ -57,14 +57,14 @@ export type Alert = {
   host_id: number | null
   hostname: string | null
   user_comment: string | null
-  ack_reason: string | null
+  dismiss_reason: string | null
   last_comment: string | null
   last_comment_by: string | null
   last_comment_at: string | null
   // SSH context (for alerts on SSH ports)
   ssh_summary: AlertSSHSummary | null
   related_ssh_alert_count: number
-  related_ssh_alerts_acknowledged: boolean
+  related_ssh_alerts_dismissed: boolean
   // Port rule context
   matching_rules: PortRuleMatch[]
 }
@@ -73,8 +73,8 @@ export type AlertListResponse = {
   alerts: Alert[]
 }
 
-export type BulkAcknowledgeResponse = {
-  acknowledged_ids: number[]
+export type BulkDismissResponse = {
+  dismissed_ids: number[]
   missing_ids: number[]
 }
 
@@ -426,9 +426,9 @@ export type PortRuleMatch = {
 
 export type EnrichedHostPort = HostOpenPort & {
   alert_id: number | null
-  alert_status: 'new' | 'acknowledged' | null
+  alert_status: 'new' | 'dismissed' | null
   alert_severity: string | null
-  ack_reason: string | null
+  dismiss_reason: string | null
   rule_status: 'accepted' | 'critical' | null
   matching_rules: PortRuleMatch[]
   ssh_summary: HostSSHSummary | null
@@ -523,9 +523,9 @@ export type SSHHostSummary = {
   change_status: 'improved' | 'degraded' | 'unchanged' | null
   changes: SSHConfigChange[]
   // Port alert cross-reference
-  port_alert_acknowledged: boolean | null
+  port_alert_dismissed: boolean | null
   port_alert_id: number | null
-  port_alert_ack_reason: string | null
+  port_alert_dismiss_reason: string | null
 }
 
 export type SSHHostListResponse = {
@@ -569,16 +569,16 @@ export type HostAlertSummary = {
   port: number
   message: string
   severity: string
-  acknowledged: boolean
+  dismissed: boolean
   resolution_status: string
   created_at: string
-  ack_reason: string | null
+  dismiss_reason: string | null
   network_id: number | null
   network_name: string | null
   // SSH context (for alerts on SSH ports)
   ssh_summary: HostSSHSummary | null
   related_ssh_alert_count: number
-  related_ssh_alerts_acknowledged: boolean
+  related_ssh_alerts_dismissed: boolean
 }
 
 export type HostSSHSummary = {
@@ -608,21 +608,21 @@ export type HostOverviewResponse = {
   ports: EnrichedHostPort[]
   networks: HostNetworkInfo[]
   alerts: HostAlertSummary[]
-  acknowledged_alerts: HostAlertSummary[]
-  acknowledged_alert_count: number
+  dismissed_alerts: HostAlertSummary[]
+  dismissed_alert_count: number
   ssh: HostSSHSummary | null
   recent_scans: HostScanEntry[]
   matching_rules: PortRuleMatch[]
 }
 
-// ACK Suggestion types
-export type AckSuggestion = {
+// Dismiss Suggestion types
+export type DismissSuggestion = {
   reason: string
   frequency: number
   last_used: string | null
   same_port: boolean
 }
 
-export type AckSuggestionsResponse = {
-  suggestions: AckSuggestion[]
+export type DismissSuggestionsResponse = {
+  suggestions: DismissSuggestion[]
 }

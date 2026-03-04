@@ -7,43 +7,43 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class WhitelistScope(str, Enum):
-    """Scope for whitelist rule creation during SSH acknowledge."""
+class AcceptScope(str, Enum):
+    """Scope for acceptance rule creation during SSH dismiss."""
 
     NONE = "none"
     GLOBAL = "global"
     NETWORK = "network"
 
 
-class SSHAcknowledgeRequest(BaseModel):
-    """Request schema for acknowledging SSH findings for a host."""
+class SSHDismissRequest(BaseModel):
+    """Request schema for dismissing SSH findings for a host."""
 
     port: int = Field(default=22, ge=1, le=65535)
     reason: str | None = None
-    whitelist_scope: WhitelistScope = WhitelistScope.NONE
+    accept_scope: AcceptScope = AcceptScope.NONE
     include_port_alerts: bool = False
 
 
-class SSHAcknowledgeResponse(BaseModel):
-    """Response schema for SSH acknowledge results."""
+class SSHDismissResponse(BaseModel):
+    """Response schema for SSH dismiss results."""
 
-    acknowledged_alert_ids: list[int]
+    dismissed_alert_ids: list[int]
     created_alert_ids: list[int]
     host_ip: str
     port: int
     port_alert_ids: list[int] = []
 
 
-class SSHUnacknowledgeRequest(BaseModel):
-    """Request schema for unacknowledging SSH findings for a host."""
+class SSHReopenRequest(BaseModel):
+    """Request schema for reopening SSH findings for a host."""
 
     port: int = Field(default=22, ge=1, le=65535)
 
 
-class SSHUnacknowledgeResponse(BaseModel):
-    """Response schema for SSH unacknowledge results."""
+class SSHReopenResponse(BaseModel):
+    """Response schema for SSH reopen results."""
 
-    unacknowledged_alert_ids: list[int]
+    reopened_alert_ids: list[int]
     host_ip: str
     port: int
 
@@ -118,9 +118,9 @@ class SSHHostSummary(BaseModel):
     change_status: str | None = None
     changes: list[SSHConfigChange] = []
     # Port alert cross-reference
-    port_alert_acknowledged: bool | None = None
+    port_alert_dismissed: bool | None = None
     port_alert_id: int | None = None
-    port_alert_ack_reason: str | None = None
+    port_alert_dismiss_reason: str | None = None
 
 
 class SSHHostListResponse(BaseModel):

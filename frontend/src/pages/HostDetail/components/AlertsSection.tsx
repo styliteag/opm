@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import AckModal from '../../../components/AckModal'
-import AckSuggestions from '../../../components/AckSuggestions'
+import ReviewModal from '../../../components/ReviewModal'
+import ReasonSuggestions from '../../../components/ReasonSuggestions'
 import {
   parseUtcDate,
   severityColors,
@@ -24,12 +24,12 @@ const formatRelativeTime = (date: Date) => {
 
 type Props = {
   alerts: HostAlertSummary[]
-  acknowledgedAlerts: HostAlertSummary[]
-  acknowledgedCount: number
+  dismissedAlerts: HostAlertSummary[]
+  dismissedCount: number
   hostIp: string
   isAdmin: boolean
-  onAcknowledge: (alertId: number, reason?: string, includeSSH?: boolean) => void
-  onUnacknowledge: (alertId: number) => void
+  onDismiss: (alertId: number, reason?: string, includeSSH?: boolean) => void
+  onReopen: (alertId: number) => void
   onCreateRule?: (payload: {
     network_id?: number | null
     ip?: string | null
@@ -37,73 +37,73 @@ type Props = {
     rule_type: 'accepted' | 'critical'
     description?: string | null
   }) => void
-  isAcknowledging: boolean
-  isUnacknowledging: boolean
+  isDismissing: boolean
+  isReopening: boolean
 }
 
 export default function AlertsSection({
   alerts,
-  acknowledgedAlerts,
-  acknowledgedCount,
+  dismissedAlerts,
+  dismissedCount,
   hostIp,
   isAdmin,
-  onAcknowledge,
-  onUnacknowledge,
+  onDismiss,
+  onReopen,
   onCreateRule,
-  isAcknowledging,
-  isUnacknowledging,
+  isDismissing,
+  isReopening,
 }: Props) {
-  const [showAcknowledged, setShowAcknowledged] = useState(false)
-  const [ackAlert, setAckAlert] = useState<HostAlertSummary | null>(null)
+  const [showDismissed, setShowDismissed] = useState(false)
+  const [reviewAlert, setReviewAlert] = useState<HostAlertSummary | null>(null)
   const [editingAlertId, setEditingAlertId] = useState<number | null>(null)
   const [editReason, setEditReason] = useState('')
-  const activeAlerts = alerts.filter((a) => !a.acknowledged)
+  const activeAlerts = alerts.filter((a) => !a.dismissed)
 
-  const handleAckModalClose = () => setAckAlert(null)
+  const handleReviewClose = () => setReviewAlert(null)
 
-  const handleAcknowledgeOnly = (reason: string, includeSSH: boolean) => {
-    if (!ackAlert) return
-    onAcknowledge(ackAlert.id, reason || undefined, includeSSH)
-    setAckAlert(null)
+  const handleDismiss = (reason: string, includeSSH: boolean) => {
+    if (!reviewAlert) return
+    onDismiss(reviewAlert.id, reason || undefined, includeSSH)
+    setReviewAlert(null)
   }
 
   const handleAcceptGlobal = (reason: string, includeSSH: boolean) => {
-    if (!ackAlert || !onCreateRule) return
+    if (!reviewAlert || !onCreateRule) return
     onCreateRule({
       network_id: null,
       ip: null,
-      port: String(ackAlert.port),
+      port: String(reviewAlert.port),
       rule_type: 'accepted',
       description: reason || null,
     })
     if (includeSSH) {
-      onAcknowledge(ackAlert.id, reason || undefined, true)
+      onDismiss(reviewAlert.id, reason || undefined, true)
     }
-    setAckAlert(null)
+    setReviewAlert(null)
   }
 
   const handleAcceptNetwork = (reason: string, includeSSH: boolean) => {
-    if (!ackAlert || !onCreateRule) return
+    if (!reviewAlert || !onCreateRule) return
     onCreateRule({
-      network_id: ackAlert.network_id,
+      network_id: reviewAlert.network_id,
       ip: null,
-      port: String(ackAlert.port),
+      port: String(reviewAlert.port),
       rule_type: 'accepted',
       description: reason || null,
     })
     if (includeSSH) {
-      onAcknowledge(ackAlert.id, reason || undefined, true)
+      onDismiss(reviewAlert.id, reason || undefined, true)
     }
-    setAckAlert(null)
+    setReviewAlert(null)
   }
 
   const handleEditStart = (alert: HostAlertSummary) => {
     setEditingAlertId(alert.id)
-    setEditReason(alert.ack_reason ?? '')
+    setEditReason(alert.dismiss_reason ?? '')
   }
 
   const handleEditSubmit = (alertId: number) => {
-    onAcknowledge(alertId, editReason.trim() || undefined)
+    onDismiss(alertId, editReason.trim() || undefined)
     setEditingAlertId(null)
     setEditReason('')
   }
@@ -124,21 +124,21 @@ export default function AlertsSection({
             </span>
           )}
         </h3>
-        {acknowledgedCount > 0 && (
+        {dismissedCount > 0 && (
           <button
-            onClick={() => setShowAcknowledged(!showAcknowledged)}
+            onClick={() => setShowDismissed(!showDismissed)}
             className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           >
-            {showAcknowledged ? 'Hide' : 'Show'} dismissed ({acknowledgedCount})
+            {showDismissed ? 'Hide' : 'Show'} dismissed ({dismissedCount})
           </button>
         )}
       </div>
 
-      {activeAlerts.length === 0 && acknowledgedCount === 0 && (
+      {activeAlerts.length === 0 && dismissedCount === 0 && (
         <p className="text-slate-500 dark:text-slate-400 text-sm">No alerts for this host.</p>
       )}
 
-      {activeAlerts.length === 0 && acknowledgedCount > 0 && !showAcknowledged && (
+      {activeAlerts.length === 0 && dismissedCount > 0 && !showDismissed && (
         <p className="text-green-600 dark:text-green-400 text-sm">All alerts dismissed.</p>
       )}
 
@@ -164,12 +164,12 @@ export default function AlertsSection({
                 {PORT_ALERT_TYPES.has(alert.type) && alert.related_ssh_alert_count > 0 && (
                   <span
                     className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                      alert.related_ssh_alerts_acknowledged
+                      alert.related_ssh_alerts_dismissed
                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
                         : 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
                     }`}
                     title={
-                      alert.related_ssh_alerts_acknowledged
+                      alert.related_ssh_alerts_dismissed
                         ? `${alert.related_ssh_alert_count} SSH finding(s) dismissed`
                         : `${alert.related_ssh_alert_count} SSH finding(s) pending`
                     }
@@ -190,8 +190,8 @@ export default function AlertsSection({
                 </span>
                 {isAdmin && (
                   <button
-                    onClick={() => setAckAlert(alert)}
-                    disabled={isAcknowledging}
+                    onClick={() => setReviewAlert(alert)}
+                    disabled={isDismissing}
                     className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                     title="Review"
                   >
@@ -204,11 +204,11 @@ export default function AlertsSection({
         </div>
       )}
 
-      {showAcknowledged && acknowledgedAlerts.length > 0 && (
+      {showDismissed && dismissedAlerts.length > 0 && (
         <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
           <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Dismissed</h4>
           <div className="space-y-2">
-            {acknowledgedAlerts.map((alert) => (
+            {dismissedAlerts.map((alert) => (
               <div
                 key={alert.id}
                 className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-700/50"
@@ -239,15 +239,15 @@ export default function AlertsSection({
                       <>
                         <button
                           onClick={() => handleEditStart(alert)}
-                          disabled={isAcknowledging}
+                          disabled={isDismissing}
                           className="px-2 py-1 text-xs font-medium rounded bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 disabled:opacity-50"
                           title="Edit reason"
                         >
                           Edit
                         </button>
                         <button
-                          onClick={() => onUnacknowledge(alert.id)}
-                          disabled={isUnacknowledging}
+                          onClick={() => onReopen(alert.id)}
+                          disabled={isReopening}
                           className="px-2 py-1 text-xs font-medium rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
                           title="Reopen this alert"
                         >
@@ -259,7 +259,7 @@ export default function AlertsSection({
                 </div>
                 {editingAlertId === alert.id ? (
                   <div className="flex items-center gap-2 mt-2 ml-1">
-                    <AckSuggestions
+                    <ReasonSuggestions
                       port={alert.port}
                       value={editReason}
                       onChange={setEditReason}
@@ -271,7 +271,7 @@ export default function AlertsSection({
                     />
                     <button
                       onClick={() => handleEditSubmit(alert.id)}
-                      disabled={isAcknowledging}
+                      disabled={isDismissing}
                       className="px-2 py-1 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                     >
                       Save
@@ -283,9 +283,9 @@ export default function AlertsSection({
                       Cancel
                     </button>
                   </div>
-                ) : alert.ack_reason ? (
+                ) : alert.dismiss_reason ? (
                   <p className="mt-1 ml-1 text-xs text-slate-500 dark:text-slate-400 italic">
-                    Reason: {alert.ack_reason}
+                    Reason: {alert.dismiss_reason}
                   </p>
                 ) : null}
               </div>
@@ -294,26 +294,26 @@ export default function AlertsSection({
         </div>
       )}
 
-      {/* AckModal for 3-option acknowledge flow */}
-      {ackAlert && (
-        <AckModal
+      {/* ReviewModal for 3-option acknowledge flow */}
+      {reviewAlert && (
+        <ReviewModal
           alerts={[
             {
-              id: ackAlert.id,
+              id: reviewAlert.id,
               ip: hostIp,
-              port: ackAlert.port,
-              network_id: ackAlert.network_id,
-              network_name: ackAlert.network_name,
-              related_ssh_alert_count: ackAlert.related_ssh_alert_count,
-              related_ssh_alerts_acknowledged: ackAlert.related_ssh_alerts_acknowledged,
+              port: reviewAlert.port,
+              network_id: reviewAlert.network_id,
+              network_name: reviewAlert.network_name,
+              related_ssh_alert_count: reviewAlert.related_ssh_alert_count,
+              related_ssh_alerts_dismissed: reviewAlert.related_ssh_alerts_dismissed,
             },
           ]}
           mode="single"
-          onAcknowledgeOnly={handleAcknowledgeOnly}
+          onDismiss={handleDismiss}
           onAcceptGlobal={handleAcceptGlobal}
           onAcceptNetwork={handleAcceptNetwork}
-          onClose={handleAckModalClose}
-          isProcessing={isAcknowledging}
+          onClose={handleReviewClose}
+          isProcessing={isDismissing}
         />
       )}
     </div>

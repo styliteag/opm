@@ -18,7 +18,7 @@ export function useHostDetail(hostId: number) {
     queryClient.invalidateQueries({ queryKey: ['hosts', hostId, 'overview'] })
   }
 
-  const acknowledgeMutation = useMutation({
+  const dismissMutation = useMutation({
     mutationFn: async ({
       alertId,
       reason,
@@ -28,7 +28,7 @@ export function useHostDetail(hostId: number) {
       reason?: string
       include_ssh_findings?: boolean
     }) => {
-      const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/acknowledge`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/dismiss`, {
         method: 'PUT',
         headers: {
           ...getAuthHeaders(token ?? ''),
@@ -47,9 +47,9 @@ export function useHostDetail(hostId: number) {
     onSuccess: invalidateOverview,
   })
 
-  const unacknowledgeMutation = useMutation({
+  const reopenMutation = useMutation({
     mutationFn: async (alertId: number) => {
-      const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/unacknowledge`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/reopen`, {
         method: 'PUT',
         headers: getAuthHeaders(token ?? ''),
       })
@@ -161,8 +161,8 @@ export function useHostDetail(hostId: number) {
 
   return {
     overviewQuery,
-    acknowledgeMutation,
-    unacknowledgeMutation,
+    dismissMutation,
+    reopenMutation,
     updateCommentMutation,
     updateHostnameMutation,
     rescanMutation,

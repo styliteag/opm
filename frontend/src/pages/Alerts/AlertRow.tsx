@@ -87,7 +87,7 @@ export default function AlertRow({
   return (
     <tr
       onClick={onToggle}
-      className={`text-sm transition cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-900/40 ${alert.acknowledged || isAccepted ? 'opacity-60' : ''}`}
+      className={`text-sm transition cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-900/40 ${alert.dismissed || isAccepted ? 'opacity-60' : ''}`}
     >
       {isAdmin && (
         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -263,19 +263,19 @@ export default function AlertRow({
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-2">
-          {alert.acknowledged || isAccepted ? (
+          {alert.dismissed || isAccepted ? (
             <>
               {isAccepted ? (
                 <span
                   className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 cursor-default"
-                  title={alert.ack_reason || acceptedReason || undefined}
+                  title={alert.dismiss_reason || acceptedReason || undefined}
                 >
                   Accepted
                 </span>
               ) : (
                 <span
                   className="inline-flex items-center rounded-full border border-sky-300/50 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-200 cursor-default"
-                  title={alert.ack_reason || undefined}
+                  title={alert.dismiss_reason || undefined}
                 >
                   Dismissed
                 </span>
@@ -290,7 +290,7 @@ export default function AlertRow({
                   Revoke Rule
                 </button>
               )}
-              {isAdmin && alert.acknowledged && !acceptedRuleInfo && (
+              {isAdmin && alert.dismissed && !acceptedRuleInfo && (
                 <button
                   onClick={() => onReopen(alert.id)}
                   disabled={isReopening}

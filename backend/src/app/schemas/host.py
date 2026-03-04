@@ -78,9 +78,9 @@ class EnrichedHostPort(BaseModel):
     last_seen_at: datetime
     # Alert enrichment
     alert_id: int | None = None
-    alert_status: str | None = None  # 'new' | 'acknowledged'
+    alert_status: str | None = None  # 'new' | 'dismissed'
     alert_severity: str | None = None
-    ack_reason: str | None = None
+    dismiss_reason: str | None = None
     # Rule enrichment
     rule_status: str | None = None  # 'accepted' | 'critical'
     matching_rules: list[PortRuleMatch] = []
@@ -152,16 +152,16 @@ class HostAlertSummary(BaseModel):
     port: int
     message: str
     severity: str
-    acknowledged: bool
+    dismissed: bool
     resolution_status: str
     created_at: datetime
-    ack_reason: str | None = None
+    dismiss_reason: str | None = None
     network_id: int | None = None
     network_name: str | None = None
     # SSH context (for alerts on SSH ports)
     ssh_summary: "HostSSHSummary | None" = None
     related_ssh_alert_count: int = 0
-    related_ssh_alerts_acknowledged: bool = True
+    related_ssh_alerts_dismissed: bool = True
 
 
 class HostSSHSummary(BaseModel):
@@ -197,8 +197,8 @@ class HostOverviewResponse(BaseModel):
     ports: list[EnrichedHostPort]
     networks: list[HostNetworkInfo]
     alerts: list[HostAlertSummary]
-    acknowledged_alerts: list[HostAlertSummary]
-    acknowledged_alert_count: int
+    dismissed_alerts: list[HostAlertSummary]
+    dismissed_alert_count: int
     ssh: HostSSHSummary | None
     recent_scans: list[HostScanEntry]
     matching_rules: list[PortRuleMatch] = []

@@ -32,7 +32,12 @@ const columns: { key: SortColumn; label: string }[] = [
 ]
 
 export default function AlertTableHeader({
-  isAdmin, sortColumn, sortDirection, onSort, allUnackSelected, onSelectAll,
+  isAdmin,
+  sortColumn,
+  sortDirection,
+  onSort,
+  allUnackSelected,
+  onSelectAll,
 }: Props) {
   return (
     <thead>
@@ -44,7 +49,7 @@ export default function AlertTableHeader({
               checked={allUnackSelected}
               onChange={(e) => onSelectAll(e.target.checked)}
               className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-              title="Select all unacknowledged"
+              title="Select all"
             />
           </th>
         )}

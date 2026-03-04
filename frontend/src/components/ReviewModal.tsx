@@ -1,20 +1,20 @@
 import { useState } from 'react'
-import AckSuggestions from './AckSuggestions'
+import ReasonSuggestions from './ReasonSuggestions'
 
-type AckAlert = {
+type ReviewAlert = {
   id: number
   ip: string
   port: number
   network_id: number | null
   network_name: string | null
   related_ssh_alert_count: number
-  related_ssh_alerts_acknowledged: boolean
+  related_ssh_alerts_dismissed: boolean
 }
 
 type Props = {
-  alerts: AckAlert[]
+  alerts: ReviewAlert[]
   mode: 'single' | 'bulk'
-  onAcknowledgeOnly: (reason: string, includeSSH: boolean) => void
+  onDismiss: (reason: string, includeSSH: boolean) => void
   onAcceptGlobal: (reason: string, includeSSH: boolean) => void
   onAcceptNetwork: (reason: string, includeSSH: boolean) => void
   onClose: () => void
@@ -22,10 +22,10 @@ type Props = {
   requireReasonForRules?: boolean
 }
 
-export default function AckModal({
+export default function ReviewModal({
   alerts,
   mode,
-  onAcknowledgeOnly,
+  onDismiss,
   onAcceptGlobal,
   onAcceptNetwork,
   onClose,
@@ -37,7 +37,7 @@ export default function AckModal({
 
   const first = alerts[0]
   const hasSSH =
-    mode === 'single' && first.related_ssh_alert_count > 0 && !first.related_ssh_alerts_acknowledged
+    mode === 'single' && first.related_ssh_alert_count > 0 && !first.related_ssh_alerts_dismissed
 
   const reasonTrimmed = reason.trim()
   const canCreateRule = !requireReasonForRules || reasonTrimmed.length > 0
@@ -82,7 +82,7 @@ export default function AckModal({
           <label className="ml-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
             Reason
           </label>
-          <AckSuggestions
+          <ReasonSuggestions
             port={mode === 'single' ? first.port : null}
             value={reason}
             onChange={setReason}
@@ -117,7 +117,7 @@ export default function AckModal({
         <div className="space-y-3">
           {/* Acknowledge only */}
           <button
-            onClick={() => onAcknowledgeOnly(reasonTrimmed, includeSSH)}
+            onClick={() => onDismiss(reasonTrimmed, includeSSH)}
             disabled={isProcessing}
             className="group flex w-full items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50 dark:border-indigo-500/30 dark:bg-indigo-500/5 dark:hover:bg-indigo-500/10"
           >

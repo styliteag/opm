@@ -175,7 +175,7 @@ async def get_alerts_trend(
     Get historical alerts trend data.
 
     Aggregates alerts by created_at over time periods.
-    Returns data points with date, total count, and acknowledged count.
+    Returns data points with date, total count, and dismissed count.
     """
     # Convert dates to datetime for comparison
     start_datetime = datetime.combine(start_date, datetime.min.time())
@@ -204,7 +204,7 @@ async def get_alerts_trend(
         select(
             date_trunc.label("period_date"),
             func.count(Alert.id).label("count"),
-            func.sum(func.if_(Alert.acknowledged, 1, 0)).label("acknowledged_count"),
+            func.sum(func.if_(Alert.dismissed, 1, 0)).label("dismissed_count"),
         )
         .where(
             Alert.created_at >= start_datetime,
@@ -231,7 +231,7 @@ async def get_alerts_trend(
         AlertTrendDataPoint(
             date=row.period_date,
             count=row.count,
-            acknowledged_count=row.acknowledged_count or 0,
+            dismissed_count=row.dismissed_count or 0,
         )
         for row in rows
     ]
