@@ -8,6 +8,7 @@ function App() {
     { label: 'Dashboard', to: '/', end: true },
     { label: 'Scanners', to: '/scanners' },
     { label: 'Networks', to: '/networks' },
+    { label: 'Scans', to: '/scans' },
     { label: 'Hosts & Ports', to: '/hosts' },
     { label: 'Alerts', to: '/alerts' },
     { label: 'Trends', to: '/trends' },

@@ -40,8 +40,8 @@ export function useNetworkDetail(networkId: number) {
     enabled: Boolean(token && networkId > 0),
     refetchInterval: (query) => {
       const data = query.state.data as ScanListResponse | undefined
-      const hasRunning = data?.scans?.some((s) => s.status === 'running')
-      return hasRunning ? 5000 : false
+      const hasActive = data?.scans?.some((s) => s.status === 'running' || s.status === 'planned')
+      return hasActive ? 5000 : false
     },
   })
 
