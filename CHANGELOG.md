@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bulk delete alerts: select alerts and permanently delete them with confirmation dialog (admin only)
 - `CLAUDE.md` documentation file for AI assistant guidance covering project structure, development workflows, quality checks, and key conventions
 
+### Fixed
+- Global alerts not regenerated after deletion — the `is_new` guard on `global_open_ports` prevented re-alerting on previously seen ports even when the alert was deleted
+- Duplicate `SSH_ALERT_TYPES` definition that shadowed the canonical one (missing `SSH_CONFIG_REGRESSION`)
+- All pre-existing mypy type errors and ruff lint warnings across backend codebase
+
 ### Changed
 - Renamed "Ack" button to "Accept" on alerts page
 - Alert checkboxes now selectable for all alerts (not just unacknowledged)
