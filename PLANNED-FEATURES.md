@@ -315,3 +315,152 @@ Example of new scanner types:
 
 **Implementing:** partial
 **Current state:** Open port alerts are managed from Risk Overview, and SSH security findings are managed from the SSH Security page (`/ssh-security`). Both have independent ACK workflows — the SSH Security page now supports acknowledge/unacknowledge with the same 3-option modal (acknowledge only, accept everywhere, accept in this network). However, these are two separate pages with no cross-references. An admin handling an open SSH port must visit Risk Overview to ACK the `new_port` alert, then navigate to SSH Security to review and ACK the SSH findings. There is no unified view showing both aspects together, and acknowledging in one place does not inform or link to the other.
+
+---
+
+# UX Simplification — User Stories
+
+> The stories below address a core usability problem: the system splits related security information across 5 pages (Hosts, Open Ports, Risk Overview, SSH Security, Port Rules) with no clear workflow connecting them. A user must constantly hop between pages to understand and act on what the scanner found. These stories aim to consolidate the experience into a clear, linear workflow.
+
+---
+
+## 35. Host-Centric Security Summary (Single Host, Full Picture)
+**As a** security admin, **I want** the Host Detail page to be my **single pane of glass** for everything about one host — open ports, alerts, SSH findings, port rules, and comments — **so that** I never need to visit 4 separate pages to understand one host's security posture.
+
+**What the Host Detail page should show:**
+
+1. **Port table** — all open ports for this host, each row showing:
+   - Port, protocol, service name/banner
+   - Rule status: "Accepted" / "Critical" / "No rule" (with the reason from Port Rules inline)
+   - Alert status: "New" / "Acknowledged" / "No alert" (with ACK reason inline)
+   - SSH badge: if it's an SSH port, show auth method + cipher strength + version right in the row
+   - Action buttons: ACK alert, create/edit port rule, add comment — all inline, no page navigation
+
+2. **Alert section** — all alerts for this host (port alerts + SSH alerts) in one list, filterable by status. Same ACK/comment actions as Risk Overview, but scoped to this host.
+
+3. **SSH detail panel** — if the host has SSH ports, show the full SSH security breakdown (ciphers, KEX, auth methods, version history) as a collapsible section, not on a separate page.
+
+4. **Applied rules** — list of port rules that match this host (global + network-specific), so the user can see what's already whitelisted without going to Port Rules.
+
+**Key behavior:**
+- Clicking a host IP anywhere in the app (Risk Overview, Open Ports, SSH Security) should navigate to this Host Detail page.
+- All triage actions (ACK, create rule, assign, comment) should be possible from this page.
+
+**Implementing:** no
+**Current state:** Host Detail shows basic host info, open ports list, and user comments. Alerts, SSH findings, and port rules are on entirely separate pages. There is no consolidated security view for a single host.
+
+---
+
+## 36. Simplified Navigation (Fewer Pages, Clearer Hierarchy)
+**As a** user, **I want** a simpler navigation that groups related things together, **so that** I don't have to guess which of 5 pages has the information I need.
+
+**Proposed navigation restructure:**
+
+```
+Current (9 nav items):              Proposed (6 nav items):
+─────────────────────               ────────────────────────
+Dashboard                           Dashboard
+Scanners                            Scanners
+Networks                            Networks
+Scans                               Hosts & Ports  ← merged
+Hosts                                 └ Host Detail ← the new single pane of glass (#35)
+Risk Overview                       Alerts         ← renamed, subsumes Risk Overview + SSH alerts
+Trends                                └ Alert Detail
+SSH Security                        Trends
+Port Rules
+Users (admin)                       Users (admin)
+```
+
+**Key changes:**
+1. **Merge "Hosts" + "Open Ports"** into one "Hosts & Ports" page. Open ports are already a property of hosts — they don't need their own top-level page. The existing Hosts page with its expandable rows showing ports is the right starting point; enrich it with port rule status and alert indicators.
+
+2. **Merge "Risk Overview" + "SSH Security"** into one "Alerts" page. SSH findings are just another alert type — they shouldn't be on a separate page. The Risk Overview already supports SSH alert types via the toggle; make SSH alerts first-class citizens in the same list with SSH detail shown inline in the expanded row.
+
+3. **Remove "Port Rules" as a top-level page.** Port rules are a configuration/settings concern, not a daily workflow page. Move it to:
+   - A sub-section of a Settings/Admin area, OR
+   - An "active rules" panel accessible from the Alerts page and Host Detail page
+   - Keep the ability to create rules inline from wherever you're triaging (Alert row → "Accept this port" creates the rule)
+
+4. **Remove "Scans"** as a top-level page. Scan status and history are already partially shown on Dashboard and Networks. Move scan details to a sub-page of Networks (each network shows its scan history).
+
+**Implementing:** no
+**Current state:** Navigation has 9+ items including separate pages for Hosts, Open Ports, Risk Overview, SSH Security, and Port Rules. Users must learn the distinction between all of them and mentally map which page holds which information.
+
+---
+
+## 37. Guided First-Time Triage Workflow
+**As a** new user seeing alerts for the first time, **I want** a clear, guided flow that walks me through: **"Here's what was found → Here's what it means → Here's what to do"** — **so that** I can triage alerts without needing to understand the system's page structure first.
+
+**The flow (all within the Alerts page):**
+
+1. **See the problem** — Alert list shows what the scanner found, sorted by severity. Each row has enough context to understand the finding: IP, port, service, what triggered the alert, and severity. No need to navigate elsewhere.
+
+2. **Understand the context** — Expanding an alert row shows:
+   - Host info (hostname, networks, last scan)
+   - Service detail (banner, SSH config if SSH port)
+   - Matching port rules (if any)
+   - Previous ACK history on this IP:port (if acknowledged before)
+   - Related alerts on the same host (e.g., if there's also an SSH finding)
+
+3. **Take action** — From the expanded row, the user can:
+   - **"Accept & Dismiss"** — ACK with reason + create an ACCEPTED port rule in one click. This means "I expect this port, don't alert me again."
+   - **"Acknowledge"** — ACK with reason but no rule. This means "I've seen it and it's fine for now, but alert me if it changes."
+   - **"Mark Critical"** — Create a CRITICAL rule. This means "This port should NOT be open, escalate it."
+   - **"Assign"** — Hand it to someone else to investigate.
+
+4. **See the result** — After action, the alert moves to the appropriate filter tab. The port rule (if created) is immediately visible on the Host Detail page.
+
+**Key behavior:**
+- The user never leaves the Alerts page during triage. Everything they need to decide is shown inline.
+- The three action buttons map directly to the mental model: "OK and expected" / "OK for now" / "Not OK."
+- After a triage session, the user can visit Host Detail (#35) for a per-host deep dive if needed, but the Alerts page is the daily driver.
+
+**Implementing:** no
+**Current state:** Triage requires hopping between Risk Overview (to see alerts), SSH Security (to check SSH config), Host Detail (to see other ports on the same host), Port Rules (to create a whitelist rule), and Open Ports (to see the global port picture). There is no guided flow and the expanded alert row in Risk Overview doesn't show enough context to make a decision without navigating away.
+
+---
+
+## 38. Inline Port Rule Management (Create Rules Where You Work)
+**As an** admin triaging alerts, **I want to** create, view, and edit port rules directly from the alert row or host detail — without navigating to the Port Rules page — **so that** whitelisting or blacklisting a port is a one-click action during triage, not a separate administrative task.
+
+**What this means:**
+
+1. **From any alert row** (on the Alerts page):
+   - "Accept this port" button → creates an ACCEPTED rule for this IP:port (with scope choice: global or per-network) and ACKs the alert in one action.
+   - "Mark critical" button → creates a CRITICAL rule.
+   - If a rule already exists for this port, show it inline with an "Edit" link.
+
+2. **From Host Detail** (#35):
+   - Each port row shows its current rule status. Clicking the status opens an inline editor to create/modify/delete the rule.
+   - A "Bulk accept" action for selecting multiple ports and creating rules at once.
+
+3. **Port Rules page becomes a reference/admin page**, not a daily workflow page:
+   - Still exists for bulk management, CSV import, and audit.
+   - Demoted from top-level nav to a Settings sub-page or a link from the Alerts page header.
+
+**Key behavior:**
+- Creating a rule from an alert automatically acknowledges the alert and sets the ACK reason to the rule's description.
+- Deleting a rule triggers re-evaluation: if the port is still open and no longer matches an ACCEPTED rule, a new alert is generated on the next scan.
+
+**Implementing:** partial
+**Current state:** Risk Overview has a "Whitelist" action that creates port rules, but it opens a separate modal and doesn't show existing rules. The Port Rules page is a standalone top-level page that feels disconnected from the triage workflow. Host Detail doesn't show port rule status at all.
+
+---
+
+## 39. SSH as a Port Enrichment, Not a Separate World
+**As a** user, **I want** SSH security information to appear **as context on the port** (port 22, 2222, etc.) rather than on a completely separate page — **so that** I don't have to mentally connect "the SSH Security page says port 22 on 10.0.0.5 has weak ciphers" with "the Risk Overview says 10.0.0.5 has a new_port alert on port 22."
+
+**What this means:**
+
+1. **On the Alerts page**: When expanding an alert for an SSH port, show the SSH security summary (auth methods, cipher strength, version, config changes) inline in the expanded row. The user sees the port alert and the SSH posture together.
+
+2. **On Host Detail** (#35): SSH ports in the port table show an SSH badge with key facts (auth method, cipher grade). Clicking expands the full SSH detail (cipher list, KEX, host keys, version history) inline.
+
+3. **SSH-specific alert types** (`ssh_insecure_auth`, `ssh_weak_cipher`, etc.) appear in the main Alerts list alongside port alerts, not on a separate page. They show the same inline SSH detail when expanded.
+
+4. **The standalone SSH Security page becomes optional/advanced**: It remains as a "fleet-wide SSH audit" view for users who specifically want to see all SSH hosts across all networks filtered by cipher/auth issues. But it's no longer required for daily triage — the Alerts page and Host Detail cover the common workflow.
+
+5. **Global SSH alert settings** (thresholds for what triggers alerts) move to a Settings/Admin area, not on the SSH Security page.
+
+**Implementing:** no
+**Current state:** SSH security has its own dedicated top-level page (`/ssh-security`) with its own filtering, ACK workflow, and settings. It's completely disconnected from the port alert workflow. A user triaging a `new_port` alert on port 22 has no SSH context in the Risk Overview and must navigate to `/ssh-security` to see if the SSH config is secure.
