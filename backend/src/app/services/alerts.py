@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Iterable
 
-from sqlalchemy import Integer, and_, func, select
+from sqlalchemy import Integer, and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert, AlertType
@@ -141,6 +141,53 @@ async def propagate_ack_reason_to_port_and_host(
     host = await get_host_by_ip(db, alert.ip)
     if host and not host.user_comment:
         host.user_comment = reason
+
+
+async def auto_acknowledge_alerts_for_accepted_rule(
+    db: AsyncSession,
+    ip: str | None,
+    port_str: str,
+    reason: str,
+    network_id: int | None = None,
+) -> int:
+    """Auto-acknowledge unacknowledged alerts matching a newly created ACCEPTED rule.
+
+    Args:
+        db: Database session
+        ip: Optional IP address (None means rule applies to all IPs)
+        port_str: Port value as string (single port or range like "22" or "80-443")
+        reason: The rule description used as the ack_reason
+        network_id: If set, only acknowledge alerts in this network
+
+    Returns:
+        Number of alerts acknowledged
+    """
+    from app.services.global_port_rules import _parse_port_range
+
+    parsed = _parse_port_range(port_str)
+    if parsed is None:
+        return 0
+
+    start, end = parsed
+
+    conditions = [
+        Alert.acknowledged.is_(False),
+        Alert.port >= start,
+        Alert.port <= end,
+    ]
+
+    if ip is not None:
+        conditions.append(Alert.ip == ip)
+
+    if network_id is not None:
+        conditions.append(Alert.network_id == network_id)
+
+    stmt = update(Alert).where(and_(*conditions)).values(
+        acknowledged=True,
+        ack_reason=reason,
+    )
+    result = await db.execute(stmt)
+    return result.rowcount or 0
 
 
 SSH_ALERT_TYPES = frozenset({
