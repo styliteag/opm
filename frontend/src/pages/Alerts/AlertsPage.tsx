@@ -135,7 +135,7 @@ const AlertsPage = () => {
         },
         {
           onSuccess: () => {
-            setToast({ message: 'Alert acknowledged.', tone: 'success' })
+            setToast({ message: 'Alert dismissed.', tone: 'success' })
             setActionModal(null)
             setSelectedIds(new Set())
           },
@@ -146,7 +146,7 @@ const AlertsPage = () => {
         { alertIds: actionModal.alerts.map((a) => a.id), reason: reason || undefined },
         {
           onSuccess: () => {
-            setToast({ message: 'Alerts acknowledged.', tone: 'success' })
+            setToast({ message: 'Alerts dismissed.', tone: 'success' })
             setActionModal(null)
             setSelectedIds(new Set())
           },
@@ -162,7 +162,7 @@ const AlertsPage = () => {
       { alertIds, reason },
       {
         onSuccess: () => {
-          setToast({ message: 'Global rules committed and alerts acknowledged.', tone: 'success' })
+          setToast({ message: 'Accepted globally.', tone: 'success' })
           setActionModal(null)
           setSelectedIds(new Set())
         },
@@ -177,7 +177,7 @@ const AlertsPage = () => {
       { alertIds, reason },
       {
         onSuccess: () => {
-          setToast({ message: 'Network rules committed and alerts acknowledged.', tone: 'success' })
+          setToast({ message: 'Accepted in network.', tone: 'success' })
           setActionModal(null)
           setSelectedIds(new Set())
         },
@@ -192,7 +192,7 @@ const AlertsPage = () => {
       const queryParams = new URLSearchParams()
       if (severityFilter) queryParams.append('type', severityFilter)
       if (statusFilter === 'pending') queryParams.append('acknowledged', 'false')
-      else if (statusFilter === 'monitoring') queryParams.append('acknowledged', 'true')
+      else if (statusFilter === 'dismissed') queryParams.append('acknowledged', 'true')
 
       const url = `${API_BASE_URL}/api/alerts/export/${format}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
       const response = await fetch(url, { headers: getAuthHeaders(token ?? '') })
@@ -272,7 +272,7 @@ const AlertsPage = () => {
                     }}
                     className="rounded-full border border-indigo-200 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"
                   >
-                    Resolve ({selectedIds.size})
+                    Review ({selectedIds.size})
                   </button>
                   <button
                     onClick={() => setDeleteConfirm(true)}

@@ -37,9 +37,7 @@ export default function AckModal({
 
   const first = alerts[0]
   const hasSSH =
-    mode === 'single' &&
-    first.related_ssh_alert_count > 0 &&
-    !first.related_ssh_alerts_acknowledged
+    mode === 'single' && first.related_ssh_alert_count > 0 && !first.related_ssh_alerts_acknowledged
 
   const reasonTrimmed = reason.trim()
   const canCreateRule = !requireReasonForRules || reasonTrimmed.length > 0
@@ -51,7 +49,7 @@ export default function AckModal({
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-              Acknowledge {mode === 'bulk' ? `${alerts.length} Alerts` : 'Alert'}
+              Review {mode === 'bulk' ? `${alerts.length} Alerts` : 'Alert'}
             </h3>
             {mode === 'single' && (
               <p className="mt-2 font-mono text-2xl font-bold text-indigo-600 dark:text-indigo-400">
@@ -64,14 +62,19 @@ export default function AckModal({
             className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
 
         <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-          Why is {mode === 'bulk' ? 'this' : 'this port'} okay? You can also add an acceptance rule
-          so future scans won't alert again.
+          You can <strong>dismiss</strong> to mark as reviewed, or <strong>accept</strong> to create
+          a rule so future scans won't alert again.
         </p>
 
         {/* Reason input */}
@@ -100,11 +103,11 @@ export default function AckModal({
             />
             <div className="flex-1">
               <p className="text-sm font-medium text-amber-700 dark:text-amber-200">
-                Also acknowledge {first.related_ssh_alert_count} SSH security{' '}
+                Also dismiss {first.related_ssh_alert_count} SSH security{' '}
                 {first.related_ssh_alert_count === 1 ? 'finding' : 'findings'}
               </p>
               <p className="text-xs text-amber-600/80 dark:text-amber-300/60">
-                Marks related SSH alerts (weak ciphers, auth issues, etc.) as acknowledged
+                Marks related SSH alerts (weak ciphers, auth issues, etc.) as dismissed
               </p>
             </div>
           </label>
@@ -120,14 +123,24 @@ export default function AckModal({
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                />
               </svg>
             </div>
             <div className="flex-1">
-              <p className="font-medium text-indigo-700 dark:text-indigo-200">Acknowledge only</p>
+              <p className="font-medium text-indigo-700 dark:text-indigo-200">Dismiss</p>
               <p className="text-xs text-indigo-600/80 dark:text-indigo-300/70">
-                Mark as seen — no acceptance rule, future scans will still alert
+                Mark as reviewed — no acceptance rule, future scans will still alert
               </p>
             </div>
           </button>
@@ -139,7 +152,7 @@ export default function AckModal({
             </div>
             <div className="relative flex justify-center">
               <span className="bg-white px-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:bg-slate-900 dark:text-slate-600">
-                also add acceptance rule
+                or create an acceptance rule
               </span>
             </div>
           </div>
@@ -149,13 +162,20 @@ export default function AckModal({
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               </div>
               <div className="flex-1">
-                <p className="font-medium text-emerald-700 dark:text-emerald-200">Accept everywhere</p>
+                <p className="font-medium text-emerald-700 dark:text-emerald-200">
+                  Accept globally
+                </p>
                 <p className="text-xs text-emerald-600/80 dark:text-emerald-300/70">
-                  Add a global acceptance rule so this port won't trigger alerts on any network
+                  Create a global rule — this port won't trigger alerts on any network
                 </p>
               </div>
             </div>
@@ -164,7 +184,7 @@ export default function AckModal({
               disabled={!canCreateRule || isProcessing}
               className="mt-3 w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-emerald-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
             >
-              {isProcessing ? 'Processing...' : 'Accept & Acknowledge'}
+              {isProcessing ? 'Processing...' : 'Accept globally'}
             </button>
           </div>
 
@@ -173,18 +193,30 @@ export default function AckModal({
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
                 </svg>
               </div>
               <div className="flex-1">
                 <p className="font-medium text-blue-700 dark:text-blue-200">
-                  Accept in this network only
+                  {mode === 'single' && first.network_name
+                    ? `Accept in ${first.network_name}`
+                    : 'Accept in network'}
                 </p>
                 <p className="text-xs text-blue-600/80 dark:text-blue-300/70">
                   {mode === 'single' && first.network_name
-                    ? `Add an acceptance rule only for ${first.network_name}`
-                    : "Add acceptance rules scoped to each alert's network"}
+                    ? `Create a rule scoped to ${first.network_name} only`
+                    : "Create acceptance rules scoped to each alert's network"}
                 </p>
               </div>
             </div>
@@ -193,7 +225,11 @@ export default function AckModal({
               disabled={!canCreateRule || isProcessing}
               className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:bg-blue-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
             >
-              {isProcessing ? 'Processing...' : 'Accept & Acknowledge'}
+              {isProcessing
+                ? 'Processing...'
+                : mode === 'single' && first.network_name
+                  ? `Accept in ${first.network_name}`
+                  : 'Accept in network'}
             </button>
           </div>
         </div>

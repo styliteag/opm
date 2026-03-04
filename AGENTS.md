@@ -292,6 +292,43 @@ Routes → Services → Models (with Pydantic schemas for validation)
 2. Tag push triggers GitHub Actions (`release.yml`): runs frontend typecheck, builds multi-arch Docker images, pushes to Docker Hub and GHCR, creates GitHub Release with changelog notes
 3. Docker images: `styliteag/open-port-monitor` (combined app) and `styliteag/open-port-monitor-scanner`
 
+## Alert State Terminology
+
+Alert state is tracked across multiple orthogonal dimensions. The naming differs between layers:
+
+### DB Columns (alerts table)
+
+| Column | Type | Values |
+|--------|------|--------|
+| `acknowledged` | Boolean | `true` / `false` |
+| `ack_reason` | Text | free-text or `NULL` |
+| `resolution_status` | Enum | `open`, `in_progress`, `resolved` |
+| `assigned_to_user_id` | Integer FK | user ID or `NULL` |
+
+"Accepted" is **not** stored on the alert — it is computed by matching against `port_rules` / `global_port_rules` (where `rule_type = 'accepted'`).
+
+### Backend (Python enums)
+
+- `ResolutionStatus`: `OPEN`, `IN_PROGRESS`, `RESOLVED`
+- `RuleType`: `ACCEPTED`, `CRITICAL`
+- `Severity` (computed per request): `CRITICAL`, `HIGH`, `MEDIUM`, `INFO` — forced to `INFO` when `acknowledged=True`
+
+### Frontend → Backend name mapping
+
+| UI Label | Frontend filter value | DB / API field | API endpoint |
+|----------|----------------------|----------------|--------------|
+| **Pending Review** | `'pending'` | `acknowledged=false` | — |
+| **Dismissed** | `'dismissed'` | `acknowledged=true` | `PUT /alerts/{id}/acknowledge` |
+| **Accepted** | `'accepted'` | rule match computed client-side | `POST /alerts/bulk-whitelist-global` or `bulk-whitelist-network` |
+| **Blocked** | `'blocked'` | `severity='critical'` | — |
+| **Reopen** | — | `acknowledged=false` | `PUT /alerts/{id}/unacknowledge` |
+| **Revoke Rule** | — | deletes port rule row | `DELETE /api/port-rules/{scope}/{id}` |
+
+### Key distinction
+
+- **Dismiss** = sets `acknowledged=true` (no rule created, future scans still alert)
+- **Accept** = sets `acknowledged=true` AND creates a `port_rules`/`global_port_rules` row with `rule_type='accepted'` (future scans won't alert)
+
 ## Important Gotchas
 
 - Imports inside functions cause mypy strict mode issues — keep at top level
