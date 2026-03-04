@@ -272,7 +272,7 @@ const AlertsPage = () => {
                     }}
                     className="rounded-full border border-indigo-200 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"
                   >
-                    Review ({selectedIds.size})
+                    Accept ({selectedIds.size})
                   </button>
                   <button
                     onClick={() => setDeleteConfirm(true)}
