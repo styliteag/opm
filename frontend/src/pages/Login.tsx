@@ -85,6 +85,28 @@ const Login = () => {
             >
               {submitting ? 'Signing in...' : 'Sign in'}
             </button>
+            {import.meta.env.DEV && (
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={async () => {
+                  setSubmitting(true)
+                  setError(null)
+                  try {
+                    await login('admin@stylite.de', 'admin')
+                    navigate('/', { replace: true })
+                  } catch (err) {
+                    const message = err instanceof Error ? err.message : 'Unable to sign in'
+                    setError(message)
+                  } finally {
+                    setSubmitting(false)
+                  }
+                }}
+                className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-2 text-xs text-slate-400 transition hover:bg-slate-700 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Dev Login
+              </button>
+            )}
           </form>
         </div>
       </div>

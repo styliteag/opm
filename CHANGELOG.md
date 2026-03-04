@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Auto-trigger discovery scan after first normal scan completes on a network that has never had a discovery scan (populates hosts list automatically)
+- Dev Login button on login page for quick authentication during development (only visible in dev mode, stripped from production builds)
+- Dedicated Port Rules page accessible from main navigation
+
+### Fixed
+- Scan progress display limited to one decimal place
+- Poll for planned scans restored, Scans nav tab restored, query param typo fixed
+
 ## [1.3.0] - 2026-03-04
 
 ### Added
