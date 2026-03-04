@@ -1,69 +1,178 @@
 # AGENTS.md - Open Port Monitor
 
-Project-wide patterns, conventions, and important information for developers and agents working on this codebase.
+Guidelines for AI assistants working on this codebase. Read this file in full before making any changes.
 
-## Project Structure
+## Project Overview
 
-This is a distributed network port scanning and monitoring system with three main components:
+Open Port Monitor is a distributed network port scanning and monitoring system. It consists of three components running in Docker containers:
 
-- **Backend**: FastAPI application (`backend/`) - REST API, database models, business logic
-- **Frontend**: React + Vite application (`frontend/`) - Web dashboard
-- **Scanner**: Python scanner agent (`scanner/`) - Masscan-based network scanner
+- **Backend** (`backend/`) — FastAPI REST API (Python 3.12, async)
+- **Frontend** (`frontend/`) — React + Vite web dashboard (TypeScript)
+- **Scanner** (`scanner/`) — Masscan/Nmap-based network scanner agent (Python 3.12)
 
-All components use Docker for development with hot-reload via source bind mounts.
+Current version: see `VERSION` file (semver). Database: MariaDB 11.
 
-## Scanner Patterns
+## Repository Structure
 
-- Scanner converts port_spec exclusions (prefixed with `!`) into masscan `--exclude-ports` and defaults to full range if only exclusions are provided
-- Scanner batches logs locally and sends them to `/api/scanner/logs` about every 5 seconds during scans
-- IPv6 scans perform a connectivity check to public DNS IPv6 addresses and fail fast if unreachable
+```
+open-port-monitor/
+├── backend/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── core/          # Config, database, security, dependencies
+│   │   │   ├── models/        # SQLAlchemy ORM models
+│   │   │   ├── routers/       # FastAPI route handlers
+│   │   │   ├── schemas/       # Pydantic request/response schemas
+│   │   │   ├── services/      # Business logic layer
+│   │   │   └── main.py        # App entry point, lifespan, router registration
+│   │   └── migrations/versions/  # Alembic migration files
+│   ├── tests/                 # pytest async tests (SQLite in-memory)
+│   ├── pyproject.toml         # Dependencies, mypy/ruff/pytest config
+│   └── alembic.ini
+├── frontend/
+│   ├── src/
+│   │   ├── components/        # Reusable React components
+│   │   ├── context/           # AuthContext, ThemeContext
+│   │   ├── pages/             # Route pages (Dashboard, Networks, Scans, etc.)
+│   │   ├── lib/               # API client (fetch wrapper)
+│   │   ├── types/             # TypeScript type definitions
+│   │   ├── utils/             # Utility functions
+│   │   └── constants/         # Static constants
+│   ├── package.json           # Dependencies, scripts
+│   ├── tsconfig.json          # Strict TypeScript config
+│   ├── eslint.config.js       # ESLint + Prettier config
+│   └── vite.config.ts         # Vite + Vitest config
+├── scanner/
+│   ├── src/
+│   │   ├── scanners/          # Scanner implementations (masscan, nmap, base, registry)
+│   │   ├── main.py            # Scanner entry point
+│   │   ├── client.py          # Backend API client
+│   │   ├── models.py          # Pydantic models
+│   │   ├── orchestration.py   # Scan job orchestration
+│   │   ├── ssh_probe.py       # SSH security probing
+│   │   └── discovery.py       # Host discovery
+│   └── tests/
+├── docker/                    # Nginx config, startup scripts for production
+├── docs/                      # API reference, scanner docs, development guides
+├── .github/workflows/         # CI: release.yml (tag-triggered Docker builds)
+├── compose-dev.yml            # Development Docker Compose
+├── compose.yml                # Production Docker Compose
+├── Dockerfile                 # Multi-stage production build (frontend + backend + nginx)
+├── CHANGELOG.md               # Keep a Changelog format — MUST be updated with every commit
+└── VERSION                    # Semver version file
+```
 
-## Development Setup
+## Development Environment
 
-### Docker Development
-- Use `docker compose -f compose-dev.yml up --build` to start all services
-- mostly the user already done this, so please dont restart the services unless you know what you are doing.
-- Source bind mounts: `backend/src`, `frontend/src`, `scanner/src` → `/app/src` for hot-reload
-- **Auto-reload enabled**: Python and npm watch for code changes - you typically don't need to rebuild or restart containers
-- Use `docker exec -it <container-name> bash` to inspect/debug running containers
-- **Container names**: `opm-backend`, `opm-frontend`, `opm-scanner`, `opm-db`
-- **Services**: Frontend (5173), Backend (8000), Database (3306)
-- **Access URLs**: Frontend at http://localhost:5173/ and Backend at http://localhost:8000/
-- **Default credentials**:
-  - Admin user: `admin@example.com` / `admin` (from `ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars)
-  - Database: `opm` / `opmpassword` (from `DB_USER`/`DB_PASSWORD` env vars)
-  - Check `.env` file or `compose-dev.yml` for overrides
-- Never run a frontend or backend directly, always use docker compose to start the services!
+### Starting Services
 
-### Package Management & Quality Checks
-- **Backend**: Uses `uv` package manager
-  - Typecheck: `docker exec opm-backend uv run mypy src/`
-  - Lint: `docker exec opm-backend uv run ruff check src/`
-  - Tests: `docker exec opm-backend uv run pytest` (if tests exist)
-- **Frontend**: Uses Bun
-  - Typecheck: `docker exec opm-frontend bun run typecheck`
-  - Lint: `docker exec opm-frontend bun run lint`
-  - No tests currently configured
-- **Scanner**: Uses `uv`
-  - Typecheck: `docker exec opm-scanner uv sync --all-extras && uv run mypy src/`
+All development runs through Docker Compose. **Never run frontend or backend directly outside Docker.**
 
-### Python Build Configuration
-- All Python projects need `[tool.hatch.build.targets.wheel]` config in `pyproject.toml` for hatchling to work
+```bash
+docker compose -f compose-dev.yml up --build
+```
 
-## Backend Patterns
+The user has mostly already done this — **do not restart services** unless you have a specific reason. Source code changes are hot-reloaded via bind mounts.
 
-## Never run a frontend or backend directly, always use docker compose to start the services!
-- Use `docker compose -f compose-dev.yml up --build` to start all services
+Use `docker exec -it <container-name> bash` to inspect/debug running containers.
+
+### Container Names and Ports
+
+| Container      | Port | URL                        |
+|----------------|------|----------------------------|
+| `opm-backend`  | 8000 | http://localhost:8000      |
+| `opm-frontend` | 5173 | http://localhost:5173      |
+| `opm-db`       | 3306 | mysql://localhost:3306     |
+| `opm-scanner`  | —    | (polls backend internally) |
+
+### Default Credentials
+
+- **Admin**: `admin@example.com` / `admin` (from `ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars)
+- **Database**: `opm` / `opmpassword` (from `DB_USER`/`DB_PASSWORD` env vars)
+- Check `.env` or `compose-dev.yml` for overrides.
+
+### Hot Reload
+
+Source bind mounts enable hot-reload:
+- `backend/src` → `/app/src` (uvicorn auto-reload)
+- `frontend/src` → `/app/src` (Vite HMR)
+- `scanner/src` → `/app/src` (Python auto-reload)
+
+You typically do **not** need to rebuild or restart containers after code changes.
+
+## Quality Checks (Required Before Every Commit)
+
+### Backend (Python)
+
+```bash
+# Type checking (strict mypy with Pydantic plugin)
+docker exec opm-backend uv run mypy src/
+
+# Linting (ruff — E, F, I, W rules, 100 char line length)
+docker exec opm-backend uv run ruff check src/
+
+# Tests (pytest-asyncio, SQLite in-memory)
+docker exec opm-backend uv run pytest
+```
+
+### Frontend (TypeScript)
+
+```bash
+# Type checking (strict TypeScript)
+docker exec opm-frontend bun run typecheck
+
+# Linting (ESLint + Prettier)
+docker exec opm-frontend bun run lint
+
+# Tests (Vitest + React Testing Library + jsdom)
+docker exec opm-frontend bun run test
+```
+
+### Scanner (Python)
+
+```bash
+# Type checking
+docker exec opm-scanner uv sync --all-extras && uv run mypy src/
+```
+
+**All commits must pass typecheck, lint, and tests. Do not commit broken code.**
+
+## Changelog Requirement
+
+**IMPORTANT: Every commit MUST update `CHANGELOG.md`.**
+
+Add entries under `## [Unreleased]` using Keep a Changelog categories:
+- `### Added` — new features
+- `### Fixed` — bug fixes
+- `### Changed` — changes to existing functionality
+- `### Deprecated` — soon-to-be removed features
+- `### Removed` — removed features
+- `### Security` — security fixes
+
+Keep entries concise but descriptive. Reference issue numbers when applicable.
+**Do NOT make a code change without updating CHANGELOG.md.**
+
+## Backend Conventions
+
+### Architecture Pattern
+
+Routes → Services → Models (with Pydantic schemas for validation)
+
+- **Routers** (`routers/`): Thin HTTP handlers, delegate to services, call `db.commit()` after service ops
+- **Services** (`services/`): Business logic, database queries, no HTTP concerns
+- **Models** (`models/`): SQLAlchemy 2.0 style with `Mapped[]` + `mapped_column()`
+- **Schemas** (`schemas/`): Pydantic v2 with `model_validate()` and `from_attributes=True`
 
 ### Database & ORM
-- SQLAlchemy models use `Mapped[]` type annotations with `mapped_column()` for strict typing
+
 - Use `TYPE_CHECKING` for circular import prevention in relationship type hints
 - `mapped_column()` with `ForeignKey` requires `index=True` explicitly for indexed FK columns
 - Use `str | None` union syntax for nullable fields in `Mapped[]` annotations
-- Enum types in SQLAlchemy should inherit from both `str` and `Enum` for proper serialization
-- When exposing relationship-derived fields in schemas, eager-load the relationship (e.g., `selectinload`) to avoid async lazy-load errors
+- Enum types should inherit from both `str` and `Enum` for proper serialization
+- Use `selectinload()` for relationships to avoid async lazy-load errors
 
 ### Database Schema Initialization
+
 - Database schema is initialized automatically on startup in `main.py` lifespan handler before the admin user is created.
 - **Migration-first approach**: If Alembic migration files exist in `backend/src/migrations/versions/`, they are applied automatically on startup.
 - **Fallback to models**: If no migrations exist, the schema is created from SQLAlchemy models using `Base.metadata.create_all()`.
@@ -71,36 +180,47 @@ All components use Docker for development with hot-reload via source bind mounts
   1. Create a migration: `docker exec opm-backend uv run alembic revision --autogenerate -m "description"`
   2. Review the generated migration file in `backend/src/migrations/versions/`
   3. The migration will be applied automatically on next startup
-- Note: `create_all()` only creates missing tables; it does not modify existing tables (add columns, change types, etc.). Use migrations for schema changes to existing tables.
+- Note: `create_all()` only creates missing tables; it does not modify existing tables. Always use migrations for schema changes.
+- Files are numbered sequentially (001_, 002_, etc.).
 
 ### Type Checking
+
 - For generic types in strict mypy mode, always specify type parameters (e.g., `dict[str, Any]` not `dict`)
 - Use `from jose.exceptions import JWTError` not `jwt.JWTError` for proper type stub compatibility
 - Add `types-python-jose` and `types-passlib` to dev dependencies for mypy support
 - Use `collections.abc.AsyncGenerator` for async generator type hints (not `typing.AsyncGenerator`)
 
 ### Authentication & Authorization
-- Use `AdminUser` dependency type alias for admin-only routes (returns 403 Forbidden automatically)
-- Use `CurrentScanner` dependency type alias for scanner-only routes (validates scanner JWT scope)
-- Use `CurrentUser` dependency for read-only endpoints accessible by any authenticated user
-- Scanner JWT tokens should have short expiration (15 min) and "scanner" scope in payload
 
-### API Patterns
-- Use Pydantic's `model_validate()` with `from_attributes=True` config for ORM model conversion
-- Pattern for list responses: create a wrapper schema (e.g., `UserListResponse`) with a typed list field
-- Nested resources (e.g., rules under networks) can share the same router file for related endpoints
-- Use `db.commit()` in router after service operations to ensure transaction completes
-- For nullable optional fields in updates, use explicit flags (e.g., `clear_schedule=True`) to distinguish between "not updating" vs "clearing"
+- JWT-based auth with `HS256` algorithm
+- User tokens: `sub` = user ID, `email`, `role` in payload
+- Scanner tokens: `sub` = scanner ID, `scope` = "scanner" (short-lived, 15 min)
+- API keys: `X-API-Key` header, bcrypt-hashed, returned only at creation time
+- Rate limiting: in-memory sliding window with `threading.Lock`
+- Use `CurrentUser`, `AdminUser`, `CurrentScanner`, `DbSession` type aliases from `core/deps.py`
+- `AdminUser` returns 403 Forbidden automatically for non-admin users
+- `CurrentScanner` validates scanner JWT scope
 
 ### Security
+
 - Use `secrets.token_hex(32)` for generating 64-character API keys (32 bytes = 64 hex chars)
 - Reuse `hash_password/verify_password` from security module for API key hashing (bcrypt)
 - Return API key only once at creation time; store only the hash
-- Use `X-API-Key` header (FastAPI `Header` dependency) for scanner API key authentication
-- In-memory rate limiting with sliding window: store timestamps per IP, clean up old entries
-- Use `threading.Lock` for thread-safe in-memory rate limiting store
+
+### API Patterns
+
+- Pattern for list responses: create a wrapper schema (e.g., `UserListResponse`) with a typed list field
+- Nested resources (e.g., rules under networks) can share the same router file for related endpoints
+- Use `db.commit()` in router after service operations to ensure transaction completes
+- For nullable optional fields in updates, use explicit flags (e.g., `clear_schedule=True`) to distinguish "not updating" vs "clearing"
+- `HTTPBearer` security scheme provides credentials via `HTTPAuthorizationCredentials`
+- CORS config uses `list[str]` for origins, parsed from comma-separated env var
+- FastAPI middleware must be added using `app.add_middleware()`
+- Pydantic-settings `SettingsConfigDict` handles `.env` file loading automatically
+- FastAPI lifespan contextmanager is preferred over deprecated `@app.on_event("startup")`
 
 ### Validation
+
 - Use Python's `ipaddress` module to validate CIDR notation (`ipaddress.ip_network` with `strict=False`)
 - Port spec validation: parse comma-separated segments, handle ranges (80-443), handle exclusions (!88)
 - Cron schedule validation: check for 5-6 fields and basic pattern matching
@@ -108,6 +228,7 @@ All components use Docker for development with hot-reload via source bind mounts
 - Use Pydantic `field_validator` for validating enum-like string fields before DB conversion
 
 ### Service Layer Patterns
+
 - Always check for duplicate email when creating/updating users to return meaningful error messages
 - For tracking `first_seen_at` across scans, query previous scans of the same network for existing ip:port records
 - Excluded ports support network-wide entries with `ip=None`; scanner filtering checks both ip-specific tuples and port-only exclusions
@@ -120,60 +241,59 @@ All components use Docker for development with hot-reload via source bind mounts
 - Alerts should include `network_id` and be deduped by `(alert_type, ip, port)` while unacknowledged
 - Alert email recipients resolve from network `alert_config.email_recipients` (or `recipients`) or `ALERT_EMAIL_RECIPIENTS`; UI links use `WEB_UI_URL`
 
-### FastAPI Patterns
-- FastAPI lifespan contextmanager is preferred over deprecated `@app.on_event("startup")`
-- `HTTPBearer` security scheme provides the credentials via `HTTPAuthorizationCredentials`
-- CORS config uses `list[str]` for origins, which is parsed from comma-separated env var
-- FastAPI middleware must be added using `app.add_middleware()`
-- Pydantic-settings `SettingsConfigDict` handles `.env` file loading automatically
-
-## Frontend Patterns
+## Frontend Conventions
 
 ### Tech Stack
-- **React 18** with **Vite** for build tooling
-- **React Router v7** for routing
-- **TanStack Query (React Query)** for server state management
-- **Tailwind CSS** for styling
-- **TypeScript** for type safety
-- **Context API** for auth and theme state
+
+- React 18, Vite, TypeScript (strict mode)
+- React Router v7, TanStack Query (React Query) for server state
+- Tailwind CSS for styling
+- Context API for auth (`AuthContext`) and theme (`ThemeContext`)
 
 ### Architecture
-- Auth token is stored in localStorage under `opm-auth-token`; API base URL uses `VITE_API_BASE_URL` with relative fallback
-- Authentication handled via `AuthContext` with JWT tokens
-- Theme switching via `ThemeContext` (light/dark mode)
-- Protected routes use `ProtectedRoute` component wrapper
+
+- Pages in `src/pages/` — each maps to a route
 - Main pages: Dashboard, Networks, Scans, Hosts, Risk Overview, Policy, Users (admin-only)
+- Reusable components in `src/components/`
+- API calls through `src/lib/api.ts` (fetch wrapper)
+- All types centralized in `src/types/index.ts`
+- Auth token stored in `localStorage` under `opm-auth-token`
+- `VITE_API_BASE_URL` env var for API base URL (relative fallback)
+- Protected routes use `ProtectedRoute` component wrapper
+
+### Code Style
+
+- ESLint + Prettier for formatting (auto-configured)
+- `react-refresh/only-export-components` rule (disabled for `context/` files)
+- No unused locals or parameters (enforced by `tsconfig.json`)
+
+## Scanner Conventions
+
+- Uses `uv` package manager with hatchling build system
+- All Python projects need `[tool.hatch.build.targets.wheel]` config in `pyproject.toml`
+- Scanner types are extensible via a registry pattern (`scanners/registry.py`)
+- Masscan requires `NET_RAW` and `NET_ADMIN` Docker capabilities
+- Port spec exclusions prefixed with `!` convert to `--exclude-ports`; defaults to full range if only exclusions are provided
+- Logs batched locally, sent to `/api/scanner/logs` every ~5 seconds
+- IPv6 scans check connectivity to public DNS IPv6 addresses, fail fast if unreachable
+- SSH probing detects auth methods, weak ciphers/KEX, version info
+
+## Release Process
+
+1. Run `./release.sh [major|minor|patch]` — bumps `VERSION`, updates `CHANGELOG.md`, commits, tags, pushes
+2. Tag push triggers GitHub Actions (`release.yml`): runs frontend typecheck, builds multi-arch Docker images, pushes to Docker Hub and GHCR, creates GitHub Release with changelog notes
+3. Docker images: `styliteag/open-port-monitor` (combined app) and `styliteag/open-port-monitor-scanner`
 
 ## Important Gotchas
 
-- Import statements inside functions cause mypy strict mode issues - move to top level
-- Scanner uses `uv sync --all-extras` to install dev dependencies including mypy
-- `uv run mypy src/` may panic in sandboxed environments with system-configuration NULL object; no workaround found yet
-- When modifying models, also update related schemas and services to keep them in sync
-- Field names must match between models, schemas, and API responses exactly
-
-## Testing & Quality
-
-- ALL commits must pass project's quality checks (typecheck, lint, test)
-- Do NOT commit broken code
-- Keep changes focused and minimal
-- Follow existing code patterns
-
-## Documentation Requirements
-
-**IMPORTANT: ALWAYS UPDATE CHANGELOG.md WITH EVERY COMMIT!**
-
-- **CHANGELOG.md**: Update in the SAME commit as your code changes:
-  - Add new features under `### Added`
-  - Add bug fixes under `### Fixed`
-  - Add breaking changes under `### Changed`
-  - Add deprecations under `### Deprecated`
-  - Add removals under `### Removed`
-  - Add security fixes under `### Security`
-  - Place entries under `## [Unreleased]` section
-- Keep changelog entries concise but descriptive
-- Reference issue numbers if applicable
-- **Do NOT make a code change without updating CHANGELOG.md**
+- Imports inside functions cause mypy strict mode issues — keep at top level
+- When modifying models, also update related schemas and services to keep in sync
+- Field names must match exactly between models, schemas, and API responses
+- `uv run mypy src/` may panic in sandboxed environments (system-configuration NULL object)
+- For bulk operations, delete existing records and create new ones in a single transaction
+- Always validate nested resources belong to the parent (e.g., `rule.network_id == network_id`)
+- Alerts deduplicate by `(alert_type, ip, port)` while unacknowledged
+- `hatchling` requires `[tool.hatch.build.targets.wheel]` in `pyproject.toml`
 
 ## Browser Testing
 
@@ -184,3 +304,10 @@ For any story that changes UI:
 4. Take a screenshot if helpful for the progress log
 
 A frontend story is NOT complete until browser verification passes.
+
+## Files to Read
+
+For deeper context on project conventions, also see:
+- `PLANNED-FEATURES.md` — upcoming feature plans and user stories
+- `CHANGELOG.md` — recent changes and release history
+- `docs/README.md` — API reference and guides
