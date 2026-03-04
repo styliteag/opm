@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `CLAUDE.md` documentation file for AI assistant guidance covering project structure, development workflows, quality checks, and key conventions
+
 ## [1.2.0] - 2026-03-03
 
 ## [1.1.19] - 2026-02-24
