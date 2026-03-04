@@ -36,10 +36,14 @@ type Props = {
   isExpanded: boolean
   isSelected: boolean
   isAccepted: boolean
+  acceptedReason: string | null
+  acceptedRuleInfo: { ruleId: number; scope: 'global' | 'network' } | null
   onToggle: () => void
   onSelect: (checked: boolean) => void
   onResolve: () => void
   onReopen: (alertId: number) => void
+  onRevoke: (scope: 'global' | 'network', ruleId: number) => void
+  isRevoking: boolean
   isReopening: boolean
   users: User[]
   onAssign: (alertId: number, userId: number | null) => void
@@ -52,10 +56,14 @@ export default function AlertRow({
   isExpanded,
   isSelected,
   isAccepted,
+  acceptedReason,
+  acceptedRuleInfo,
   onToggle,
   onSelect,
   onResolve,
   onReopen,
+  onRevoke,
+  isRevoking,
   isReopening,
   users,
   onAssign,
@@ -79,7 +87,7 @@ export default function AlertRow({
   return (
     <tr
       onClick={onToggle}
-      className={`text-sm transition cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-900/40 ${alert.acknowledged ? 'opacity-60' : ''}`}
+      className={`text-sm transition cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-900/40 ${alert.acknowledged || isAccepted ? 'opacity-60' : ''}`}
     >
       {isAdmin && (
         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -255,12 +263,12 @@ export default function AlertRow({
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-2">
-          {alert.acknowledged ? (
+          {alert.acknowledged || isAccepted ? (
             <>
               {isAccepted ? (
                 <span
                   className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 cursor-default"
-                  title={alert.ack_reason || undefined}
+                  title={alert.ack_reason || acceptedReason || undefined}
                 >
                   Accepted
                 </span>
@@ -272,7 +280,17 @@ export default function AlertRow({
                   Acknowledged
                 </span>
               )}
-              {isAdmin && (
+              {isAdmin && acceptedRuleInfo && (
+                <button
+                  onClick={() => onRevoke(acceptedRuleInfo.scope, acceptedRuleInfo.ruleId)}
+                  disabled={isRevoking}
+                  className="rounded-full border border-slate-200 bg-slate-100/50 px-3 py-1 text-xs font-semibold text-slate-500 transition hover:border-rose-300 hover:bg-rose-500/10 hover:text-rose-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:border-rose-500/40 dark:hover:text-rose-400 disabled:opacity-50"
+                  title="Revoke acceptance rule"
+                >
+                  Revoke
+                </button>
+              )}
+              {isAdmin && alert.acknowledged && !acceptedRuleInfo && (
                 <button
                   onClick={() => onReopen(alert.id)}
                   disabled={isReopening}

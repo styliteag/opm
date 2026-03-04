@@ -64,6 +64,9 @@ const AlertsPage = () => {
     users,
     portMap,
     isAlertAccepted,
+    getAcceptedReason,
+    getAcceptedRuleInfo,
+    revokeAcceptanceMutation,
     bulkWhitelistGlobalMutation,
     bulkWhitelistNetworkMutation,
     bulkAcknowledgeMutation,
@@ -362,6 +365,8 @@ const AlertsPage = () => {
                           isExpanded={isExpanded}
                           isSelected={selectedIds.has(alert.id)}
                           isAccepted={isAlertAccepted(alert)}
+                          acceptedReason={getAcceptedReason(alert)}
+                          acceptedRuleInfo={getAcceptedRuleInfo(alert)}
                           onToggle={() => toggleRow(alert.id)}
                           onSelect={(checked) => handleSelectOne(alert.id, checked)}
                           onResolve={() => setActionModal({ alerts: [alert], mode: 'single' })}
@@ -376,6 +381,21 @@ const AlertsPage = () => {
                                 }),
                             })
                           }
+                          onRevoke={(scope, ruleId) =>
+                            revokeAcceptanceMutation.mutate(
+                              { scope, ruleId },
+                              {
+                                onSuccess: () =>
+                                  setToast({ message: 'Acceptance rule revoked', tone: 'success' }),
+                                onError: (e) =>
+                                  setToast({
+                                    message: e instanceof Error ? e.message : 'Error',
+                                    tone: 'error',
+                                  }),
+                              },
+                            )
+                          }
+                          isRevoking={revokeAcceptanceMutation.isPending}
                           isReopening={unacknowledgeMutation.isPending}
                           users={users}
                           onAssign={handleAssign}
