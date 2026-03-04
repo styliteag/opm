@@ -690,6 +690,21 @@ async def generate_global_alerts_for_scan(
     created_count = 0
     created_alerts: list[Alert] = []
 
+    # Load network-level ACCEPT rules to skip accepted ports
+    rules_result = await db.execute(
+        select(PortRule).where(
+            PortRule.network_id == scan.network_id,
+            PortRule.rule_type == RuleType.ACCEPTED,
+        )
+    )
+    network_accept_rules = list(rules_result.scalars().all())
+    net_allow_global_ranges = _build_port_ranges(
+        rule for rule in network_accept_rules if rule.ip is None
+    )
+    net_allow_ranges_by_ip = _build_ip_rule_ranges(
+        rule for rule in network_accept_rules if rule.ip is not None
+    )
+
     for ip, port, protocol, banner, service_guess, mac_address, mac_vendor in open_ports_data:
         # Look up the host by IP to link the port to it
         host = await get_host_by_ip(db, ip)
@@ -711,6 +726,13 @@ async def generate_global_alerts_for_scan(
 
         # Check if port is in global whitelist
         if await is_port_whitelisted(db, ip, port):
+            continue
+
+        # Check if port is accepted by network-level rules
+        net_allow_ranges = _combine_ranges(
+            net_allow_global_ranges, net_allow_ranges_by_ip.get(ip)
+        )
+        if _port_in_ranges(port, net_allow_ranges):
             continue
 
         # Check if we already have an unacknowledged alert for this
