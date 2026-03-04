@@ -306,11 +306,11 @@ export default function AlertRow({
               onClick={onResolve}
               className="rounded-full border border-emerald-300 bg-emerald-500/10 px-4 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300"
             >
-              Review
+              Accept
             </button>
           ) : (
             <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
-              Pending Review
+              Pending
             </span>
           )}
         </div>
