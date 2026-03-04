@@ -26,7 +26,7 @@ export function RunningScanProgress({ scan, now }: Props) {
         </div>
         <div className="text-right">
           <p className="text-lg font-bold text-sky-700 dark:text-sky-100">
-            {scan.progress_percent ?? 0}%
+            {(scan.progress_percent ?? 0).toFixed(1)}%
           </p>
         </div>
       </div>
