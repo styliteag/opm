@@ -358,7 +358,7 @@ class TestAlertRouter:
         response = await client.put(
             "/api/alerts/acknowledge-bulk",
             headers=admin_headers,
-            json=[alert1.id, alert2.id],
+            json={"alert_ids": [alert1.id, alert2.id]},
         )
 
         assert response.status_code == 200
