@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-03-04
+
 ### Added
 - Bulk delete alerts: select alerts and permanently delete them with confirmation dialog (admin only)
 - `CLAUDE.md` documentation file for AI assistant guidance covering project structure, development workflows, quality checks, and key conventions
