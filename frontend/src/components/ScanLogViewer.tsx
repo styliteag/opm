@@ -159,5 +159,3 @@ export const ScanLogViewer = ({
     </div>
   )
 }
-
-export default ScanLogViewer
