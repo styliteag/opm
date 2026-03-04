@@ -16,17 +16,17 @@ from sqlalchemy import select, update
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.models.alert import Alert, AlertType
 from app.schemas.ssh import (
-    SSHAcknowledgeRequest,
-    SSHAcknowledgeResponse,
+    AcceptScope,
+    SSHDismissRequest,
+    SSHDismissResponse,
     SSHHostHistoryEntry,
     SSHHostHistoryResponse,
     SSHHostListResponse,
     SSHHostSummary,
+    SSHReopenRequest,
+    SSHReopenResponse,
     SSHScanResultListResponse,
     SSHScanResultResponse,
-    SSHUnacknowledgeRequest,
-    SSHUnacknowledgeResponse,
-    WhitelistScope,
 )
 from app.services import alerts as alerts_service
 from app.services import scans as scans_service
@@ -121,8 +121,8 @@ async def list_ssh_hosts(
         port_alert = port_alert_cache.get((h["host_ip"], h["port"]))
         if port_alert:
             h["port_alert_id"] = port_alert[0]
-            h["port_alert_acknowledged"] = port_alert[1]
-            h["port_alert_ack_reason"] = port_alert[2]
+            h["port_alert_dismissed"] = port_alert[1]
+            h["port_alert_dismiss_reason"] = port_alert[2]
 
     return SSHHostListResponse(
         hosts=[SSHHostSummary(**h) for h in hosts],
@@ -644,18 +644,18 @@ async def trigger_ssh_recheck(
     }
 
 
-@router.post("/ssh/hosts/{host_ip}/acknowledge", response_model=SSHAcknowledgeResponse)
-async def acknowledge_ssh_host(
+@router.post("/ssh/hosts/{host_ip}/dismiss", response_model=SSHDismissResponse)
+async def dismiss_ssh_host(
     admin: AdminUser,
     db: DbSession,
     host_ip: str,
-    request: SSHAcknowledgeRequest,
-) -> SSHAcknowledgeResponse:
-    """Acknowledge SSH security findings for a host.
+    request: SSHDismissRequest,
+) -> SSHDismissResponse:
+    """Dismiss SSH security findings for a host.
 
     Creates SSH alert records from the host's current findings (regardless of
-    alert settings) and marks them all as acknowledged. Optionally creates
-    whitelist rules (global or per-network).
+    alert settings) and marks them all as dismissed. Optionally creates
+    accept rules (global or per-network).
 
     This endpoint exists because SSH alert types may be disabled in alert
     settings, so normal scan-based alert generation may never create them.
@@ -673,11 +673,11 @@ async def acknowledge_ssh_host(
     port = request.port
     reason = request.reason.strip() if request.reason else None
 
-    # Reject whitelist scope without a reason
-    if request.whitelist_scope != WhitelistScope.NONE and not reason:
+    # Reject accept scope without a reason
+    if request.accept_scope != AcceptScope.NONE and not reason:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A reason is required when creating a whitelist rule.",
+            detail="A reason is required when creating an accept rule.",
         )
 
     # Get the latest SSH scan result for this host:port
@@ -699,7 +699,7 @@ async def acknowledge_ssh_host(
         AlertType.SSH_OUTDATED_VERSION,
     ]
 
-    # Find ALL existing SSH alerts for this host:port (both acked and unacked)
+    # Find ALL existing SSH alerts for this host:port (both dismissed and open)
     existing_result = await db.execute(
         select(Alert.id, Alert.alert_type).where(
             Alert.ip == host_ip,
@@ -796,18 +796,18 @@ async def acknowledge_ssh_host(
     if not all_alert_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No SSH security findings to acknowledge for {host_ip}:{port}",
+            detail=f"No SSH security findings to dismiss for {host_ip}:{port}",
         )
 
-    # Acknowledge ALL SSH alerts for this host:port via bulk update
-    ack_values: dict[str, object] = {"acknowledged": True}
+    # Dismiss ALL SSH alerts for this host:port via bulk update
+    dismiss_values: dict[str, object] = {"dismissed": True}
     if reason:
-        ack_values["ack_reason"] = reason
+        dismiss_values["dismiss_reason"] = reason
     await db.execute(
-        update(Alert).where(Alert.id.in_(all_alert_ids)).values(**ack_values)
+        update(Alert).where(Alert.id.in_(all_alert_ids)).values(**dismiss_values)
     )
 
-    # Unified ACK: also acknowledge port-type alerts for same ip:port
+    # Unified dismiss: also dismiss port-type alerts for same ip:port
     port_alert_ids: list[int] = []
     if request.include_port_alerts:
         port_types = [AlertType.NEW_PORT, AlertType.NOT_ALLOWED, AlertType.BLOCKED]
@@ -816,20 +816,20 @@ async def acknowledge_ssh_host(
                 Alert.ip == host_ip,
                 Alert.port == port,
                 Alert.alert_type.in_(port_types),
-                Alert.acknowledged.is_(False),
+                Alert.dismissed.is_(False),
             )
         )
         port_alert_ids = [row[0] for row in port_result.all()]
         if port_alert_ids:
-            port_ack_values: dict[str, object] = {"acknowledged": True}
+            port_dismiss_values: dict[str, object] = {"dismissed": True}
             if reason:
-                port_ack_values["ack_reason"] = reason
+                port_dismiss_values["dismiss_reason"] = reason
             await db.execute(
-                update(Alert).where(Alert.id.in_(port_alert_ids)).values(**port_ack_values)
+                update(Alert).where(Alert.id.in_(port_alert_ids)).values(**port_dismiss_values)
             )
 
-    # Optionally create whitelist rules
-    if request.whitelist_scope == WhitelistScope.GLOBAL and reason:
+    # Optionally create accept rules
+    if request.accept_scope == AcceptScope.GLOBAL and reason:
         from app.models.global_port_rule import GlobalRuleType
         from app.services import global_port_rules as global_rules_service
 
@@ -841,7 +841,7 @@ async def acknowledge_ssh_host(
             description=reason,
             created_by=admin.id,
         )
-    elif request.whitelist_scope == WhitelistScope.NETWORK and reason and network_id:
+    elif request.accept_scope == AcceptScope.NETWORK and reason and network_id:
         from app.models.port_rule import RuleType
         from app.services import port_rules as port_rules_service
 
@@ -856,8 +856,8 @@ async def acknowledge_ssh_host(
 
     await db.commit()
 
-    return SSHAcknowledgeResponse(
-        acknowledged_alert_ids=all_alert_ids,
+    return SSHDismissResponse(
+        dismissed_alert_ids=all_alert_ids,
         created_alert_ids=created_ids,
         host_ip=host_ip,
         port=port,
@@ -865,17 +865,17 @@ async def acknowledge_ssh_host(
     )
 
 
-@router.put("/ssh/hosts/{host_ip}/unacknowledge", response_model=SSHUnacknowledgeResponse)
-async def unacknowledge_ssh_host(
+@router.put("/ssh/hosts/{host_ip}/reopen", response_model=SSHReopenResponse)
+async def reopen_ssh_host(
     admin: AdminUser,
     db: DbSession,
     host_ip: str,
-    request: SSHUnacknowledgeRequest,
-) -> SSHUnacknowledgeResponse:
-    """Unacknowledge (reopen) all SSH alerts for a host.
+    request: SSHReopenRequest,
+) -> SSHReopenResponse:
+    """Reopen all SSH alerts for a host.
 
-    Finds all acknowledged SSH alerts for the given host:port and marks them
-    as unacknowledged, clearing the ack_reason.
+    Finds all dismissed SSH alerts for the given host:port and marks them
+    as not dismissed, clearing the dismiss_reason.
     """
     from ipaddress import ip_address as parse_ip
 
@@ -897,35 +897,34 @@ async def unacknowledge_ssh_host(
         AlertType.SSH_CONFIG_REGRESSION,
     ]
 
-    # First get the IDs of acknowledged SSH alerts
+    # First get the IDs of dismissed SSH alerts
     result = await db.execute(
         select(Alert.id).where(
             Alert.ip == host_ip,
             Alert.port == port,
-            Alert.acknowledged.is_(True),
+            Alert.dismissed.is_(True),
             Alert.alert_type.in_(ssh_alert_types),
         )
     )
-    unacked_ids = [row[0] for row in result.all()]
+    reopened_ids = [row[0] for row in result.all()]
 
-    if not unacked_ids:
+    if not reopened_ids:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No acknowledged SSH alerts found for {host_ip}:{port}",
+            detail=f"No dismissed SSH alerts found for {host_ip}:{port}",
         )
 
-    # Bulk update to unacknowledge
-
+    # Bulk update to reopen
     await db.execute(
         update(Alert)
-        .where(Alert.id.in_(unacked_ids))
-        .values(acknowledged=False, ack_reason=None)
+        .where(Alert.id.in_(reopened_ids))
+        .values(dismissed=False, dismiss_reason=None)
     )
 
     await db.commit()
 
-    return SSHUnacknowledgeResponse(
-        unacknowledged_alert_ids=unacked_ids,
+    return SSHReopenResponse(
+        reopened_alert_ids=reopened_ids,
         host_ip=host_ip,
         port=port,
     )

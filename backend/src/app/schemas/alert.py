@@ -1,4 +1,4 @@
-"""Alert schemas for list and acknowledge endpoints."""
+"""Alert schemas for list and dismiss endpoints."""
 
 from datetime import datetime
 from enum import Enum
@@ -41,12 +41,12 @@ class AlertResponse(BaseModel):
     ip: str
     port: int
     message: str
-    acknowledged: bool
+    dismissed: bool
     assigned_to_user_id: int | None = None
     assigned_to_email: str | None = None
     resolution_status: ResolutionStatus = ResolutionStatus.OPEN
     created_at: datetime
-    ack_reason: str | None = None
+    dismiss_reason: str | None = None
     severity: Severity = Severity.MEDIUM  # Computed field
     # Host information (if available)
     host_id: int | None = None
@@ -59,7 +59,7 @@ class AlertResponse(BaseModel):
     # SSH context (for alerts on ports with SSH scan data)
     ssh_summary: AlertSSHSummary | None = None
     related_ssh_alert_count: int = 0
-    related_ssh_alerts_acknowledged: bool = True
+    related_ssh_alerts_dismissed: bool = True
     # Port rule context
     matching_rules: list[PortRuleMatch] = []
 
@@ -70,25 +70,25 @@ class AlertListResponse(BaseModel):
     alerts: list[AlertResponse]
 
 
-class AlertBulkAcknowledgeResponse(BaseModel):
-    """Response schema for bulk acknowledge results."""
+class AlertBulkDismissResponse(BaseModel):
+    """Response schema for bulk dismiss results."""
 
-    acknowledged_ids: list[int]
+    dismissed_ids: list[int]
     missing_ids: list[int]
 
 
-class AlertBulkWhitelistRequest(BaseModel):
-    """Request schema for bulk whitelist operations."""
+class AlertBulkAcceptRequest(BaseModel):
+    """Request schema for bulk accept operations."""
 
     alert_ids: list[int]
     reason: str
 
 
-class AlertBulkWhitelistResponse(BaseModel):
-    """Response schema for bulk whitelist results."""
+class AlertBulkAcceptResponse(BaseModel):
+    """Response schema for bulk accept results."""
 
-    whitelisted_count: int
-    acknowledged_ids: list[int]
+    accepted_count: int
+    dismissed_ids: list[int]
     missing_ids: list[int]
     errors: list[str] = []
 
@@ -99,15 +99,15 @@ class AlertAssignRequest(BaseModel):
     user_id: int | None = None  # None to unassign
 
 
-class AcknowledgeRequest(BaseModel):
-    """Request schema for acknowledging an alert with optional reason."""
+class DismissRequest(BaseModel):
+    """Request schema for dismissing an alert with optional reason."""
 
     reason: str | None = None
     include_ssh_findings: bool = False
 
 
-class BulkAcknowledgeRequest(BaseModel):
-    """Request schema for bulk acknowledging alerts with optional reason."""
+class BulkDismissRequest(BaseModel):
+    """Request schema for bulk dismissing alerts with optional reason."""
 
     alert_ids: list[int]
     reason: str | None = None
@@ -132,8 +132,8 @@ class AlertStatusRequest(BaseModel):
     resolution_status: ResolutionStatus
 
 
-class AckSuggestion(BaseModel):
-    """A previously used ACK reason with usage metadata."""
+class DismissSuggestion(BaseModel):
+    """A previously used dismiss reason with usage metadata."""
 
     reason: str
     frequency: int
@@ -142,7 +142,7 @@ class AckSuggestion(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class AckSuggestionsResponse(BaseModel):
-    """Response schema for ACK reason suggestions."""
+class DismissSuggestionsResponse(BaseModel):
+    """Response schema for dismiss reason suggestions."""
 
-    suggestions: list[AckSuggestion]
+    suggestions: list[DismissSuggestion]

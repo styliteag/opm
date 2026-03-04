@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { fetchJson } from '../lib/api'
-import type { AckSuggestionsResponse } from '../types'
+import type { DismissSuggestionsResponse } from '../types'
 
 type Props = {
   port: number | null
@@ -15,7 +15,7 @@ type Props = {
   className?: string
 }
 
-export default function AckSuggestions({
+export default function ReasonSuggestions({
   port,
   value,
   onChange,
@@ -34,11 +34,11 @@ export default function AckSuggestions({
 
   const portParam = port != null ? `&port=${port}` : ''
   const { data } = useQuery({
-    queryKey: ['ack-suggestions', port],
+    queryKey: ['dismiss-suggestions', port],
     queryFn: () =>
-      fetchJson<AckSuggestionsResponse>(
-        `/api/alerts/ack-suggestions?limit=20${portParam}`,
-        token ?? ''
+      fetchJson<DismissSuggestionsResponse>(
+        `/api/alerts/dismiss-suggestions?limit=20${portParam}`,
+        token ?? '',
       ),
     staleTime: 30_000,
     enabled: !!token,
@@ -48,9 +48,7 @@ export default function AckSuggestions({
 
   // Client-side substring filter
   const filtered = value.trim()
-    ? suggestions.filter((s) =>
-        s.reason.toLowerCase().includes(value.toLowerCase())
-      )
+    ? suggestions.filter((s) => s.reason.toLowerCase().includes(value.toLowerCase()))
     : suggestions
 
   // Close dropdown on click outside
@@ -74,7 +72,7 @@ export default function AckSuggestions({
     if (highlightIndex >= 0 && listRef.current) {
       const items = listRef.current.children
       if (items[highlightIndex]) {
-        (items[highlightIndex] as HTMLElement).scrollIntoView({ block: 'nearest' })
+        ;(items[highlightIndex] as HTMLElement).scrollIntoView({ block: 'nearest' })
       }
     }
   }, [highlightIndex])
@@ -172,18 +170,14 @@ export default function AckSuggestions({
                   : 'hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
-              <span className="truncate text-slate-800 dark:text-slate-200">
-                {s.reason}
-              </span>
+              <span className="truncate text-slate-800 dark:text-slate-200">{s.reason}</span>
               <span className="ml-2 flex shrink-0 items-center gap-1.5">
                 {s.same_port && (
                   <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
                     port match
                   </span>
                 )}
-                <span className="text-xs text-slate-400 dark:text-slate-500">
-                  {s.frequency}x
-                </span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">{s.frequency}x</span>
               </span>
             </li>
           ))}

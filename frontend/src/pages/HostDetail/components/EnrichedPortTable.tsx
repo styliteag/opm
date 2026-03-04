@@ -7,7 +7,7 @@ type Props = {
   ports: EnrichedHostPort[]
   isAdmin: boolean
   networks?: HostNetworkInfo[]
-  onAcknowledge?: (alertId: number) => void
+  onDismiss?: (alertId: number) => void
   onCreateRule?: (payload: {
     network_id?: number | null
     ip?: string | null
@@ -54,10 +54,10 @@ function AlertBadge({ status, severity }: { status: string | null; severity: str
       </span>
     )
   }
-  if (status === 'acknowledged')
+  if (status === 'dismissed')
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
-        Acked
+        Dismissed
       </span>
     )
   return null
@@ -150,7 +150,7 @@ export default function EnrichedPortTable({
   ports,
   isAdmin,
   networks,
-  onAcknowledge,
+  onDismiss,
   onCreateRule,
   isCreatingRule,
 }: Props) {
@@ -235,9 +235,9 @@ export default function EnrichedPortTable({
                       </div>
                       <div
                         className="flex-1 text-sm text-slate-500 dark:text-slate-400 truncate max-w-[200px]"
-                        title={port.user_comment ?? port.ack_reason ?? undefined}
+                        title={port.user_comment ?? port.dismiss_reason ?? undefined}
                       >
-                        {port.user_comment || port.ack_reason || (
+                        {port.user_comment || port.dismiss_reason || (
                           <span className="text-slate-400">-</span>
                         )}
                       </div>
@@ -297,14 +297,14 @@ export default function EnrichedPortTable({
                           </div>
                         )}
 
-                        {/* ACK reason */}
-                        {port.ack_reason && (
+                        {/* Dismiss reason */}
+                        {port.dismiss_reason && (
                           <div>
                             <h4 className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                              Acknowledgment Reason
+                              Dismiss Reason
                             </h4>
                             <p className="text-sm text-slate-700 dark:text-slate-300 italic">
-                              {port.ack_reason}
+                              {port.dismiss_reason}
                             </p>
                           </div>
                         )}
@@ -327,15 +327,15 @@ export default function EnrichedPortTable({
                         {/* Actions */}
                         {isAdmin && (
                           <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                            {port.alert_status === 'new' && port.alert_id && onAcknowledge && (
+                            {port.alert_status === 'new' && port.alert_id && onDismiss && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  onAcknowledge(port.alert_id!)
+                                  onDismiss(port.alert_id!)
                                 }}
                                 className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition"
                               >
-                                Acknowledge Alert
+                                Dismiss Alert
                               </button>
                             )}
                             {onCreateRule && creatingRuleForPort !== port.port && (

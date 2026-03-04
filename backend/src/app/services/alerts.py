@@ -19,7 +19,7 @@ from app.services.global_open_ports import (
     get_global_open_port_by_id,
     upsert_global_open_port,
 )
-from app.services.global_port_rules import is_port_whitelisted
+from app.services.global_port_rules import is_port_accepted
 from app.services.hosts import get_host_by_ip
 
 PortKey = tuple[str, int]
@@ -70,7 +70,7 @@ async def get_alerts(
     *,
     alert_type: AlertType | None = None,
     network_id: int | None = None,
-    acknowledged: bool | None = None,
+    dismissed: bool | None = None,
     ip: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
@@ -85,8 +85,8 @@ async def get_alerts(
         filters.append(Alert.alert_type == alert_type)
     if network_id is not None:
         filters.append(Alert.network_id == network_id)
-    if acknowledged is not None:
-        filters.append(Alert.acknowledged.is_(acknowledged))
+    if dismissed is not None:
+        filters.append(Alert.dismissed.is_(dismissed))
     if ip is not None:
         filters.append(Alert.ip == ip)
     if start_date is not None:
@@ -102,40 +102,40 @@ async def get_alerts(
     return [(row[0], str(row[1]) if row[1] is not None else None) for row in result.all()]
 
 
-async def acknowledge_alert(
-    db: AsyncSession, alert: Alert, ack_reason: str | None = None
+async def dismiss_alert(
+    db: AsyncSession, alert: Alert, dismiss_reason: str | None = None
 ) -> Alert:
-    """Mark an alert as acknowledged."""
-    alert.acknowledged = True
-    alert.ack_reason = ack_reason
+    """Mark an alert as dismissed."""
+    alert.dismissed = True
+    alert.dismiss_reason = dismiss_reason
     await db.flush()
     await db.refresh(alert)
     return alert
 
 
-async def acknowledge_alerts(db: AsyncSession, alerts: list[Alert]) -> list[Alert]:
-    """Mark multiple alerts as acknowledged."""
+async def dismiss_alerts(db: AsyncSession, alerts: list[Alert]) -> list[Alert]:
+    """Mark multiple alerts as dismissed."""
     if not alerts:
         return []
     for alert in alerts:
-        alert.acknowledged = True
+        alert.dismissed = True
     await db.flush()
     return alerts
 
 
-async def unacknowledge_alert(db: AsyncSession, alert: Alert) -> Alert:
-    """Mark an alert as unacknowledged (reopen)."""
-    alert.acknowledged = False
-    alert.ack_reason = None
+async def reopen_alert(db: AsyncSession, alert: Alert) -> Alert:
+    """Reopen a dismissed alert."""
+    alert.dismissed = False
+    alert.dismiss_reason = None
     await db.flush()
     await db.refresh(alert)
     return alert
 
 
-async def propagate_ack_reason_to_port_and_host(
+async def propagate_dismiss_reason_to_port_and_host(
     db: AsyncSession, alert: Alert, reason: str
 ) -> None:
-    """Propagate an ACK reason to the related GlobalOpenPort and Host.
+    """Propagate a dismiss reason to the related GlobalOpenPort and Host.
 
     - Always overwrites GlobalOpenPort.user_comment with the reason.
     - Sets Host.user_comment only if currently empty/null.
@@ -157,24 +157,24 @@ async def propagate_ack_reason_to_port_and_host(
         host.user_comment = reason
 
 
-async def auto_acknowledge_alerts_for_accepted_rule(
+async def auto_dismiss_alerts_for_accepted_rule(
     db: AsyncSession,
     ip: str | None,
     port_str: str,
     reason: str,
     network_id: int | None = None,
 ) -> int:
-    """Auto-acknowledge unacknowledged alerts matching a newly created ACCEPTED rule.
+    """Auto-dismiss pending alerts matching a newly created ACCEPTED rule.
 
     Args:
         db: Database session
         ip: Optional IP address (None means rule applies to all IPs)
         port_str: Port value as string (single port or range like "22" or "80-443")
-        reason: The rule description used as the ack_reason
-        network_id: If set, only acknowledge alerts in this network
+        reason: The rule description used as the dismiss_reason
+        network_id: If set, only dismiss alerts in this network
 
     Returns:
-        Number of alerts acknowledged
+        Number of alerts dismissed
     """
     from app.services.global_port_rules import _parse_port_range
 
@@ -185,7 +185,7 @@ async def auto_acknowledge_alerts_for_accepted_rule(
     start, end = parsed
 
     conditions = [
-        Alert.acknowledged.is_(False),
+        Alert.dismissed.is_(False),
         Alert.port >= start,
         Alert.port <= end,
     ]
@@ -197,8 +197,8 @@ async def auto_acknowledge_alerts_for_accepted_rule(
         conditions.append(Alert.network_id == network_id)
 
     stmt = update(Alert).where(and_(*conditions)).values(
-        acknowledged=True,
-        ack_reason=reason,
+        dismissed=True,
+        dismiss_reason=reason,
     )
     result = await db.execute(stmt)
     return result.rowcount or 0  # type: ignore[attr-defined]
@@ -223,9 +223,9 @@ async def get_ssh_alert_summary_for_ips(
     db: AsyncSession,
     ips: set[str],
 ) -> dict[tuple[str, int], tuple[int, bool]]:
-    """Get SSH alert count and all-acknowledged status for (ip, port) pairs.
+    """Get SSH alert count and all-dismissed status for (ip, port) pairs.
 
-    Returns dict keyed by (ip, port) → (total_count, all_acknowledged).
+    Returns dict keyed by (ip, port) → (total_count, all_dismissed).
     """
     if not ips:
         return {}
@@ -235,7 +235,7 @@ async def get_ssh_alert_summary_for_ips(
             Alert.ip,
             Alert.port,
             func.count(Alert.id),
-            func.min(Alert.acknowledged.cast(Integer)),  # 0 if any unacked
+            func.min(Alert.dismissed.cast(Integer)),  # 0 if any unacked
         )
         .where(
             Alert.ip.in_(ips),
@@ -256,8 +256,8 @@ async def get_port_alert_status_for_ips(
 ) -> dict[tuple[str, int], tuple[int, bool, str | None]]:
     """Get the most relevant port-type alert for each (ip, port).
 
-    Returns dict keyed by (ip, port) → (alert_id, acknowledged, ack_reason).
-    Picks the highest-priority unacknowledged alert, or the latest acknowledged one.
+    Returns dict keyed by (ip, port) → (alert_id, dismissed, dismiss_reason).
+    Picks the highest-priority pending alert, or the latest dismissed one.
     """
     if not ip_port_pairs:
         return {}
@@ -269,7 +269,7 @@ async def get_port_alert_status_for_ips(
             Alert.ip.in_(ips),
             Alert.alert_type.in_(list(PORT_ALERT_TYPES)),
         )
-        .order_by(Alert.acknowledged.asc(), Alert.created_at.desc())
+        .order_by(Alert.dismissed.asc(), Alert.created_at.desc())
     )
     alerts = result.scalars().all()
 
@@ -277,29 +277,29 @@ async def get_port_alert_status_for_ips(
     for alert in alerts:
         key = (alert.ip, alert.port)
         if key in ip_port_pairs and key not in lookup:
-            lookup[key] = (alert.id, alert.acknowledged, alert.ack_reason)
+            lookup[key] = (alert.id, alert.dismissed, alert.dismiss_reason)
     return lookup
 
 
-async def get_ack_suggestions(
+async def get_dismiss_reason_suggestions(
     db: AsyncSession,
     *,
     port: int | None = None,
     search: str | None = None,
     limit: int = 20,
 ) -> list[dict[str, object]]:
-    """Get previously used ACK reasons ranked by port affinity and frequency.
+    """Get previously used dismiss reasons ranked by port affinity and frequency.
 
     Returns a list of dicts with keys: reason, frequency, last_used, same_port.
     """
     filters = [
-        Alert.acknowledged.is_(True),
-        Alert.ack_reason.isnot(None),
-        Alert.ack_reason != "",
+        Alert.dismissed.is_(True),
+        Alert.dismiss_reason.isnot(None),
+        Alert.dismiss_reason != "",
     ]
 
     if search:
-        filters.append(Alert.ack_reason.ilike(f"%{search}%"))
+        filters.append(Alert.dismiss_reason.ilike(f"%{search}%"))
 
     same_port_expr = (
         func.sum(case((Alert.port == port, 1), else_=0))
@@ -309,13 +309,13 @@ async def get_ack_suggestions(
 
     query = (
         select(
-            Alert.ack_reason,
+            Alert.dismiss_reason,
             func.count(Alert.id).label("frequency"),
             func.max(Alert.created_at).label("last_used"),
             same_port_expr.label("same_port_count"),
         )
         .where(and_(*filters))
-        .group_by(Alert.ack_reason)
+        .group_by(Alert.dismiss_reason)
         .order_by(
             same_port_expr.desc(),
             func.count(Alert.id).desc(),
@@ -471,11 +471,11 @@ async def _get_previous_scan_ports(db: AsyncSession, scan: Scan) -> set[PortKey]
     return await _get_open_ports_for_scan(db, previous_scan_id)
 
 
-async def _get_unacknowledged_alerts(db: AsyncSession, network_id: int) -> set[AlertKey]:
+async def _get_pending_alerts(db: AsyncSession, network_id: int) -> set[AlertKey]:
     result = await db.execute(
         select(Alert.alert_type, Alert.ip, Alert.port).where(
             Alert.network_id == network_id,
-            Alert.acknowledged.is_(False),
+            Alert.dismissed.is_(False),
         )
     )
     return {(row[0], row[1], int(row[2])) for row in result.all()}
@@ -539,14 +539,14 @@ async def generate_alerts_for_scan(
     if AlertType.NEW_PORT in enabled_types:
         previous_ports = await _get_previous_scan_ports(db, scan)
 
-    existing_alerts = await _get_unacknowledged_alerts(db, scan.network_id)
+    existing_alerts = await _get_pending_alerts(db, scan.network_id)
     created_alert_keys: set[AlertKey] = set()
     created_count = 0
     created_alerts: list[Alert] = []
 
     for ip, port in current_ports:
-        # Check global whitelist first
-        if await is_port_whitelisted(db, ip, port):
+        # Check global accepted rules first
+        if await is_port_accepted(db, ip, port):
             continue
 
         allow_ranges = allow_range_cache.get(ip)
@@ -616,13 +616,13 @@ async def generate_alerts_for_scan(
     return created_count
 
 
-async def _get_unacknowledged_global_alerts(
+async def _get_pending_global_alerts(
     db: AsyncSession,
 ) -> set[GlobalAlertKey]:
-    """Get all unacknowledged global alerts as a set of (ip, port, protocol) tuples."""
+    """Get all pending global alerts as a set of (ip, port, protocol) tuples."""
     result = await db.execute(
         select(Alert.ip, Alert.port).where(
-            Alert.acknowledged.is_(False),
+            Alert.dismissed.is_(False),
             Alert.global_open_port_id.isnot(None),
         )
     )
@@ -641,7 +641,7 @@ async def generate_global_alerts_for_scan(
 
     This function:
     1. Upserts each open port into global_open_ports
-    2. If the port is new (never seen globally) AND not in global whitelist -> create alert
+    2. If the port is new (never seen globally) AND not globally accepted -> create alert
 
     Args:
         db: Database session
@@ -684,8 +684,8 @@ async def generate_global_alerts_for_scan(
     alert_config = network_row[0] if network_row else None
     network_name = str(network_row[1]) if network_row and network_row[1] else None
 
-    # Get existing unacknowledged global alerts to avoid duplicates
-    existing_global_alerts = await _get_unacknowledged_global_alerts(db)
+    # Get existing pending global alerts to avoid duplicates
+    existing_global_alerts = await _get_pending_global_alerts(db)
     created_alert_keys: set[GlobalAlertKey] = set()
     created_count = 0
     created_alerts: list[Alert] = []
@@ -724,8 +724,8 @@ async def generate_global_alerts_for_scan(
             host_id=host_id,
         )
 
-        # Check if port is in global whitelist
-        if await is_port_whitelisted(db, ip, port):
+        # Check if port is globally accepted
+        if await is_port_accepted(db, ip, port):
             continue
 
         # Check if port is accepted by network-level rules
@@ -735,7 +735,7 @@ async def generate_global_alerts_for_scan(
         if _port_in_ranges(port, net_allow_ranges):
             continue
 
-        # Check if we already have an unacknowledged alert for this
+        # Check if we already have a pending alert for this
         key: GlobalAlertKey = (ip, port, protocol)
         if key in existing_global_alerts or key in created_alert_keys:
             continue
@@ -826,14 +826,14 @@ def _is_version_outdated(
     return parsed_version < threshold_version
 
 
-async def _get_unacknowledged_ssh_alerts(
+async def _get_pending_ssh_alerts(
     db: AsyncSession, network_id: int
 ) -> set[SSHAlertKey]:
-    """Get all unacknowledged SSH alerts for a network as a set of (alert_type, ip, port) tuples."""
+    """Get all pending SSH alerts for a network as a set of (alert_type, ip, port) tuples."""
     result = await db.execute(
         select(Alert.alert_type, Alert.ip, Alert.port).where(
             Alert.network_id == network_id,
-            Alert.acknowledged.is_(False),
+            Alert.dismissed.is_(False),
             Alert.alert_type.in_(SSH_ALERT_TYPES),
         )
     )
@@ -911,8 +911,8 @@ async def generate_ssh_alerts_for_scan(
     if not ssh_types_enabled:
         return 0
 
-    # Get existing unacknowledged SSH alerts to avoid duplicates
-    existing_alerts = await _get_unacknowledged_ssh_alerts(db, scan.network_id)
+    # Get existing pending SSH alerts to avoid duplicates
+    existing_alerts = await _get_pending_ssh_alerts(db, scan.network_id)
     created_alert_keys: set[SSHAlertKey] = set()
     created_count = 0
     created_alerts: list[Alert] = []
@@ -1232,8 +1232,8 @@ async def generate_ssh_regression_alerts_for_scan(
     if AlertType.SSH_CONFIG_REGRESSION not in enabled_types:
         return 0
 
-    # Get existing unacknowledged SSH alerts to avoid duplicates
-    existing_alerts = await _get_unacknowledged_ssh_alerts(db, scan.network_id)
+    # Get existing pending SSH alerts to avoid duplicates
+    existing_alerts = await _get_pending_ssh_alerts(db, scan.network_id)
     created_alert_keys: set[SSHAlertKey] = set()
     created_count = 0
     created_alerts: list[Alert] = []

@@ -15,7 +15,7 @@ type TrendResponse = {
 type AlertTrendDataPoint = {
   date: string
   count: number
-  acknowledged_count: number
+  dismissed_count: number
 }
 
 type AlertTrendResponse = {
@@ -62,7 +62,8 @@ const Trends = () => {
   // Fetch open ports trend data
   const openPortsQuery = useQuery({
     queryKey: ['trends', 'open-ports', period, networkId],
-    queryFn: () => fetchJson<TrendResponse>(`/api/trends/open-ports?${buildQueryParams()}`, token ?? ''),
+    queryFn: () =>
+      fetchJson<TrendResponse>(`/api/trends/open-ports?${buildQueryParams()}`, token ?? ''),
     enabled: !!token,
   })
 
@@ -76,7 +77,8 @@ const Trends = () => {
   // Fetch alerts trend data
   const alertsQuery = useQuery({
     queryKey: ['trends', 'alerts', period, networkId],
-    queryFn: () => fetchJson<AlertTrendResponse>(`/api/trends/alerts?${buildQueryParams()}`, token ?? ''),
+    queryFn: () =>
+      fetchJson<AlertTrendResponse>(`/api/trends/alerts?${buildQueryParams()}`, token ?? ''),
     enabled: !!token,
   })
 
@@ -98,7 +100,7 @@ const Trends = () => {
   const alertsConfig: TrendChartConfig = {
     title: 'Alerts Over Time',
     dataKey: 'count',
-    dataKey2: 'acknowledged_count',
+    dataKey2: 'dismissed_count',
     color: '#ef4444',
     color2: '#f59e0b',
     yAxisLabel: 'Alerts',
@@ -108,9 +110,7 @@ const Trends = () => {
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Historical Trends
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Historical Trends</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             View historical trends for open ports, hosts, and alerts
           </p>
@@ -121,7 +121,10 @@ const Trends = () => {
       <div className="mb-6 flex flex-wrap items-center gap-4">
         {/* Time Period Selector */}
         <div className="flex items-center gap-2">
-          <label htmlFor="period" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          <label
+            htmlFor="period"
+            className="text-sm font-medium text-slate-700 dark:text-slate-300"
+          >
             Time Period:
           </label>
           <select
@@ -138,7 +141,10 @@ const Trends = () => {
 
         {/* Network Filter */}
         <div className="flex items-center gap-2">
-          <label htmlFor="network" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          <label
+            htmlFor="network"
+            className="text-sm font-medium text-slate-700 dark:text-slate-300"
+          >
             Network:
           </label>
           <select

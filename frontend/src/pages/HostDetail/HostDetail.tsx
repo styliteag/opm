@@ -14,8 +14,8 @@ const HostDetail = () => {
 
   const {
     overviewQuery,
-    acknowledgeMutation,
-    unacknowledgeMutation,
+    dismissMutation,
+    reopenMutation,
     updateCommentMutation,
     updateHostnameMutation,
     rescanMutation,
@@ -96,7 +96,7 @@ const HostDetail = () => {
         ports={data.ports}
         isAdmin={isAdmin}
         networks={data.networks}
-        onAcknowledge={(alertId) => acknowledgeMutation.mutate({ alertId })}
+        onDismiss={(alertId) => dismissMutation.mutate({ alertId })}
         onCreateRule={(payload) => createRuleMutation.mutate(payload)}
         isCreatingRule={createRuleMutation.isPending}
       />
@@ -104,17 +104,17 @@ const HostDetail = () => {
       {/* Alerts */}
       <AlertsSection
         alerts={data.alerts}
-        acknowledgedAlerts={data.acknowledged_alerts}
-        acknowledgedCount={data.acknowledged_alert_count}
+        dismissedAlerts={data.dismissed_alerts}
+        dismissedCount={data.dismissed_alert_count}
         hostIp={data.host.ip}
         isAdmin={isAdmin}
-        onAcknowledge={(alertId, reason, includeSSH) =>
-          acknowledgeMutation.mutate({ alertId, reason, include_ssh_findings: includeSSH })
+        onDismiss={(alertId, reason, includeSSH) =>
+          dismissMutation.mutate({ alertId, reason, include_ssh_findings: includeSSH })
         }
-        onUnacknowledge={(alertId) => unacknowledgeMutation.mutate(alertId)}
+        onReopen={(alertId) => reopenMutation.mutate(alertId)}
         onCreateRule={(payload) => createRuleMutation.mutate(payload)}
-        isAcknowledging={acknowledgeMutation.isPending}
-        isUnacknowledging={unacknowledgeMutation.isPending}
+        isDismissing={dismissMutation.isPending}
+        isReopening={reopenMutation.isPending}
       />
 
       {/* SSH Security */}

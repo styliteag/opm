@@ -9,7 +9,7 @@ from app.models.port_rule import RuleType
 from app.schemas.port import (
     OpenPortListItem,
     OpenPortListResponse,
-    PortWhitelistRequest,
+    PortAcceptRequest,
 )
 from app.schemas.port_rule import PortRuleResponse
 from app.services import networks as networks_service
@@ -121,16 +121,16 @@ async def list_open_ports(
 
 
 @router.post(
-    "/whitelist",
+    "/accept",
     response_model=PortRuleResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def whitelist_port(
+async def accept_port(
     admin: AdminUser,
     db: DbSession,
-    request: PortWhitelistRequest,
+    request: PortAcceptRequest,
 ) -> PortRuleResponse:
-    """Whitelist a port for a network (admin only)."""
+    """Accept a port for a network (admin only)."""
     network = await networks_service.get_network_by_id(db, request.network_id)
     if network is None:
         raise HTTPException(

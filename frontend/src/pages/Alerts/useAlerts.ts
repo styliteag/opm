@@ -192,9 +192,9 @@ export function useAlerts(filters: AlertFiltersState) {
       if (severityFilter && alert.severity !== severityFilter) return false
       if (networkFilter && alert.network_id !== networkFilter) return false
       if (statusFilter === 'blocked' && alert.severity !== 'critical') return false
-      if (statusFilter === 'pending' && alert.acknowledged) return false
+      if (statusFilter === 'pending' && alert.dismissed) return false
       if (statusFilter === 'accepted' && !isAlertAccepted(alert)) return false
-      if (statusFilter === 'dismissed' && (!alert.acknowledged || alert.severity === 'critical'))
+      if (statusFilter === 'dismissed' && (!alert.dismissed || alert.severity === 'critical'))
         return false
 
       if (searchQuery.trim()) {
@@ -254,9 +254,9 @@ export function useAlerts(filters: AlertFiltersState) {
     queryClient.invalidateQueries({ queryKey: ['port-rules'] })
   }
 
-  const bulkWhitelistGlobalMutation = useMutation({
+  const acceptGloballyMutation = useMutation({
     mutationFn: async ({ alertIds, reason }: { alertIds: number[]; reason: string }) => {
-      const response = await fetch(`${API_BASE_URL}/api/alerts/bulk-whitelist-global`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/bulk-accept-global`, {
         method: 'POST',
         headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
         body: JSON.stringify({ alert_ids: alertIds, reason }),
@@ -267,9 +267,9 @@ export function useAlerts(filters: AlertFiltersState) {
     onSuccess: invalidateAll,
   })
 
-  const bulkWhitelistNetworkMutation = useMutation({
+  const acceptInNetworkMutation = useMutation({
     mutationFn: async ({ alertIds, reason }: { alertIds: number[]; reason: string }) => {
-      const response = await fetch(`${API_BASE_URL}/api/alerts/bulk-whitelist-network`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/bulk-accept-network`, {
         method: 'POST',
         headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
         body: JSON.stringify({ alert_ids: alertIds, reason }),
@@ -280,9 +280,9 @@ export function useAlerts(filters: AlertFiltersState) {
     onSuccess: invalidateAll,
   })
 
-  const bulkAcknowledgeMutation = useMutation({
+  const bulkDismissMutation = useMutation({
     mutationFn: async ({ alertIds, reason }: { alertIds: number[]; reason?: string }) => {
-      const response = await fetch(`${API_BASE_URL}/api/alerts/acknowledge-bulk`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/dismiss-bulk`, {
         method: 'PUT',
         headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
         body: JSON.stringify({ alert_ids: alertIds, reason: reason || null }),
@@ -296,7 +296,7 @@ export function useAlerts(filters: AlertFiltersState) {
     },
   })
 
-  const singleAcknowledgeMutation = useMutation({
+  const singleDismissMutation = useMutation({
     mutationFn: async ({
       alertId,
       reason,
@@ -306,7 +306,7 @@ export function useAlerts(filters: AlertFiltersState) {
       reason?: string
       include_ssh_findings?: boolean
     }) => {
-      const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/acknowledge`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/dismiss`, {
         method: 'PUT',
         headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -323,9 +323,9 @@ export function useAlerts(filters: AlertFiltersState) {
     },
   })
 
-  const unacknowledgeMutation = useMutation({
+  const reopenMutation = useMutation({
     mutationFn: async (alertId: number) => {
-      const res = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/unacknowledge`, {
+      const res = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/reopen`, {
         method: 'PUT',
         headers: getAuthHeaders(token ?? ''),
       })
@@ -428,11 +428,11 @@ export function useAlerts(filters: AlertFiltersState) {
     getAcceptedReason,
     getAcceptedRuleInfo,
     revokeAcceptanceMutation,
-    bulkWhitelistGlobalMutation,
-    bulkWhitelistNetworkMutation,
-    bulkAcknowledgeMutation,
-    singleAcknowledgeMutation,
-    unacknowledgeMutation,
+    acceptGloballyMutation,
+    acceptInNetworkMutation,
+    bulkDismissMutation,
+    singleDismissMutation,
+    reopenMutation,
     bulkDeleteMutation,
     assignAlertMutation,
     updateCommentMutation,

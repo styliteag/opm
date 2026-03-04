@@ -29,8 +29,8 @@ class OpenPortListResponse(BaseModel):
     ports: list[OpenPortListItem]
 
 
-class PortWhitelistRequest(BaseModel):
-    """Request schema for whitelisting a port."""
+class PortAcceptRequest(BaseModel):
+    """Request schema for accepting a port."""
 
     network_id: int
     ip: str | None = None
