@@ -18,6 +18,7 @@ import Users from './pages/Users.tsx'
 import Hosts from './pages/Hosts.tsx'
 import Trends from './pages/Trends.tsx'
 import HostDetail from './pages/HostDetail'
+import PortRules from './pages/PortRules.tsx'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -93,7 +94,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'port-rules',
-        element: <Navigate to="/alerts" replace />,
+        element: <PortRules />,
       },
       {
         path: 'policy',

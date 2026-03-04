@@ -51,6 +51,20 @@ async def get_alerts_by_ids(db: AsyncSession, alert_ids: list[int]) -> list[Aler
     return list(result.scalars().all())
 
 
+async def delete_alerts_by_ids(
+    db: AsyncSession, alert_ids: list[int]
+) -> tuple[list[int], list[int]]:
+    """Delete alerts by IDs. Returns (deleted_ids, missing_ids)."""
+    if not alert_ids:
+        return [], []
+    alerts = await get_alerts_by_ids(db, alert_ids)
+    found_ids = {a.id for a in alerts}
+    missing_ids = sorted(set(alert_ids) - found_ids)
+    for alert in alerts:
+        await db.delete(alert)
+    return sorted(found_ids), missing_ids
+
+
 async def get_alerts(
     db: AsyncSession,
     *,

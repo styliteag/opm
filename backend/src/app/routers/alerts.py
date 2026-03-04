@@ -29,6 +29,8 @@ from app.schemas.alert import (
     AlertSSHSummary,
     AlertStatusRequest,
     BulkAcknowledgeRequest,
+    BulkDeleteRequest,
+    BulkDeleteResponse,
     Severity,
 )
 from app.schemas.host import PortRuleMatch
@@ -644,6 +646,32 @@ async def acknowledge_alerts_bulk(
 
     return AlertBulkAcknowledgeResponse(
         acknowledged_ids=acknowledged_ids,
+        missing_ids=missing_ids,
+    )
+
+
+@router.delete(
+    "/bulk-delete",
+    response_model=BulkDeleteResponse,
+)
+async def delete_alerts_bulk(
+    admin: AdminUser,
+    db: DbSession,
+    request: BulkDeleteRequest = Body(...),
+) -> BulkDeleteResponse:
+    """Permanently delete multiple alerts (admin only)."""
+    if not request.alert_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="alert_ids cannot be empty",
+        )
+
+    unique_ids = sorted(set(request.alert_ids))
+    deleted_ids, missing_ids = await alerts_service.delete_alerts_by_ids(db, unique_ids)
+    await db.commit()
+
+    return BulkDeleteResponse(
+        deleted_ids=deleted_ids,
         missing_ids=missing_ids,
     )
 
