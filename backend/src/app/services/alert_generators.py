@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.scan import Scan
 
-
 # Type alias for alert generator functions
 AlertGeneratorFn = Callable[
     [AsyncSession, Scan, dict[str, Any]],

@@ -1,5 +1,6 @@
 """Service for managing hosts."""
 
+from collections.abc import Mapping
 from datetime import datetime
 from ipaddress import IPv4Address, IPv6Address
 from typing import Any, cast
@@ -108,7 +109,7 @@ async def update_host_comment(
 async def update_host_fields(
     db: AsyncSession,
     host_id: int,
-    fields: dict,
+    fields: "Mapping[str, object]",
 ) -> Host | None:
     """Update specified fields on a host."""
     host = await get_host_by_id(db, host_id)

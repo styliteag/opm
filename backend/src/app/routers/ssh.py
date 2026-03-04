@@ -570,18 +570,19 @@ async def trigger_ssh_recheck(
     db: DbSession,
     host_ip: str,
     port: int = Query(22, ge=1, le=65535, description="SSH port to recheck"),
-) -> dict:
+) -> dict[str, object]:
     """Trigger a single SSH host security recheck.
-    
+
     This will create a targeted scan for just this SSH host using the same
     scanner and configuration as the network it belongs to. The scan will
     perform SSH security analysis including authentication methods, ciphers,
     and version detection.
     """
     from ipaddress import ip_address, ip_network
+
+    from app.services import hosts as hosts_service
     from app.services import networks as networks_service
     from app.services import scans as scans_service
-    from app.services import hosts as hosts_service
 
     # Validate IP address format
     try:
@@ -628,11 +629,11 @@ async def trigger_ssh_recheck(
     # Sort by prefix length descending (most specific first) and pick the first
     candidate_networks.sort(key=lambda x: x[0], reverse=True)
     network = candidate_networks[0][1]
-    
+
     # Create a single-host scan (SSH probe will be performed on the discovered port)
     scan = await scans_service.create_single_host_scan(db, network, host_ip)
     await db.commit()
-    
+
     return {
         "scan_id": scan.id,
         "network_id": network.id,
