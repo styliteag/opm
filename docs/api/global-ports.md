@@ -191,8 +191,8 @@ The Policy API provides a unified interface for managing both global port rules 
 
 | Type | Description |
 |------|-------------|
-| `allow` | Port is whitelisted - no alerts generated |
-| `block` | Port is blacklisted - always generates alerts |
+| `allow` | Port is accepted - no alerts generated |
+| `block` | Port is blocked - always generates alerts |
 
 ## Rule Scope
 

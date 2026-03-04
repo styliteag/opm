@@ -100,7 +100,7 @@ We use [Conventional Commits](https://www.conventionalcommits.org/) for commit m
 ### Examples
 
 ```
-feat: Add bulk alert acknowledgment endpoint
+feat: Add bulk alert dismissal endpoint
 fix: Resolve race condition in scan job claiming
 docs: Document scanner authentication flow
 refactor: Extract scan result processing into separate service

@@ -151,7 +151,7 @@ curl -X GET "http://localhost:8000/api/trends/hosts?start_date=2024-01-01&end_da
 
 ## GET /api/trends/alerts
 
-Get historical trend data for alerts generated over time, including acknowledgment status.
+Get historical trend data for alerts generated over time, including dismissal status.
 
 **Authentication:** User JWT (any role)
 
@@ -181,17 +181,17 @@ Get historical trend data for alerts generated over time, including acknowledgme
     {
       "date": "2024-01-01",
       "count": 25,
-      "acknowledged_count": 20
+      "dismissed_count": 20
     },
     {
       "date": "2024-01-02",
       "count": 18,
-      "acknowledged_count": 15
+      "dismissed_count": 15
     },
     {
       "date": "2024-01-03",
       "count": 30,
-      "acknowledged_count": 10
+      "dismissed_count": 10
     }
   ]
 }
@@ -204,7 +204,7 @@ Get historical trend data for alerts generated over time, including acknowledgme
 | `data` | array | List of data points |
 | `data[].date` | date | The period date |
 | `data[].count` | integer | Total count of alerts created in this period |
-| `data[].acknowledged_count` | integer | Count of acknowledged alerts in this period |
+| `data[].dismissed_count` | integer | Count of dismissed alerts in this period |
 
 ### Example
 
@@ -258,6 +258,6 @@ Returned when the JWT token is missing or invalid.
 
 2. **Filter by network**: When monitoring multiple networks, filter by `network_id` to get trends for specific segments of your infrastructure.
 
-3. **Compare trends**: The alerts endpoint includes `acknowledged_count` which lets you track your team's response rate over time. A growing gap between `count` and `acknowledged_count` may indicate alert fatigue.
+3. **Compare trends**: The alerts endpoint includes `dismissed_count` which lets you track your team's response rate over time. A growing gap between `count` and `dismissed_count` may indicate alert fatigue.
 
 4. **Empty periods**: Periods with zero counts may not appear in the response. Handle missing dates in your visualization code.

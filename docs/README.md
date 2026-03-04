@@ -11,7 +11,7 @@ Complete API documentation for integrating with Open Port Monitor.
 - [API Overview](api/overview.md) - Base URL, error handling, pagination, and authentication patterns
 - [Authentication](api/authentication.md) - User and scanner authentication flows
 - [Networks](api/networks.md) - Network management CRUD operations
-- [Alerts](api/alerts.md) - Alert management, acknowledgment, and export
+- [Alerts](api/alerts.md) - Alert management, dismissal, and export
 - [Hosts](api/hosts.md) - Host management and export
 - [Scans](api/scans.md) - Scan details, results, and logs
 - [SSH Security](api/ssh.md) - SSH security scanning, reports, and alerts

@@ -25,9 +25,9 @@ Severity is computed dynamically based on alert type and status:
 | Severity | Criteria |
 |----------|----------|
 | `critical` | Blocked port or critical rule violation |
-| `high` | New port not in whitelist |
+| `high` | New port not in accept list |
 | `medium` | Port not allowed by policy |
-| `info` | Acknowledged alerts |
+| `info` | Dismissed alerts |
 
 ---
 
@@ -47,7 +47,7 @@ GET /api/alerts
 |-----------|------|----------|-------------|
 | `type` | string | No | Filter by alert type: `new_port`, `not_allowed`, `blocked` |
 | `network_id` | integer | No | Filter by network ID (must be >= 1) |
-| `acknowledged` | boolean | No | Filter by acknowledgment status |
+| `dismissed` | boolean | No | Filter by dismissal status |
 | `start_date` | datetime | No | Filter alerts created on or after this date (ISO 8601 format) |
 | `end_date` | datetime | No | Filter alerts created on or before this date (ISO 8601 format) |
 | `offset` | integer | No | Pagination offset (default: 0, min: 0) |
@@ -67,7 +67,7 @@ GET /api/alerts
       "ip": "192.168.1.100",
       "port": 8080,
       "message": "New open port detected: 8080/tcp",
-      "acknowledged": false,
+      "dismissed": false,
       "assigned_to_user_id": null,
       "assigned_to_email": null,
       "resolution_status": "open",
@@ -84,8 +84,8 @@ GET /api/alerts
 ### Example
 
 ```bash
-# List all unacknowledged alerts for a specific network
-curl -X GET "http://localhost:8000/api/alerts?network_id=1&acknowledged=false&limit=100" \
+# List all pending alerts for a specific network
+curl -X GET "http://localhost:8000/api/alerts?network_id=1&dismissed=false&limit=100" \
   -H "Authorization: Bearer <token>"
 
 # List blocked port alerts from the last 7 days
@@ -95,12 +95,12 @@ curl -X GET "http://localhost:8000/api/alerts?type=blocked&start_date=2026-01-20
 
 ---
 
-## Acknowledge Alert
+## Dismiss Alert
 
-Mark a single alert as acknowledged.
+Mark a single alert as dismissed.
 
 ```
-PUT /api/alerts/{alert_id}/acknowledge
+PUT /api/alerts/{alert_id}/dismiss
 ```
 
 **Authentication:** Admin required
@@ -113,7 +113,7 @@ PUT /api/alerts/{alert_id}/acknowledge
 
 ### Response
 
-Returns the updated alert object with `acknowledged: true`.
+Returns the updated alert object with `dismissed: true`.
 
 ```json
 {
@@ -125,7 +125,7 @@ Returns the updated alert object with `acknowledged: true`.
   "ip": "192.168.1.100",
   "port": 8080,
   "message": "New open port detected: 8080/tcp",
-  "acknowledged": true,
+  "dismissed": true,
   "assigned_to_user_id": null,
   "assigned_to_email": null,
   "resolution_status": "open",
@@ -140,18 +140,18 @@ Returns the updated alert object with `acknowledged: true`.
 ### Example
 
 ```bash
-curl -X PUT "http://localhost:8000/api/alerts/1/acknowledge" \
+curl -X PUT "http://localhost:8000/api/alerts/1/dismiss" \
   -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-## Unacknowledge Alert
+## Reopen Alert
 
-Remove acknowledgment from a single alert.
+Remove dismissal from a single alert, returning it to pending status.
 
 ```
-PUT /api/alerts/{alert_id}/unacknowledge
+PUT /api/alerts/{alert_id}/reopen
 ```
 
 **Authentication:** Admin required
@@ -164,30 +164,30 @@ PUT /api/alerts/{alert_id}/unacknowledge
 
 ### Response
 
-Returns the updated alert object with `acknowledged: false` and recomputed severity.
+Returns the updated alert object with `dismissed: false` and recomputed severity.
 
 ### Example
 
 ```bash
-curl -X PUT "http://localhost:8000/api/alerts/1/unacknowledge" \
+curl -X PUT "http://localhost:8000/api/alerts/1/reopen" \
   -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-## Bulk Acknowledge Alerts
+## Bulk Dismiss Alerts
 
-Acknowledge multiple alerts in a single request.
+Dismiss multiple alerts in a single request.
 
 ```
-PUT /api/alerts/acknowledge-bulk
+PUT /api/alerts/dismiss-bulk
 ```
 
 **Authentication:** Admin required
 
 ### Request Body
 
-JSON array of alert IDs to acknowledge.
+JSON array of alert IDs to dismiss.
 
 ```json
 [1, 2, 3, 4, 5]
@@ -197,20 +197,20 @@ JSON array of alert IDs to acknowledge.
 
 ```json
 {
-  "acknowledged_ids": [1, 2, 3, 5],
+  "dismissed_ids": [1, 2, 3, 5],
   "missing_ids": [4]
 }
 ```
 
 | Field | Description |
 |-------|-------------|
-| `acknowledged_ids` | Alert IDs that were successfully acknowledged (sorted) |
+| `dismissed_ids` | Alert IDs that were successfully dismissed (sorted) |
 | `missing_ids` | Alert IDs that were not found (sorted) |
 
 ### Example
 
 ```bash
-curl -X PUT "http://localhost:8000/api/alerts/acknowledge-bulk" \
+curl -X PUT "http://localhost:8000/api/alerts/dismiss-bulk" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '[1, 2, 3, 4, 5]'
@@ -218,12 +218,12 @@ curl -X PUT "http://localhost:8000/api/alerts/acknowledge-bulk" \
 
 ---
 
-## Bulk Whitelist (Global)
+## Bulk Accept (Global)
 
-Create global whitelist rules for multiple alerts, acknowledging them in the process.
+Create global accept rules for multiple alerts, dismissing them in the process.
 
 ```
-POST /api/alerts/bulk-whitelist-global
+POST /api/alerts/bulk-accept-global
 ```
 
 **Authentication:** Admin required
@@ -239,15 +239,15 @@ POST /api/alerts/bulk-whitelist-global
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `alert_ids` | array[integer] | Yes | Alert IDs to whitelist |
-| `reason` | string | Yes | Description for the whitelist rules |
+| `alert_ids` | array[integer] | Yes | Alert IDs to accept |
+| `reason` | string | Yes | Description for the accept rules |
 
 ### Response
 
 ```json
 {
-  "whitelisted_count": 3,
-  "acknowledged_ids": [1, 2, 3],
+  "accepted_count": 3,
+  "dismissed_ids": [1, 2, 3],
   "missing_ids": [],
   "errors": []
 }
@@ -255,15 +255,15 @@ POST /api/alerts/bulk-whitelist-global
 
 | Field | Description |
 |-------|-------------|
-| `whitelisted_count` | Number of unique IP:port combinations whitelisted |
-| `acknowledged_ids` | Alert IDs that were acknowledged |
+| `accepted_count` | Number of unique IP:port combinations accepted |
+| `dismissed_ids` | Alert IDs that were dismissed |
 | `missing_ids` | Alert IDs that were not found |
 | `errors` | Any errors encountered during processing |
 
 ### Example
 
 ```bash
-curl -X POST "http://localhost:8000/api/alerts/bulk-whitelist-global" \
+curl -X POST "http://localhost:8000/api/alerts/bulk-accept-global" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"alert_ids": [1, 2, 3], "reason": "Approved monitoring services"}'
@@ -271,12 +271,12 @@ curl -X POST "http://localhost:8000/api/alerts/bulk-whitelist-global" \
 
 ---
 
-## Bulk Whitelist (Network)
+## Bulk Accept (Network)
 
-Create network-specific whitelist rules for multiple alerts, acknowledging them in the process.
+Create network-specific accept rules for multiple alerts, dismissing them in the process.
 
 ```
-POST /api/alerts/bulk-whitelist-network
+POST /api/alerts/bulk-accept-network
 ```
 
 **Authentication:** Admin required
@@ -292,7 +292,7 @@ POST /api/alerts/bulk-whitelist-network
 
 ### Response
 
-Same response format as bulk-whitelist-global.
+Same response format as bulk-accept-global.
 
 ### Behavior
 
@@ -303,7 +303,7 @@ Same response format as bulk-whitelist-global.
 ### Example
 
 ```bash
-curl -X POST "http://localhost:8000/api/alerts/bulk-whitelist-network" \
+curl -X POST "http://localhost:8000/api/alerts/bulk-accept-network" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"alert_ids": [1, 2, 3], "reason": "Approved services for production"}'
@@ -611,7 +611,7 @@ GET /api/alerts/export/csv
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `type` | string | No | Filter by alert type |
-| `acknowledged` | boolean | No | Filter by acknowledgment status |
+| `dismissed` | boolean | No | Filter by dismissal status |
 
 ### Response
 
@@ -637,8 +637,8 @@ curl -X GET "http://localhost:8000/api/alerts/export/csv" \
   -H "Authorization: Bearer <token>" \
   -o alerts.csv
 
-# Export only unacknowledged blocked alerts
-curl -X GET "http://localhost:8000/api/alerts/export/csv?type=blocked&acknowledged=false" \
+# Export only pending blocked alerts
+curl -X GET "http://localhost:8000/api/alerts/export/csv?type=blocked&dismissed=false" \
   -H "Authorization: Bearer <token>" \
   -o blocked_alerts.csv
 ```
@@ -660,7 +660,7 @@ GET /api/alerts/export/pdf
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `type` | string | No | Filter by alert type |
-| `acknowledged` | boolean | No | Filter by acknowledgment status |
+| `dismissed` | boolean | No | Filter by dismissal status |
 
 ### Response
 
@@ -677,7 +677,7 @@ The PDF report includes:
 - Summary statistics:
   - Total alerts
   - Open alerts count
-  - Acknowledged alerts count
+  - Dismissed alerts count
   - Count by alert type
 - Detailed table with columns:
   - Alert Type
@@ -696,9 +696,9 @@ curl -X GET "http://localhost:8000/api/alerts/export/pdf" \
   -o alerts.pdf
 
 # Export filtered alerts to PDF
-curl -X GET "http://localhost:8000/api/alerts/export/pdf?acknowledged=false" \
+curl -X GET "http://localhost:8000/api/alerts/export/pdf?dismissed=false" \
   -H "Authorization: Bearer <token>" \
-  -o unacknowledged_alerts.pdf
+  -o pending_alerts.pdf
 ```
 
 ---
@@ -711,7 +711,7 @@ All endpoints return standard error responses:
 |-------------|-------------|
 | 400 | Bad Request - Invalid parameters or empty alert_ids list |
 | 401 | Unauthorized - Missing or invalid authentication |
-| 403 | Forbidden - Insufficient permissions (e.g., viewer trying to acknowledge) |
+| 403 | Forbidden - Insufficient permissions (e.g., viewer trying to dismiss) |
 | 404 | Not Found - Alert or comment not found |
 | 500 | Internal Server Error |
 

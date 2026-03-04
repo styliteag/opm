@@ -246,7 +246,7 @@ Routes → Services → Models (with Pydantic schemas for validation)
 - Bulk operations should delete existing records and create new ones in a single transaction
 - Always validate that nested resources belong to the parent (e.g., `rule.network_id == network_id`)
 - Port rules can include optional `ip`; alert evaluation merges global ranges with IP-specific ranges
-- Alerts should include `network_id` and be deduped by `(alert_type, ip, port)` while unacknowledged
+- Alerts should include `network_id` and be deduped by `(alert_type, ip, port)` while not dismissed
 - Alert email recipients resolve from network `alert_config.email_recipients` (or `recipients`) or `ALERT_EMAIL_RECIPIENTS`; UI links use `WEB_UI_URL`
 
 ## Frontend Conventions
@@ -300,8 +300,8 @@ Alert state is tracked across multiple orthogonal dimensions. The naming differs
 
 | Column | Type | Values |
 |--------|------|--------|
-| `acknowledged` | Boolean | `true` / `false` |
-| `ack_reason` | Text | free-text or `NULL` |
+| `dismissed` | Boolean | `true` / `false` |
+| `dismiss_reason` | Text | free-text or `NULL` |
 | `resolution_status` | Enum | `open`, `in_progress`, `resolved` |
 | `assigned_to_user_id` | Integer FK | user ID or `NULL` |
 
@@ -311,23 +311,23 @@ Alert state is tracked across multiple orthogonal dimensions. The naming differs
 
 - `ResolutionStatus`: `OPEN`, `IN_PROGRESS`, `RESOLVED`
 - `RuleType`: `ACCEPTED`, `CRITICAL`
-- `Severity` (computed per request): `CRITICAL`, `HIGH`, `MEDIUM`, `INFO` — forced to `INFO` when `acknowledged=True`
+- `Severity` (computed per request): `CRITICAL`, `HIGH`, `MEDIUM`, `INFO` — forced to `INFO` when `dismissed=True`
 
 ### Frontend → Backend name mapping
 
 | UI Label | Frontend filter value | DB / API field | API endpoint |
 |----------|----------------------|----------------|--------------|
-| **Pending Review** | `'pending'` | `acknowledged=false` | — |
-| **Dismissed** | `'dismissed'` | `acknowledged=true` | `PUT /alerts/{id}/acknowledge` |
-| **Accepted** | `'accepted'` | rule match computed client-side | `POST /alerts/bulk-whitelist-global` or `bulk-whitelist-network` |
+| **Pending Review** | `'pending'` | `dismissed=false` | — |
+| **Dismissed** | `'dismissed'` | `dismissed=true` | `PUT /alerts/{id}/dismiss` |
+| **Accepted** | `'accepted'` | rule match computed client-side | `POST /alerts/bulk-accept-global` or `bulk-accept-network` |
 | **Blocked** | `'blocked'` | `severity='critical'` | — |
-| **Reopen** | — | `acknowledged=false` | `PUT /alerts/{id}/unacknowledge` |
+| **Reopen** | — | `dismissed=false` | `PUT /alerts/{id}/reopen` |
 | **Revoke Rule** | — | deletes port rule row | `DELETE /api/port-rules/{scope}/{id}` |
 
 ### Key distinction
 
-- **Dismiss** = sets `acknowledged=true` (no rule created, future scans still alert)
-- **Accept** = sets `acknowledged=true` AND creates a `port_rules`/`global_port_rules` row with `rule_type='accepted'` (future scans won't alert)
+- **Dismiss** = sets `dismissed=true` (no rule created, future scans still alert)
+- **Accept** = sets `dismissed=true` AND creates a `port_rules`/`global_port_rules` row with `rule_type='accepted'` (future scans won't alert)
 
 ## Important Gotchas
 
@@ -337,7 +337,7 @@ Alert state is tracked across multiple orthogonal dimensions. The naming differs
 - `uv run mypy src/` may panic in sandboxed environments (system-configuration NULL object)
 - For bulk operations, delete existing records and create new ones in a single transaction
 - Always validate nested resources belong to the parent (e.g., `rule.network_id == network_id`)
-- Alerts deduplicate by `(alert_type, ip, port)` while unacknowledged
+- Alerts deduplicate by `(alert_type, ip, port)` while not dismissed
 - `hatchling` requires `[tool.hatch.build.targets.wheel]` in `pyproject.toml`
 
 ## Browser Testing

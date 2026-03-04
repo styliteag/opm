@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dev Login button on login page for quick authentication during development (only visible in dev mode, stripped from production builds)
 - Dedicated Port Rules page accessible from main navigation
 
+### Changed
+- Full terminology rename across all layers: `acknowledged` → `dismissed`, `ack_reason` → `dismiss_reason`, endpoints `/acknowledge` → `/dismiss`, `/unacknowledge` → `/reopen`, `/bulk-whitelist-*` → `/bulk-accept-*`, `/ack-suggestions` → `/dismiss-suggestions`
+- DB migration renames `acknowledged` and `ack_reason` columns to `dismissed` and `dismiss_reason`
+- Frontend labels updated: "Unacknowledged" → "Pending", component renames `AckModal` → `ReviewModal`, `AckSuggestions` → `ReasonSuggestions`
+
 ### Fixed
 - Scan progress display limited to one decimal place
 - Poll for planned scans restored, Scans nav tab restored, query param typo fixed
@@ -29,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Renamed "Ack" button to "Accept" on alerts page
-- Alert checkboxes now selectable for all alerts (not just unacknowledged)
+- Alert checkboxes now selectable for all alerts (not just dismissed)
 
 ## [1.2.0] - 2026-03-03
 
@@ -63,7 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3. **crt.sh** — certificate transparency logs (fallback)
 - Host Detail dashboard page (`/hosts/:hostId`) — a single overview page per host/IP showing all relevant information at a glance:
   - Host info card with IP, hostname, MAC address/vendor, pingable status, networks, editable comment, and rescan button
-  - Active alerts section with severity badges and quick-acknowledge button, plus collapsible acknowledged alerts
+  - Active alerts section with severity badges and quick-dismiss button, plus collapsible dismissed alerts
   - Open ports table with service names and banners
   - SSH security summary showing auth methods, version, and weak cipher/KEX warnings
   - Recent scan history with links to scan details
