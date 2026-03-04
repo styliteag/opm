@@ -120,38 +120,61 @@ export function useAlerts(filters: AlertFiltersState) {
     return map
   }, [globalPortsQuery.data?.ports])
 
-  const acceptedSets = useMemo(() => {
+  type AcceptedRuleInfo = {
+    ruleId: number
+    scope: 'global' | 'network'
+    description: string
+  }
+
+  const acceptedMaps = useMemo(() => {
     const rules = policyQuery.data?.rules ?? []
-    const sets = {
-      ipKeys: new Set<string>(),
-      networkKeys: new Set<string>(),
-      globalIpKeys: new Set<string>(),
-      globalPortKeys: new Set<string>(),
+    const maps = {
+      ipKeys: new Map<string, AcceptedRuleInfo>(),
+      networkKeys: new Map<string, AcceptedRuleInfo>(),
+      globalIpKeys: new Map<string, AcceptedRuleInfo>(),
+      globalPortKeys: new Map<string, AcceptedRuleInfo>(),
     }
     rules.forEach((rule) => {
       if (rule.rule_type !== 'accepted') return
+      const info: AcceptedRuleInfo = {
+        ruleId: rule.id,
+        scope: rule.network_id === null ? 'global' : 'network',
+        description: rule.description ?? '',
+      }
       if (rule.network_id === null) {
-        if (rule.ip) sets.globalIpKeys.add(`${rule.ip}:${rule.port}`)
-        else sets.globalPortKeys.add(rule.port)
+        if (rule.ip) maps.globalIpKeys.set(`${rule.ip}:${rule.port}`, info)
+        else maps.globalPortKeys.set(rule.port, info)
       } else {
-        if (rule.ip) sets.ipKeys.add(`${rule.network_id}:${rule.ip}:${rule.port}`)
-        else sets.networkKeys.add(`${rule.network_id}:${rule.port}`)
+        if (rule.ip) maps.ipKeys.set(`${rule.network_id}:${rule.ip}:${rule.port}`, info)
+        else maps.networkKeys.set(`${rule.network_id}:${rule.port}`, info)
       }
     })
-    return sets
+    return maps
   }, [policyQuery.data?.rules])
 
-  const isAlertAccepted = useCallback(
-    (alert: Alert) => {
-      if (acceptedSets.globalIpKeys.has(`${alert.ip}:${alert.port}`)) return true
-      if (acceptedSets.globalPortKeys.has(String(alert.port))) return true
-      if (alert.network_id === null) return false
+  const getAcceptedRuleInfo = useCallback(
+    (alert: Alert): AcceptedRuleInfo | null => {
       return (
-        acceptedSets.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`) ||
-        acceptedSets.networkKeys.has(`${alert.network_id}:${alert.port}`)
+        acceptedMaps.globalIpKeys.get(`${alert.ip}:${alert.port}`) ??
+        acceptedMaps.globalPortKeys.get(String(alert.port)) ??
+        (alert.network_id !== null
+          ? (acceptedMaps.ipKeys.get(`${alert.network_id}:${alert.ip}:${alert.port}`) ??
+            acceptedMaps.networkKeys.get(`${alert.network_id}:${alert.port}`) ??
+            null)
+          : null)
       )
     },
-    [acceptedSets],
+    [acceptedMaps],
+  )
+
+  const getAcceptedReason = useCallback(
+    (alert: Alert): string | null => getAcceptedRuleInfo(alert)?.description || null,
+    [getAcceptedRuleInfo],
+  )
+
+  const isAlertAccepted = useCallback(
+    (alert: Alert) => getAcceptedRuleInfo(alert) !== null,
+    [getAcceptedRuleInfo],
   )
 
   const filteredAlerts = useMemo(() => {
@@ -381,6 +404,17 @@ export function useAlerts(filters: AlertFiltersState) {
     onSuccess: invalidateAll,
   })
 
+  const revokeAcceptanceMutation = useMutation({
+    mutationFn: async ({ scope, ruleId }: { scope: 'global' | 'network'; ruleId: number }) => {
+      const res = await fetch(`${API_BASE_URL}/api/port-rules/${scope}/${ruleId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(token ?? ''),
+      })
+      if (!res.ok) throw new Error(await extractErrorMessage(res))
+    },
+    onSuccess: invalidateAll,
+  })
+
   return {
     isAdmin,
     token,
@@ -391,6 +425,9 @@ export function useAlerts(filters: AlertFiltersState) {
     users,
     portMap,
     isAlertAccepted,
+    getAcceptedReason,
+    getAcceptedRuleInfo,
+    revokeAcceptanceMutation,
     bulkWhitelistGlobalMutation,
     bulkWhitelistNetworkMutation,
     bulkAcknowledgeMutation,
