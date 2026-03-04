@@ -31,6 +31,7 @@ from app.schemas.alert import (
     BulkAcknowledgeRequest,
     Severity,
 )
+from app.schemas.host import PortRuleMatch
 from app.schemas.alert_comment import (
     AlertCommentCreate,
     AlertCommentListResponse,
@@ -196,6 +197,54 @@ async def list_alerts(
         if ssh_alert_info:
             resp.related_ssh_alert_count = ssh_alert_info[0]
             resp.related_ssh_alerts_acknowledged = ssh_alert_info[1]
+
+    # Enrich with matching port rules
+    from app.services.global_port_rules import _parse_port_range
+
+    global_rules = await global_rules_service.get_all_global_rules(db)
+    # Collect unique network IDs from alerts for network-scoped rules
+    alert_network_ids = set(r.network_id for r in alert_responses if r.network_id is not None)
+    network_rules_by_nid: dict[int, list] = {}
+    for nid in alert_network_ids:
+        network_rules_by_nid[nid] = await port_rules_service.get_rules_by_network_id(db, nid)
+    # Fetch network names
+    network_name_cache: dict[int, str] = {}
+    for nid in alert_network_ids:
+        net = await networks_service.get_network_by_id(db, nid)
+        if net:
+            network_name_cache[nid] = net.name
+
+    for resp in alert_responses:
+        matches: list[PortRuleMatch] = []
+        for gr in global_rules:
+            parsed = _parse_port_range(gr.port)
+            if parsed is None:
+                continue
+            start, end = parsed
+            if not (start <= resp.port <= end):
+                continue
+            if gr.ip is not None and gr.ip != resp.ip:
+                continue
+            matches.append(PortRuleMatch(
+                id=gr.id, scope="global", network_id=None, network_name=None,
+                rule_type=gr.rule_type.value, description=gr.description,
+            ))
+        if resp.network_id and resp.network_id in network_rules_by_nid:
+            for nr in network_rules_by_nid[resp.network_id]:
+                parsed = _parse_port_range(nr.port)
+                if parsed is None:
+                    continue
+                start, end = parsed
+                if not (start <= resp.port <= end):
+                    continue
+                if nr.ip is not None and nr.ip != resp.ip:
+                    continue
+                matches.append(PortRuleMatch(
+                    id=nr.id, scope="network", network_id=resp.network_id,
+                    network_name=network_name_cache.get(resp.network_id),
+                    rule_type=nr.rule_type.value, description=nr.description,
+                ))
+        resp.matching_rules = matches
 
     # Sort by severity (critical first), then by created_at (newest first)
     severity_order = {

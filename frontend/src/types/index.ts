@@ -65,6 +65,8 @@ export type Alert = {
   ssh_summary: AlertSSHSummary | null
   related_ssh_alert_count: number
   related_ssh_alerts_acknowledged: boolean
+  // Port rule context
+  matching_rules: PortRuleMatch[]
 }
 
 export type AlertListResponse = {
@@ -413,6 +415,25 @@ export type HostOpenPort = {
   last_seen_at: string
 }
 
+export type PortRuleMatch = {
+  id: number
+  scope: 'global' | 'network'
+  network_id: number | null
+  network_name: string | null
+  rule_type: 'accepted' | 'critical'
+  description: string | null
+}
+
+export type EnrichedHostPort = HostOpenPort & {
+  alert_id: number | null
+  alert_status: 'new' | 'acknowledged' | null
+  alert_severity: string | null
+  ack_reason: string | null
+  rule_status: 'accepted' | 'critical' | null
+  matching_rules: PortRuleMatch[]
+  ssh_summary: HostSSHSummary | null
+}
+
 export type HostOpenPortListResponse = {
   ports: HostOpenPort[]
 }
@@ -552,6 +573,8 @@ export type HostAlertSummary = {
   resolution_status: string
   created_at: string
   ack_reason: string | null
+  network_id: number | null
+  network_name: string | null
   // SSH context (for alerts on SSH ports)
   ssh_summary: HostSSHSummary | null
   related_ssh_alert_count: number
@@ -582,13 +605,14 @@ export type HostScanEntry = {
 
 export type HostOverviewResponse = {
   host: Host
-  ports: HostOpenPort[]
+  ports: EnrichedHostPort[]
   networks: HostNetworkInfo[]
   alerts: HostAlertSummary[]
   acknowledged_alerts: HostAlertSummary[]
   acknowledged_alert_count: number
   ssh: HostSSHSummary | null
   recent_scans: HostScanEntry[]
+  matching_rules: PortRuleMatch[]
 }
 
 // ACK Suggestion types

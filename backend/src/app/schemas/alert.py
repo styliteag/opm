@@ -6,6 +6,7 @@ from enum import Enum
 from pydantic import BaseModel
 
 from app.models.alert import AlertType, ResolutionStatus
+from app.schemas.host import PortRuleMatch
 
 
 class Severity(str, Enum):
@@ -59,6 +60,8 @@ class AlertResponse(BaseModel):
     ssh_summary: AlertSSHSummary | None = None
     related_ssh_alert_count: int = 0
     related_ssh_alerts_acknowledged: bool = True
+    # Port rule context
+    matching_rules: list[PortRuleMatch] = []
 
 
 class AlertListResponse(BaseModel):
