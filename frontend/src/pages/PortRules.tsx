@@ -41,7 +41,9 @@ const PortRules = () => {
     queryKey: ['port-rules', filterNetworkId],
     queryFn: () => {
       const url =
-        filterNetworkId === 'all' ? '/api/port-rules' : `/api/port-rules?network_id=${filterNetworkId}`
+        filterNetworkId === 'all'
+          ? '/api/port-rules'
+          : `/api/port-rules?network_id=${filterNetworkId}`
       return fetchJson<PortRuleUnifiedListResponse>(url, token ?? '')
     },
     enabled: Boolean(token),
@@ -462,7 +464,7 @@ const PortRules = () => {
                             <svg
                               className="w-4 h-4"
                               fill="none"
-                              viewBox="0 24 24"
+                              viewBox="0 0 24 24"
                               stroke="currentColor"
                             >
                               <path
@@ -481,7 +483,7 @@ const PortRules = () => {
                             <svg
                               className="w-4 h-4"
                               fill="none"
-                              viewBox="0 24 24"
+                              viewBox="0 0 24 24"
                               stroke="currentColor"
                             >
                               <path
