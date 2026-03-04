@@ -422,6 +422,7 @@ export type PortRuleMatch = {
   network_name: string | null
   rule_type: 'accepted' | 'critical'
   description: string | null
+  ip: string | null
 }
 
 export type EnrichedHostPort = HostOpenPort & {

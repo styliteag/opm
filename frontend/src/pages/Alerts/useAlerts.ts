@@ -126,45 +126,98 @@ export function useAlerts(filters: AlertFiltersState) {
     description: string
   }
 
-  const acceptedMaps = useMemo(() => {
+  // Build lookup maps for both accepted and critical rules, keyed by specificity tier
+  const ruleMaps = useMemo(() => {
     const rules = policyQuery.data?.rules ?? []
-    const maps = {
-      ipKeys: new Map<string, AcceptedRuleInfo>(),
-      networkKeys: new Map<string, AcceptedRuleInfo>(),
+    const accepted = {
       globalIpKeys: new Map<string, AcceptedRuleInfo>(),
       globalPortKeys: new Map<string, AcceptedRuleInfo>(),
+      ipKeys: new Map<string, AcceptedRuleInfo>(),
+      networkKeys: new Map<string, AcceptedRuleInfo>(),
+    }
+    const critical = {
+      globalIpKeys: new Set<string>(),
+      globalPortKeys: new Set<string>(),
+      ipKeys: new Set<string>(),
+      networkKeys: new Set<string>(),
     }
     rules.forEach((rule) => {
-      if (rule.rule_type !== 'accepted') return
-      const info: AcceptedRuleInfo = {
-        ruleId: rule.id,
-        scope: rule.network_id === null ? 'global' : 'network',
-        description: rule.description ?? '',
-      }
-      if (rule.network_id === null) {
-        if (rule.ip) maps.globalIpKeys.set(`${rule.ip}:${rule.port}`, info)
-        else maps.globalPortKeys.set(rule.port, info)
-      } else {
-        if (rule.ip) maps.ipKeys.set(`${rule.network_id}:${rule.ip}:${rule.port}`, info)
-        else maps.networkKeys.set(`${rule.network_id}:${rule.port}`, info)
+      const isGlobal = rule.network_id === null
+      if (rule.rule_type === 'accepted') {
+        const info: AcceptedRuleInfo = {
+          ruleId: rule.id,
+          scope: isGlobal ? 'global' : 'network',
+          description: rule.description ?? '',
+        }
+        if (isGlobal) {
+          if (rule.ip) accepted.globalIpKeys.set(`${rule.ip}:${rule.port}`, info)
+          else accepted.globalPortKeys.set(rule.port, info)
+        } else {
+          if (rule.ip) accepted.ipKeys.set(`${rule.network_id}:${rule.ip}:${rule.port}`, info)
+          else accepted.networkKeys.set(`${rule.network_id}:${rule.port}`, info)
+        }
+      } else if (rule.rule_type === 'critical') {
+        if (isGlobal) {
+          if (rule.ip) critical.globalIpKeys.add(`${rule.ip}:${rule.port}`)
+          else critical.globalPortKeys.add(rule.port)
+        } else {
+          if (rule.ip) critical.ipKeys.add(`${rule.network_id}:${rule.ip}:${rule.port}`)
+          else critical.networkKeys.add(`${rule.network_id}:${rule.port}`)
+        }
       }
     })
-    return maps
+    return { accepted, critical }
   }, [policyQuery.data?.rules])
+
+  // Resolve effective rule status by specificity: IP-specific > port-only.
+  // At same specificity, accepted wins (explicit user override).
+  const getEffectiveRuleStatus = useCallback(
+    (alert: Alert): 'accepted' | 'critical' | null => {
+      const ipPort = `${alert.ip}:${alert.port}`
+      const port = String(alert.port)
+      const { accepted, critical } = ruleMaps
+
+      // Tier 1: IP-specific rules (highest specificity)
+      const accIp =
+        accepted.globalIpKeys.has(ipPort) ||
+        (alert.network_id !== null &&
+          accepted.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`))
+      const critIp =
+        critical.globalIpKeys.has(ipPort) ||
+        (alert.network_id !== null &&
+          critical.ipKeys.has(`${alert.network_id}:${alert.ip}:${alert.port}`))
+
+      if (accIp || critIp) return accIp ? 'accepted' : 'critical'
+
+      // Tier 2: Port-only rules (lower specificity)
+      const accPort =
+        accepted.globalPortKeys.has(port) ||
+        (alert.network_id !== null && accepted.networkKeys.has(`${alert.network_id}:${port}`))
+      const critPort =
+        critical.globalPortKeys.has(port) ||
+        (alert.network_id !== null && critical.networkKeys.has(`${alert.network_id}:${port}`))
+
+      if (accPort || critPort) return accPort ? 'accepted' : 'critical'
+
+      return null
+    },
+    [ruleMaps],
+  )
 
   const getAcceptedRuleInfo = useCallback(
     (alert: Alert): AcceptedRuleInfo | null => {
+      if (getEffectiveRuleStatus(alert) !== 'accepted') return null
       return (
-        acceptedMaps.globalIpKeys.get(`${alert.ip}:${alert.port}`) ??
-        acceptedMaps.globalPortKeys.get(String(alert.port)) ??
+        ruleMaps.accepted.globalIpKeys.get(`${alert.ip}:${alert.port}`) ??
+        ruleMaps.accepted.globalPortKeys.get(String(alert.port)) ??
         (alert.network_id !== null
-          ? (acceptedMaps.ipKeys.get(`${alert.network_id}:${alert.ip}:${alert.port}`) ??
-            acceptedMaps.networkKeys.get(`${alert.network_id}:${alert.port}`) ??
+          ? (ruleMaps.accepted.ipKeys.get(`${alert.network_id}:${alert.ip}:${alert.port}`) ??
+            ruleMaps.accepted.networkKeys.get(`${alert.network_id}:${alert.port}`) ??
             null)
           : null)
       )
     },
-    [acceptedMaps],
+    [ruleMaps, getEffectiveRuleStatus],
   )
 
   const getAcceptedReason = useCallback(
@@ -173,8 +226,8 @@ export function useAlerts(filters: AlertFiltersState) {
   )
 
   const isAlertAccepted = useCallback(
-    (alert: Alert) => getAcceptedRuleInfo(alert) !== null,
-    [getAcceptedRuleInfo],
+    (alert: Alert) => getEffectiveRuleStatus(alert) === 'accepted',
+    [getEffectiveRuleStatus],
   )
 
   const filteredAlerts = useMemo(() => {
@@ -191,10 +244,14 @@ export function useAlerts(filters: AlertFiltersState) {
     const filtered = alerts.filter((alert) => {
       if (severityFilter && alert.severity !== severityFilter) return false
       if (networkFilter && alert.network_id !== networkFilter) return false
-      if (statusFilter === 'critical_rule' && alert.severity !== 'critical') return false
+      if (statusFilter === 'critical_rule' && getEffectiveRuleStatus(alert) !== 'critical')
+        return false
       if (statusFilter === 'pending' && alert.dismissed) return false
-      if (statusFilter === 'accepted' && !isAlertAccepted(alert)) return false
-      if (statusFilter === 'dismissed' && (!alert.dismissed || alert.severity === 'critical'))
+      if (statusFilter === 'accepted' && getEffectiveRuleStatus(alert) !== 'accepted') return false
+      if (
+        statusFilter === 'dismissed' &&
+        (!alert.dismissed || getEffectiveRuleStatus(alert) === 'accepted')
+      )
         return false
 
       if (searchQuery.trim()) {
@@ -245,7 +302,7 @@ export function useAlerts(filters: AlertFiltersState) {
       }
       return sortDirection === 'asc' ? comparison : -comparison
     })
-  }, [alerts, filters, isAlertAccepted, portMap])
+  }, [alerts, filters, isAlertAccepted, getEffectiveRuleStatus, portMap])
 
   // Mutations
   const invalidateAll = () => {

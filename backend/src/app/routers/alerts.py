@@ -235,6 +235,7 @@ async def list_alerts(
             matches.append(PortRuleMatch(
                 id=gr.id, scope="global", network_id=None, network_name=None,
                 rule_type=gr.rule_type.value, description=gr.description,
+                ip=gr.ip,
             ))
         if resp.network_id and resp.network_id in network_rules_by_nid:
             for nr in network_rules_by_nid[resp.network_id]:
@@ -250,6 +251,7 @@ async def list_alerts(
                     id=nr.id, scope="network", network_id=resp.network_id,
                     network_name=network_name_cache.get(resp.network_id),
                     rule_type=nr.rule_type.value, description=nr.description,
+                    ip=nr.ip,
                 ))
         resp.matching_rules = matches
 

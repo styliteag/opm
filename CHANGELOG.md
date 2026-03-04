@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frontend labels updated: "Unacknowledged" → "Pending", component renames `AckModal` → `ReviewModal`, `AckSuggestions` → `ReasonSuggestions`
 
 ### Fixed
+- Rule specificity resolution: IP-specific accepted rule now correctly overrides port-wide critical rule instead of showing both statuses
 - Scan progress display limited to one decimal place
 - Poll for planned scans restored, Scans nav tab restored, query param typo fixed
 
