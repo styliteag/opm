@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import AckSuggestions from '../components/AckSuggestions'
 import AlertComments from '../components/AlertComments'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
@@ -1511,12 +1512,12 @@ const RiskOverview = () => {
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
                 Reason
               </label>
-              <input
-                type="text"
-                autoFocus
+              <AckSuggestions
+                port={actionModal.mode === 'single' ? actionModal.alerts[0].port : null}
                 value={whitelistReason}
-                onChange={(e) => setWhitelistReason(e.target.value)}
+                onChange={setWhitelistReason}
                 placeholder="e.g. Known web server, authorized management interface..."
+                autoFocus
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-600"
               />
             </div>

@@ -11,6 +11,7 @@ from app.models.user import User
 from app.services.alerts import (
     acknowledge_alert,
     acknowledge_alerts,
+    get_ack_suggestions,
     get_alert_with_network_name,
     get_alerts,
     get_alerts_by_ids,
@@ -378,3 +379,292 @@ class TestAlertRouter:
 
         response = await client.get("/api/alerts", headers=viewer_headers)
         assert response.status_code == 200
+
+
+class TestAckSuggestionsService:
+    """Tests for ACK suggestions service function."""
+
+    async def _create_acked_alert(
+        self,
+        db_session: AsyncSession,
+        network: Network,
+        scan: Scan,
+        ip: str = "10.0.0.1",
+        port: int = 80,
+        ack_reason: str = "Known web server",
+    ) -> Alert:
+        """Helper to create an acknowledged alert with a reason."""
+        alert = Alert(
+            scan_id=scan.id,
+            network_id=network.id,
+            alert_type=AlertType.NEW_PORT,
+            ip=ip,
+            port=port,
+            message=f"Test alert: {ip}:{port}",
+            acknowledged=True,
+            ack_reason=ack_reason,
+        )
+        db_session.add(alert)
+        await db_session.commit()
+        await db_session.refresh(alert)
+        return alert
+
+    async def test_empty_database_returns_empty(self, db_session: AsyncSession):
+        """Empty database should return no suggestions."""
+        result = await get_ack_suggestions(db_session)
+        assert result == []
+
+    async def test_unacknowledged_alerts_excluded(
+        self, db_session: AsyncSession, network_with_scan: tuple
+    ):
+        """Unacknowledged alerts should not appear in suggestions."""
+        network, scan = network_with_scan
+        alert = Alert(
+            scan_id=scan.id,
+            network_id=network.id,
+            alert_type=AlertType.NEW_PORT,
+            ip="10.0.0.1",
+            port=80,
+            message="Test",
+            acknowledged=False,
+            ack_reason="Should not appear",
+        )
+        db_session.add(alert)
+        await db_session.commit()
+
+        result = await get_ack_suggestions(db_session)
+        assert result == []
+
+    async def test_null_and_empty_reasons_excluded(
+        self, db_session: AsyncSession, network_with_scan: tuple
+    ):
+        """Null and empty ack_reason values should be excluded."""
+        network, scan = network_with_scan
+        for reason in [None, ""]:
+            alert = Alert(
+                scan_id=scan.id,
+                network_id=network.id,
+                alert_type=AlertType.NEW_PORT,
+                ip="10.0.0.1",
+                port=80,
+                message="Test",
+                acknowledged=True,
+                ack_reason=reason,
+            )
+            db_session.add(alert)
+        await db_session.commit()
+
+        result = await get_ack_suggestions(db_session)
+        assert result == []
+
+    async def test_frequency_ranking(
+        self, db_session: AsyncSession, network_with_scan: tuple
+    ):
+        """Reasons used more frequently should rank higher."""
+        network, scan = network_with_scan
+        # "Known web server" used 3 times
+        for i in range(3):
+            await self._create_acked_alert(
+                db_session, network, scan,
+                ip=f"10.0.0.{i+1}", port=80,
+                ack_reason="Known web server",
+            )
+        # "SSH jump host" used 1 time
+        await self._create_acked_alert(
+            db_session, network, scan,
+            ip="10.0.0.10", port=22,
+            ack_reason="SSH jump host",
+        )
+
+        result = await get_ack_suggestions(db_session)
+
+        assert len(result) == 2
+        assert result[0]["reason"] == "Known web server"
+        assert result[0]["frequency"] == 3
+        assert result[1]["reason"] == "SSH jump host"
+        assert result[1]["frequency"] == 1
+
+    async def test_port_affinity_ranking(
+        self, db_session: AsyncSession, network_with_scan: tuple
+    ):
+        """Same-port reasons should rank first when port is specified."""
+        network, scan = network_with_scan
+        # "SSH jump host" used once on port 22
+        await self._create_acked_alert(
+            db_session, network, scan,
+            ip="10.0.0.1", port=22,
+            ack_reason="SSH jump host",
+        )
+        # "Known web server" used 5 times on port 80
+        for i in range(5):
+            await self._create_acked_alert(
+                db_session, network, scan,
+                ip=f"10.0.0.{i+10}", port=80,
+                ack_reason="Known web server",
+            )
+
+        # Without port filter: frequency wins
+        result_no_port = await get_ack_suggestions(db_session)
+        assert result_no_port[0]["reason"] == "Known web server"
+
+        # With port=22 filter: port affinity wins
+        result_port_22 = await get_ack_suggestions(db_session, port=22)
+        assert result_port_22[0]["reason"] == "SSH jump host"
+        assert result_port_22[0]["same_port"] is True
+
+    async def test_search_filter(
+        self, db_session: AsyncSession, network_with_scan: tuple
+    ):
+        """Search parameter should filter by substring."""
+        network, scan = network_with_scan
+        await self._create_acked_alert(
+            db_session, network, scan,
+            ack_reason="Known web server",
+        )
+        await self._create_acked_alert(
+            db_session, network, scan,
+            ip="10.0.0.2", port=22,
+            ack_reason="SSH jump host",
+        )
+
+        result = await get_ack_suggestions(db_session, search="web")
+
+        assert len(result) == 1
+        assert result[0]["reason"] == "Known web server"
+
+    async def test_limit_respected(
+        self, db_session: AsyncSession, network_with_scan: tuple
+    ):
+        """Limit parameter should cap the number of results."""
+        network, scan = network_with_scan
+        for i in range(5):
+            await self._create_acked_alert(
+                db_session, network, scan,
+                ip=f"10.0.0.{i+1}", port=80 + i,
+                ack_reason=f"Reason {i}",
+            )
+
+        result = await get_ack_suggestions(db_session, limit=2)
+
+        assert len(result) == 2
+
+
+class TestAckSuggestionsRouter:
+    """Tests for ACK suggestions endpoint."""
+
+    async def _create_acked_alert(
+        self,
+        db_session: AsyncSession,
+        network: Network,
+        scan: Scan,
+        ip: str = "10.0.0.1",
+        port: int = 80,
+        ack_reason: str = "Known web server",
+    ) -> Alert:
+        """Helper to create an acknowledged alert with a reason."""
+        alert = Alert(
+            scan_id=scan.id,
+            network_id=network.id,
+            alert_type=AlertType.NEW_PORT,
+            ip=ip,
+            port=port,
+            message=f"Test alert: {ip}:{port}",
+            acknowledged=True,
+            ack_reason=ack_reason,
+        )
+        db_session.add(alert)
+        await db_session.commit()
+        await db_session.refresh(alert)
+        return alert
+
+    async def test_requires_auth(self, client: AsyncClient):
+        """Endpoint should return 401 without authentication."""
+        response = await client.get("/api/alerts/ack-suggestions")
+        assert response.status_code == 401
+
+    async def test_returns_suggestions(
+        self,
+        client: AsyncClient,
+        viewer_user: User,
+        network_with_scan: tuple,
+        db_session: AsyncSession,
+        viewer_headers: dict,
+    ):
+        """Endpoint should return suggestions for authenticated users."""
+        network, scan = network_with_scan
+        await self._create_acked_alert(db_session, network, scan)
+
+        response = await client.get(
+            "/api/alerts/ack-suggestions", headers=viewer_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "suggestions" in data
+        assert len(data["suggestions"]) == 1
+        assert data["suggestions"][0]["reason"] == "Known web server"
+        assert data["suggestions"][0]["frequency"] == 1
+
+    async def test_port_filter(
+        self,
+        client: AsyncClient,
+        viewer_user: User,
+        network_with_scan: tuple,
+        db_session: AsyncSession,
+        viewer_headers: dict,
+    ):
+        """Endpoint should accept port filter and mark same_port."""
+        network, scan = network_with_scan
+        await self._create_acked_alert(
+            db_session, network, scan, port=443, ack_reason="HTTPS expected"
+        )
+
+        response = await client.get(
+            "/api/alerts/ack-suggestions?port=443", headers=viewer_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["suggestions"][0]["same_port"] is True
+
+    async def test_search_filter(
+        self,
+        client: AsyncClient,
+        viewer_user: User,
+        network_with_scan: tuple,
+        db_session: AsyncSession,
+        viewer_headers: dict,
+    ):
+        """Endpoint should accept search filter."""
+        network, scan = network_with_scan
+        await self._create_acked_alert(
+            db_session, network, scan, ack_reason="Known web server"
+        )
+        await self._create_acked_alert(
+            db_session, network, scan,
+            ip="10.0.0.2", port=22, ack_reason="SSH jump host"
+        )
+
+        response = await client.get(
+            "/api/alerts/ack-suggestions?search=SSH", headers=viewer_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["suggestions"]) == 1
+        assert data["suggestions"][0]["reason"] == "SSH jump host"
+
+    async def test_empty_when_no_acked_alerts(
+        self,
+        client: AsyncClient,
+        viewer_user: User,
+        viewer_headers: dict,
+    ):
+        """Endpoint should return empty suggestions when no ACKed alerts exist."""
+        response = await client.get(
+            "/api/alerts/ack-suggestions", headers=viewer_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["suggestions"] == []

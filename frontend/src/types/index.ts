@@ -590,3 +590,15 @@ export type HostOverviewResponse = {
   ssh: HostSSHSummary | null
   recent_scans: HostScanEntry[]
 }
+
+// ACK Suggestion types
+export type AckSuggestion = {
+  reason: string
+  frequency: number
+  last_used: string | null
+  same_port: boolean
+}
+
+export type AckSuggestionsResponse = {
+  suggestions: AckSuggestion[]
+}

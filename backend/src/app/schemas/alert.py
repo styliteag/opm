@@ -114,3 +114,19 @@ class AlertStatusRequest(BaseModel):
     """Request schema for updating alert resolution status."""
 
     resolution_status: ResolutionStatus
+
+
+class AckSuggestion(BaseModel):
+    """A previously used ACK reason with usage metadata."""
+
+    reason: str
+    frequency: int
+    last_used: str | None
+    same_port: bool
+    model_config = {"from_attributes": True}
+
+
+class AckSuggestionsResponse(BaseModel):
+    """Response schema for ACK reason suggestions."""
+
+    suggestions: list[AckSuggestion]

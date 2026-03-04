@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AckSuggestions from '../../../components/AckSuggestions'
 import type { HostAlertSummary } from '../../../types'
 
 const parseUtcDate = (dateStr: string) => new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
@@ -179,17 +180,15 @@ export default function AlertsSection({
               {ackingAlertId === alert.id && (
                 <div className="mt-1 ml-4 space-y-1">
                   <div className="flex items-center gap-2">
-                    <input
-                      type="text"
+                    <AckSuggestions
+                      port={alert.port}
                       value={ackReason}
-                      onChange={(e) => setAckReason(e.target.value)}
+                      onChange={setAckReason}
+                      onEnter={() => handleAckSubmit(alert)}
+                      onEscape={handleAckCancel}
                       placeholder="Reason (optional)"
-                      className="flex-1 px-2 py-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAckSubmit(alert)
-                        if (e.key === 'Escape') handleAckCancel()
-                      }}
                       autoFocus
+                      className="flex-1 px-2 py-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
                     />
                     <button
                       onClick={() => handleAckSubmit(alert)}
@@ -279,17 +278,15 @@ export default function AlertsSection({
                 </div>
                 {editingAlertId === alert.id ? (
                   <div className="flex items-center gap-2 mt-2 ml-1">
-                    <input
-                      type="text"
+                    <AckSuggestions
+                      port={alert.port}
                       value={editReason}
-                      onChange={(e) => setEditReason(e.target.value)}
+                      onChange={setEditReason}
+                      onEnter={() => handleEditSubmit(alert.id)}
+                      onEscape={handleEditCancel}
                       placeholder="Reason (optional)"
-                      className="flex-1 px-2 py-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleEditSubmit(alert.id)
-                        if (e.key === 'Escape') handleEditCancel()
-                      }}
                       autoFocus
+                      className="flex-1 px-2 py-1 text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <button
                       onClick={() => handleEditSubmit(alert.id)}
