@@ -349,6 +349,19 @@ export function useAlerts(filters: AlertFiltersState) {
     },
   })
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (alertIds: number[]) => {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/bulk-delete`, {
+        method: 'DELETE',
+        headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert_ids: alertIds }),
+      })
+      if (!response.ok) throw new Error(await extractErrorMessage(response))
+      return response.json()
+    },
+    onSuccess: invalidateAll,
+  })
+
   const createRuleMutation = useMutation({
     mutationFn: async (payload: {
       network_id?: number | null
@@ -383,6 +396,7 @@ export function useAlerts(filters: AlertFiltersState) {
     bulkAcknowledgeMutation,
     singleAcknowledgeMutation,
     unacknowledgeMutation,
+    bulkDeleteMutation,
     assignAlertMutation,
     updateCommentMutation,
     rescanHostMutation,
