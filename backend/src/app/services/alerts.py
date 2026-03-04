@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Iterable
 
-from sqlalchemy import Integer, and_, func, select, update
+from sqlalchemy import Integer, String, and_, case, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert, AlertType
@@ -265,6 +265,63 @@ async def get_port_alert_status_for_ips(
         if key in ip_port_pairs and key not in lookup:
             lookup[key] = (alert.id, alert.acknowledged, alert.ack_reason)
     return lookup
+
+
+async def get_ack_suggestions(
+    db: AsyncSession,
+    *,
+    port: int | None = None,
+    search: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, object]]:
+    """Get previously used ACK reasons ranked by port affinity and frequency.
+
+    Returns a list of dicts with keys: reason, frequency, last_used, same_port.
+    """
+    filters = [
+        Alert.acknowledged.is_(True),
+        Alert.ack_reason.isnot(None),
+        Alert.ack_reason != "",
+    ]
+
+    if search:
+        filters.append(Alert.ack_reason.ilike(f"%{search}%"))
+
+    same_port_expr = (
+        func.sum(case((Alert.port == port, 1), else_=0))
+        if port is not None
+        else literal(0)
+    )
+
+    query = (
+        select(
+            Alert.ack_reason,
+            func.count(Alert.id).label("frequency"),
+            func.max(Alert.created_at).label("last_used"),
+            same_port_expr.label("same_port_count"),
+        )
+        .where(and_(*filters))
+        .group_by(Alert.ack_reason)
+        .order_by(
+            same_port_expr.desc(),
+            func.count(Alert.id).desc(),
+            func.max(Alert.created_at).desc(),
+        )
+        .limit(limit)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    return [
+        {
+            "reason": row[0],
+            "frequency": row[1],
+            "last_used": row[2].isoformat() if row[2] else None,
+            "same_port": bool(row[3] and row[3] > 0),
+        }
+        for row in rows
+    ]
 
 
 def _parse_port_range(value: str) -> tuple[int, int] | None:

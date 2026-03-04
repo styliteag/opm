@@ -18,6 +18,7 @@ from app.models.global_port_rule import GlobalRuleType
 from app.models.port_rule import RuleType
 from app.models.user import UserRole
 from app.schemas.alert import (
+    AckSuggestionsResponse,
     AcknowledgeRequest,
     AlertAssignRequest,
     AlertBulkAcknowledgeResponse,
@@ -393,6 +394,21 @@ async def export_alerts_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.get("/ack-suggestions", response_model=AckSuggestionsResponse)
+async def get_ack_suggestions(
+    user: CurrentUser,
+    db: DbSession,
+    port: int | None = Query(None, ge=1, le=65535),
+    search: str | None = Query(None, max_length=200),
+    limit: int = Query(20, ge=1, le=50),
+) -> AckSuggestionsResponse:
+    """Get previously used ACK reasons as suggestions, ranked by port affinity."""
+    suggestions = await alerts_service.get_ack_suggestions(
+        db, port=port, search=search, limit=limit
+    )
+    return AckSuggestionsResponse(suggestions=suggestions)
 
 
 @router.put("/{alert_id}/acknowledge", response_model=AlertResponse)
