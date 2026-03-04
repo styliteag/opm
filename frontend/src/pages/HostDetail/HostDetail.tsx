@@ -1,9 +1,10 @@
 import { Link, useParams } from 'react-router-dom'
 import { useHostDetail } from './hooks/useHostDetail'
 import HostInfoCard from './components/HostInfoCard'
-import OpenPortsSection from './components/OpenPortsSection'
+import EnrichedPortTable from './components/EnrichedPortTable'
 import AlertsSection from './components/AlertsSection'
 import SSHSecuritySection from './components/SSHSecuritySection'
+import AppliedRulesSection from './components/AppliedRulesSection'
 import ScanHistorySection from './components/ScanHistorySection'
 
 const HostDetail = () => {
@@ -18,6 +19,8 @@ const HostDetail = () => {
     updateCommentMutation,
     updateHostnameMutation,
     rescanMutation,
+    createRuleMutation,
+    deleteRuleMutation,
     isAdmin,
   } = useHostDetail(isValidId ? parsedHostId : 0)
 
@@ -88,24 +91,41 @@ const HostDetail = () => {
         isRescanPending={rescanMutation.isPending}
       />
 
+      {/* Enriched Port Table */}
+      <EnrichedPortTable
+        ports={data.ports}
+        isAdmin={isAdmin}
+        networks={data.networks}
+        onAcknowledge={(alertId) => acknowledgeMutation.mutate({ alertId })}
+        onCreateRule={(payload) => createRuleMutation.mutate(payload)}
+        isCreatingRule={createRuleMutation.isPending}
+      />
+
       {/* Alerts */}
       <AlertsSection
         alerts={data.alerts}
         acknowledgedAlerts={data.acknowledged_alerts}
         acknowledgedCount={data.acknowledged_alert_count}
+        hostIp={data.host.ip}
+        isAdmin={isAdmin}
         onAcknowledge={(alertId, reason, includeSSH) =>
           acknowledgeMutation.mutate({ alertId, reason, include_ssh_findings: includeSSH })
         }
         onUnacknowledge={(alertId) => unacknowledgeMutation.mutate(alertId)}
+        onCreateRule={(payload) => createRuleMutation.mutate(payload)}
         isAcknowledging={acknowledgeMutation.isPending}
         isUnacknowledging={unacknowledgeMutation.isPending}
       />
 
-      {/* Open Ports */}
-      <OpenPortsSection ports={data.ports} />
-
       {/* SSH Security */}
       {data.ssh && <SSHSecuritySection ssh={data.ssh} />}
+
+      {/* Applied Port Rules */}
+      <AppliedRulesSection
+        rules={data.matching_rules}
+        isAdmin={isAdmin}
+        onDeleteRule={(scope, ruleId) => deleteRuleMutation.mutate({ scope, ruleId })}
+      />
 
       {/* Scan History */}
       <ScanHistorySection scans={data.recent_scans} />

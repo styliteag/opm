@@ -14,6 +14,10 @@ export function useHostDetail(hostId: number) {
     enabled: Boolean(token && hostId > 0),
   })
 
+  const invalidateOverview = () => {
+    queryClient.invalidateQueries({ queryKey: ['hosts', hostId, 'overview'] })
+  }
+
   const acknowledgeMutation = useMutation({
     mutationFn: async ({
       alertId,
@@ -40,9 +44,7 @@ export function useHostDetail(hostId: number) {
         throw new Error(message)
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hosts', hostId, 'overview'] })
-    },
+    onSuccess: invalidateOverview,
   })
 
   const unacknowledgeMutation = useMutation({
@@ -56,9 +58,7 @@ export function useHostDetail(hostId: number) {
         throw new Error(message)
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hosts', hostId, 'overview'] })
-    },
+    onSuccess: invalidateOverview,
   })
 
   const updateCommentMutation = useMutation({
@@ -76,9 +76,7 @@ export function useHostDetail(hostId: number) {
         throw new Error(message)
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hosts', hostId, 'overview'] })
-    },
+    onSuccess: invalidateOverview,
   })
 
   const updateHostnameMutation = useMutation({
@@ -96,9 +94,7 @@ export function useHostDetail(hostId: number) {
         throw new Error(message)
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hosts', hostId, 'overview'] })
-    },
+    onSuccess: invalidateOverview,
   })
 
   const rescanMutation = useMutation({
@@ -113,8 +109,53 @@ export function useHostDetail(hostId: number) {
       }
       return response.json()
     },
+    onSuccess: invalidateOverview,
+  })
+
+  const createRuleMutation = useMutation({
+    mutationFn: async (payload: {
+      network_id?: number | null
+      ip?: string | null
+      port: string
+      rule_type: 'accepted' | 'critical'
+      description?: string | null
+    }) => {
+      const response = await fetch(`${API_BASE_URL}/api/port-rules`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(token ?? ''),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        const message = await extractErrorMessage(response)
+        throw new Error(message)
+      }
+      return response.json()
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hosts', hostId, 'overview'] })
+      invalidateOverview()
+      queryClient.invalidateQueries({ queryKey: ['port-rules'] })
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+    },
+  })
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: async ({ scope, ruleId }: { scope: string; ruleId: number }) => {
+      const response = await fetch(`${API_BASE_URL}/api/port-rules/${scope}/${ruleId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(token ?? ''),
+      })
+      if (!response.ok) {
+        const message = await extractErrorMessage(response)
+        throw new Error(message)
+      }
+    },
+    onSuccess: () => {
+      invalidateOverview()
+      queryClient.invalidateQueries({ queryKey: ['port-rules'] })
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
     },
   })
 
@@ -125,6 +166,8 @@ export function useHostDetail(hostId: number) {
     updateCommentMutation,
     updateHostnameMutation,
     rescanMutation,
+    createRuleMutation,
+    deleteRuleMutation,
     isAdmin,
     token,
   }

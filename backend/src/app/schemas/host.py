@@ -54,6 +54,40 @@ class HostOpenPortResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PortRuleMatch(BaseModel):
+    """A port rule that matches a specific port on a host."""
+
+    id: int
+    scope: str  # 'global' | 'network'
+    network_id: int | None = None
+    network_name: str | None = None
+    rule_type: str  # 'accepted' | 'critical'
+    description: str | None = None
+
+
+class EnrichedHostPort(BaseModel):
+    """Open port with alert, rule, and SSH context for the host overview."""
+
+    ip: str
+    port: int
+    protocol: str
+    banner: str | None = None
+    service_guess: str | None = None
+    user_comment: str | None = None
+    first_seen_at: datetime
+    last_seen_at: datetime
+    # Alert enrichment
+    alert_id: int | None = None
+    alert_status: str | None = None  # 'new' | 'acknowledged'
+    alert_severity: str | None = None
+    ack_reason: str | None = None
+    # Rule enrichment
+    rule_status: str | None = None  # 'accepted' | 'critical'
+    matching_rules: list[PortRuleMatch] = []
+    # SSH enrichment
+    ssh_summary: "HostSSHSummary | None" = None
+
+
 class HostOpenPortListResponse(BaseModel):
     """Response schema for list of open ports for a host."""
 
@@ -122,6 +156,8 @@ class HostAlertSummary(BaseModel):
     resolution_status: str
     created_at: datetime
     ack_reason: str | None = None
+    network_id: int | None = None
+    network_name: str | None = None
     # SSH context (for alerts on SSH ports)
     ssh_summary: "HostSSHSummary | None" = None
     related_ssh_alert_count: int = 0
@@ -158,10 +194,11 @@ class HostOverviewResponse(BaseModel):
     """Aggregated host overview dashboard data."""
 
     host: HostResponse
-    ports: list[HostOpenPortResponse]
+    ports: list[EnrichedHostPort]
     networks: list[HostNetworkInfo]
     alerts: list[HostAlertSummary]
     acknowledged_alerts: list[HostAlertSummary]
     acknowledged_alert_count: int
     ssh: HostSSHSummary | None
     recent_scans: list[HostScanEntry]
+    matching_rules: list[PortRuleMatch] = []

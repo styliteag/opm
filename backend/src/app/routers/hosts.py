@@ -17,6 +17,7 @@ from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.schemas.host import (
     BulkDeleteHostsRequest,
     BulkDeleteHostsResponse,
+    EnrichedHostPort,
     HostAlertSummary,
     HostListResponse,
     HostNetworkInfo,
@@ -27,6 +28,7 @@ from app.schemas.host import (
     HostScanEntry,
     HostSSHSummary,
     HostUpdateRequest,
+    PortRuleMatch,
 )
 from app.schemas.scan import ScanTriggerResponse
 from app.services import hosts as hosts_service
@@ -179,10 +181,12 @@ async def get_host_overview(
     """Get aggregated overview dashboard data for a specific host."""
     from app.models.alert import AlertType
     from app.services import alerts as alerts_service
+    from app.services import global_port_rules as global_rules_service
     from app.services import networks as networks_service
+    from app.services import port_rules as port_rules_service
     from app.services import scans as scans_service
     from app.services import ssh_results as ssh_service
-    from app.services.global_port_rules import is_port_blocked
+    from app.services.global_port_rules import _parse_port_range, is_port_blocked
 
     host = await hosts_service.get_host_by_id(db, host_id)
     if host is None:
@@ -198,14 +202,15 @@ async def get_host_overview(
 
     # Open ports
     ports = await hosts_service.get_host_open_ports(db, host_id)
-    port_responses = [HostOpenPortResponse.model_validate(p) for p in ports]
 
     # Networks
     network_infos = []
+    network_map: dict[int, str] = {}
     for nid in (host.seen_by_networks or []):
         net = await networks_service.get_network_by_id(db, nid)
         if net:
             network_infos.append(HostNetworkInfo(id=net.id, name=net.name, cidr=net.cidr))
+            network_map[net.id] = net.name
 
     # Batch-fetch SSH data and SSH alert counts for this host
     host_ips = {host.ip}
@@ -213,7 +218,7 @@ async def get_host_overview(
     ssh_alert_cache = await alerts_service.get_ssh_alert_summary_for_ips(db, host_ips)
 
     def _build_alert_summary(
-        alert: "Alert", severity: str,
+        alert: "Alert", severity: str, alert_network_name: str | None = None,
     ) -> HostAlertSummary:
         ssh_data = ssh_data_cache.get((alert.ip, alert.port))
         host_ssh = None
@@ -230,6 +235,8 @@ async def get_host_overview(
             resolution_status=alert.resolution_status.value,
             created_at=alert.created_at,
             ack_reason=alert.ack_reason,
+            network_id=alert.network_id,
+            network_name=alert_network_name or network_map.get(alert.network_id, None) if alert.network_id else None,
             ssh_summary=host_ssh,
             related_ssh_alert_count=ssh_info[0] if ssh_info else 0,
             related_ssh_alerts_acknowledged=ssh_info[1] if ssh_info else True,
@@ -240,7 +247,7 @@ async def get_host_overview(
         db, ip=host.ip, acknowledged=False, limit=100,
     )
     alert_summaries = []
-    for alert, _network_name in active_alerts_raw:
+    for alert, alert_net_name in active_alerts_raw:
         severity = "medium"
         if alert.acknowledged:
             severity = "info"
@@ -254,7 +261,7 @@ async def get_host_overview(
             AlertType.SSH_CONFIG_REGRESSION,
         ):
             severity = "high"
-        alert_summaries.append(_build_alert_summary(alert, severity))
+        alert_summaries.append(_build_alert_summary(alert, severity, alert_net_name))
 
     # Acknowledged alerts
     acked_all = await alerts_service.get_alerts(
@@ -262,8 +269,8 @@ async def get_host_overview(
     )
     acknowledged_count = len(acked_all)
     acked_summaries = []
-    for acked_alert, _net_name in acked_all:
-        acked_summaries.append(_build_alert_summary(acked_alert, "info"))
+    for acked_alert, acked_net_name in acked_all:
+        acked_summaries.append(_build_alert_summary(acked_alert, "info", acked_net_name))
 
     # SSH summary — reuse the batch cache we already fetched
     ssh_summary = None
@@ -294,15 +301,122 @@ async def get_host_overview(
     scan_entries.sort(key=lambda s: s.started_at or datetime.min, reverse=True)
     scan_entries = scan_entries[:10]
 
+    # --- Build per-port enrichments ---
+    # Fetch port rules (global + network-scoped)
+    global_rules = await global_rules_service.get_all_global_rules(db)
+    network_rules: list[tuple["PortRule", int, str]] = []  # (rule, network_id, network_name)
+    for nid in (host.seen_by_networks or []):
+        net_name = network_map.get(nid, "")
+        for rule in await port_rules_service.get_rules_by_network_id(db, nid):
+            network_rules.append((rule, nid, net_name))
+
+    # Index alerts by (ip, port) for quick lookup
+    all_alert_list = list(active_alerts_raw) + list(acked_all)
+    alert_by_port: dict[int, tuple["Alert", str]] = {}
+    for alert, _net in all_alert_list:
+        if alert.port not in alert_by_port:
+            # Prefer unacknowledged alert
+            alert_by_port[alert.port] = (alert, "acknowledged" if alert.acknowledged else "new")
+        elif not alert.acknowledged:
+            alert_by_port[alert.port] = (alert, "new")
+
+    def _find_matching_rules(port_ip: str, port_num: int) -> list[PortRuleMatch]:
+        matches: list[PortRuleMatch] = []
+        for gr in global_rules:
+            parsed = _parse_port_range(gr.port)
+            if parsed is None:
+                continue
+            start, end = parsed
+            if not (start <= port_num <= end):
+                continue
+            if gr.ip is not None and gr.ip != port_ip:
+                continue
+            matches.append(PortRuleMatch(
+                id=gr.id, scope="global", network_id=None, network_name=None,
+                rule_type=gr.rule_type.value, description=gr.description,
+            ))
+        for nr, nid, nname in network_rules:
+            parsed = _parse_port_range(nr.port)
+            if parsed is None:
+                continue
+            start, end = parsed
+            if not (start <= port_num <= end):
+                continue
+            if nr.ip is not None and nr.ip != port_ip:
+                continue
+            matches.append(PortRuleMatch(
+                id=nr.id, scope="network", network_id=nid, network_name=nname,
+                rule_type=nr.rule_type.value, description=nr.description,
+            ))
+        return matches
+
+    enriched_ports: list[EnrichedHostPort] = []
+    all_matching_rules: list[PortRuleMatch] = []
+    for p in ports:
+        rules = _find_matching_rules(p.ip, p.port)
+        all_matching_rules.extend(rules)
+        # Determine dominant rule status
+        rule_status: str | None = None
+        for r in rules:
+            if r.rule_type == "critical":
+                rule_status = "critical"
+                break
+            if r.rule_type == "accepted":
+                rule_status = "accepted"
+        # Alert status
+        alert_info = alert_by_port.get(p.port)
+        alert_id: int | None = None
+        alert_status: str | None = None
+        alert_severity: str | None = None
+        ack_reason: str | None = None
+        if alert_info:
+            a, a_status = alert_info
+            alert_id = a.id
+            alert_status = a_status
+            ack_reason = a.ack_reason
+            # Compute severity
+            if a.acknowledged:
+                alert_severity = "info"
+            elif rule_status == "critical":
+                alert_severity = "critical"
+            elif a.alert_type == AlertType.NEW_PORT:
+                alert_severity = "high"
+            else:
+                alert_severity = "medium"
+        # SSH
+        ssh_data = ssh_data_cache.get((host.ip, p.port))
+        port_ssh = HostSSHSummary(**ssh_data) if ssh_data else None
+
+        enriched_ports.append(EnrichedHostPort(
+            ip=p.ip, port=p.port, protocol=p.protocol,
+            banner=p.banner, service_guess=p.service_guess,
+            user_comment=getattr(p, "user_comment", None),
+            first_seen_at=p.first_seen_at, last_seen_at=p.last_seen_at,
+            alert_id=alert_id, alert_status=alert_status,
+            alert_severity=alert_severity, ack_reason=ack_reason,
+            rule_status=rule_status, matching_rules=rules,
+            ssh_summary=port_ssh,
+        ))
+
+    # Deduplicate all_matching_rules by (scope, id)
+    seen_rules: set[tuple[str, int]] = set()
+    deduped_rules: list[PortRuleMatch] = []
+    for r in all_matching_rules:
+        key = (r.scope, r.id)
+        if key not in seen_rules:
+            seen_rules.add(key)
+            deduped_rules.append(r)
+
     return HostOverviewResponse(
         host=host_response,
-        ports=port_responses,
+        ports=enriched_ports,
         networks=network_infos,
         alerts=alert_summaries,
         acknowledged_alerts=acked_summaries,
         acknowledged_alert_count=acknowledged_count,
         ssh=ssh_summary,
         recent_scans=scan_entries,
+        matching_rules=deduped_rules,
     )
 
 

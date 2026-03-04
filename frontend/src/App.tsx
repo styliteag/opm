@@ -8,12 +8,9 @@ function App() {
     { label: 'Dashboard', to: '/', end: true },
     { label: 'Scanners', to: '/scanners' },
     { label: 'Networks', to: '/networks' },
-    { label: 'Scans', to: '/scans' },
-    { label: 'Hosts', to: '/hosts' },
-    { label: 'Risk Overview', to: '/risk-overview' },
+    { label: 'Hosts & Ports', to: '/hosts' },
+    { label: 'Alerts', to: '/alerts' },
     { label: 'Trends', to: '/trends' },
-    { label: 'SSH Security', to: '/ssh-security' },
-    { label: 'Port Rules', to: '/port-rules' },
     ...(user?.role === 'admin' ? [{ label: 'Users', to: '/users' }] : []),
   ]
 

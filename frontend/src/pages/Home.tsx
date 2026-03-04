@@ -42,8 +42,6 @@ const formatRelativeTime = (value: Date, now: Date) => {
   return `${days}d ago`
 }
 
-
-
 const Home = () => {
   const { token } = useAuth()
   const now = new Date()
@@ -162,24 +160,19 @@ const Home = () => {
       to: '/networks',
     },
     {
-      title: 'Scans',
-      description: 'Track scan history and diffs.',
-      to: '/scans',
+      title: 'Hosts & Ports',
+      description: 'Inspect hosts and open services.',
+      to: '/hosts',
     },
     {
       title: 'Alerts',
       description: 'Investigate and acknowledge issues.',
-      to: '/risk-overview',
+      to: '/alerts',
     },
     {
-      title: 'Open Ports',
-      description: 'Inspect current exposed services.',
-      to: '/ports',
-    },
-    {
-      title: 'Port Rules',
-      description: 'Define expected and forbidden ports.',
-      to: '/port-rules',
+      title: 'Trends',
+      description: 'Track port and alert trends over time.',
+      to: '/trends',
     },
   ]
 
@@ -274,10 +267,7 @@ const Home = () => {
           <section className="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm dark:border-slate-800/70 dark:bg-slate-950/70">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-xl text-slate-900 dark:text-white">Recent alerts</h3>
-              <Link
-                to="/risk-overview"
-                className="text-xs font-semibold text-cyan-600 dark:text-cyan-300"
-              >
+              <Link to="/alerts" className="text-xs font-semibold text-cyan-600 dark:text-cyan-300">
                 View all
               </Link>
             </div>

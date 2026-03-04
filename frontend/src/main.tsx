@@ -12,15 +12,11 @@ import Networks from './pages/Networks.tsx'
 import NetworkDetail from './pages/NetworkDetail'
 import Scans from './pages/Scans.tsx'
 import ScanDetail from './pages/ScanDetail.tsx'
-import Alerts from './pages/Alerts.tsx'
+import AlertsPage from './pages/Alerts'
 import Scanners from './pages/Scanners.tsx'
 import Users from './pages/Users.tsx'
-import OpenPorts from './pages/OpenPorts.tsx'
-import PortRules from './pages/PortRules.tsx'
-import RiskOverview from './pages/RiskOverview.tsx'
 import Hosts from './pages/Hosts.tsx'
 import Trends from './pages/Trends.tsx'
-import SSHSecurity from './pages/SSHSecurity.tsx'
 import HostDetail from './pages/HostDetail'
 import './index.css'
 
@@ -59,10 +55,6 @@ const router = createBrowserRouter([
         element: <ScanDetail />,
       },
       {
-        path: 'risk-overview',
-        element: <RiskOverview />,
-      },
-      {
         path: 'hosts',
         element: <Hosts />,
       },
@@ -72,19 +64,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'alerts',
-        element: <Alerts />,
-      },
-      {
-        path: 'ports',
-        element: <OpenPorts />,
-      },
-      {
-        path: 'port-rules',
-        element: <PortRules />,
-      },
-      {
-        path: 'policy',
-        element: <Navigate to="/port-rules" replace />,
+        element: <AlertsPage />,
       },
       {
         path: 'scanners',
@@ -98,9 +78,26 @@ const router = createBrowserRouter([
         path: 'trends',
         element: <Trends />,
       },
+      // Redirects from old routes
+      {
+        path: 'risk-overview',
+        element: <Navigate to="/alerts" replace />,
+      },
       {
         path: 'ssh-security',
-        element: <SSHSecurity />,
+        element: <Navigate to="/alerts" replace />,
+      },
+      {
+        path: 'ports',
+        element: <Navigate to="/hosts" replace />,
+      },
+      {
+        path: 'port-rules',
+        element: <Navigate to="/alerts" replace />,
+      },
+      {
+        path: 'policy',
+        element: <Navigate to="/alerts" replace />,
       },
     ],
   },
