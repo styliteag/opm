@@ -1,5 +1,7 @@
 """Service functions for alert comment CRUD operations."""
 
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,9 +77,11 @@ async def delete_comment(db: AsyncSession, comment: AlertComment) -> None:
 
 async def get_latest_comments_for_alerts(
     db: AsyncSession, alert_ids: list[int]
-) -> dict[int, tuple[str, str, "datetime"]]:
-    """Get the latest comment for each alert ID. Returns {alert_id: (comment, user_email, created_at)}."""
-    from datetime import datetime as datetime_type
+) -> dict[int, tuple[str, str, datetime]]:
+    """Get the latest comment for each alert ID.
+
+    Returns {alert_id: (comment, user_email, created_at)}.
+    """
     from sqlalchemy import func
 
     if not alert_ids:

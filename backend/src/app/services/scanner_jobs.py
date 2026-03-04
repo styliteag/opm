@@ -26,7 +26,7 @@ async def get_pending_jobs_for_scanner(
     Returns one job per planned scan (to support single-host scans).
     """
     from sqlalchemy.orm import selectinload
-    
+
     # Get planned scans for networks on this scanner
     result = await db.execute(
         select(Scan)
@@ -45,8 +45,16 @@ async def get_pending_jobs_for_scanner(
             port_spec=scan.network.port_spec,
             rate=scan.network.scan_rate,
             scanner_type=scan.network.scanner_type or "masscan",
-            scan_timeout=scan.network.scan_timeout if scan.network.scan_timeout is not None else 3600,
-            port_timeout=scan.network.port_timeout if scan.network.port_timeout is not None else 1500,
+            scan_timeout=(
+                scan.network.scan_timeout
+                if scan.network.scan_timeout is not None
+                else 3600
+            ),
+            port_timeout=(
+                scan.network.port_timeout
+                if scan.network.port_timeout is not None
+                else 1500
+            ),
             scan_protocol=scan.network.scan_protocol or "tcp",
             is_ipv6=scan.network.is_ipv6,
             target_ip=scan.target_ip,  # None for full network scan

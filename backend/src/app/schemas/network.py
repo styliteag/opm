@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, field_validator
 
+from app.core.scanner_types import get_valid_scanner_types
+
 
 def validate_cidr(value: str) -> str:
     """Validate CIDR format (e.g., 192.168.1.0/24)."""
@@ -94,8 +96,6 @@ def validate_cron_schedule(value: str | None) -> str | None:
 
     return value
 
-
-from app.core.scanner_types import get_valid_scanner_types
 
 VALID_SCAN_PROTOCOLS = ("tcp", "udp", "both")
 

@@ -179,7 +179,8 @@ async def get_host_overview(
     host_id: int,
 ) -> HostOverviewResponse:
     """Get aggregated overview dashboard data for a specific host."""
-    from app.models.alert import AlertType
+    from app.models.alert import Alert, AlertType
+    from app.models.port_rule import PortRule
     from app.services import alerts as alerts_service
     from app.services import global_port_rules as global_rules_service
     from app.services import networks as networks_service
@@ -218,7 +219,7 @@ async def get_host_overview(
     ssh_alert_cache = await alerts_service.get_ssh_alert_summary_for_ips(db, host_ips)
 
     def _build_alert_summary(
-        alert: "Alert", severity: str, alert_network_name: str | None = None,
+        alert: Alert, severity: str, alert_network_name: str | None = None,
     ) -> HostAlertSummary:
         ssh_data = ssh_data_cache.get((alert.ip, alert.port))
         host_ssh = None
@@ -236,7 +237,10 @@ async def get_host_overview(
             created_at=alert.created_at,
             ack_reason=alert.ack_reason,
             network_id=alert.network_id,
-            network_name=alert_network_name or network_map.get(alert.network_id, None) if alert.network_id else None,
+            network_name=(
+                alert_network_name or network_map.get(alert.network_id, None)
+                if alert.network_id else None
+            ),
             ssh_summary=host_ssh,
             related_ssh_alert_count=ssh_info[0] if ssh_info else 0,
             related_ssh_alerts_acknowledged=ssh_info[1] if ssh_info else True,
@@ -294,7 +298,11 @@ async def get_host_overview(
                 status=scan.status.value if hasattr(scan.status, 'value') else str(scan.status),
                 started_at=scan.started_at,
                 completed_at=scan.completed_at,
-                trigger_type=scan.trigger_type.value if hasattr(scan.trigger_type, 'value') else str(scan.trigger_type),
+                trigger_type=(
+                    scan.trigger_type.value
+                    if hasattr(scan.trigger_type, 'value')
+                    else str(scan.trigger_type)
+                ),
                 port_count=scan_port_count,
             ))
     # Sort by most recent first and limit to 10
@@ -304,7 +312,7 @@ async def get_host_overview(
     # --- Build per-port enrichments ---
     # Fetch port rules (global + network-scoped)
     global_rules = await global_rules_service.get_all_global_rules(db)
-    network_rules: list[tuple["PortRule", int, str]] = []  # (rule, network_id, network_name)
+    network_rules: list[tuple[PortRule, int, str]] = []  # (rule, network_id, network_name)
     for nid in (host.seen_by_networks or []):
         net_name = network_map.get(nid, "")
         for rule in await port_rules_service.get_rules_by_network_id(db, nid):
@@ -312,7 +320,7 @@ async def get_host_overview(
 
     # Index alerts by (ip, port) for quick lookup
     all_alert_list = list(active_alerts_raw) + list(acked_all)
-    alert_by_port: dict[int, tuple["Alert", str]] = {}
+    alert_by_port: dict[int, tuple[Alert, str]] = {}
     for alert, _net in all_alert_list:
         if alert.port not in alert_by_port:
             # Prefer unacknowledged alert
@@ -384,8 +392,8 @@ async def get_host_overview(
             else:
                 alert_severity = "medium"
         # SSH
-        ssh_data = ssh_data_cache.get((host.ip, p.port))
-        port_ssh = HostSSHSummary(**ssh_data) if ssh_data else None
+        port_ssh_data = ssh_data_cache.get((host.ip, p.port))
+        port_ssh = HostSSHSummary(**port_ssh_data) if port_ssh_data else None
 
         enriched_ports.append(EnrichedHostPort(
             ip=p.ip, port=p.port, protocol=p.protocol,
@@ -701,24 +709,25 @@ async def trigger_host_rescan(
     host_ip: str,
 ) -> ScanTriggerResponse:
     """Trigger a single-host rescan for a specific IP address.
-    
+
     This will create a targeted scan for just this IP using the same scanner
     and configuration as the network it belongs to. The scan will use nmap
     for detailed host scanning and service detection.
     """
     from ipaddress import ip_address
+
     from app.services import networks as networks_service
     from app.services import scans as scans_service
-    
+
     # Validate IP address format
     try:
-        parsed_ip = ip_address(host_ip)
+        ip_address(host_ip)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid IP address: {host_ip}",
         ) from exc
-    
+
     # Find the host to get its network
     host = await hosts_service.get_host_by_ip(db, host_ip)
     if host is None:
@@ -726,7 +735,7 @@ async def trigger_host_rescan(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Host {host_ip} not found",
         )
-    
+
     # Get the most specific network for this host (largest prefix = smallest subnet)
     # Similar to Linux routing table - prefer more specific routes
     if not host.seen_by_networks:
@@ -756,11 +765,11 @@ async def trigger_host_rescan(
     # Sort by prefix length descending (most specific first) and pick the first
     candidate_networks.sort(key=lambda x: x[0], reverse=True)
     network = candidate_networks[0][1]
-    
+
     # Create a single-host scan
     scan = await scans_service.create_single_host_scan(db, network, host_ip)
     await db.commit()
-    
+
     return ScanTriggerResponse(
         scan_id=scan.id,
         network_id=network.id,

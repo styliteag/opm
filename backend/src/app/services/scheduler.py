@@ -1,7 +1,7 @@
 """Background scheduler for creating planned scans based on cron schedules."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _scheduler: AsyncIOScheduler | None = None
 
 
-def _get_schedule_timezone() -> timezone | ZoneInfo:
+def _get_schedule_timezone() -> timezone | ZoneInfo | tzinfo:
     """Get the timezone for cron schedules from settings or system default."""
     tz_name = settings.schedule_timezone.strip()
     if not tz_name:

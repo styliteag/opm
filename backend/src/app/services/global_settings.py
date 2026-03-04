@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.global_setting import GlobalSetting
 
-
 # Constants for setting keys
 SSH_ALERT_DEFAULTS_KEY = "ssh_alert_defaults"
 

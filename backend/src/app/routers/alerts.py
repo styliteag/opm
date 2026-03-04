@@ -3,6 +3,7 @@
 import csv
 from datetime import datetime, timezone
 from io import BytesIO, StringIO
+from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -18,8 +19,8 @@ from app.models.global_port_rule import GlobalRuleType
 from app.models.port_rule import RuleType
 from app.models.user import UserRole
 from app.schemas.alert import (
-    AckSuggestionsResponse,
     AcknowledgeRequest,
+    AckSuggestionsResponse,
     AlertAssignRequest,
     AlertBulkAcknowledgeResponse,
     AlertBulkWhitelistRequest,
@@ -33,13 +34,13 @@ from app.schemas.alert import (
     BulkDeleteResponse,
     Severity,
 )
-from app.schemas.host import PortRuleMatch
 from app.schemas.alert_comment import (
     AlertCommentCreate,
     AlertCommentListResponse,
     AlertCommentResponse,
     AlertCommentUpdate,
 )
+from app.schemas.host import PortRuleMatch
 from app.services import alert_comments as alert_comments_service
 from app.services import alerts as alerts_service
 from app.services import global_port_rules as global_rules_service
@@ -153,7 +154,11 @@ async def list_alerts(
         hostname = host_info[1] if host_info else None
         user_comment = host_info[2] if host_info else None
 
-        assigned_to_email = user_email_cache.get(alert.assigned_to_user_id) if alert.assigned_to_user_id else None
+        assigned_to_email = (
+            user_email_cache.get(alert.assigned_to_user_id)
+            if alert.assigned_to_user_id
+            else None
+        )
 
         # Get latest comment from cache
         comment_info = latest_comments.get(alert.id)
@@ -206,7 +211,7 @@ async def list_alerts(
     global_rules = await global_rules_service.get_all_global_rules(db)
     # Collect unique network IDs from alerts for network-scoped rules
     alert_network_ids = set(r.network_id for r in alert_responses if r.network_id is not None)
-    network_rules_by_nid: dict[int, list] = {}
+    network_rules_by_nid: dict[int, list[Any]] = {}
     for nid in alert_network_ids:
         network_rules_by_nid[nid] = await port_rules_service.get_rules_by_network_id(db, nid)
     # Fetch network names
@@ -474,8 +479,14 @@ async def acknowledge_alert(
     When include_ssh_findings=True, also acknowledges related SSH security
     alerts for the same ip:port (creating them on-the-fly if needed).
     """
-    from app.services.alerts import _extract_weak_algorithms, _is_version_outdated, DEFAULT_SSH_VERSION_THRESHOLD
-    from sqlalchemy import select as sa_select, update as sa_update
+    from sqlalchemy import select as sa_select
+    from sqlalchemy import update as sa_update
+
+    from app.services.alerts import (
+        DEFAULT_SSH_VERSION_THRESHOLD,
+        _extract_weak_algorithms,
+        _is_version_outdated,
+    )
 
     alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
     if alert_with_network is None:
@@ -523,7 +534,11 @@ async def acknowledge_alert(
             ssh_alert_ids = [row[0] for row in existing_rows]
 
             # Create missing SSH alerts
-            if (ssh_result.password_enabled or ssh_result.keyboard_interactive_enabled) and AlertType.SSH_INSECURE_AUTH not in existing_types:
+            has_insecure = (
+                ssh_result.password_enabled
+                or ssh_result.keyboard_interactive_enabled
+            )
+            if has_insecure and AlertType.SSH_INSECURE_AUTH not in existing_types:
                 auth_methods = []
                 if ssh_result.password_enabled:
                     auth_methods.append("password")
@@ -532,7 +547,10 @@ async def acknowledge_alert(
                 new_alert = Alert(
                     scan_id=ssh_result.scan_id, network_id=alert.network_id,
                     alert_type=AlertType.SSH_INSECURE_AUTH, ip=alert.ip, port=alert.port,
-                    message=f"SSH server allows insecure authentication methods: {', '.join(auth_methods)} on {alert.ip}:{alert.port}",
+                    message=(
+                        f"SSH server allows insecure authentication methods: "
+                        f"{', '.join(auth_methods)} on {alert.ip}:{alert.port}"
+                    ),
                 )
                 db.add(new_alert)
                 await db.flush()
@@ -543,7 +561,10 @@ async def acknowledge_alert(
                 new_alert = Alert(
                     scan_id=ssh_result.scan_id, network_id=alert.network_id,
                     alert_type=AlertType.SSH_WEAK_CIPHER, ip=alert.ip, port=alert.port,
-                    message=f"SSH server supports weak ciphers: {', '.join(weak_ciphers)} on {alert.ip}:{alert.port}",
+                    message=(
+                        f"SSH server supports weak ciphers: "
+                        f"{', '.join(weak_ciphers)} on {alert.ip}:{alert.port}"
+                    ),
                 )
                 db.add(new_alert)
                 await db.flush()
@@ -554,17 +575,26 @@ async def acknowledge_alert(
                 new_alert = Alert(
                     scan_id=ssh_result.scan_id, network_id=alert.network_id,
                     alert_type=AlertType.SSH_WEAK_KEX, ip=alert.ip, port=alert.port,
-                    message=f"SSH server supports weak key exchange algorithms: {', '.join(weak_kex)} on {alert.ip}:{alert.port}",
+                    message=(
+                        f"SSH server supports weak key exchange algorithms: "
+                        f"{', '.join(weak_kex)} on {alert.ip}:{alert.port}"
+                    ),
                 )
                 db.add(new_alert)
                 await db.flush()
                 ssh_alert_ids.append(new_alert.id)
 
-            if _is_version_outdated(ssh_result.ssh_version, DEFAULT_SSH_VERSION_THRESHOLD) and AlertType.SSH_OUTDATED_VERSION not in existing_types:
+            is_outdated = _is_version_outdated(
+                ssh_result.ssh_version, DEFAULT_SSH_VERSION_THRESHOLD
+            )
+            if is_outdated and AlertType.SSH_OUTDATED_VERSION not in existing_types:
                 new_alert = Alert(
                     scan_id=ssh_result.scan_id, network_id=alert.network_id,
                     alert_type=AlertType.SSH_OUTDATED_VERSION, ip=alert.ip, port=alert.port,
-                    message=f"SSH server running outdated version: {ssh_result.ssh_version or 'unknown'} on {alert.ip}:{alert.port}",
+                    message=(
+                        f"SSH server running outdated version: "
+                        f"{ssh_result.ssh_version or 'unknown'} on {alert.ip}:{alert.port}"
+                    ),
                 )
                 db.add(new_alert)
                 await db.flush()
