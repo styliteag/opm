@@ -14,7 +14,7 @@ import type {
 } from '../../types'
 
 export type Severity = 'critical' | 'high' | 'medium' | 'info'
-export type StatusFilter = 'all' | 'blocked' | 'pending' | 'accepted' | 'dismissed'
+export type StatusFilter = 'all' | 'critical_rule' | 'pending' | 'accepted' | 'dismissed'
 export type SortColumn = 'severity' | 'ip' | 'port' | 'network' | 'time'
 export type SortDirection = 'asc' | 'desc'
 
@@ -191,7 +191,7 @@ export function useAlerts(filters: AlertFiltersState) {
     const filtered = alerts.filter((alert) => {
       if (severityFilter && alert.severity !== severityFilter) return false
       if (networkFilter && alert.network_id !== networkFilter) return false
-      if (statusFilter === 'blocked' && alert.severity !== 'critical') return false
+      if (statusFilter === 'critical_rule' && alert.severity !== 'critical') return false
       if (statusFilter === 'pending' && alert.dismissed) return false
       if (statusFilter === 'accepted' && !isAlertAccepted(alert)) return false
       if (statusFilter === 'dismissed' && (!alert.dismissed || alert.severity === 'critical'))
