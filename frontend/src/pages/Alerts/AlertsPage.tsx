@@ -35,6 +35,7 @@ const AlertsPage = () => {
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [updatingAssignment, setUpdatingAssignment] = useState<number | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
@@ -68,6 +69,7 @@ const AlertsPage = () => {
     bulkAcknowledgeMutation,
     singleAcknowledgeMutation,
     unacknowledgeMutation,
+    bulkDeleteMutation,
     assignAlertMutation,
     updateCommentMutation,
     rescanHostMutation,
@@ -90,7 +92,7 @@ const AlertsPage = () => {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(new Set(filteredAlerts.filter((a) => !a.acknowledged).map((a) => a.id)))
+      setSelectedIds(new Set(filteredAlerts.map((a) => a.id)))
     } else {
       setSelectedIds(new Set())
     }
@@ -114,10 +116,8 @@ const AlertsPage = () => {
     })
   }
 
-  const unacknowledgedCount = filteredAlerts.filter((a) => !a.acknowledged).length
-  const allUnackSelected =
-    unacknowledgedCount > 0 &&
-    filteredAlerts.filter((a) => !a.acknowledged).every((a) => selectedIds.has(a.id))
+  const allSelected =
+    filteredAlerts.length > 0 && filteredAlerts.every((a) => selectedIds.has(a.id))
 
   // AckModal callbacks
   const handleAckOnly = (reason: string, includeSSH: boolean) => {
@@ -261,15 +261,23 @@ const AlertsPage = () => {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {isAdmin && selectedIds.size > 0 && (
-                <button
-                  onClick={() => {
-                    const selected = filteredAlerts.filter((a) => selectedIds.has(a.id))
-                    setActionModal({ alerts: selected, mode: 'bulk' })
-                  }}
-                  className="rounded-full border border-indigo-200 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"
-                >
-                  Resolve ({selectedIds.size})
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      const selected = filteredAlerts.filter((a) => selectedIds.has(a.id))
+                      setActionModal({ alerts: selected, mode: 'bulk' })
+                    }}
+                    className="rounded-full border border-indigo-200 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"
+                  >
+                    Resolve ({selectedIds.size})
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirm(true)}
+                    className="rounded-full border border-rose-200 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-500/20 dark:border-rose-500/40 dark:text-rose-300"
+                  >
+                    Delete ({selectedIds.size})
+                  </button>
+                </>
               )}
               <div className="relative">
                 <button
@@ -323,7 +331,7 @@ const AlertsPage = () => {
                 sortColumn={sortColumn}
                 sortDirection={sortDirection}
                 onSort={handleSort}
-                allUnackSelected={allUnackSelected}
+                allUnackSelected={allSelected}
                 onSelectAll={(checked) => handleSelectAll(checked)}
               />
               <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
@@ -442,6 +450,56 @@ const AlertsPage = () => {
           onClose={() => setActionModal(null)}
           isProcessing={isProcessing}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/95 backdrop-blur-2xl p-4">
+          <div className="bg-white dark:bg-slate-900 p-16 rounded-[4rem] w-full max-w-lg border border-slate-100 dark:border-slate-800 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] relative overflow-hidden">
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+              Delete Alerts
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-4">
+              Are you sure you want to permanently delete{' '}
+              <span className="font-bold text-rose-600 dark:text-rose-400">{selectedIds.size}</span>{' '}
+              alert{selectedIds.size !== 1 ? 's' : ''}? This action cannot be undone.
+            </p>
+            <div className="flex items-center gap-4 mt-8">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(false)}
+                className="text-[11px] font-black text-slate-400 hover:text-slate-900 dark:hover:text-white uppercase tracking-[0.2em] transition-all px-4"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={bulkDeleteMutation.isPending}
+                onClick={() => {
+                  bulkDeleteMutation.mutate(Array.from(selectedIds), {
+                    onSuccess: () => {
+                      setToast({
+                        message: `${selectedIds.size} alert${selectedIds.size !== 1 ? 's' : ''} deleted.`,
+                        tone: 'success',
+                      })
+                      setSelectedIds(new Set())
+                      setDeleteConfirm(false)
+                    },
+                    onError: (e) => {
+                      setToast({
+                        message: e instanceof Error ? e.message : 'Delete failed',
+                        tone: 'error',
+                      })
+                    },
+                  })
+                }}
+                className="flex-1 py-4 bg-rose-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+              >
+                {bulkDeleteMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Comment Edit Modal */}

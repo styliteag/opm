@@ -8,7 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Bulk delete alerts: select alerts and permanently delete them with confirmation dialog (admin only)
 - `CLAUDE.md` documentation file for AI assistant guidance covering project structure, development workflows, quality checks, and key conventions
+
+### Changed
+- Renamed "Ack" button to "Accept" on alerts page
+- Alert checkboxes now selectable for all alerts (not just unacknowledged)
 
 ## [1.2.0] - 2026-03-03
 

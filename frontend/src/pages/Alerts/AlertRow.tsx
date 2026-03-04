@@ -47,9 +47,19 @@ type Props = {
 }
 
 export default function AlertRow({
-  alert, isAdmin, isExpanded, isSelected, isAccepted,
-  onToggle, onSelect, onResolve, onReopen, isReopening,
-  users, onAssign, isAssigning,
+  alert,
+  isAdmin,
+  isExpanded,
+  isSelected,
+  isAccepted,
+  onToggle,
+  onSelect,
+  onResolve,
+  onReopen,
+  isReopening,
+  users,
+  onAssign,
+  isAssigning,
 }: Props) {
   const now = new Date()
   const alertDate = parseUtcDate(alert.created_at)
@@ -77,56 +87,83 @@ export default function AlertRow({
             type="checkbox"
             checked={isSelected}
             onChange={(e) => onSelect(e.target.checked)}
-            disabled={alert.acknowledged}
-            className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 disabled:opacity-30"
+            className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
           />
         </td>
       )}
       <td className="px-2 py-3">
         <svg
           className={`h-4 w-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
       </td>
       <td className="px-4 py-3">
-        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${severityStyles[severity]}`}>
+        <span
+          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${severityStyles[severity]}`}
+        >
           {severityLabels[severity]}
         </span>
       </td>
       <td className="px-4 py-3">
         {alert.host_id ? (
-          <Link to={`/hosts/${alert.host_id}`} className="font-mono text-indigo-600 dark:text-indigo-400 hover:underline">
+          <Link
+            to={`/hosts/${alert.host_id}`}
+            className="font-mono text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
             {alert.ip}
           </Link>
         ) : (
           <p className="font-mono text-slate-600 dark:text-slate-300">{alert.ip}</p>
         )}
-        {alert.hostname && (
-          alert.host_id ? (
-            <Link to={`/hosts/${alert.host_id}`} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-0.5 block">
+        {alert.hostname &&
+          (alert.host_id ? (
+            <Link
+              to={`/hosts/${alert.host_id}`}
+              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-0.5 block"
+            >
               {alert.hostname}
             </Link>
           ) : (
             <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">{alert.hostname}</p>
-          )
-        )}
+          ))}
       </td>
       <td className="whitespace-nowrap px-4 py-3">
         <span className="font-mono text-slate-600 dark:text-slate-300">{alert.port}</span>
         {alert.ssh_summary && (
           <span className="ml-2 inline-flex gap-1">
-            {alert.ssh_summary.password_enabled || alert.ssh_summary.keyboard_interactive_enabled ? (
-              <span title="SSH: password/keyboard auth enabled" className="inline-block rounded px-1 py-0.5 text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">PASS</span>
+            {alert.ssh_summary.password_enabled ||
+            alert.ssh_summary.keyboard_interactive_enabled ? (
+              <span
+                title="SSH: password/keyboard auth enabled"
+                className="inline-block rounded px-1 py-0.5 text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+              >
+                PASS
+              </span>
             ) : (
-              <span title="SSH: publickey only" className="inline-block rounded px-1 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">KEY</span>
+              <span
+                title="SSH: publickey only"
+                className="inline-block rounded px-1 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              >
+                KEY
+              </span>
             )}
             {(alert.ssh_summary.has_weak_ciphers || alert.ssh_summary.has_weak_kex) && (
-              <span title="SSH: weak ciphers/KEX" className="inline-block rounded px-1 py-0.5 text-[10px] font-semibold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">WEAK</span>
+              <span
+                title="SSH: weak ciphers/KEX"
+                className="inline-block rounded px-1 py-0.5 text-[10px] font-semibold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+              >
+                WEAK
+              </span>
             )}
             {alert.ssh_summary.ssh_version && (
-              <span title={`SSH version: ${alert.ssh_summary.ssh_version}`} className="inline-block rounded px-1 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+              <span
+                title={`SSH version: ${alert.ssh_summary.ssh_version}`}
+                className="inline-block rounded px-1 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+              >
                 {alert.ssh_summary.ssh_version.replace(/OpenSSH[_\s]?/i, '')}
               </span>
             )}
@@ -143,10 +180,13 @@ export default function AlertRow({
       <td className="px-4 py-3 max-w-[200px]">
         {alert.last_comment ? (
           <div title={`${alert.last_comment_by}: ${alert.last_comment}`}>
-            <p className="text-xs text-slate-600 dark:text-slate-300 truncate">{alert.last_comment}</p>
+            <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
+              {alert.last_comment}
+            </p>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
               {alert.last_comment_by}
-              {alert.last_comment_at && ` \u00b7 ${formatRelativeTime(parseUtcDate(alert.last_comment_at), now)}`}
+              {alert.last_comment_at &&
+                ` \u00b7 ${formatRelativeTime(parseUtcDate(alert.last_comment_at), now)}`}
             </p>
           </div>
         ) : (
@@ -167,14 +207,27 @@ export default function AlertRow({
             ) : (
               <span className="text-slate-400 dark:text-slate-500">Unassigned</span>
             )}
-            <svg className="h-3 w-3 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <svg
+              className="h-3 w-3 shrink-0 text-slate-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
           {assignOpen && (
             <div className="absolute left-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
               <button
-                onClick={() => { onAssign(alert.id, null); setAssignOpen(false) }}
+                onClick={() => {
+                  onAssign(alert.id, null)
+                  setAssignOpen(false)
+                }}
                 className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-slate-50 dark:hover:bg-slate-700 ${!alert.assigned_to_user_id ? 'font-semibold text-slate-700 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}
               >
                 {!alert.assigned_to_user_id && <span className="text-cyan-500">&#10003;</span>}
@@ -184,10 +237,15 @@ export default function AlertRow({
               {users.map((u) => (
                 <button
                   key={u.id}
-                  onClick={() => { onAssign(alert.id, u.id); setAssignOpen(false) }}
+                  onClick={() => {
+                    onAssign(alert.id, u.id)
+                    setAssignOpen(false)
+                  }}
                   className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-slate-50 dark:hover:bg-slate-700 ${alert.assigned_to_user_id === u.id ? 'font-semibold text-slate-700 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}
                 >
-                  {alert.assigned_to_user_id === u.id && <span className="text-cyan-500">&#10003;</span>}
+                  {alert.assigned_to_user_id === u.id && (
+                    <span className="text-cyan-500">&#10003;</span>
+                  )}
                   {u.email}
                 </button>
               ))}
@@ -200,11 +258,17 @@ export default function AlertRow({
           {alert.acknowledged ? (
             <>
               {isAccepted ? (
-                <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 cursor-default" title={alert.ack_reason || undefined}>
+                <span
+                  className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 cursor-default"
+                  title={alert.ack_reason || undefined}
+                >
                   Accepted
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-full border border-sky-300/50 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-200 cursor-default" title={alert.ack_reason || undefined}>
+                <span
+                  className="inline-flex items-center rounded-full border border-sky-300/50 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-200 cursor-default"
+                  title={alert.ack_reason || undefined}
+                >
                   Acknowledged
                 </span>
               )}
@@ -224,7 +288,7 @@ export default function AlertRow({
               onClick={onResolve}
               className="rounded-full border border-emerald-300 bg-emerald-500/10 px-4 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300"
             >
-              Ack
+              Accept
             </button>
           ) : (
             <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
