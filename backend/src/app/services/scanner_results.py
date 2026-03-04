@@ -12,6 +12,7 @@ from app.models.scanner import Scanner
 from app.models.ssh_scan_result import SSHScanResult
 from app.schemas.scanner import ScannerResultRequest, ScannerResultResponse
 from app.services.alert_generators import get_alert_generators
+from app.services.hosts import upsert_host
 
 
 async def find_existing_port(
@@ -126,6 +127,21 @@ async def submit_scan_results(
             )
         )
         ports_recorded += 1
+
+    # Upsert hosts for every unique IP found in the scan results
+    seen_ips: dict[str, tuple[str | None, str | None]] = {}
+    for port_data in request.open_ports:
+        if port_data.ip not in seen_ips:
+            seen_ips[port_data.ip] = (port_data.mac_address, port_data.mac_vendor)
+    for ip, (mac_address, mac_vendor) in seen_ips.items():
+        await upsert_host(
+            db,
+            ip,
+            mac_address=mac_address,
+            mac_vendor=mac_vendor,
+            network_id=scan.network_id,
+            timestamp=now,
+        )
 
     # Process SSH probe results
     ssh_results_recorded = 0

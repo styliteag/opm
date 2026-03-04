@@ -113,6 +113,19 @@ class BulkAcknowledgeRequest(BaseModel):
     reason: str | None = None
 
 
+class BulkDeleteRequest(BaseModel):
+    """Request schema for bulk deleting alerts."""
+
+    alert_ids: list[int]
+
+
+class BulkDeleteResponse(BaseModel):
+    """Response schema for bulk delete results."""
+
+    deleted_ids: list[int]
+    missing_ids: list[int]
+
+
 class AlertStatusRequest(BaseModel):
     """Request schema for updating alert resolution status."""
 
