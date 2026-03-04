@@ -105,28 +105,36 @@ You typically do **not** need to rebuild or restart containers after code change
 ### Backend (Python)
 
 ```bash
-# Type checking (strict mypy with Pydantic plugin)
-docker exec opm-backend uv run mypy src/
+# Via Docker (preferred when containers are running):
+docker exec opm-backend uv run mypy src/           # Type checking (strict mypy + Pydantic plugin)
+docker exec opm-backend uv run ruff check src/      # Linting (ruff — E, F, I, W rules, 100 char)
+docker exec opm-backend uv run pytest               # Tests (pytest-asyncio, SQLite in-memory)
 
-# Linting (ruff — E, F, I, W rules, 100 char line length)
-docker exec opm-backend uv run ruff check src/
-
-# Tests (pytest-asyncio, SQLite in-memory)
-docker exec opm-backend uv run pytest
+# Locally (from backend/ directory):
+cd backend
+uv run --extra dev mypy src/                        # mypy is in [project.optional-dependencies] dev
+uv run ruff check src/                              # ruff is a direct dependency
+uv run --extra dev pytest                           # pytest is in dev extras
 ```
 
 ### Frontend (TypeScript)
 
 ```bash
-# Type checking (strict TypeScript)
-docker exec opm-frontend bun run typecheck
+# Via Docker (preferred when containers are running):
+docker exec opm-frontend bun run typecheck          # Type checking (strict TypeScript)
+docker exec opm-frontend bun run lint               # Linting (ESLint + Prettier)
+docker exec opm-frontend bun run test               # Tests (Vitest + React Testing Library + jsdom)
 
-# Linting (ESLint + Prettier)
-docker exec opm-frontend bun run lint
-
-# Tests (Vitest + React Testing Library + jsdom)
-docker exec opm-frontend bun run test
+# Locally (from frontend/ directory — requires npm install first):
+cd frontend
+npm install                                         # needed once; tsc is NOT globally available
+npm run typecheck                                   # runs: tsc --noEmit
+npm run lint                                        # runs: eslint .
+npm run build                                       # runs: tsc -b && vite build (full build check)
+npm run test                                        # runs: vitest run
 ```
+
+**Important**: Do NOT use `npx tsc` — it fails. Always use `npm run typecheck` or `npm run build`.
 
 ### Scanner (Python)
 
