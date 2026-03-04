@@ -1,4 +1,4 @@
-import type { ScannerType, ScanProtocol, SSHAlertConfig } from '../../types'
+import type { ScannerType, ScanProtocol } from '../../types'
 
 export type NetworkResponse = {
   id: number
@@ -38,5 +38,3 @@ export type RuleFormValues = {
   ruleType: 'accepted' | 'critical'
   description: string
 }
-
-export { SSHAlertConfig }
