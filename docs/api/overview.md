@@ -171,7 +171,7 @@ curl "http://localhost:8000/api/alerts?offset=25&limit=25" \
       "ip": "192.168.1.50",
       "port": 8080,
       "severity": "high",
-      "acknowledged": false,
+      "dismissed": false,
       "created_at": "2025-01-27T14:20:00Z"
     }
   ],
@@ -210,8 +210,8 @@ curl "http://localhost:8000/api/alerts?network_id=1" \
 ### Filter by Status
 
 ```bash
-# Get only unacknowledged alerts
-curl "http://localhost:8000/api/alerts?acknowledged=false" \
+# Get only pending alerts
+curl "http://localhost:8000/api/alerts?dismissed=false" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -258,7 +258,7 @@ curl "http://localhost:8000/api/hosts?sort_by=last_seen_at&sort_dir=desc" \
 Multiple filters can be combined:
 
 ```bash
-curl "http://localhost:8000/api/alerts?network_id=1&type=new_port&acknowledged=false&offset=0&limit=50" \
+curl "http://localhost:8000/api/alerts?network_id=1&type=new_port&dismissed=false&offset=0&limit=50" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -282,7 +282,7 @@ curl -X POST http://localhost:8000/api/networks \
 |----------|-----------|-------------|
 | [Authentication](authentication.md) | `/api/auth` | User login, token management |
 | [Networks](networks.md) | `/api/networks` | Network CRUD, rules, scanning |
-| [Alerts](alerts.md) | `/api/alerts` | Alert management, acknowledgment |
+| [Alerts](alerts.md) | `/api/alerts` | Alert management, dismissal |
 | [Hosts](hosts.md) | `/api/hosts` | Host inventory |
 | [Scans](scans.md) | `/api/scans` | Scan results and logs |
 | [Trends](trends.md) | `/api/trends` | Historical analytics |
