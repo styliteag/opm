@@ -17,12 +17,18 @@ type Props = {
 }
 
 export default function AlertFilters({
-  searchQuery, onSearchChange,
-  statusFilter, onStatusChange,
-  severityFilter, onSeverityChange,
-  networkFilter, onNetworkChange,
-  assignedUserFilter, onAssignedUserChange,
-  networks, users,
+  searchQuery,
+  onSearchChange,
+  statusFilter,
+  onStatusChange,
+  severityFilter,
+  onSeverityChange,
+  networkFilter,
+  onNetworkChange,
+  assignedUserFilter,
+  onAssignedUserChange,
+  networks,
+  users,
 }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -33,7 +39,12 @@ export default function AlertFilters({
           viewBox="0 0 24 24"
           stroke="currentColor"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
         </svg>
         <input
           type="text"
@@ -48,7 +59,12 @@ export default function AlertFilters({
             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         )}
@@ -62,8 +78,8 @@ export default function AlertFilters({
         <option value="all">All Status</option>
         <option value="blocked">Blocked</option>
         <option value="pending">Pending Review</option>
-        <option value="approved">Accepted</option>
-        <option value="monitoring">Acknowledged</option>
+        <option value="accepted">Accepted</option>
+        <option value="dismissed">Dismissed</option>
       </select>
 
       <select
@@ -85,7 +101,9 @@ export default function AlertFilters({
       >
         <option value="">All Networks</option>
         {networks.map((network) => (
-          <option key={network.id} value={network.id}>{network.name}</option>
+          <option key={network.id} value={network.id}>
+            {network.name}
+          </option>
         ))}
       </select>
 
@@ -101,7 +119,9 @@ export default function AlertFilters({
         <option value="all">All Assignees</option>
         <option value="unassigned">Unassigned</option>
         {users.map((u) => (
-          <option key={u.id} value={u.id}>{u.email}</option>
+          <option key={u.id} value={u.id}>
+            {u.email}
+          </option>
         ))}
       </select>
     </div>

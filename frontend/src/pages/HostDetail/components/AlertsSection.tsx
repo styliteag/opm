@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import AckModal from '../../../components/AckModal'
 import AckSuggestions from '../../../components/AckSuggestions'
-import { parseUtcDate, severityColors, alertTypeLabels, PORT_ALERT_TYPES } from '../../../lib/formatters'
+import {
+  parseUtcDate,
+  severityColors,
+  alertTypeLabels,
+  PORT_ALERT_TYPES,
+} from '../../../lib/formatters'
 import type { HostAlertSummary } from '../../../types'
 
 const formatRelativeTime = (date: Date) => {
@@ -124,7 +129,7 @@ export default function AlertsSection({
             onClick={() => setShowAcknowledged(!showAcknowledged)}
             className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           >
-            {showAcknowledged ? 'Hide' : 'Show'} acknowledged ({acknowledgedCount})
+            {showAcknowledged ? 'Hide' : 'Show'} dismissed ({acknowledgedCount})
           </button>
         )}
       </div>
@@ -134,7 +139,7 @@ export default function AlertsSection({
       )}
 
       {activeAlerts.length === 0 && acknowledgedCount > 0 && !showAcknowledged && (
-        <p className="text-green-600 dark:text-green-400 text-sm">All alerts acknowledged.</p>
+        <p className="text-green-600 dark:text-green-400 text-sm">All alerts dismissed.</p>
       )}
 
       {activeAlerts.length > 0 && (
@@ -165,7 +170,7 @@ export default function AlertsSection({
                     }`}
                     title={
                       alert.related_ssh_alerts_acknowledged
-                        ? `${alert.related_ssh_alert_count} SSH finding(s) acknowledged`
+                        ? `${alert.related_ssh_alert_count} SSH finding(s) dismissed`
                         : `${alert.related_ssh_alert_count} SSH finding(s) pending`
                     }
                   >
@@ -188,9 +193,9 @@ export default function AlertsSection({
                     onClick={() => setAckAlert(alert)}
                     disabled={isAcknowledging}
                     className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                    title="Acknowledge"
+                    title="Review"
                   >
-                    Ack
+                    Review
                   </button>
                 )}
               </div>
@@ -201,9 +206,7 @@ export default function AlertsSection({
 
       {showAcknowledged && acknowledgedAlerts.length > 0 && (
         <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-          <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
-            Acknowledged
-          </h4>
+          <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Dismissed</h4>
           <div className="space-y-2">
             {acknowledgedAlerts.map((alert) => (
               <div
@@ -215,7 +218,7 @@ export default function AlertsSection({
                     <span
                       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${severityColors.info}`}
                     >
-                      acked
+                      dismissed
                     </span>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
                       {alertTypeLabels[alert.type] ?? alert.type}
@@ -248,7 +251,7 @@ export default function AlertsSection({
                           className="px-2 py-1 text-xs font-medium rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
                           title="Reopen this alert"
                         >
-                          Unack
+                          Reopen
                         </button>
                       </>
                     )}
