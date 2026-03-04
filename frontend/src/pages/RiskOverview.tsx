@@ -809,8 +809,8 @@ const RiskOverview = () => {
               <option value="all">All Status</option>
               <option value="blocked">🔴 Blocked</option>
               <option value="pending">⏳ Pending Review</option>
-              <option value="approved">✅ Approved</option>
-              <option value="monitoring">👁️ Monitoring</option>
+              <option value="approved">✅ Accepted</option>
+              <option value="monitoring">👁️ Acknowledged</option>
             </select>
 
             <select
@@ -1240,12 +1240,21 @@ const RiskOverview = () => {
                             <div className="flex items-center justify-end gap-2">
                               {alert.acknowledged ? (
                                 <>
-                                  <span
-                                    className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 cursor-default"
-                                    title={alert.ack_reason || undefined}
-                                  >
-                                    Acknowledged
-                                  </span>
+                                  {isAlertAccepted(alert) ? (
+                                    <span
+                                      className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200 cursor-default"
+                                      title={alert.ack_reason || undefined}
+                                    >
+                                      Accepted
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="inline-flex items-center rounded-full border border-sky-300/50 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-200 cursor-default"
+                                      title={alert.ack_reason || undefined}
+                                    >
+                                      Acknowledged
+                                    </span>
+                                  )}
                                   {isAdmin && (
                                     <button
                                       onClick={() => unacknowledgeMutation.mutate(alert.id)}
