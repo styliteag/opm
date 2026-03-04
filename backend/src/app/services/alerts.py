@@ -3,9 +3,10 @@
 from datetime import datetime
 from typing import Any, Iterable
 
-from sqlalchemy import Integer, String, and_, case, func, literal, select, update
+from sqlalchemy import Integer, and_, case, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.services.global_settings as global_settings_service
 from app.models.alert import Alert, AlertType
 from app.models.network import Network
 from app.models.open_port import OpenPort
@@ -20,7 +21,6 @@ from app.services.global_open_ports import (
 )
 from app.services.global_port_rules import is_port_whitelisted
 from app.services.hosts import get_host_by_ip
-import app.services.global_settings as global_settings_service
 
 PortKey = tuple[str, int]
 AlertKey = tuple[AlertType, str, int]
@@ -201,7 +201,7 @@ async def auto_acknowledge_alerts_for_accepted_rule(
         ack_reason=reason,
     )
     result = await db.execute(stmt)
-    return result.rowcount or 0
+    return result.rowcount or 0  # type: ignore[attr-defined]
 
 
 SSH_ALERT_TYPES = frozenset({
@@ -412,17 +412,17 @@ async def _get_enabled_alert_types(
     db: AsyncSession, alert_config: dict[str, Any] | None
 ) -> set[AlertType]:
     """Resolve enabled alert types from alert_config or global defaults.
-    
+
     If alert_config is None, falls back to global SSH alert defaults.
     """
     # If alert_config is None, use global defaults for SSH alerts
     if alert_config is None:
         global_defaults = await global_settings_service.get_ssh_alert_defaults(db)
         alert_config = global_defaults
-    
+
     # Default port-related alerts (always enabled unless explicitly disabled)
     all_types = {AlertType.NEW_PORT, AlertType.NOT_ALLOWED, AlertType.BLOCKED}
-    
+
     if not alert_config:
         return all_types
 
@@ -709,10 +709,6 @@ async def generate_global_alerts_for_scan(
             host_id=host_id,
         )
 
-        # Only create alert if this is a NEW global port
-        if not is_new:
-            continue
-
         # Check if port is in global whitelist
         if await is_port_whitelisted(db, ip, port):
             continue
@@ -744,14 +740,6 @@ async def generate_global_alerts_for_scan(
 
 
 SSHAlertKey = tuple[AlertType, str, int]  # (alert_type, ip, port)
-
-# SSH alert types to check for unacknowledged alerts
-SSH_ALERT_TYPES = (
-    AlertType.SSH_INSECURE_AUTH,
-    AlertType.SSH_WEAK_CIPHER,
-    AlertType.SSH_WEAK_KEX,
-    AlertType.SSH_OUTDATED_VERSION,
-)
 
 # Default minimum SSH version threshold for outdated version alerts
 DEFAULT_SSH_VERSION_THRESHOLD = "8.0.0"
