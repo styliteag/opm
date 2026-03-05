@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
@@ -11,6 +11,12 @@ import type {
   PortRuleUnifiedListResponse,
 } from '../types'
 
+type SortKey = 'scope' | 'port' | 'type'
+type SortDirection = 'asc' | 'desc'
+
+const ruleKey = (rule: PortRuleUnified): string =>
+  `${rule.network_id === null ? 'global' : 'network'}-${rule.id}`
+
 const PortRules = () => {
   const { token, user } = useAuth()
   const queryClient = useQueryClient()
@@ -18,6 +24,10 @@ const PortRules = () => {
 
   const [networkFilter, setNetworkFilter] = useState<number | ''>('')
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('port')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [selectedRules, setSelectedRules] = useState<Set<string>>(new Set())
   const { toast, showToast } = useToast()
 
   // Create form state
@@ -45,6 +55,42 @@ const PortRules = () => {
   })
 
   const rules = useMemo(() => rulesQuery.data?.rules ?? [], [rulesQuery.data])
+
+  const filteredRules = useMemo(() => {
+    let result = rules
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase()
+      result = result.filter(
+        (r) =>
+          r.port.toLowerCase().includes(q) ||
+          (r.ip ?? '').toLowerCase().includes(q) ||
+          (r.description ?? '').toLowerCase().includes(q) ||
+          (r.network_name ?? 'global').toLowerCase().includes(q) ||
+          r.rule_type.toLowerCase().includes(q),
+      )
+    }
+    return [...result].sort((a, b) => {
+      const dir = sortDirection === 'asc' ? 1 : -1
+      switch (sortKey) {
+        case 'scope': {
+          const aVal = a.network_name ?? 'Global'
+          const bVal = b.network_name ?? 'Global'
+          return dir * aVal.localeCompare(bVal)
+        }
+        case 'port':
+          return dir * a.port.localeCompare(b.port, undefined, { numeric: true })
+        case 'type':
+          return dir * a.rule_type.localeCompare(b.rule_type)
+        default:
+          return 0
+      }
+    })
+  }, [rules, searchTerm, sortKey, sortDirection])
+
+  // Clear selection when filters/sort change
+  useEffect(() => {
+    setSelectedRules(new Set())
+  }, [searchTerm, sortKey, sortDirection, networkFilter])
 
   const createMutation = useMutation({
     mutationFn: async (payload: PortRuleUnifiedCreatePayload) => {
@@ -80,6 +126,30 @@ const PortRules = () => {
     onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
   })
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (keys: string[]) => {
+      await Promise.all(
+        keys.map((key) => {
+          const dashIdx = key.indexOf('-')
+          const scope = key.slice(0, dashIdx) as 'global' | 'network'
+          const id = key.slice(dashIdx + 1)
+          return fetch(`${API_BASE_URL}/api/port-rules/${scope}/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(token ?? ''),
+          }).then((res) => {
+            if (!res.ok) throw new Error(`Failed to delete rule ${id}`)
+          })
+        }),
+      )
+    },
+    onSuccess: (_data, keys) => {
+      queryClient.invalidateQueries({ queryKey: ['port-rules'] })
+      setSelectedRules(new Set())
+      showToast(`Deleted ${keys.length} rules`, 'success')
+    },
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
+  })
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newRule.port.trim()) return
@@ -96,6 +166,45 @@ const PortRules = () => {
     deleteMutation.mutate({ scope, ruleId: rule.id })
   }
 
+  const handleBulkDelete = () => {
+    if (selectedRules.size === 0) return
+    if (!confirm(`Delete ${selectedRules.size} selected rules?`)) return
+    bulkDeleteMutation.mutate(Array.from(selectedRules))
+  }
+
+  const toggleSelected = (key: string) =>
+    setSelectedRules((prev) => {
+      const n = new Set(prev)
+      if (n.has(key)) n.delete(key)
+      else n.add(key)
+      return n
+    })
+
+  const toggleSelectAll = () => {
+    if (selectedRules.size === filteredRules.length) {
+      setSelectedRules(new Set())
+    } else {
+      setSelectedRules(new Set(filteredRules.map(ruleKey)))
+    }
+  }
+
+  const renderSort = (label: string, key: SortKey) => (
+    <button
+      onClick={() => {
+        if (sortKey === key) setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))
+        else {
+          setSortKey(key)
+          setSortDirection('asc')
+        }
+      }}
+      className="flex items-center gap-1 font-black uppercase text-[11px] tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+    >
+      {label} {sortKey === key && (sortDirection === 'asc' ? '↑' : '↓')}
+    </button>
+  )
+
+  const colSpan = isAdmin ? 7 : 5
+
   return (
     <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700">
       <Toast toast={toast} />
@@ -111,6 +220,23 @@ const PortRules = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {isAdmin && selectedRules.size > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteMutation.isPending}
+              className="px-5 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
+              {bulkDeleteMutation.isPending ? 'Deleting...' : `Delete ${selectedRules.size}`}
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setShowCreateForm(!showCreateForm)}
@@ -231,8 +357,8 @@ const PortRules = () => {
         </div>
       )}
 
-      {/* Stats + Filter */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Stats + Filter + Search */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm">
           <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
             Total Rules
@@ -272,6 +398,18 @@ const PortRules = () => {
             ))}
           </select>
         </div>
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-2">
+            Search Rules
+          </p>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Port, IP, description, network..."
+            className="w-full bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
+          />
+        </div>
       </div>
 
       {/* Rules table */}
@@ -280,18 +418,24 @@ const PortRules = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-50 dark:border-slate-800/50 bg-white dark:bg-slate-900">
-                <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                  Scope
-                </th>
+                {isAdmin && (
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredRules.length > 0 && selectedRules.size === filteredRules.length
+                      }
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-2 border-slate-200 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 cursor-pointer"
+                    />
+                  </th>
+                )}
+                <th className="px-6 py-3">{renderSort('Scope', 'scope')}</th>
                 <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
                   IP
                 </th>
-                <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                  Port
-                </th>
-                <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                  Type
-                </th>
+                <th className="px-6 py-3">{renderSort('Port', 'port')}</th>
+                <th className="px-6 py-3">{renderSort('Type', 'type')}</th>
                 <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
                   Description
                 </th>
@@ -305,30 +449,41 @@ const PortRules = () => {
             <tbody className="divide-y divide-slate-50 dark:divide-slate-800/30">
               {rulesQuery.isLoading ? (
                 <tr>
-                  <td
-                    colSpan={isAdmin ? 6 : 5}
-                    className="px-6 py-12 text-center text-sm text-slate-400"
-                  >
+                  <td colSpan={colSpan} className="px-6 py-12 text-center text-sm text-slate-400">
                     Loading...
                   </td>
                 </tr>
-              ) : rules.length === 0 ? (
+              ) : filteredRules.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isAdmin ? 6 : 5}
+                    colSpan={colSpan}
                     className="px-6 py-12 text-center text-sm text-slate-400 italic"
                   >
-                    No port rules found
+                    {searchTerm.trim() ? 'No rules match your search' : 'No port rules found'}
                   </td>
                 </tr>
               ) : (
-                rules.map((rule) => {
+                filteredRules.map((rule) => {
                   const isGlobal = rule.network_id === null
+                  const key = ruleKey(rule)
+                  const isSelected = selectedRules.has(key)
                   return (
                     <tr
-                      key={`${isGlobal ? 'g' : 'n'}-${rule.id}`}
-                      className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors"
+                      key={key}
+                      className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors ${
+                        isSelected ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''
+                      }`}
                     >
+                      {isAdmin && (
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelected(key)}
+                            className="w-4 h-4 rounded border-2 border-slate-200 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 cursor-pointer"
+                          />
+                        </td>
+                      )}
                       <td className="px-6 py-3">
                         <span
                           className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
