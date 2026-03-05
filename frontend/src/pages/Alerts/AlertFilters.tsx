@@ -1,11 +1,13 @@
 import type { Network, User } from '../../types'
-import type { Severity, StatusFilter } from './useAlerts'
+import type { CategoryFilter, Severity, StatusFilter } from './useAlerts'
 
 type Props = {
   searchQuery: string
   onSearchChange: (value: string) => void
   statusFilter: StatusFilter
   onStatusChange: (value: StatusFilter) => void
+  categoryFilter: CategoryFilter
+  onCategoryChange: (value: CategoryFilter) => void
   severityFilter: Severity | ''
   onSeverityChange: (value: Severity | '') => void
   networkFilter: number | null
@@ -21,6 +23,8 @@ export default function AlertFilters({
   onSearchChange,
   statusFilter,
   onStatusChange,
+  categoryFilter,
+  onCategoryChange,
   severityFilter,
   onSeverityChange,
   networkFilter,
@@ -80,6 +84,16 @@ export default function AlertFilters({
         <option value="pending">Pending Review</option>
         <option value="accepted">Accepted</option>
         <option value="dismissed">Dismissed</option>
+      </select>
+
+      <select
+        value={categoryFilter}
+        onChange={(e) => onCategoryChange(e.target.value as CategoryFilter)}
+        className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+      >
+        <option value="all">All Types</option>
+        <option value="ssh">SSH Problems</option>
+        <option value="port">Port Alerts</option>
       </select>
 
       <select

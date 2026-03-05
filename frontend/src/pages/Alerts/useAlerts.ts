@@ -15,6 +15,7 @@ import type {
 
 export type Severity = 'critical' | 'high' | 'medium' | 'info'
 export type StatusFilter = 'all' | 'critical_rule' | 'pending' | 'accepted' | 'dismissed'
+export type CategoryFilter = 'all' | 'ssh' | 'port'
 export type SortColumn = 'severity' | 'ip' | 'port' | 'network' | 'time'
 export type SortDirection = 'asc' | 'desc'
 
@@ -23,6 +24,7 @@ export type AlertFiltersState = {
   severityFilter: Severity | ''
   networkFilter: number | null
   statusFilter: StatusFilter
+  categoryFilter: CategoryFilter
   assignedUserFilter: number | 'all' | 'unassigned'
   sortColumn: SortColumn
   sortDirection: SortDirection
@@ -236,6 +238,7 @@ export function useAlerts(filters: AlertFiltersState) {
       severityFilter,
       networkFilter,
       statusFilter,
+      categoryFilter,
       assignedUserFilter,
       sortColumn,
       sortDirection,
@@ -252,6 +255,14 @@ export function useAlerts(filters: AlertFiltersState) {
         statusFilter === 'dismissed' &&
         (!alert.dismissed || getEffectiveRuleStatus(alert) === 'accepted')
       )
+        return false
+
+      if (categoryFilter === 'ssh') {
+        const isSSHType = alert.type.startsWith('ssh_')
+        const hasSSHData = alert.ssh_summary !== null && alert.ssh_summary !== undefined
+        if (!isSSHType && !hasSSHData) return false
+      }
+      if (categoryFilter === 'port' && (alert.type.startsWith('ssh_') || alert.ssh_summary))
         return false
 
       if (searchQuery.trim()) {
