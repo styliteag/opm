@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import ReviewModal from '../../components/ReviewModal'
 import { useAuth } from '../../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, getAuthHeaders } from '../../lib/api'
+import { downloadBlob, timestampedFilename } from '../../lib/downloadBlob'
+import { Toast } from '../../components/Toast'
+import { useToast } from '../../lib/useToast'
 import type { Alert } from '../../types'
 import AlertFilters from './AlertFilters'
 import AlertTableHeader from './AlertTableHeader'
@@ -26,7 +29,7 @@ const AlertsPage = () => {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [reviewModal, setReviewModal] = useState<ReviewModalState>(null)
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
-  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
+  const { toast, showToast } = useToast()
   const [editingComment, setEditingComment] = useState<{
     hostId: number
     comment: string
@@ -79,12 +82,6 @@ const AlertsPage = () => {
     createRuleMutation,
   } = useAlerts(filters)
 
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 3000)
-    return () => clearTimeout(t)
-  }, [toast])
-
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
     else {
@@ -135,7 +132,7 @@ const AlertsPage = () => {
         },
         {
           onSuccess: () => {
-            setToast({ message: 'Alert dismissed.', tone: 'success' })
+            showToast('Alert dismissed.', 'success')
             setReviewModal(null)
             setSelectedIds(new Set())
           },
@@ -146,7 +143,7 @@ const AlertsPage = () => {
         { alertIds: reviewModal.alerts.map((a) => a.id), reason: reason || undefined },
         {
           onSuccess: () => {
-            setToast({ message: 'Alerts dismissed.', tone: 'success' })
+            showToast('Alerts dismissed.', 'success')
             setReviewModal(null)
             setSelectedIds(new Set())
           },
@@ -162,7 +159,7 @@ const AlertsPage = () => {
       { alertIds, reason },
       {
         onSuccess: () => {
-          setToast({ message: 'Accepted globally.', tone: 'success' })
+          showToast('Accepted globally.', 'success')
           setReviewModal(null)
           setSelectedIds(new Set())
         },
@@ -177,7 +174,7 @@ const AlertsPage = () => {
       { alertIds, reason },
       {
         onSuccess: () => {
-          setToast({ message: 'Accepted in network.', tone: 'success' })
+          showToast('Accepted in network.', 'success')
           setReviewModal(null)
           setSelectedIds(new Set())
         },
@@ -199,17 +196,10 @@ const AlertsPage = () => {
       if (!response.ok) throw new Error(await extractErrorMessage(response))
 
       const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = `alerts_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.${format}`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(downloadUrl)
-      setToast({ message: 'Alerts exported successfully', tone: 'success' })
+      downloadBlob(blob, timestampedFilename('alerts', format))
+      showToast('Alerts exported successfully', 'success')
     } catch (error) {
-      setToast({ message: error instanceof Error ? error.message : 'Export failed', tone: 'error' })
+      showToast(error instanceof Error ? error.message : 'Export failed', 'error')
     } finally {
       setIsExporting(false)
     }
@@ -221,11 +211,11 @@ const AlertsPage = () => {
       { alertId, userId },
       {
         onSuccess: () => {
-          setToast({ message: 'Assignment updated', tone: 'success' })
+          showToast('Assignment updated', 'success')
           setUpdatingAssignment(null)
         },
         onError: (e) => {
-          setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' })
+          showToast(e instanceof Error ? e.message : 'Error', 'error')
           setUpdatingAssignment(null)
         },
       },
@@ -240,15 +230,7 @@ const AlertsPage = () => {
 
   return (
     <div className="relative">
-      {toast && (
-        <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-top-4 duration-300">
-          <div
-            className={`px-8 py-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] font-black uppercase text-xs tracking-[0.2em] border ${toast.tone === 'success' ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-rose-500 border-rose-400 text-white'}`}
-          >
-            {toast.message}
-          </div>
-        </div>
-      )}
+      <Toast toast={toast} />
 
       <section className="relative z-10 space-y-8">
         <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-8 shadow-[0_20px_80px_rgba(15,23,42,0.12)] backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/70">
@@ -372,26 +354,18 @@ const AlertsPage = () => {
                           onResolve={() => setReviewModal({ alerts: [alert], mode: 'single' })}
                           onReopen={(id) =>
                             reopenMutation.mutate(id, {
-                              onSuccess: () =>
-                                setToast({ message: 'Alert reopened', tone: 'success' }),
+                              onSuccess: () => showToast('Alert reopened', 'success'),
                               onError: (e) =>
-                                setToast({
-                                  message: e instanceof Error ? e.message : 'Error',
-                                  tone: 'error',
-                                }),
+                                showToast(e instanceof Error ? e.message : 'Error', 'error'),
                             })
                           }
                           onRevoke={(scope, ruleId) =>
                             revokeAcceptanceMutation.mutate(
                               { scope, ruleId },
                               {
-                                onSuccess: () =>
-                                  setToast({ message: 'Acceptance rule revoked', tone: 'success' }),
+                                onSuccess: () => showToast('Acceptance rule revoked', 'success'),
                                 onError: (e) =>
-                                  setToast({
-                                    message: e instanceof Error ? e.message : 'Error',
-                                    tone: 'error',
-                                  }),
+                                  showToast(e instanceof Error ? e.message : 'Error', 'error'),
                               },
                             )
                           }
@@ -411,15 +385,9 @@ const AlertsPage = () => {
                             onRescan={(ip) =>
                               rescanHostMutation.mutate(ip, {
                                 onSuccess: (_, ip) =>
-                                  setToast({
-                                    message: `Rescan started for ${ip}`,
-                                    tone: 'success',
-                                  }),
+                                  showToast(`Rescan started for ${ip}`, 'success'),
                                 onError: (e) =>
-                                  setToast({
-                                    message: e instanceof Error ? e.message : 'Error',
-                                    tone: 'error',
-                                  }),
+                                  showToast(e instanceof Error ? e.message : 'Error', 'error'),
                               })
                             }
                             isRescanPending={rescanHostMutation.isPending}
@@ -428,17 +396,13 @@ const AlertsPage = () => {
                             }
                             onCreateRule={(payload) =>
                               createRuleMutation.mutate(payload, {
-                                onSuccess: () =>
-                                  setToast({ message: 'Rule created', tone: 'success' }),
+                                onSuccess: () => showToast('Rule created', 'success'),
                                 onError: (e) =>
-                                  setToast({
-                                    message: e instanceof Error ? e.message : 'Error',
-                                    tone: 'error',
-                                  }),
+                                  showToast(e instanceof Error ? e.message : 'Error', 'error'),
                               })
                             }
                             isCreatingRule={createRuleMutation.isPending}
-                            onToast={(message, tone) => setToast({ message, tone })}
+                            onToast={(message, tone) => showToast(message, tone)}
                           />
                         )}
                       </React.Fragment>
@@ -498,18 +462,15 @@ const AlertsPage = () => {
                 onClick={() => {
                   bulkDeleteMutation.mutate(Array.from(selectedIds), {
                     onSuccess: () => {
-                      setToast({
-                        message: `${selectedIds.size} alert${selectedIds.size !== 1 ? 's' : ''} deleted.`,
-                        tone: 'success',
-                      })
+                      showToast(
+                        `${selectedIds.size} alert${selectedIds.size !== 1 ? 's' : ''} deleted.`,
+                        'success',
+                      )
                       setSelectedIds(new Set())
                       setDeleteConfirm(false)
                     },
                     onError: (e) => {
-                      setToast({
-                        message: e instanceof Error ? e.message : 'Delete failed',
-                        tone: 'error',
-                      })
+                      showToast(e instanceof Error ? e.message : 'Delete failed', 'error')
                     },
                   })
                 }}
@@ -542,14 +503,11 @@ const AlertsPage = () => {
                   { hostId: editingComment.hostId, comment: editingComment.comment.trim() || null },
                   {
                     onSuccess: () => {
-                      setToast({ message: 'Comment updated', tone: 'success' })
+                      showToast('Comment updated', 'success')
                       setEditingComment(null)
                     },
                     onError: (err) =>
-                      setToast({
-                        message: err instanceof Error ? err.message : 'Error',
-                        tone: 'error',
-                      }),
+                      showToast(err instanceof Error ? err.message : 'Error', 'error'),
                   },
                 )
               }}

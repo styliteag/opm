@@ -1,27 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Host, HostNetworkInfo } from '../../../types'
-
-const parseUtcDate = (dateStr: string) => new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
-
-const formatDateTime = (value: Date) =>
-  new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(value)
-
-const formatRelativeTime = (date: Date) => {
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return 'just now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
+import { parseUtcDate, formatDateTime, formatRelativeTime } from '../../../lib/formatters'
 
 type Props = {
   host: Host
@@ -56,9 +36,7 @@ export default function HostInfoCard({
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-mono">
-            {host.ip}
-          </h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-mono">{host.ip}</h2>
           {editingHostname ? (
             <div className="flex items-center gap-2 mt-1">
               <input
@@ -106,8 +84,18 @@ export default function HostInfoCard({
                   className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                   title="Edit hostname"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                    />
                   </svg>
                 </button>
               )}
@@ -145,13 +133,19 @@ export default function HostInfoCard({
       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div>
           <dt className="text-slate-500 dark:text-slate-400">First Seen</dt>
-          <dd className="text-slate-900 dark:text-white" title={formatDateTime(parseUtcDate(host.first_seen_at))}>
+          <dd
+            className="text-slate-900 dark:text-white"
+            title={formatDateTime(parseUtcDate(host.first_seen_at))}
+          >
             {formatRelativeTime(parseUtcDate(host.first_seen_at))}
           </dd>
         </div>
         <div>
           <dt className="text-slate-500 dark:text-slate-400">Last Seen</dt>
-          <dd className="text-slate-900 dark:text-white" title={formatDateTime(parseUtcDate(host.last_seen_at))}>
+          <dd
+            className="text-slate-900 dark:text-white"
+            title={formatDateTime(parseUtcDate(host.last_seen_at))}
+          >
             {formatRelativeTime(parseUtcDate(host.last_seen_at))}
           </dd>
         </div>
@@ -230,7 +224,12 @@ export default function HostInfoCard({
                 title="Edit comment"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                  />
                 </svg>
               </button>
             )}

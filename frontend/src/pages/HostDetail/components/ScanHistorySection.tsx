@@ -1,13 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { HostScanEntry } from '../../../types'
-
-const parseUtcDate = (dateStr: string) => new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
-
-const formatDateTime = (value: Date) =>
-  new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(value)
+import { parseUtcDate, formatDateTime } from '../../../lib/formatters'
 
 const statusColors: Record<string, string> = {
   completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
@@ -38,17 +31,30 @@ export default function ScanHistorySection({ scans }: Props) {
         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
           <thead>
             <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Date</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Network</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Status</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Ports Found</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Trigger</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">
+                Date
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">
+                Network
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">
+                Status
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">
+                Ports Found
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">
+                Trigger
+              </th>
               <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
             {scans.map((scan) => (
-              <tr key={scan.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+              <tr
+                key={scan.id}
+                className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors"
+              >
                 <td className="px-4 py-2 text-sm text-slate-900 dark:text-white whitespace-nowrap">
                   {scan.started_at ? formatDateTime(parseUtcDate(scan.started_at)) : '-'}
                 </td>
@@ -61,7 +67,9 @@ export default function ScanHistorySection({ scans }: Props) {
                   </Link>
                 </td>
                 <td className="px-4 py-2 text-sm">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColors[scan.status] ?? statusColors.planned}`}>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColors[scan.status] ?? statusColors.planned}`}
+                  >
                     {scan.status}
                   </span>
                 </td>

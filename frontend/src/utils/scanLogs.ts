@@ -1,7 +1,5 @@
 import type { ScanLogEntry } from '../types'
-
-export const parseUtcDate = (dateStr: string) =>
-  new Date(dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`)
+import { parseUtcDate } from '../lib/formatters'
 
 export const formatScanLogLine = (log: ScanLogEntry) => {
   const timestamp = parseUtcDate(log.timestamp).toISOString()

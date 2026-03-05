@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { parseUtcDate, formatScanLogLine, formatRawScanLogs, openScanLogsWindow } from './scanLogs'
+import { formatScanLogLine, formatRawScanLogs, openScanLogsWindow } from './scanLogs'
+import { parseUtcDate } from '../lib/formatters'
 import type { ScanLogEntry } from '../types'
 
 describe('parseUtcDate', () => {
@@ -189,7 +190,7 @@ describe('openScanLogsWindow', () => {
     openScanLogsWindow('Test content')
 
     expect(window.alert).toHaveBeenCalledWith(
-      'Unable to open the raw log window. Please allow pop-ups for this site.'
+      'Unable to open the raw log window. Please allow pop-ups for this site.',
     )
   })
 })
