@@ -200,14 +200,12 @@ async def get_host_overview(
 ) -> HostOverviewResponse:
     """Get aggregated overview dashboard data for a specific host."""
     from app.models.alert import Alert, AlertType
-    from app.models.port_rule import PortRule
+    from app.services import alert_rules as alert_rules_service
     from app.services import alerts as alerts_service
-    from app.services import global_port_rules as global_rules_service
     from app.services import networks as networks_service
-    from app.services import port_rules as port_rules_service
     from app.services import scans as scans_service
     from app.services import ssh_results as ssh_service
-    from app.services.global_port_rules import _parse_port_range, is_port_blocked
+    from app.services.alert_rules import is_port_blocked, port_rule_matches_alert
 
     host = await hosts_service.get_host_by_id(db, host_id)
     if host is None:
@@ -241,11 +239,12 @@ async def get_host_overview(
     def _build_alert_summary(
         alert: Alert, severity: str, alert_network_name: str | None = None,
     ) -> HostAlertSummary:
-        ssh_data = ssh_data_cache.get((alert.ip, alert.port))
+        alert_port_key = alert.port or 0
+        ssh_data = ssh_data_cache.get((alert.ip, alert_port_key))
         host_ssh = None
         if ssh_data:
             host_ssh = HostSSHSummary(**ssh_data)
-        ssh_info = ssh_alert_cache.get((alert.ip, alert.port))
+        ssh_info = ssh_alert_cache.get((alert.ip, alert_port_key))
         return HostAlertSummary(
             id=alert.id,
             type=alert.alert_type.value,
@@ -273,7 +272,7 @@ async def get_host_overview(
     alert_summaries = []
     for alert, alert_net_name in active_alerts_raw:
         severity = "medium"
-        if await is_port_blocked(db, alert.ip, alert.port):
+        if alert.port is not None and await is_port_blocked(db, alert.ip, alert.port):
             severity = "critical"
         elif alert.alert_type in (AlertType.NEW_PORT,):
             severity = "high"
@@ -329,18 +328,22 @@ async def get_host_overview(
     scan_entries = scan_entries[:10]
 
     # --- Build per-port enrichments ---
-    # Fetch port rules (global + network-scoped)
-    global_rules = await global_rules_service.get_all_global_rules(db)
-    network_rules: list[tuple[PortRule, int, str]] = []  # (rule, network_id, network_name)
+    # Fetch alert rules (global + network-scoped, port source)
+    from app.models.alert_rule import AlertRule
+
+    global_rules = await alert_rules_service.get_global_rules(db, source="port")
+    network_rules_tuples: list[tuple[AlertRule, int, str]] = []
     for nid in (host.seen_by_networks or []):
         net_name = network_map.get(nid, "")
-        for rule in await port_rules_service.get_rules_by_network_id(db, nid):
-            network_rules.append((rule, nid, net_name))
+        for rule in await alert_rules_service.get_rules_by_network_id(db, nid, source="port"):
+            network_rules_tuples.append((rule, nid, net_name))
 
     # Index alerts by (ip, port) for quick lookup
     all_alert_list = list(active_alerts_raw) + list(dismissed_all)
     alert_by_port: dict[int, tuple[Alert, str]] = {}
     for alert, _net in all_alert_list:
+        if alert.port is None:
+            continue
         if alert.port not in alert_by_port:
             # Prefer non-dismissed alert
             alert_by_port[alert.port] = (alert, "dismissed" if alert.dismissed else "new")
@@ -349,33 +352,23 @@ async def get_host_overview(
 
     def _find_matching_rules(port_ip: str, port_num: int) -> list[PortRuleMatch]:
         matches: list[PortRuleMatch] = []
-        for gr in global_rules:
-            parsed = _parse_port_range(gr.port)
-            if parsed is None:
+        for rule in global_rules:
+            if not port_rule_matches_alert(rule, port_ip, port_num):
                 continue
-            start, end = parsed
-            if not (start <= port_num <= end):
-                continue
-            if gr.ip is not None and gr.ip != port_ip:
-                continue
+            criteria_ip = rule.match_criteria.get("ip")
             matches.append(PortRuleMatch(
-                id=gr.id, scope="global", network_id=None, network_name=None,
-                rule_type=gr.rule_type.value, description=gr.description,
-                ip=gr.ip,
+                id=rule.id, scope="global", network_id=None, network_name=None,
+                rule_type=rule.rule_type.value, description=rule.description,
+                ip=criteria_ip,
             ))
-        for nr, nid, nname in network_rules:
-            parsed = _parse_port_range(nr.port)
-            if parsed is None:
+        for rule, nid, nname in network_rules_tuples:
+            if not port_rule_matches_alert(rule, port_ip, port_num):
                 continue
-            start, end = parsed
-            if not (start <= port_num <= end):
-                continue
-            if nr.ip is not None and nr.ip != port_ip:
-                continue
+            criteria_ip = rule.match_criteria.get("ip")
             matches.append(PortRuleMatch(
-                id=nr.id, scope="network", network_id=nid, network_name=nname,
-                rule_type=nr.rule_type.value, description=nr.description,
-                ip=nr.ip,
+                id=rule.id, scope="network", network_id=nid, network_name=nname,
+                rule_type=rule.rule_type.value, description=rule.description,
+                ip=criteria_ip,
             ))
         return matches
 

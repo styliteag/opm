@@ -15,8 +15,7 @@ from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, T
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.models.alert import Alert, AlertType
-from app.models.global_port_rule import GlobalRuleType
-from app.models.port_rule import RuleType
+from app.models.alert_rule import RuleType as AlertRuleType
 from app.models.user import UserRole
 from app.schemas.alert import (
     AlertAssignRequest,
@@ -44,14 +43,13 @@ from app.schemas.alert_comment import (
 )
 from app.schemas.host import PortRuleMatch
 from app.services import alert_comments as alert_comments_service
+from app.services import alert_rules as alert_rules_service
 from app.services import alerts as alerts_service
-from app.services import global_port_rules as global_rules_service
 from app.services import hosts as hosts_service
 from app.services import networks as networks_service
-from app.services import port_rules as port_rules_service
 from app.services import ssh_results as ssh_service
 from app.services import users as users_service
-from app.services.global_port_rules import is_port_blocked
+from app.services.alert_rules import is_port_blocked
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
@@ -144,7 +142,7 @@ async def list_alerts(
     alert_responses = []
     for alert, network_name in alerts:
         severity = await compute_alert_severity(
-            db, alert.alert_type, alert.ip, alert.port
+            db, alert.alert_type, alert.ip, alert.port or 0
         )
         # Get host info from cache
         host_info = host_cache.get(alert.ip)
@@ -168,6 +166,7 @@ async def list_alerts(
             AlertResponse(
                 id=alert.id,
                 type=alert.alert_type,
+                source=alert.source,
                 network_id=alert.network_id,
                 network_name=network_name,
                 global_open_port_id=alert.global_open_port_id,
@@ -195,23 +194,26 @@ async def list_alerts(
     ssh_alert_cache = await alerts_service.get_ssh_alert_summary_for_ips(db, unique_ips)
 
     for resp in alert_responses:
-        ssh_data = ssh_data_cache.get((resp.ip, resp.port))
+        port_key = resp.port or 0
+        ssh_data = ssh_data_cache.get((resp.ip, port_key))
         if ssh_data:
             resp.ssh_summary = AlertSSHSummary(**ssh_data)
-        ssh_alert_info = ssh_alert_cache.get((resp.ip, resp.port))
+        ssh_alert_info = ssh_alert_cache.get((resp.ip, port_key))
         if ssh_alert_info:
             resp.related_ssh_alert_count = ssh_alert_info[0]
             resp.related_ssh_alerts_dismissed = ssh_alert_info[1]
 
-    # Enrich with matching port rules
-    from app.services.global_port_rules import _parse_port_range
+    # Enrich with matching alert rules (unified)
+    from app.services.alert_rules import port_rule_matches_alert, ssh_rule_matches_alert
 
-    global_rules = await global_rules_service.get_all_global_rules(db)
-    # Collect unique network IDs from alerts for network-scoped rules
+    all_global_rules = await alert_rules_service.get_global_rules(db)
+    # Collect unique network IDs for network-scoped rules
     alert_network_ids = set(r.network_id for r in alert_responses if r.network_id is not None)
-    network_rules_by_nid: dict[int, list[Any]] = {}
+    network_alert_rules_by_nid: dict[int, list[Any]] = {}
     for nid in alert_network_ids:
-        network_rules_by_nid[nid] = await port_rules_service.get_rules_by_network_id(db, nid)
+        network_alert_rules_by_nid[nid] = await alert_rules_service.get_rules_by_network_id(
+            db, nid
+        )
     # Fetch network names
     network_name_cache: dict[int, str] = {}
     for nid in alert_network_ids:
@@ -221,35 +223,45 @@ async def list_alerts(
 
     for resp in alert_responses:
         matches: list[PortRuleMatch] = []
-        for gr in global_rules:
-            parsed = _parse_port_range(gr.port)
-            if parsed is None:
+        for rule in all_global_rules:
+            if rule.source != resp.source:
                 continue
-            start, end = parsed
-            if not (start <= resp.port <= end):
+            if resp.source == "port" and resp.port is not None:
+                if not port_rule_matches_alert(rule, resp.ip, resp.port):
+                    continue
+            elif resp.source == "ssh":
+                if not ssh_rule_matches_alert(
+                    rule, resp.ip, resp.port, resp.type.value
+                ):
+                    continue
+            else:
                 continue
-            if gr.ip is not None and gr.ip != resp.ip:
-                continue
+            criteria_ip = rule.match_criteria.get("ip")
             matches.append(PortRuleMatch(
-                id=gr.id, scope="global", network_id=None, network_name=None,
-                rule_type=gr.rule_type.value, description=gr.description,
-                ip=gr.ip,
+                id=rule.id, scope="global", network_id=None, network_name=None,
+                rule_type=rule.rule_type.value, description=rule.description,
+                ip=criteria_ip,
             ))
-        if resp.network_id and resp.network_id in network_rules_by_nid:
-            for nr in network_rules_by_nid[resp.network_id]:
-                parsed = _parse_port_range(nr.port)
-                if parsed is None:
+        if resp.network_id and resp.network_id in network_alert_rules_by_nid:
+            for rule in network_alert_rules_by_nid[resp.network_id]:
+                if rule.source != resp.source:
                     continue
-                start, end = parsed
-                if not (start <= resp.port <= end):
+                if resp.source == "port" and resp.port is not None:
+                    if not port_rule_matches_alert(rule, resp.ip, resp.port):
+                        continue
+                elif resp.source == "ssh":
+                    if not ssh_rule_matches_alert(
+                        rule, resp.ip, resp.port, resp.type.value
+                    ):
+                        continue
+                else:
                     continue
-                if nr.ip is not None and nr.ip != resp.ip:
-                    continue
+                criteria_ip = rule.match_criteria.get("ip")
                 matches.append(PortRuleMatch(
-                    id=nr.id, scope="network", network_id=resp.network_id,
+                    id=rule.id, scope="network", network_id=resp.network_id,
                     network_name=network_name_cache.get(resp.network_id),
-                    rule_type=nr.rule_type.value, description=nr.description,
-                    ip=nr.ip,
+                    rule_type=rule.rule_type.value, description=rule.description,
+                    ip=criteria_ip,
                 ))
         resp.matching_rules = matches
 
@@ -461,7 +473,7 @@ async def get_alert(
     alert, network_name = alert_with_network
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port
+        db, alert.alert_type, alert.ip, alert.port or 0
     )
 
     # Host info
@@ -486,6 +498,7 @@ async def get_alert(
     resp = AlertResponse(
         id=alert.id,
         type=alert.alert_type,
+        source=alert.source,
         network_id=alert.network_id,
         network_name=network_name,
         global_open_port_id=alert.global_open_port_id,
@@ -508,52 +521,63 @@ async def get_alert(
 
     # SSH enrichment
     ssh_data_cache = await ssh_service.get_latest_ssh_results_for_ips(db, {alert.ip})
-    ssh_data = ssh_data_cache.get((alert.ip, alert.port))
+    ssh_port = alert.port or 0
+    ssh_data = ssh_data_cache.get((alert.ip, ssh_port))
     if ssh_data:
         resp.ssh_summary = AlertSSHSummary(**ssh_data)
     ssh_alert_cache = await alerts_service.get_ssh_alert_summary_for_ips(db, {alert.ip})
-    ssh_alert_info = ssh_alert_cache.get((alert.ip, alert.port))
+    ssh_alert_info = ssh_alert_cache.get((alert.ip, ssh_port))
     if ssh_alert_info:
         resp.related_ssh_alert_count = ssh_alert_info[0]
         resp.related_ssh_alerts_dismissed = ssh_alert_info[1]
 
-    # Matching port rules
-    from app.services.global_port_rules import _parse_port_range
+    # Matching alert rules (unified)
+    from app.services.alert_rules import port_rule_matches_alert, ssh_rule_matches_alert
 
-    global_rules = await global_rules_service.get_all_global_rules(db)
+    all_global_rules = await alert_rules_service.get_global_rules(db)
     matches: list[PortRuleMatch] = []
-    for gr in global_rules:
-        parsed = _parse_port_range(gr.port)
-        if parsed is None:
+    for rule in all_global_rules:
+        if rule.source != alert.source:
             continue
-        start, end = parsed
-        if not (start <= resp.port <= end):
+        if alert.source == "port" and alert.port is not None:
+            if not port_rule_matches_alert(rule, alert.ip, alert.port):
+                continue
+        elif alert.source == "ssh":
+            if not ssh_rule_matches_alert(
+                rule, alert.ip, alert.port, alert.alert_type.value
+            ):
+                continue
+        else:
             continue
-        if gr.ip is not None and gr.ip != resp.ip:
-            continue
+        criteria_ip = rule.match_criteria.get("ip")
         matches.append(PortRuleMatch(
-            id=gr.id, scope="global", network_id=None, network_name=None,
-            rule_type=gr.rule_type.value, description=gr.description,
-            ip=gr.ip,
+            id=rule.id, scope="global", network_id=None, network_name=None,
+            rule_type=rule.rule_type.value, description=rule.description,
+            ip=criteria_ip,
         ))
     if alert.network_id:
-        network_rules = await port_rules_service.get_rules_by_network_id(db, alert.network_id)
+        net_rules = await alert_rules_service.get_rules_by_network_id(db, alert.network_id)
         net = await networks_service.get_network_by_id(db, alert.network_id)
         net_name = net.name if net else None
-        for nr in network_rules:
-            parsed = _parse_port_range(nr.port)
-            if parsed is None:
+        for rule in net_rules:
+            if rule.source != alert.source:
                 continue
-            start, end = parsed
-            if not (start <= resp.port <= end):
+            if alert.source == "port" and alert.port is not None:
+                if not port_rule_matches_alert(rule, alert.ip, alert.port):
+                    continue
+            elif alert.source == "ssh":
+                if not ssh_rule_matches_alert(
+                    rule, alert.ip, alert.port, alert.alert_type.value
+                ):
+                    continue
+            else:
                 continue
-            if nr.ip is not None and nr.ip != resp.ip:
-                continue
+            criteria_ip = rule.match_criteria.get("ip")
             matches.append(PortRuleMatch(
-                id=nr.id, scope="network", network_id=alert.network_id,
+                id=rule.id, scope="network", network_id=alert.network_id,
                 network_name=net_name,
-                rule_type=nr.rule_type.value, description=nr.description,
-                ip=nr.ip,
+                rule_type=rule.rule_type.value, description=rule.description,
+                ip=criteria_ip,
             ))
     resp.matching_rules = matches
 
@@ -605,7 +629,7 @@ async def dismiss_alert(
     # Unified dismiss: also dismiss SSH findings for the same ip:port
     ssh_alert_count = 0
     ssh_all_acked = True
-    if include_ssh:
+    if include_ssh and alert.port is not None:
         ssh_result = await ssh_service.get_latest_ssh_result(db, alert.ip, alert.port)
         if ssh_result:
             ssh_types = [
@@ -707,12 +731,13 @@ async def dismiss_alert(
     await db.commit()
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port
+        db, alert.alert_type, alert.ip, alert.port or 0
     )
 
     return AlertResponse(
         id=alert.id,
         type=alert.alert_type,
+        source=alert.source,
         network_id=alert.network_id,
         network_name=network_name,
         global_open_port_id=alert.global_open_port_id,
@@ -818,12 +843,13 @@ async def reopen_alert(
     await db.commit()
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port
+        db, alert.alert_type, alert.ip, alert.port or 0
     )
 
     return AlertResponse(
         id=alert.id,
         type=alert.alert_type,
+        source=alert.source,
         network_id=alert.network_id,
         network_name=network_name,
         global_open_port_id=alert.global_open_port_id,
@@ -899,29 +925,42 @@ async def bulk_accept_global(
     unique_ids = sorted(set(request.alert_ids))
     alerts = await alerts_service.get_alerts_by_ids(db, unique_ids)
 
-    # Track unique IP:port combinations to accept
-    ports_to_accept: set[tuple[str | None, str]] = set()
     errors: list[str] = []
 
+    # Build unique match criteria per source
+    rules_to_create: list[tuple[str, dict[str, str | None]]] = []
+    seen_keys: set[str] = set()
     for alert in alerts:
-        # Add to accept set (ip can be None for global rules)
-        ports_to_accept.add((alert.ip, str(alert.port)))
+        if alert.source == "port" and alert.port is not None:
+            criteria: dict[str, str | None] = {"ip": alert.ip, "port": str(alert.port)}
+        elif alert.source == "ssh":
+            criteria = {"ip": alert.ip, "alert_type": alert.alert_type.value}
+            if alert.port is not None:
+                criteria["port"] = str(alert.port)
+        else:
+            criteria = {"ip": alert.ip}
+        import json as _json
 
-    # Create global accept rules
+        key = f"{alert.source}:{_json.dumps(criteria, sort_keys=True)}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            rules_to_create.append((alert.source, criteria))
+
+    # Create global accept rules using unified alert_rules
     accepted_count = 0
-    for ip, port in ports_to_accept:
+    for source, criteria in rules_to_create:
         try:
-            await global_rules_service.create_global_rule(
+            await alert_rules_service.create_rule(
                 db=db,
-                port=port,
-                rule_type=GlobalRuleType.ACCEPTED,
-                ip=ip,
+                source=source,
+                rule_type=AlertRuleType.ACCEPTED,
+                match_criteria=criteria,
                 description=request.reason.strip(),
                 created_by=admin.id,
             )
             accepted_count += 1
         except Exception as e:
-            errors.append(f"Failed to accept {ip}:{port}: {str(e)}")
+            errors.append(f"Failed to accept {source} rule: {str(e)}")
 
     # Dismiss all alerts and create comments
     reason = request.reason.strip()
@@ -986,7 +1025,7 @@ async def bulk_accept_network(
             alerts_by_network[alert.network_id] = []
         alerts_by_network[alert.network_id].append(alert)
 
-    # Create network-specific accept rules
+    # Create network-specific accept rules using unified alert_rules
     accepted_count = 0
     for network_id, network_alerts in alerts_by_network.items():
         # Verify network exists
@@ -995,25 +1034,39 @@ async def bulk_accept_network(
             errors.append(f"Network {network_id} not found")
             continue
 
-        # Track unique IP:port combinations per network
-        ports_to_accept: set[tuple[str | None, str]] = set()
+        # Build unique criteria per alert
+        import json as _json
+
+        seen_keys: set[str] = set()
+        rules_to_create: list[tuple[str, dict[str, str | None]]] = []
         for alert in network_alerts:
-            ports_to_accept.add((alert.ip, str(alert.port)))
+            if alert.source == "port" and alert.port is not None:
+                criteria: dict[str, str | None] = {"ip": alert.ip, "port": str(alert.port)}
+            elif alert.source == "ssh":
+                criteria = {"ip": alert.ip, "alert_type": alert.alert_type.value}
+                if alert.port is not None:
+                    criteria["port"] = str(alert.port)
+            else:
+                criteria = {"ip": alert.ip}
+            key = f"{alert.source}:{_json.dumps(criteria, sort_keys=True)}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                rules_to_create.append((alert.source, criteria))
 
         # Create rules for this network
-        for ip, port in ports_to_accept:
+        for source, criteria in rules_to_create:
             try:
-                await port_rules_service.create_rule(
+                await alert_rules_service.create_rule(
                     db=db,
+                    source=source,
+                    rule_type=AlertRuleType.ACCEPTED,
+                    match_criteria=criteria,
                     network_id=network_id,
-                    port=port,
-                    rule_type=RuleType.ACCEPTED,
-                    ip=ip,
                     description=request.reason.strip(),
                 )
                 accepted_count += 1
             except Exception as e:
-                errors.append(f"Failed to accept {ip}:{port} on network {network_id}: {str(e)}")
+                errors.append(f"Failed to accept {source} rule on network {network_id}: {str(e)}")
 
     # Dismiss all alerts and create comments
     reason = request.reason.strip()
@@ -1261,12 +1314,13 @@ async def assign_alert(
 
     # Compute severity for response
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port
+        db, alert.alert_type, alert.ip, alert.port or 0
     )
 
     return AlertResponse(
         id=alert.id,
         type=alert.alert_type,
+        source=alert.source,
         network_id=alert.network_id,
         network_name=network_name,
         global_open_port_id=alert.global_open_port_id,
@@ -1315,12 +1369,13 @@ async def update_alert_status(
 
     # Compute severity for response
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port
+        db, alert.alert_type, alert.ip, alert.port or 0
     )
 
     return AlertResponse(
         id=alert.id,
         type=alert.alert_type,
+        source=alert.source,
         network_id=alert.network_id,
         network_name=network_name,
         global_open_port_id=alert.global_open_port_id,

@@ -13,13 +13,13 @@ from app.models.open_port import OpenPort
 from app.models.port_rule import PortRule, RuleType
 from app.models.scan import Scan, ScanStatus
 from app.models.ssh_scan_result import SSHScanResult
+from app.services.alert_rules import is_port_accepted, is_ssh_accepted
 from app.services.email_alerts import queue_alert_emails, queue_global_alert_emails
 from app.services.global_open_ports import (
     get_global_open_port,
     get_global_open_port_by_id,
     upsert_global_open_port,
 )
-from app.services.global_port_rules import is_port_accepted
 from app.services.hosts import get_host_by_ip
 
 PortKey = tuple[str, int]
@@ -145,7 +145,7 @@ async def propagate_dismiss_reason_to_port_and_host(
     global_port = None
     if alert.global_open_port_id:
         global_port = await get_global_open_port_by_id(db, alert.global_open_port_id)
-    else:
+    elif alert.port is not None:
         global_port = await get_global_open_port(db, alert.ip, alert.port)
 
     if global_port:
@@ -176,9 +176,9 @@ async def auto_dismiss_alerts_for_accepted_rule(
     Returns:
         Number of alerts dismissed
     """
-    from app.services.global_port_rules import _parse_port_range
+    from app.services.alert_rules import _parse_port_range as parse_port_range
 
-    parsed = _parse_port_range(port_str)
+    parsed = parse_port_range(port_str)
     if parsed is None:
         return 0
 
@@ -186,12 +186,51 @@ async def auto_dismiss_alerts_for_accepted_rule(
 
     conditions = [
         Alert.dismissed.is_(False),
+        Alert.port.isnot(None),
         Alert.port >= start,
         Alert.port <= end,
     ]
 
     if ip is not None:
         conditions.append(Alert.ip == ip)
+
+    if network_id is not None:
+        conditions.append(Alert.network_id == network_id)
+
+    stmt = update(Alert).where(and_(*conditions)).values(
+        dismissed=True,
+        dismiss_reason=reason,
+    )
+    result = await db.execute(stmt)
+    return result.rowcount or 0  # type: ignore[attr-defined]
+
+
+async def auto_dismiss_alerts_for_ssh_rule(
+    db: AsyncSession,
+    ip: str | None,
+    port: int | None,
+    alert_type: str | None,
+    reason: str,
+    network_id: int | None = None,
+) -> int:
+    """Auto-dismiss pending SSH alerts matching a newly created ACCEPTED rule.
+
+    Returns:
+        Number of alerts dismissed
+    """
+    conditions: list[Any] = [
+        Alert.dismissed.is_(False),
+        Alert.source == "ssh",
+    ]
+
+    if ip is not None:
+        conditions.append(Alert.ip == ip)
+
+    if port is not None:
+        conditions.append(Alert.port == port)
+
+    if alert_type is not None:
+        conditions.append(Alert.alert_type == alert_type)
 
     if network_id is not None:
         conditions.append(Alert.network_id == network_id)
@@ -275,6 +314,8 @@ async def get_port_alert_status_for_ips(
 
     lookup: dict[tuple[str, int], tuple[int, bool, str | None]] = {}
     for alert in alerts:
+        if alert.port is None:
+            continue
         key = (alert.ip, alert.port)
         if key in ip_port_pairs and key not in lookup:
             lookup[key] = (alert.id, alert.dismissed, alert.dismiss_reason)
@@ -568,6 +609,7 @@ async def generate_alerts_for_scan(
                     scan_id=scan.id,
                     network_id=scan.network_id,
                     alert_type=AlertType.NEW_PORT,
+                    source="port",
                     ip=ip,
                     port=port,
                     message=f"New open port detected: {ip}:{port}",
@@ -583,6 +625,7 @@ async def generate_alerts_for_scan(
                     scan_id=scan.id,
                     network_id=scan.network_id,
                     alert_type=AlertType.BLOCKED,
+                    source="port",
                     ip=ip,
                     port=port,
                     message=f"Blocked port detected: {ip}:{port}",
@@ -602,6 +645,7 @@ async def generate_alerts_for_scan(
                     scan_id=scan.id,
                     network_id=scan.network_id,
                     alert_type=AlertType.NOT_ALLOWED,
+                    source="port",
                     ip=ip,
                     port=port,
                     message=f"Open port not in allowlist: {ip}:{port}",
@@ -746,6 +790,7 @@ async def generate_global_alerts_for_scan(
             network_id=scan.network_id,
             global_open_port_id=global_port.id,
             alert_type=AlertType.NEW_PORT,
+            source="port",
             ip=ip,
             port=port,
             message=f"New open port detected globally: {ip}:{port}",
@@ -927,7 +972,9 @@ async def generate_ssh_alerts_for_scan(
             version_info = f" (SSH {ssh_result.ssh_version})"
 
         # Check for insecure authentication methods
-        if AlertType.SSH_INSECURE_AUTH in enabled_types:
+        if AlertType.SSH_INSECURE_AUTH in enabled_types and not await is_ssh_accepted(
+            db, ip, port, AlertType.SSH_INSECURE_AUTH.value
+        ):
             if ssh_result.password_enabled or ssh_result.keyboard_interactive_enabled:
                 # Build alert message with details about which auth methods are enabled
                 auth_methods: list[str] = []
@@ -949,6 +996,7 @@ async def generate_ssh_alerts_for_scan(
                         scan_id=scan.id,
                         network_id=scan.network_id,
                         alert_type=AlertType.SSH_INSECURE_AUTH,
+                        source="ssh",
                         ip=ip,
                         port=port,
                         message=message,
@@ -959,7 +1007,9 @@ async def generate_ssh_alerts_for_scan(
                     created_count += 1
 
         # Check for weak ciphers
-        if AlertType.SSH_WEAK_CIPHER in enabled_types:
+        if AlertType.SSH_WEAK_CIPHER in enabled_types and not await is_ssh_accepted(
+            db, ip, port, AlertType.SSH_WEAK_CIPHER.value
+        ):
             weak_ciphers = _extract_weak_algorithms(ssh_result.supported_ciphers)
             if weak_ciphers:
                 key = (AlertType.SSH_WEAK_CIPHER, ip, port)
@@ -974,6 +1024,7 @@ async def generate_ssh_alerts_for_scan(
                         scan_id=scan.id,
                         network_id=scan.network_id,
                         alert_type=AlertType.SSH_WEAK_CIPHER,
+                        source="ssh",
                         ip=ip,
                         port=port,
                         message=message,
@@ -984,7 +1035,9 @@ async def generate_ssh_alerts_for_scan(
                     created_count += 1
 
         # Check for weak key exchange algorithms
-        if AlertType.SSH_WEAK_KEX in enabled_types:
+        if AlertType.SSH_WEAK_KEX in enabled_types and not await is_ssh_accepted(
+            db, ip, port, AlertType.SSH_WEAK_KEX.value
+        ):
             weak_kex = _extract_weak_algorithms(ssh_result.kex_algorithms)
             if weak_kex:
                 key = (AlertType.SSH_WEAK_KEX, ip, port)
@@ -999,6 +1052,7 @@ async def generate_ssh_alerts_for_scan(
                         scan_id=scan.id,
                         network_id=scan.network_id,
                         alert_type=AlertType.SSH_WEAK_KEX,
+                        source="ssh",
                         ip=ip,
                         port=port,
                         message=message,
@@ -1009,7 +1063,9 @@ async def generate_ssh_alerts_for_scan(
                     created_count += 1
 
         # Check for outdated SSH version
-        if AlertType.SSH_OUTDATED_VERSION in enabled_types:
+        if AlertType.SSH_OUTDATED_VERSION in enabled_types and not await is_ssh_accepted(
+            db, ip, port, AlertType.SSH_OUTDATED_VERSION.value
+        ):
             # Get version threshold from alert_config or use default
             version_threshold = DEFAULT_SSH_VERSION_THRESHOLD
             if alert_config and isinstance(alert_config.get("ssh_version_threshold"), str):
@@ -1028,6 +1084,7 @@ async def generate_ssh_alerts_for_scan(
                         scan_id=scan.id,
                         network_id=scan.network_id,
                         alert_type=AlertType.SSH_OUTDATED_VERSION,
+                        source="ssh",
                         ip=ip,
                         port=port,
                         message=message,
@@ -1264,6 +1321,7 @@ async def generate_ssh_regression_alerts_for_scan(
                     scan_id=scan.id,
                     network_id=scan.network_id,
                     alert_type=AlertType.SSH_CONFIG_REGRESSION,
+                    source="ssh",
                     ip=current.host_ip,
                     port=current.port,
                     message=message,

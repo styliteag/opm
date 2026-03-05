@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.models.alert_rule import AlertRule
 from app.schemas.host import (
     HostDiscoveryScanListResponse,
     HostDiscoveryScanResponse,
@@ -26,11 +27,24 @@ from app.schemas.scan import (
     ScanSummaryResponse,
     ScanTriggerResponse,
 )
+from app.services import alert_rules as alert_rules_service
 from app.services import host_discovery as host_discovery_service
 from app.services import networks as networks_service
-from app.services import port_rules as port_rules_service
 from app.services import scanners as scanners_service
 from app.services import scans as scans_service
+
+
+def _alert_rule_to_port_rule_response(rule: AlertRule) -> PortRuleResponse:
+    """Convert AlertRule to PortRuleResponse for backward compatibility."""
+    return PortRuleResponse(
+        id=rule.id,
+        network_id=rule.network_id,
+        ip=rule.match_criteria.get("ip"),
+        port=rule.match_criteria.get("port", ""),
+        rule_type=rule.rule_type,
+        description=rule.description,
+    )
+
 
 router = APIRouter(prefix="/api/networks", tags=["networks"])
 
@@ -197,8 +211,8 @@ async def list_port_rules(
             detail="Network not found",
         )
 
-    rules = await port_rules_service.get_rules_by_network_id(db, network_id)
-    return PortRuleListResponse(rules=[PortRuleResponse.model_validate(rule) for rule in rules])
+    rules = await alert_rules_service.get_rules_by_network_id(db, network_id, source="port")
+    return PortRuleListResponse(rules=[_alert_rule_to_port_rule_response(rule) for rule in rules])
 
 
 @router.post(
@@ -221,17 +235,21 @@ async def create_port_rule(
             detail="Network not found",
         )
 
-    rule = await port_rules_service.create_rule(
+    criteria: dict[str, str | None] = {"port": request.port}
+    if request.ip:
+        criteria["ip"] = request.ip
+
+    rule = await alert_rules_service.create_rule(
         db=db,
-        network_id=network_id,
-        port=request.port,
+        source="port",
         rule_type=request.rule_type,
-        ip=request.ip,
+        match_criteria=criteria,
+        network_id=network_id,
         description=request.description,
     )
     await db.commit()
 
-    return PortRuleResponse.model_validate(rule)
+    return _alert_rule_to_port_rule_response(rule)
 
 
 @router.put("/{network_id}/rules", response_model=PortRuleListResponse)
@@ -256,14 +274,16 @@ async def bulk_update_port_rules(
     # Convert request to tuples for service
     rules_data = [(rule.port, rule.rule_type, rule.description, rule.ip) for rule in request.rules]
 
-    new_rules = await port_rules_service.bulk_replace_rules(
+    new_rules = await alert_rules_service.bulk_replace_port_rules(
         db=db,
         network_id=network_id,
         rules=rules_data,
     )
     await db.commit()
 
-    return PortRuleListResponse(rules=[PortRuleResponse.model_validate(rule) for rule in new_rules])
+    return PortRuleListResponse(
+        rules=[_alert_rule_to_port_rule_response(rule) for rule in new_rules]
+    )
 
 
 @router.delete(
@@ -286,7 +306,7 @@ async def delete_port_rule(
         )
 
     # Get the rule
-    rule = await port_rules_service.get_rule_by_id(db, rule_id)
+    rule = await alert_rules_service.get_rule_by_id(db, rule_id)
     if rule is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -300,7 +320,7 @@ async def delete_port_rule(
             detail="Port rule not found",
         )
 
-    await port_rules_service.delete_rule(db, rule)
+    await alert_rules_service.delete_rule(db, rule)
     await db.commit()
 
 

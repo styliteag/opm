@@ -5,15 +5,15 @@ from ipaddress import ip_address, ip_network
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
-from app.models.port_rule import RuleType
+from app.models.alert_rule import RuleType
 from app.schemas.port import (
     OpenPortListItem,
     OpenPortListResponse,
     PortAcceptRequest,
 )
 from app.schemas.port_rule import PortRuleResponse
+from app.services import alert_rules as alert_rules_service
 from app.services import networks as networks_service
-from app.services import port_rules as port_rules_service
 from app.services import ports as ports_service
 
 router = APIRouter(prefix="/api/ports", tags=["ports"])
@@ -138,16 +138,25 @@ async def accept_port(
             detail="Network not found",
         )
 
-    rule = await port_rules_service.create_rule(
+    criteria: dict[str, str | None] = {"port": request.port}
+    if request.ip:
+        criteria["ip"] = request.ip
+
+    rule = await alert_rules_service.create_rule(
         db=db,
-        network_id=request.network_id,
-        port=request.port,
+        source="port",
         rule_type=RuleType.ACCEPTED,
-        ip=request.ip,
+        match_criteria=criteria,
+        network_id=request.network_id,
         description=request.description,
     )
     await db.commit()
 
-    return PortRuleResponse.model_validate(rule)
-
-    return PortRuleResponse.model_validate(rule)
+    return PortRuleResponse(
+        id=rule.id,
+        network_id=rule.network_id,
+        ip=rule.match_criteria.get("ip"),
+        port=rule.match_criteria.get("port", ""),
+        rule_type=rule.rule_type,
+        description=rule.description,
+    )

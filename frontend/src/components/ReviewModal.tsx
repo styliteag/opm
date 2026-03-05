@@ -4,7 +4,7 @@ import ReasonSuggestions from './ReasonSuggestions'
 type ReviewAlert = {
   id: number
   ip: string
-  port: number
+  port: number | null
   network_id: number | null
   network_name: string | null
   related_ssh_alert_count: number
@@ -53,7 +53,8 @@ export default function ReviewModal({
             </h3>
             {mode === 'single' && (
               <p className="mt-2 font-mono text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                {first.ip}:{first.port}
+                {first.ip}
+                {first.port != null ? `:${first.port}` : ''}
               </p>
             )}
           </div>

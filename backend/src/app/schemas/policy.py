@@ -15,9 +15,10 @@ class PortRuleUnifiedResponse(BaseModel):
     network_id: int | None = None  # None means global
     network_name: str | None = None
     ip: str | None = None
-    port: str
+    port: str = ""
     rule_type: GlobalRuleType
     description: str | None = None
+    source: str = "port"
     created_at: datetime | None = None
     created_by: int | None = None
 
@@ -31,13 +32,14 @@ class PortRuleUnifiedListResponse(BaseModel):
 
 
 class PortRuleUnifiedCreateRequest(BaseModel):
-    """Request schema for creating a port rule (global or network)."""
+    """Request schema for creating an alert rule (global or network)."""
 
     network_id: int | None = None  # None means global
     ip: str | None = None
-    port: str
+    port: str = ""
     rule_type: GlobalRuleType = GlobalRuleType.ACCEPTED
     description: str | None = None
+    source: str = "port"
 
     @field_validator("port")
     @classmethod

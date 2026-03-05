@@ -41,11 +41,12 @@ export type AlertSSHSummary = {
 export type Alert = {
   id: number
   type: AlertType
+  source: string
   network_id: number | null
   network_name: string | null
   global_open_port_id: number | null
   ip: string
-  port: number
+  port: number | null
   message: string
   dismissed: boolean
   assigned_to_user_id: number | null
@@ -312,6 +313,7 @@ export type PortRuleUnified = {
   port: string
   rule_type: 'accepted' | 'critical'
   description: string | null
+  source?: string
   created_at?: string | null
   created_by?: number | null
 }
@@ -326,6 +328,7 @@ export type PortRuleUnifiedCreatePayload = {
   port: string
   rule_type: 'accepted' | 'critical'
   description?: string | null
+  source?: string
 }
 
 // Host types

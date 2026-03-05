@@ -257,13 +257,7 @@ export function useAlerts(filters: AlertFiltersState) {
       )
         return false
 
-      if (categoryFilter === 'ssh') {
-        const isSSHType = alert.type.startsWith('ssh_')
-        const hasSSHData = alert.ssh_summary !== null && alert.ssh_summary !== undefined
-        if (!isSSHType && !hasSSHData) return false
-      }
-      if (categoryFilter === 'port' && (alert.type.startsWith('ssh_') || alert.ssh_summary))
-        return false
+      if (categoryFilter !== 'all' && alert.source !== categoryFilter) return false
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase()
@@ -309,7 +303,7 @@ export function useAlerts(filters: AlertFiltersState) {
         case 'ip':
           return 0 // handled separately
         case 'port':
-          return alert.port
+          return alert.port ?? 0
         case 'network':
           return 0 // handled separately
         case 'time':
@@ -336,7 +330,7 @@ export function useAlerts(filters: AlertFiltersState) {
         let comparison = 0
         if (sortColumn === 'ip') {
           comparison = compareIPs(a.ip, b.ip)
-          if (comparison === 0) comparison = a.port - b.port
+          if (comparison === 0) comparison = (a.port ?? 0) - (b.port ?? 0)
         } else if (sortColumn === 'network') {
           comparison = (a.network_name ?? '').localeCompare(b.network_name ?? '')
         } else {
@@ -346,7 +340,7 @@ export function useAlerts(filters: AlertFiltersState) {
         // Tiebreak: ip then port
         const ipCmp = compareIPs(a.ip, b.ip)
         if (ipCmp !== 0) return ipCmp
-        return a.port - b.port
+        return (a.port ?? 0) - (b.port ?? 0)
       }
 
       // Same ip:port group — port alerts first, then SSH alerts

@@ -26,7 +26,7 @@ class AlertEmailItem:
     scan_id: int | None
     alert_type: str
     ip: str
-    port: int
+    port: int | None
     message: str
     created_at: datetime
 

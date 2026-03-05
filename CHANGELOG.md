@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Unified alert rules: replaced separate `port_rules` and `global_port_rules` tables with a single `alert_rules` table supporting multiple alert sources (port, SSH, future TLS etc.)
+- Alerts now carry a `source` field ("port" or "ssh") instead of inferring category from alert type prefix
+- Alert `port` field is now nullable to support source types that don't have ports
+- All routers (alerts, policy, hosts, ssh, networks, ports) migrated to use `alert_rules_service`
+- SSH alerts can now be suppressed via accepted rules (previously only dismissable)
+- Frontend category filter uses backend `source` field instead of heuristic type-prefix matching
+
+### Added
+- `alert_rules` table with `source`, `rule_type`, and `match_criteria` JSON column for source-specific matching
+- Alembic migration `012_add_alert_rules_and_source` that creates the new table, backfills data from old tables, and adds `source` column to alerts
+
 ## [1.3.1] - 2026-03-04
 
 ### Added
