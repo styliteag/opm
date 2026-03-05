@@ -16,7 +16,7 @@ import type {
 export type Severity = 'critical' | 'high' | 'medium' | 'info'
 export type StatusFilter = 'all' | 'critical_rule' | 'pending' | 'accepted' | 'dismissed'
 export type CategoryFilter = 'all' | 'ssh' | 'port'
-export type SortColumn = 'severity' | 'source' | 'type' | 'ip' | 'port' | 'network' | 'time'
+export type SortColumn = 'severity' | 'type' | 'ip' | 'port' | 'network' | 'time'
 export type SortDirection = 'asc' | 'desc'
 
 export type AlertFiltersState = {
@@ -298,8 +298,6 @@ export function useAlerts(filters: AlertFiltersState) {
       switch (sortColumn) {
         case 'severity':
           return severityOrder[alert.severity as Severity]
-        case 'source':
-          return alert.source === 'ssh' ? 1 : 0
         case 'type':
           return alert.type.startsWith('ssh_') ? 1 : 0
         case 'ip':

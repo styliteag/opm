@@ -123,22 +123,22 @@ export default function AlertRow({
         </span>
       </td>
       <td className="px-4 py-3">
-        <span
-          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${
-            alert.source === 'ssh'
-              ? 'border-violet-300/50 bg-violet-500/15 text-violet-700 dark:text-violet-200'
-              : 'border-cyan-300/50 bg-cyan-500/15 text-cyan-700 dark:text-cyan-200'
-          }`}
-        >
-          {alert.source === 'ssh' ? 'SSH' : 'Port'}
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <span
-          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${getAlertStyleCompact(alert.type)}`}
-        >
-          {getAlertLabelCompact(alert.type)}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+              alert.source === 'ssh'
+                ? 'bg-violet-500/15 text-violet-600 dark:text-violet-300'
+                : 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300'
+            }`}
+          >
+            {alert.source === 'ssh' ? 'SSH' : 'Port'}
+          </span>
+          <span
+            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${getAlertStyleCompact(alert.type)}`}
+          >
+            {getAlertLabelCompact(alert.type)}
+          </span>
+        </div>
       </td>
       <td className="px-4 py-3">
         {alert.host_id ? (

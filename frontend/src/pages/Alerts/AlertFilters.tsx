@@ -91,9 +91,9 @@ export default function AlertFilters({
         onChange={(e) => onCategoryChange(e.target.value as CategoryFilter)}
         className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
       >
-        <option value="all">All Types</option>
-        <option value="ssh">SSH Problems</option>
-        <option value="port">Port Alerts</option>
+        <option value="all">All Sources</option>
+        <option value="ssh">SSH</option>
+        <option value="port">Port</option>
       </select>
 
       <select
