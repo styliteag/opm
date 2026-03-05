@@ -55,13 +55,9 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
 async def compute_alert_severity(
-    db: DbSession, alert_type: AlertType, ip: str, port: int, dismissed: bool
+    db: DbSession, alert_type: AlertType, ip: str, port: int
 ) -> Severity:
     """Compute alert severity based on rules and status."""
-    # Dismissed alerts are always INFO
-    if dismissed:
-        return Severity.INFO
-
     # Check if port is blocked (CRITICAL)
     if await is_port_blocked(db, ip, port):
         return Severity.CRITICAL
@@ -146,7 +142,7 @@ async def list_alerts(
     alert_responses = []
     for alert, network_name in alerts:
         severity = await compute_alert_severity(
-            db, alert.alert_type, alert.ip, alert.port, alert.dismissed
+            db, alert.alert_type, alert.ip, alert.port
         )
         # Get host info from cache
         host_info = host_cache.get(alert.ip)
@@ -484,7 +480,7 @@ async def get_alert(
     alert, network_name = alert_with_network
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
+        db, alert.alert_type, alert.ip, alert.port
     )
 
     # Host info
@@ -730,7 +726,7 @@ async def dismiss_alert(
     await db.commit()
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
+        db, alert.alert_type, alert.ip, alert.port
     )
 
     return AlertResponse(
@@ -841,7 +837,7 @@ async def reopen_alert(
     await db.commit()
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
+        db, alert.alert_type, alert.ip, alert.port
     )
 
     return AlertResponse(
@@ -1248,7 +1244,7 @@ async def assign_alert(
 
     # Compute severity for response
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
+        db, alert.alert_type, alert.ip, alert.port
     )
 
     return AlertResponse(
@@ -1302,7 +1298,7 @@ async def update_alert_status(
 
     # Compute severity for response
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
+        db, alert.alert_type, alert.ip, alert.port
     )
 
     return AlertResponse(

@@ -273,9 +273,7 @@ async def get_host_overview(
     alert_summaries = []
     for alert, alert_net_name in active_alerts_raw:
         severity = "medium"
-        if alert.dismissed:
-            severity = "info"
-        elif await is_port_blocked(db, alert.ip, alert.port):
+        if await is_port_blocked(db, alert.ip, alert.port):
             severity = "critical"
         elif alert.alert_type in (AlertType.NEW_PORT,):
             severity = "high"
@@ -400,9 +398,7 @@ async def get_host_overview(
             alert_status = a_status
             dismiss_reason = a.dismiss_reason
             # Compute severity
-            if a.dismissed:
-                alert_severity = "info"
-            elif rule_status == "critical":
+            if rule_status == "critical":
                 alert_severity = "critical"
             elif a.alert_type == AlertType.NEW_PORT:
                 alert_severity = "high"
