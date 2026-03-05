@@ -429,6 +429,19 @@ export function useAlerts(filters: AlertFiltersState) {
     },
   })
 
+  const bulkReopenMutation = useMutation({
+    mutationFn: async (alertIds: number[]) => {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/bulk-reopen`, {
+        method: 'PUT',
+        headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert_ids: alertIds }),
+      })
+      if (!response.ok) throw new Error(await extractErrorMessage(response))
+      return response.json()
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['alerts'] }),
+  })
+
   const bulkDeleteMutation = useMutation({
     mutationFn: async (alertIds: number[]) => {
       const response = await fetch(`${API_BASE_URL}/api/alerts/bulk-delete`, {
@@ -490,6 +503,7 @@ export function useAlerts(filters: AlertFiltersState) {
     bulkDismissMutation,
     singleDismissMutation,
     reopenMutation,
+    bulkReopenMutation,
     bulkDeleteMutation,
     assignAlertMutation,
     updateCommentMutation,

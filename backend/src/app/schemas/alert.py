@@ -126,6 +126,19 @@ class BulkDeleteResponse(BaseModel):
     missing_ids: list[int]
 
 
+class AlertBulkReopenRequest(BaseModel):
+    """Request schema for bulk reopening alerts."""
+
+    alert_ids: list[int]
+
+
+class AlertBulkReopenResponse(BaseModel):
+    """Response schema for bulk reopen results."""
+
+    reopened_ids: list[int]
+    missing_ids: list[int]
+
+
 class AlertStatusRequest(BaseModel):
     """Request schema for updating alert resolution status."""
 
