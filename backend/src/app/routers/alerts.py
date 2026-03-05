@@ -469,6 +469,120 @@ async def get_dismiss_suggestions(
     return DismissSuggestionsResponse(suggestions=suggestions)
 
 
+@router.get("/{alert_id}", response_model=AlertResponse)
+async def get_alert(
+    user: CurrentUser,
+    db: DbSession,
+    alert_id: int,
+) -> AlertResponse:
+    """Get a single alert by ID with full enrichment."""
+    alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
+    if not alert_with_network:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
+        )
+    alert, network_name = alert_with_network
+
+    severity = await compute_alert_severity(
+        db, alert.alert_type, alert.ip, alert.port, alert.dismissed
+    )
+
+    # Host info
+    host = await hosts_service.get_host_by_ip(db, alert.ip)
+    host_id = host.id if host else None
+    hostname = host.hostname if host else None
+    user_comment = host.user_comment if host else None
+
+    # Assigned user email
+    assigned_to_email = None
+    if alert.assigned_to_user_id:
+        u = await users_service.get_user_by_id(db, alert.assigned_to_user_id)
+        if u:
+            assigned_to_email = u.email
+
+    # Latest comment
+    latest_comments = await alert_comments_service.get_latest_comments_for_alerts(
+        db, [alert.id]
+    )
+    comment_info = latest_comments.get(alert.id)
+
+    resp = AlertResponse(
+        id=alert.id,
+        type=alert.alert_type,
+        network_id=alert.network_id,
+        network_name=network_name,
+        global_open_port_id=alert.global_open_port_id,
+        ip=alert.ip,
+        port=alert.port,
+        message=alert.message,
+        dismissed=alert.dismissed,
+        assigned_to_user_id=alert.assigned_to_user_id,
+        assigned_to_email=assigned_to_email,
+        resolution_status=alert.resolution_status,
+        created_at=alert.created_at,
+        severity=severity,
+        host_id=host_id,
+        hostname=hostname,
+        user_comment=user_comment,
+        last_comment=comment_info[0] if comment_info else None,
+        last_comment_by=comment_info[1] if comment_info else None,
+        last_comment_at=comment_info[2] if comment_info else None,
+    )
+
+    # SSH enrichment
+    ssh_data_cache = await ssh_service.get_latest_ssh_results_for_ips(db, {alert.ip})
+    ssh_data = ssh_data_cache.get((alert.ip, alert.port))
+    if ssh_data:
+        resp.ssh_summary = AlertSSHSummary(**ssh_data)
+    ssh_alert_cache = await alerts_service.get_ssh_alert_summary_for_ips(db, {alert.ip})
+    ssh_alert_info = ssh_alert_cache.get((alert.ip, alert.port))
+    if ssh_alert_info:
+        resp.related_ssh_alert_count = ssh_alert_info[0]
+        resp.related_ssh_alerts_dismissed = ssh_alert_info[1]
+
+    # Matching port rules
+    from app.services.global_port_rules import _parse_port_range
+
+    global_rules = await global_rules_service.get_all_global_rules(db)
+    matches: list[PortRuleMatch] = []
+    for gr in global_rules:
+        parsed = _parse_port_range(gr.port)
+        if parsed is None:
+            continue
+        start, end = parsed
+        if not (start <= resp.port <= end):
+            continue
+        if gr.ip is not None and gr.ip != resp.ip:
+            continue
+        matches.append(PortRuleMatch(
+            id=gr.id, scope="global", network_id=None, network_name=None,
+            rule_type=gr.rule_type.value, description=gr.description,
+            ip=gr.ip,
+        ))
+    if alert.network_id:
+        network_rules = await port_rules_service.get_rules_by_network_id(db, alert.network_id)
+        net = await networks_service.get_network_by_id(db, alert.network_id)
+        net_name = net.name if net else None
+        for nr in network_rules:
+            parsed = _parse_port_range(nr.port)
+            if parsed is None:
+                continue
+            start, end = parsed
+            if not (start <= resp.port <= end):
+                continue
+            if nr.ip is not None and nr.ip != resp.ip:
+                continue
+            matches.append(PortRuleMatch(
+                id=nr.id, scope="network", network_id=alert.network_id,
+                network_name=net_name,
+                rule_type=nr.rule_type.value, description=nr.description,
+                ip=nr.ip,
+            ))
+    resp.matching_rules = matches
+
+    return resp
+
+
 @router.put("/{alert_id}/dismiss", response_model=AlertResponse)
 async def dismiss_alert(
     admin: AdminUser,
