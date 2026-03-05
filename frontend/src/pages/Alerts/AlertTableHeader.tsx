@@ -25,6 +25,7 @@ function SortIcon({ active, direction }: { active: boolean; direction: SortDirec
 
 const columns: { key: SortColumn; label: string }[] = [
   { key: 'severity', label: 'Severity' },
+  { key: 'source', label: 'Source' },
   { key: 'type', label: 'Type' },
   { key: 'ip', label: 'IP / Hostname' },
   { key: 'port', label: 'Port' },

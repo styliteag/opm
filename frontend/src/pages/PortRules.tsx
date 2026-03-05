@@ -37,6 +37,7 @@ const PortRules = () => {
     port: '',
     rule_type: 'accepted',
     description: null,
+    source: 'port',
   })
 
   const rulesQuery = useQuery({
@@ -66,7 +67,8 @@ const PortRules = () => {
           (r.ip ?? '').toLowerCase().includes(q) ||
           (r.description ?? '').toLowerCase().includes(q) ||
           (r.network_name ?? 'global').toLowerCase().includes(q) ||
-          r.rule_type.toLowerCase().includes(q),
+          r.rule_type.toLowerCase().includes(q) ||
+          (r.source ?? 'port').toLowerCase().includes(q),
       )
     }
     return [...result].sort((a, b) => {
@@ -105,7 +107,14 @@ const PortRules = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['port-rules'] })
       setShowCreateForm(false)
-      setNewRule({ network_id: null, ip: null, port: '', rule_type: 'accepted', description: null })
+      setNewRule({
+        network_id: null,
+        ip: null,
+        port: '',
+        rule_type: 'accepted',
+        description: null,
+        source: 'port',
+      })
       showToast('Rule created', 'success')
     },
     onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
@@ -152,7 +161,7 @@ const PortRules = () => {
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newRule.port.trim()) return
+    if (newRule.source !== 'ssh' && !newRule.port.trim()) return
     createMutation.mutate({
       ...newRule,
       ip: newRule.ip?.trim() || null,
@@ -162,7 +171,8 @@ const PortRules = () => {
 
   const handleDelete = (rule: PortRuleUnified) => {
     const scope = rule.network_id === null ? 'global' : 'network'
-    if (!confirm(`Delete this ${scope} rule for port ${rule.port}?`)) return
+    const portInfo = rule.port ? ` for port ${rule.port}` : ''
+    if (!confirm(`Delete this ${scope} ${rule.source ?? 'port'} rule${portInfo}?`)) return
     deleteMutation.mutate({ scope, ruleId: rule.id })
   }
 
@@ -203,7 +213,7 @@ const PortRules = () => {
     </button>
   )
 
-  const colSpan = isAdmin ? 7 : 5
+  const colSpan = isAdmin ? 8 : 6
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700">
@@ -212,11 +222,11 @@ const PortRules = () => {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
-            Port Rules
+            Alert Rules
           </h1>
           <p className="text-indigo-500 mt-3 uppercase text-[11px] font-black tracking-[0.3em] flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-indigo-500" />
-            Global &amp; Network Port Policies
+            Global &amp; Network Alert Policies
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -260,9 +270,22 @@ const PortRules = () => {
       {showCreateForm && isAdmin && (
         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm p-8">
           <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight mb-6">
-            New Port Rule
+            New Rule
           </h2>
-          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
+                Source
+              </label>
+              <select
+                value={newRule.source ?? 'port'}
+                onChange={(e) => setNewRule({ ...newRule, source: e.target.value })}
+                className="bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
+              >
+                <option value="port">Port</option>
+                <option value="ssh">SSH</option>
+              </select>
+            </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
                 Scope
@@ -299,14 +322,14 @@ const PortRules = () => {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
-                Port *
+                Port {newRule.source !== 'ssh' && '*'}
               </label>
               <input
                 type="text"
                 value={newRule.port}
                 onChange={(e) => setNewRule({ ...newRule, port: e.target.value })}
                 placeholder="e.g. 443"
-                required
+                required={newRule.source !== 'ssh'}
                 className="bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
               />
             </div>
@@ -432,6 +455,9 @@ const PortRules = () => {
                 )}
                 <th className="px-6 py-3">{renderSort('Scope', 'scope')}</th>
                 <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                  Source
+                </th>
+                <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
                   IP
                 </th>
                 <th className="px-6 py-3">{renderSort('Port', 'port')}</th>
@@ -459,7 +485,7 @@ const PortRules = () => {
                     colSpan={colSpan}
                     className="px-6 py-12 text-center text-sm text-slate-400 italic"
                   >
-                    {searchTerm.trim() ? 'No rules match your search' : 'No port rules found'}
+                    {searchTerm.trim() ? 'No rules match your search' : 'No alert rules found'}
                   </td>
                 </tr>
               ) : (
@@ -493,6 +519,17 @@ const PortRules = () => {
                           }`}
                         >
                           {rule.network_name ?? 'Global'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                            rule.source === 'ssh'
+                              ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300'
+                              : 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300'
+                          }`}
+                        >
+                          {rule.source === 'ssh' ? 'SSH' : 'Port'}
                         </span>
                       </td>
                       <td className="px-6 py-3 font-mono text-sm text-slate-700 dark:text-slate-300">
