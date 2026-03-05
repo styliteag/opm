@@ -35,11 +35,12 @@ class AlertResponse(BaseModel):
 
     id: int
     type: AlertType
+    source: str = "port"
     network_id: int | None
     network_name: str | None
     global_open_port_id: int | None = None
     ip: str
-    port: int
+    port: int | None
     message: str
     dismissed: bool
     assigned_to_user_id: int | None = None

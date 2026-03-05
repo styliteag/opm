@@ -56,8 +56,9 @@ class Alert(Base):
     alert_type: Mapped[AlertType] = mapped_column(
         SQLEnum(AlertType, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
+    source: Mapped[str] = mapped_column(String(50), nullable=False, index=True, default="port")
     ip: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
-    port: Mapped[int] = mapped_column(nullable=False, index=True)
+    port: Mapped[int | None] = mapped_column(nullable=True, index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     dismiss_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

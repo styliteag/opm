@@ -43,6 +43,7 @@ def get_alert_type_metadata() -> list[dict[str, str]]:
             "alert_type": info.alert_type,
             "label": info.label,
             "category": info.category,
+            "source": info.category,  # alias for frontend
             "default_severity": info.default_severity,
             "description": info.description,
         }

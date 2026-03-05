@@ -4,7 +4,7 @@ import ipaddress
 
 from pydantic import BaseModel, field_validator
 
-from app.models.port_rule import RuleType
+from app.models.alert_rule import RuleType
 
 
 def validate_port_or_range(value: str) -> str:

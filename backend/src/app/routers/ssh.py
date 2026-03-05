@@ -828,29 +828,29 @@ async def dismiss_ssh_host(
                 update(Alert).where(Alert.id.in_(port_alert_ids)).values(**port_dismiss_values)
             )
 
-    # Optionally create accept rules
+    # Optionally create accept rules using unified alert_rules
     if request.accept_scope == AcceptScope.GLOBAL and reason:
-        from app.models.global_port_rule import GlobalRuleType
-        from app.services import global_port_rules as global_rules_service
+        from app.models.alert_rule import RuleType as AlertRuleType
+        from app.services import alert_rules as alert_rules_service
 
-        await global_rules_service.create_global_rule(
+        await alert_rules_service.create_rule(
             db=db,
-            port=str(port),
-            rule_type=GlobalRuleType.ACCEPTED,
-            ip=host_ip,
+            source="ssh",
+            rule_type=AlertRuleType.ACCEPTED,
+            match_criteria={"ip": host_ip, "port": str(port)},
             description=reason,
             created_by=admin.id,
         )
     elif request.accept_scope == AcceptScope.NETWORK and reason and network_id:
-        from app.models.port_rule import RuleType
-        from app.services import port_rules as port_rules_service
+        from app.models.alert_rule import RuleType as AlertRuleType
+        from app.services import alert_rules as alert_rules_service
 
-        await port_rules_service.create_rule(
+        await alert_rules_service.create_rule(
             db=db,
+            source="ssh",
+            rule_type=AlertRuleType.ACCEPTED,
+            match_criteria={"ip": host_ip, "port": str(port)},
             network_id=network_id,
-            port=str(port),
-            rule_type=RuleType.ACCEPTED,
-            ip=host_ip,
             description=reason,
         )
 
