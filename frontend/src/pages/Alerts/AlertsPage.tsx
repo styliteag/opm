@@ -385,13 +385,13 @@ const AlertsPage = () => {
               <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={isAdmin ? 11 : 10} className="px-4 py-6 text-sm text-slate-500">
+                    <td colSpan={isAdmin ? 12 : 11} className="px-4 py-6 text-sm text-slate-500">
                       Loading security context...
                     </td>
                   </tr>
                 ) : filteredAlerts.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 11 : 10} className="px-4 py-6 text-sm text-slate-500">
+                    <td colSpan={isAdmin ? 12 : 11} className="px-4 py-6 text-sm text-slate-500">
                       No alerts found.
                     </td>
                   </tr>
@@ -443,7 +443,7 @@ const AlertsPage = () => {
                             alert={alert}
                             portData={portData}
                             isAdmin={isAdmin}
-                            colSpan={isAdmin ? 11 : 10}
+                            colSpan={isAdmin ? 12 : 11}
                             networks={networks}
                             onRescan={(ip) =>
                               rescanHostMutation.mutate(ip, {
