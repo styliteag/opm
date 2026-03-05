@@ -13,6 +13,7 @@ import NetworkDetail from './pages/NetworkDetail'
 import Scans from './pages/Scans.tsx'
 import ScanDetail from './pages/ScanDetail.tsx'
 import AlertsPage from './pages/Alerts'
+import AlertDetail from './pages/AlertDetail'
 import Scanners from './pages/Scanners.tsx'
 import Users from './pages/Users.tsx'
 import Hosts from './pages/Hosts.tsx'
@@ -66,6 +67,10 @@ const router = createBrowserRouter([
       {
         path: 'alerts',
         element: <AlertsPage />,
+      },
+      {
+        path: 'alerts/:alertId',
+        element: <AlertDetail />,
       },
       {
         path: 'scanners',
