@@ -12,6 +12,7 @@ import AlertRow from './AlertRow'
 import AlertExpandedRow from './AlertExpandedRow'
 import { useAlerts } from './useAlerts'
 import type {
+  CategoryFilter,
   Severity,
   StatusFilter,
   SortColumn,
@@ -46,6 +47,7 @@ const AlertsPage = () => {
   const [severityFilter, setSeverityFilter] = useState<Severity | ''>('')
   const [networkFilter, setNetworkFilter] = useState<number | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [assignedUserFilter, setAssignedUserFilter] = useState<number | 'all' | 'unassigned'>('all')
   const [sortColumn, setSortColumn] = useState<SortColumn>('time')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
@@ -55,6 +57,7 @@ const AlertsPage = () => {
     severityFilter,
     networkFilter,
     statusFilter,
+    categoryFilter,
     assignedUserFilter,
     sortColumn,
     sortDirection,
@@ -356,6 +359,8 @@ const AlertsPage = () => {
               onSearchChange={setSearchQuery}
               statusFilter={statusFilter}
               onStatusChange={setStatusFilter}
+              categoryFilter={categoryFilter}
+              onCategoryChange={setCategoryFilter}
               severityFilter={severityFilter}
               onSeverityChange={setSeverityFilter}
               networkFilter={networkFilter}
