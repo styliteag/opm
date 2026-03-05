@@ -23,6 +23,7 @@ const PortRules = () => {
   const isAdmin = user?.role === 'admin'
 
   const [networkFilter, setNetworkFilter] = useState<number | ''>('')
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'port' | 'ssh'>('all')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('port')
@@ -59,6 +60,9 @@ const PortRules = () => {
 
   const filteredRules = useMemo(() => {
     let result = rules
+    if (sourceFilter !== 'all') {
+      result = result.filter((r) => (r.source ?? 'port') === sourceFilter)
+    }
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase()
       result = result.filter(
@@ -87,12 +91,12 @@ const PortRules = () => {
           return 0
       }
     })
-  }, [rules, searchTerm, sortKey, sortDirection])
+  }, [rules, sourceFilter, searchTerm, sortKey, sortDirection])
 
   // Clear selection when filters/sort change
   useEffect(() => {
     setSelectedRules(new Set())
-  }, [searchTerm, sortKey, sortDirection, networkFilter])
+  }, [searchTerm, sortKey, sortDirection, networkFilter, sourceFilter])
 
   const createMutation = useMutation({
     mutationFn: async (payload: PortRuleUnifiedCreatePayload) => {
@@ -380,8 +384,8 @@ const PortRules = () => {
         </div>
       )}
 
-      {/* Search + Stats + Filter */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Search + Stats + Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-2">
             Search Rules
@@ -431,6 +435,20 @@ const PortRules = () => {
                 {n.name}
               </option>
             ))}
+          </select>
+        </div>
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-2">
+            Filter by Source
+          </p>
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value as 'all' | 'port' | 'ssh')}
+            className="w-full bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
+          >
+            <option value="all">All Sources</option>
+            <option value="port">Port</option>
+            <option value="ssh">SSH</option>
           </select>
         </div>
       </div>
