@@ -3,6 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
+import { Toast } from '../components/Toast'
+import { useToast } from '../lib/useToast'
+import { downloadBlob, timestampedFilename } from '../lib/downloadBlob'
 import type {
   BulkDeleteHostsResponse,
   Host,
@@ -11,17 +14,10 @@ import type {
   NetworkListResponse,
   TriggerHostDiscoveryResponse,
 } from '../types'
+import { parseUtcDate, formatDateTime } from '../lib/formatters'
 
 type SortKey = 'ip' | 'hostname' | 'last_seen_at' | 'first_seen_at'
 type SortDirection = 'asc' | 'desc'
-
-const formatDateTime = (value: Date) =>
-  new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(value)
-
-const parseUtcDate = (dateStr: string) => new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
 
 const compressIpv6 = (value: string) => {
   const lower = value.toLowerCase()
@@ -92,7 +88,7 @@ const Hosts = () => {
   const [editingComment, setEditingComment] = useState<{ hostId: number; comment: string } | null>(
     null,
   )
-  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
+  const { toast, showToast } = useToast()
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
 
@@ -110,12 +106,6 @@ const Hosts = () => {
     setSelectedHosts(new Set())
   }, [searchTerm, networkFilter, pingableFilter, sortKey, sortDirection, limit])
 
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 3000)
-    return () => clearTimeout(t)
-  }, [toast])
-
   const networksQuery = useQuery({
     queryKey: ['networks'],
     queryFn: () => fetchJson<NetworkListResponse>('/api/networks', token ?? ''),
@@ -123,7 +113,16 @@ const Hosts = () => {
   })
 
   const hostsQuery = useQuery({
-    queryKey: ['hosts', searchTerm, networkFilter, pingableFilter, sortKey, sortDirection, offset, limit],
+    queryKey: [
+      'hosts',
+      searchTerm,
+      networkFilter,
+      pingableFilter,
+      sortKey,
+      sortDirection,
+      offset,
+      limit,
+    ],
     queryFn: () => {
       const p = new URLSearchParams()
       if (searchTerm.trim()) p.set('ip_search', searchTerm.trim())
@@ -159,10 +158,10 @@ const Hosts = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hosts'] })
-      setToast({ message: 'Comment updated', tone: 'success' })
+      showToast('Comment updated', 'success')
       setEditingComment(null)
     },
-    onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
   })
 
   const bulkDeleteMutation = useMutation({
@@ -178,9 +177,9 @@ const Hosts = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['hosts'] })
       setSelectedHosts(new Set())
-      setToast({ message: `Deleted ${data.deleted_count} hosts`, tone: 'success' })
+      showToast(`Deleted ${data.deleted_count} hosts`, 'success')
     },
-    onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
   })
 
   const triggerDiscoveryMutation = useMutation({
@@ -193,9 +192,9 @@ const Hosts = () => {
       return res.json() as Promise<TriggerHostDiscoveryResponse>
     },
     onSuccess: () => {
-      setToast({ message: 'Host discovery scan started', tone: 'success' })
+      showToast('Host discovery scan started', 'success')
     },
-    onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
   })
 
   const rescanHostMutation = useMutation({
@@ -208,9 +207,9 @@ const Hosts = () => {
       return res.json()
     },
     onSuccess: (_, hostIp) => {
-      setToast({ message: `Rescan started for ${hostIp}`, tone: 'success' })
+      showToast(`Rescan started for ${hostIp}`, 'success')
     },
-    onError: (e) => setToast({ message: e instanceof Error ? e.message : 'Error', tone: 'error' }),
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
   })
 
   const toggleExpanded = (id: number) =>
@@ -262,22 +261,10 @@ const Hosts = () => {
       }
 
       const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = downloadUrl
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      a.download = `hosts_${timestamp}.csv`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(downloadUrl)
-
-      setToast({ message: 'CSV export successful', tone: 'success' })
+      downloadBlob(blob, timestampedFilename('hosts', 'csv'))
+      showToast('CSV export successful', 'success')
     } catch (error) {
-      setToast({
-        message: error instanceof Error ? error.message : 'Export failed',
-        tone: 'error'
-      })
+      showToast(error instanceof Error ? error.message : 'Export failed', 'error')
     } finally {
       setIsExporting(false)
     }
@@ -302,22 +289,10 @@ const Hosts = () => {
       }
 
       const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = downloadUrl
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      a.download = `hosts_${timestamp}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(downloadUrl)
-
-      setToast({ message: 'PDF export successful', tone: 'success' })
+      downloadBlob(blob, timestampedFilename('hosts', 'pdf'))
+      showToast('PDF export successful', 'success')
     } catch (error) {
-      setToast({
-        message: error instanceof Error ? error.message : 'Export failed',
-        tone: 'error'
-      })
+      showToast(error instanceof Error ? error.message : 'Export failed', 'error')
     } finally {
       setIsExporting(false)
     }
@@ -340,15 +315,7 @@ const Hosts = () => {
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700">
-      {toast && (
-        <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-top-4 duration-300">
-          <div
-            className={`px-8 py-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] font-black uppercase text-xs tracking-[0.2em] border ${toast.tone === 'success' ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-rose-500 border-rose-400 text-white'}`}
-          >
-            {toast.message}
-          </div>
-        </div>
-      )}
+      <Toast toast={toast} />
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
@@ -368,7 +335,12 @@ const Hosts = () => {
               className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
               </svg>
               {isExporting ? 'Exporting...' : 'Export'}
             </button>
@@ -379,7 +351,12 @@ const Hosts = () => {
                   className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                   </svg>
                   Export as CSV
                 </button>
@@ -388,7 +365,12 @@ const Hosts = () => {
                   className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-2 border-t border-slate-100 dark:border-slate-800"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                    />
                   </svg>
                   Export as PDF
                 </button>
@@ -399,7 +381,9 @@ const Hosts = () => {
             <>
               <select
                 value={discoveryNetworkId ?? ''}
-                onChange={(e) => setDiscoveryNetworkId(e.target.value ? Number(e.target.value) : null)}
+                onChange={(e) =>
+                  setDiscoveryNetworkId(e.target.value ? Number(e.target.value) : null)
+                }
                 className="bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold focus:ring-4 ring-violet-500/10 focus:border-violet-500 outline-none transition-all min-w-[200px]"
               >
                 <option value="">Select Network...</option>
@@ -410,12 +394,19 @@ const Hosts = () => {
                 ))}
               </select>
               <button
-                onClick={() => discoveryNetworkId && triggerDiscoveryMutation.mutate(discoveryNetworkId)}
+                onClick={() =>
+                  discoveryNetworkId && triggerDiscoveryMutation.mutate(discoveryNetworkId)
+                }
                 disabled={!discoveryNetworkId || triggerDiscoveryMutation.isPending}
                 className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
                 </svg>
                 {triggerDiscoveryMutation.isPending ? 'Starting...' : 'Discover Hosts'}
               </button>
@@ -495,7 +486,12 @@ const Hosts = () => {
                 className="px-5 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center gap-2 self-end"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
                 </svg>
                 {bulkDeleteMutation.isPending ? 'Deleting...' : `Delete ${selectedHosts.size}`}
               </button>
@@ -573,7 +569,9 @@ const Hosts = () => {
                 const isSelected = selectedHosts.has(host.id)
                 return (
                   <React.Fragment key={host.id}>
-                    <tr className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${isSelected ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}>
+                    <tr
+                      className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${isSelected ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}
+                    >
                       {isAdmin && (
                         <td className="px-4 py-2">
                           <input
@@ -650,14 +648,24 @@ const Hosts = () => {
                         </button>
                       </td>
                     </tr>
-                    {isOpen && <HostDetailRow host={host} networkMap={networkMap} isAdmin={isAdmin} token={token} onEditComment={(hostId, comment) => setEditingComment({ hostId, comment: comment || '' })} extraColSpan={isAdmin ? 2 : 0} />}
+                    {isOpen && (
+                      <HostDetailRow
+                        host={host}
+                        networkMap={networkMap}
+                        isAdmin={isAdmin}
+                        token={token}
+                        onEditComment={(hostId, comment) =>
+                          setEditingComment({ hostId, comment: comment || '' })
+                        }
+                        extraColSpan={isAdmin ? 2 : 0}
+                      />
+                    )}
                   </React.Fragment>
                 )
               })}
             </tbody>
           </table>
         </div>
-
       </div>
 
       {editingComment && (
@@ -678,9 +686,7 @@ const Hosts = () => {
             >
               <textarea
                 value={editingComment.comment}
-                onChange={(e) =>
-                  setEditingComment({ ...editingComment, comment: e.target.value })
-                }
+                onChange={(e) => setEditingComment({ ...editingComment, comment: e.target.value })}
                 placeholder="Add a comment about this host..."
                 className="w-full border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 rounded-2xl px-6 py-4 text-sm font-medium focus:ring-4 ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all min-h-32"
               />
@@ -758,7 +764,13 @@ const HostDetailRow = ({
                   {new Intl.DateTimeFormat(undefined, {
                     dateStyle: 'medium',
                     timeStyle: 'short',
-                  }).format(new Date(host.first_seen_at.endsWith('Z') ? host.first_seen_at : host.first_seen_at + 'Z'))}
+                  }).format(
+                    new Date(
+                      host.first_seen_at.endsWith('Z')
+                        ? host.first_seen_at
+                        : host.first_seen_at + 'Z',
+                    ),
+                  )}
                 </p>
               </div>
               <div>
@@ -769,7 +781,11 @@ const HostDetailRow = ({
                   {new Intl.DateTimeFormat(undefined, {
                     dateStyle: 'medium',
                     timeStyle: 'short',
-                  }).format(new Date(host.last_seen_at.endsWith('Z') ? host.last_seen_at : host.last_seen_at + 'Z'))}
+                  }).format(
+                    new Date(
+                      host.last_seen_at.endsWith('Z') ? host.last_seen_at : host.last_seen_at + 'Z',
+                    ),
+                  )}
                 </p>
               </div>
             </div>

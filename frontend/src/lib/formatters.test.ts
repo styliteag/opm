@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatRelativeTime, formatDateTime } from './formatRelativeTime'
+import { formatRelativeTime, formatDateTime, parseUtcDate, formatDuration } from './formatters'
 
 describe('formatRelativeTime', () => {
   const baseDate = new Date('2024-01-15T12:00:00Z')
@@ -112,35 +112,60 @@ describe('formatRelativeTime', () => {
 })
 
 describe('formatDateTime', () => {
-  it('should format date with full date and time components', () => {
+  it('should format date with medium date and short time', () => {
     const date = new Date('2024-01-15T14:30:45Z')
     const result = formatDateTime(date)
-
-    // The exact format depends on locale, but should contain key components
     expect(result).toMatch(/2024/)
     expect(result).toMatch(/Jan|1/)
     expect(result).toMatch(/15/)
   })
 
-  it('should include seconds in output', () => {
-    const date = new Date('2024-06-20T09:05:30Z')
-    const result = formatDateTime(date)
-
-    // Should have time components
-    expect(result).toContain(':')
-  })
-
   it('should handle different dates correctly', () => {
     const date1 = new Date('2024-06-01T12:00:00Z')
     const date2 = new Date('2024-06-15T15:30:00Z')
-
     const result1 = formatDateTime(date1)
     const result2 = formatDateTime(date2)
-
-    // Results should be different
     expect(result1).not.toBe(result2)
-    // Both dates are in the middle of the year, so should show 2024 regardless of timezone
     expect(result1).toMatch(/2024/)
     expect(result2).toMatch(/2024/)
+  })
+})
+
+describe('parseUtcDate', () => {
+  it('should parse date string without Z suffix', () => {
+    const result = parseUtcDate('2024-01-15T12:00:00')
+    expect(result.toISOString()).toBe('2024-01-15T12:00:00.000Z')
+  })
+
+  it('should parse date string with Z suffix', () => {
+    const result = parseUtcDate('2024-01-15T12:00:00Z')
+    expect(result.toISOString()).toBe('2024-01-15T12:00:00.000Z')
+  })
+})
+
+describe('formatDuration', () => {
+  it('should return dash for null startedAt', () => {
+    expect(formatDuration(null, null)).toBe('—')
+  })
+
+  it('should format seconds', () => {
+    expect(formatDuration('2024-01-15T12:00:00Z', '2024-01-15T12:00:45Z')).toBe('45s')
+  })
+
+  it('should format minutes and seconds', () => {
+    expect(formatDuration('2024-01-15T12:00:00Z', '2024-01-15T12:05:30Z')).toBe('5m 30s')
+  })
+
+  it('should format hours and minutes', () => {
+    expect(formatDuration('2024-01-15T12:00:00Z', '2024-01-15T14:15:00Z')).toBe('2h 15m')
+  })
+
+  it('should use now parameter for running scans', () => {
+    const now = new Date('2024-01-15T12:02:00Z')
+    expect(formatDuration('2024-01-15T12:00:00Z', null, now)).toBe('2m 0s')
+  })
+
+  it('should return dash for negative duration', () => {
+    expect(formatDuration('2024-01-15T12:05:00Z', '2024-01-15T12:00:00Z')).toBe('—')
   })
 })

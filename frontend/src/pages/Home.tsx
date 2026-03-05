@@ -10,37 +10,7 @@ import type {
   ScannerListResponse,
 } from '../types'
 import { getAlertLabelCompact, getAlertStyleCompact } from '../constants/alerts'
-
-const formatDateTime = (value: Date) =>
-  new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(value)
-
-const parseUtcDate = (dateStr: string) => {
-  // API returns UTC timestamps without timezone suffix, so append 'Z' to parse as UTC
-  return new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z')
-}
-
-const formatRelativeTime = (value: Date, now: Date) => {
-  const diffMs = now.getTime() - value.getTime()
-  if (diffMs < 0) {
-    return 'Just now'
-  }
-  const minutes = Math.floor(diffMs / 60000)
-  if (minutes < 1) {
-    return 'Just now'
-  }
-  if (minutes < 60) {
-    return `${minutes}m ago`
-  }
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) {
-    return `${hours}h ago`
-  }
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
+import { parseUtcDate, formatDateTime, formatRelativeTime } from '../lib/formatters'
 
 const Home = () => {
   const { token } = useAuth()

@@ -1,67 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, getAuthHeaders, fetchJson } from '../lib/api'
 import { ScanLogViewer } from '../components/ScanLogViewer'
-import { formatRawScanLogs, openScanLogsWindow, parseUtcDate } from '../utils/scanLogs'
+import { Toast } from '../components/Toast'
+import { formatRawScanLogs, openScanLogsWindow } from '../utils/scanLogs'
+import { parseUtcDate, formatDateTime, formatDuration } from '../lib/formatters'
+import { useToast } from '../lib/useToast'
+import { downloadBlob, timestampedFilename } from '../lib/downloadBlob'
+import { statusStyles, statusLabels } from '../constants/scans'
 import type { OpenPort, ScanDetail, ScanDiff, ScanLogsResponse, ScansListResponse } from '../types'
-
-const formatDateTime = (value: Date) =>
-  new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(value)
-
-const formatDuration = (startedAt: string | null, completedAt: string | null) => {
-  if (!startedAt) {
-    return '—'
-  }
-  const start = parseUtcDate(startedAt)
-  const end = completedAt ? parseUtcDate(completedAt) : new Date()
-  const diffMs = end.getTime() - start.getTime()
-  if (diffMs < 0) {
-    return '—'
-  }
-  const seconds = Math.floor(diffMs / 1000)
-  if (seconds < 60) {
-    return `${seconds}s`
-  }
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  if (minutes < 60) {
-    return `${minutes}m ${remainingSeconds}s`
-  }
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-  return `${hours}h ${remainingMinutes}m`
-}
-
-const statusStyles: Record<string, string> = {
-  planned:
-    'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300',
-  running:
-    'border-sky-300/50 bg-sky-500/15 text-sky-700 dark:border-sky-400/40 dark:bg-sky-500/20 dark:text-sky-200',
-  completed:
-    'border-emerald-300/50 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200',
-  failed:
-    'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
-  cancelled:
-    'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200',
-}
-
-const statusLabels: Record<string, string> = {
-  planned: 'Planned',
-  running: 'Running',
-  completed: 'Completed',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-}
-
-type ToastMessage = {
-  message: string
-  tone: 'success' | 'error'
-}
 
 const ScanDetailPage = () => {
   const { token } = useAuth()
@@ -70,7 +19,7 @@ const ScanDetailPage = () => {
   const [activeTab, setActiveTab] = useState<'ports' | 'logs'>('ports')
   const [showExportDropdown, setShowExportDropdown] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
-  const [toast, setToast] = useState<ToastMessage | null>(null)
+  const { toast, showToast } = useToast()
 
   const scanQuery = useQuery({
     queryKey: ['scan', scanId],
@@ -116,13 +65,6 @@ const ScanDetailPage = () => {
     openScanLogsWindow(logText, title)
   }
 
-  // Auto-dismiss toast after 3 seconds
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 3000)
-    return () => clearTimeout(t)
-  }, [toast])
-
   const handleExportCsv = async () => {
     if (!scanId || !token) return
     setIsExporting(true)
@@ -135,16 +77,10 @@ const ScanDetailPage = () => {
         throw new Error('Failed to export CSV')
       }
       const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      link.download = `scan_${scanId}_${timestamp}.csv`
-      link.click()
-      URL.revokeObjectURL(url)
-      setToast({ message: 'CSV export complete', tone: 'success' })
+      downloadBlob(blob, timestampedFilename(`scan_${scanId}`, 'csv'))
+      showToast('CSV export complete', 'success')
     } catch {
-      setToast({ message: 'CSV export failed', tone: 'error' })
+      showToast('CSV export failed', 'error')
     } finally {
       setIsExporting(false)
     }
@@ -162,16 +98,10 @@ const ScanDetailPage = () => {
         throw new Error('Failed to export PDF')
       }
       const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      link.download = `scan_${scanId}_${timestamp}.pdf`
-      link.click()
-      URL.revokeObjectURL(url)
-      setToast({ message: 'PDF export complete', tone: 'success' })
+      downloadBlob(blob, timestampedFilename(`scan_${scanId}`, 'pdf'))
+      showToast('PDF export complete', 'success')
     } catch {
-      setToast({ message: 'PDF export failed', tone: 'error' })
+      showToast('PDF export failed', 'error')
     } finally {
       setIsExporting(false)
     }
@@ -403,8 +333,9 @@ const ScanDetailPage = () => {
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Status</p>
                   <div className="mt-2">
                     <span
-                      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${statusStyles[scan.status] ?? statusStyles.planned
-                        }`}
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${
+                        statusStyles[scan.status] ?? statusStyles.planned
+                      }`}
                     >
                       {scan.status === 'running' ? (
                         <span className="mr-2 inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-500" />
@@ -511,19 +442,21 @@ const ScanDetailPage = () => {
                 <div className="flex overflow-hidden rounded-full bg-slate-50/60 dark:bg-slate-900/40">
                   <button
                     onClick={() => setActiveTab('ports')}
-                    className={`px-6 py-3 text-sm font-semibold transition ${activeTab === 'ports'
-                      ? 'border-b-2 border-cyan-500 text-cyan-600 dark:text-cyan-400'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                      }`}
+                    className={`px-6 py-3 text-sm font-semibold transition ${
+                      activeTab === 'ports'
+                        ? 'border-b-2 border-cyan-500 text-cyan-600 dark:text-cyan-400'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
                   >
                     Ports ({scan.open_ports.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('logs')}
-                    className={`px-6 py-3 text-sm font-semibold transition ${activeTab === 'logs'
-                      ? 'border-b-2 border-cyan-500 text-cyan-600 dark:text-cyan-400'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                      }`}
+                    className={`px-6 py-3 text-sm font-semibold transition ${
+                      activeTab === 'logs'
+                        ? 'border-b-2 border-cyan-500 text-cyan-600 dark:text-cyan-400'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
                   >
                     Logs ({logs.length})
                   </button>
@@ -642,12 +575,13 @@ const ScanDetailPage = () => {
                             <div className="flex items-center gap-2">
                               {isDiffMode ? (
                                 <span
-                                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${changeType === 'added'
-                                    ? 'bg-emerald-500 text-white'
-                                    : changeType === 'removed'
-                                      ? 'bg-rose-500 text-white'
-                                      : 'bg-slate-300 text-slate-700 dark:bg-slate-600 dark:text-slate-200'
-                                    }`}
+                                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
+                                    changeType === 'added'
+                                      ? 'bg-emerald-500 text-white'
+                                      : changeType === 'removed'
+                                        ? 'bg-rose-500 text-white'
+                                        : 'bg-slate-300 text-slate-700 dark:bg-slate-600 dark:text-slate-200'
+                                  }`}
                                 >
                                   {changeType === 'added'
                                     ? '+'
@@ -698,15 +632,7 @@ const ScanDetailPage = () => {
       </section>
 
       {/* Toast notification */}
-      {toast && (
-        <div className="fixed top-8 right-8 z-[100] animate-in slide-in-from-top-4 duration-300">
-          <div
-            className={`px-8 py-4 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] font-black uppercase text-xs tracking-[0.2em] border ${toast.tone === 'success' ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-rose-500 border-rose-400 text-white'}`}
-          >
-            {toast.message}
-          </div>
-        </div>
-      )}
+      <Toast toast={toast} />
     </div>
   )
 }

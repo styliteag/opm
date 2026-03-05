@@ -35,3 +35,37 @@ export const alertTypeLabels: Record<string, string> = {
 
 /** Port alert type keys (non-SSH). */
 export const PORT_ALERT_TYPES = new Set(['new_port', 'not_allowed', 'blocked'])
+
+/** Format a date as a relative time string (e.g., "5m ago", "2h ago"). */
+export const formatRelativeTime = (value: Date, now: Date = new Date()): string => {
+  const diffMs = now.getTime() - value.getTime()
+  if (diffMs < 0) return 'Just now'
+  const minutes = Math.floor(diffMs / 60000)
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+/** Format duration between two UTC date strings. Uses current time if completedAt is null. */
+export const formatDuration = (
+  startedAt: string | null,
+  completedAt: string | null,
+  now: Date = new Date(),
+): string => {
+  if (!startedAt) return '—'
+  const start = parseUtcDate(startedAt)
+  const end = completedAt ? parseUtcDate(completedAt) : now
+  const diffMs = end.getTime() - start.getTime()
+  if (diffMs < 0) return '—'
+  const seconds = Math.floor(diffMs / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}h ${remainingMinutes}m`
+}

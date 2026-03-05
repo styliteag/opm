@@ -4,79 +4,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ScanLogViewer } from '../components/ScanLogViewer'
 import { useAuth } from '../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, fetchJson, getAuthHeaders } from '../lib/api'
-import { formatRawScanLogs, openScanLogsWindow, parseUtcDate } from '../utils/scanLogs'
+import { formatRawScanLogs, openScanLogsWindow } from '../utils/scanLogs'
+import { parseUtcDate, formatDateTime, formatRelativeTime, formatDuration } from '../lib/formatters'
+import { statusStyles, statusLabels } from '../constants/scans'
 import type { NetworkListResponse, ScanLogsResponse, ScansListResponse } from '../types'
-
-const formatDateTime = (value: Date) =>
-  new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(value)
-
-const formatRelativeTime = (value: Date, now: Date) => {
-  const diffMs = now.getTime() - value.getTime()
-  if (diffMs < 0) {
-    return 'Just now'
-  }
-  const minutes = Math.floor(diffMs / 60000)
-  if (minutes < 1) {
-    return 'Just now'
-  }
-  if (minutes < 60) {
-    return `${minutes}m ago`
-  }
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) {
-    return `${hours}h ago`
-  }
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
-const formatDuration = (startedAt: string | null, completedAt: string | null, now: Date) => {
-  if (!startedAt) {
-    return '—'
-  }
-  const start = parseUtcDate(startedAt)
-  const end = completedAt ? parseUtcDate(completedAt) : now
-  const diffMs = end.getTime() - start.getTime()
-  if (diffMs < 0) {
-    return '—'
-  }
-  const seconds = Math.floor(diffMs / 1000)
-  if (seconds < 60) {
-    return `${seconds}s`
-  }
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  if (minutes < 60) {
-    return `${minutes}m ${remainingSeconds}s`
-  }
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-  return `${hours}h ${remainingMinutes}m`
-}
-
-const statusStyles: Record<string, string> = {
-  planned:
-    'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300',
-  running:
-    'border-sky-300/50 bg-sky-500/15 text-sky-700 dark:border-sky-400/40 dark:bg-sky-500/20 dark:text-sky-200',
-  completed:
-    'border-emerald-300/50 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200',
-  failed:
-    'border-rose-300/50 bg-rose-500/15 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200',
-  cancelled:
-    'border-amber-300/50 bg-amber-500/15 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200',
-}
-
-const statusLabels: Record<string, string> = {
-  planned: 'Planned',
-  running: 'Running',
-  completed: 'Completed',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-}
 
 const statusFilterOptions = [
   { value: '', label: 'All status' },
