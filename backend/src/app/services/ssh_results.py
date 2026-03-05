@@ -545,6 +545,7 @@ async def get_latest_ssh_results_for_ips(
             and any(k.get("is_weak", False) for k in r.kex_algorithms)
         )
         lookup[(r.host_ip, r.port)] = {
+            "port": r.port,
             "ssh_version": r.ssh_version,
             "publickey_enabled": r.publickey_enabled,
             "password_enabled": r.password_enabled,
