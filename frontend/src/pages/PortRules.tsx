@@ -357,8 +357,20 @@ const PortRules = () => {
         </div>
       )}
 
-      {/* Stats + Filter + Search */}
+      {/* Search + Stats + Filter */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-2">
+            Search Rules
+          </p>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Port, IP, description, network..."
+            className="w-full bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
+          />
+        </div>
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm">
           <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
             Total Rules
@@ -397,18 +409,6 @@ const PortRules = () => {
               </option>
             ))}
           </select>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-2">
-            Search Rules
-          </p>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Port, IP, description, network..."
-            className="w-full bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
-          />
         </div>
       </div>
 
