@@ -124,6 +124,17 @@ export default function AlertRow({
       </td>
       <td className="px-4 py-3">
         <span
+          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${
+            alert.source === 'ssh'
+              ? 'border-violet-300/50 bg-violet-500/15 text-violet-700 dark:text-violet-200'
+              : 'border-cyan-300/50 bg-cyan-500/15 text-cyan-700 dark:text-cyan-200'
+          }`}
+        >
+          {alert.source === 'ssh' ? 'SSH' : 'Port'}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span
           className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${getAlertStyleCompact(alert.type)}`}
         >
           {getAlertLabelCompact(alert.type)}
@@ -153,7 +164,9 @@ export default function AlertRow({
           ))}
       </td>
       <td className="whitespace-nowrap px-4 py-3">
-        <span className="font-mono text-slate-600 dark:text-slate-300">{alert.port}</span>
+        <span className="font-mono text-slate-600 dark:text-slate-300">
+          {alert.port ?? <span className="text-slate-400 italic">—</span>}
+        </span>
         {alert.ssh_summary && (
           <span className="ml-2 inline-flex gap-1">
             {alert.ssh_summary.password_enabled ||
