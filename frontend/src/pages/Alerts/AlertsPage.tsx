@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import ReviewModal from '../../components/ReviewModal'
 import { useAuth } from '../../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, getAuthHeaders } from '../../lib/api'
@@ -39,6 +39,7 @@ const AlertsPage = () => {
   const [isExporting, setIsExporting] = useState(false)
   const [updatingAssignment, setUpdatingAssignment] = useState<number | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [revokeConfirm, setRevokeConfirm] = useState(false)
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
@@ -75,6 +76,7 @@ const AlertsPage = () => {
     bulkDismissMutation,
     singleDismissMutation,
     reopenMutation,
+    bulkReopenMutation,
     bulkDeleteMutation,
     assignAlertMutation,
     updateCommentMutation,
@@ -222,6 +224,26 @@ const AlertsPage = () => {
     )
   }
 
+  const selectedAlerts = useMemo(
+    () => filteredAlerts.filter((a) => selectedIds.has(a.id)),
+    [filteredAlerts, selectedIds],
+  )
+
+  const pendingCount = useMemo(
+    () => selectedAlerts.filter((a) => !a.dismissed && !isAlertAccepted(a)).length,
+    [selectedAlerts, isAlertAccepted],
+  )
+
+  const dismissedCount = useMemo(
+    () => selectedAlerts.filter((a) => a.dismissed && !isAlertAccepted(a)).length,
+    [selectedAlerts, isAlertAccepted],
+  )
+
+  const acceptedCount = useMemo(
+    () => selectedAlerts.filter((a) => isAlertAccepted(a)).length,
+    [selectedAlerts, isAlertAccepted],
+  )
+
   const isProcessing =
     acceptGloballyMutation.isPending ||
     acceptInNetworkMutation.isPending ||
@@ -247,15 +269,51 @@ const AlertsPage = () => {
             <div className="flex flex-wrap items-center gap-3">
               {isAdmin && selectedIds.size > 0 && (
                 <>
-                  <button
-                    onClick={() => {
-                      const selected = filteredAlerts.filter((a) => selectedIds.has(a.id))
-                      setReviewModal({ alerts: selected, mode: 'bulk' })
-                    }}
-                    className="rounded-full border border-indigo-200 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"
-                  >
-                    Accept ({selectedIds.size})
-                  </button>
+                  {pendingCount > 0 && (
+                    <button
+                      onClick={() => {
+                        const pending = selectedAlerts.filter(
+                          (a) => !a.dismissed && !isAlertAccepted(a),
+                        )
+                        setReviewModal({ alerts: pending, mode: 'bulk' })
+                      }}
+                      className="rounded-full border border-indigo-200 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"
+                    >
+                      Accept ({pendingCount})
+                    </button>
+                  )}
+                  {dismissedCount > 0 && (
+                    <button
+                      onClick={() => {
+                        const dismissed = selectedAlerts
+                          .filter((a) => a.dismissed && !isAlertAccepted(a))
+                          .map((a) => a.id)
+                        bulkReopenMutation.mutate(dismissed, {
+                          onSuccess: () => {
+                            showToast(
+                              `${dismissed.length} alert${dismissed.length !== 1 ? 's' : ''} reopened.`,
+                              'success',
+                            )
+                            setSelectedIds(new Set())
+                          },
+                          onError: (e) =>
+                            showToast(e instanceof Error ? e.message : 'Reopen failed', 'error'),
+                        })
+                      }}
+                      disabled={bulkReopenMutation.isPending}
+                      className="rounded-full border border-amber-200 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-300 disabled:opacity-50"
+                    >
+                      {bulkReopenMutation.isPending ? 'Reopening...' : `Reopen (${dismissedCount})`}
+                    </button>
+                  )}
+                  {acceptedCount > 0 && (
+                    <button
+                      onClick={() => setRevokeConfirm(true)}
+                      className="rounded-full border border-orange-200 bg-orange-500/10 px-4 py-2 text-xs font-semibold text-orange-700 transition hover:border-orange-300 hover:bg-orange-500/20 dark:border-orange-500/40 dark:text-orange-300"
+                    >
+                      Revoke ({acceptedCount})
+                    </button>
+                  )}
                   <button
                     onClick={() => setDeleteConfirm(true)}
                     className="rounded-full border border-rose-200 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-500/20 dark:border-rose-500/40 dark:text-rose-300"
@@ -477,6 +535,73 @@ const AlertsPage = () => {
                 className="flex-1 py-4 bg-rose-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
               >
                 {bulkDeleteMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revoke Confirmation Modal */}
+      {revokeConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/95 backdrop-blur-2xl p-4">
+          <div className="bg-white dark:bg-slate-900 p-16 rounded-[4rem] w-full max-w-lg border border-slate-100 dark:border-slate-800 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] relative overflow-hidden">
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+              Revoke Acceptance
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-4">
+              This will delete the acceptance rules for{' '}
+              <span className="font-bold text-orange-600 dark:text-orange-400">
+                {acceptedCount}
+              </span>{' '}
+              alert{acceptedCount !== 1 ? 's' : ''}. The alerts will become pending again.
+            </p>
+            <div className="flex items-center gap-4 mt-8">
+              <button
+                type="button"
+                onClick={() => setRevokeConfirm(false)}
+                className="text-[11px] font-black text-slate-400 hover:text-slate-900 dark:hover:text-white uppercase tracking-[0.2em] transition-all px-4"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={revokeAcceptanceMutation.isPending}
+                onClick={() => {
+                  const accepted = selectedAlerts.filter((a) => isAlertAccepted(a))
+                  const uniqueRules = new Map<
+                    string,
+                    { scope: 'global' | 'network'; ruleId: number }
+                  >()
+                  for (const alert of accepted) {
+                    const info = getAcceptedRuleInfo(alert)
+                    if (info) {
+                      const key = `${info.scope}:${info.ruleId}`
+                      uniqueRules.set(key, { scope: info.scope, ruleId: info.ruleId })
+                    }
+                  }
+                  const rules = Array.from(uniqueRules.values())
+                  let completed = 0
+                  for (const rule of rules) {
+                    revokeAcceptanceMutation.mutate(rule, {
+                      onSuccess: () => {
+                        completed++
+                        if (completed === rules.length) {
+                          showToast(
+                            `${rules.length} acceptance rule${rules.length !== 1 ? 's' : ''} revoked.`,
+                            'success',
+                          )
+                          setSelectedIds(new Set())
+                          setRevokeConfirm(false)
+                        }
+                      },
+                      onError: (e) =>
+                        showToast(e instanceof Error ? e.message : 'Revoke failed', 'error'),
+                    })
+                  }
+                }}
+                className="flex-1 py-4 bg-orange-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+              >
+                {revokeAcceptanceMutation.isPending ? 'Revoking...' : 'Revoke Rules'}
               </button>
             </div>
           </div>

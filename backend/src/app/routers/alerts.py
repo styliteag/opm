@@ -23,6 +23,8 @@ from app.schemas.alert import (
     AlertBulkAcceptRequest,
     AlertBulkAcceptResponse,
     AlertBulkDismissResponse,
+    AlertBulkReopenRequest,
+    AlertBulkReopenResponse,
     AlertListResponse,
     AlertResponse,
     AlertSSHSummary,
@@ -853,6 +855,42 @@ async def reopen_alert(
         dismiss_reason=alert.dismiss_reason,
         created_at=alert.created_at,
         severity=severity,
+    )
+
+
+@router.put("/bulk-reopen", response_model=AlertBulkReopenResponse)
+async def bulk_reopen_alerts(
+    admin: AdminUser,
+    db: DbSession,
+    request: AlertBulkReopenRequest = Body(...),
+) -> AlertBulkReopenResponse:
+    """Bulk reopen dismissed alerts (admin only)."""
+    if not request.alert_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="alert_ids cannot be empty",
+        )
+
+    unique_ids = sorted(set(request.alert_ids))
+    reopened_ids: list[int] = []
+    missing_ids: list[int] = []
+
+    for alert_id in unique_ids:
+        result = await alerts_service.get_alert_with_network_name(db, alert_id)
+        if result is None:
+            missing_ids.append(alert_id)
+            continue
+        alert, _ = result
+        if not alert.dismissed:
+            missing_ids.append(alert_id)
+            continue
+        await alerts_service.reopen_alert(db, alert)
+        reopened_ids.append(alert_id)
+
+    await db.commit()
+    return AlertBulkReopenResponse(
+        reopened_ids=reopened_ids,
+        missing_ids=missing_ids,
     )
 
 
