@@ -277,7 +277,9 @@ export function useAlerts(filters: AlertFiltersState) {
           String(alert.port).includes(query) ||
           (alert.network_name && alert.network_name.toLowerCase().includes(query)) ||
           serviceName.includes(query) ||
-          (portData?.banner && portData.banner.toLowerCase().includes(query))
+          (portData?.banner && portData.banner.toLowerCase().includes(query)) ||
+          (alert.last_comment && alert.last_comment.toLowerCase().includes(query)) ||
+          (alert.user_comment && alert.user_comment.toLowerCase().includes(query))
         if (!matches) return false
       }
 
