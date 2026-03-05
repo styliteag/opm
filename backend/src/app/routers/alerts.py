@@ -253,27 +253,6 @@ async def list_alerts(
                 ))
         resp.matching_rules = matches
 
-    # Sort by severity (critical first), then by created_at (newest first)
-    severity_order = {
-        Severity.CRITICAL: 0,
-        Severity.HIGH: 1,
-        Severity.MEDIUM: 2,
-        Severity.INFO: 3,
-    }
-    alert_responses.sort(
-        key=lambda a: (severity_order.get(a.severity, 999), -a.created_at.timestamp())
-    )
-
-    # Deduplicate: keep only the highest-severity alert per (ip, port)
-    seen: set[tuple[str, int]] = set()
-    deduped: list[AlertResponse] = []
-    for a in alert_responses:
-        key = (a.ip, a.port)
-        if key not in seen:
-            seen.add(key)
-            deduped.append(a)
-    alert_responses = deduped
-
     return AlertListResponse(alerts=alert_responses)
 
 

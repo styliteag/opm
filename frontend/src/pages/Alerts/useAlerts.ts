@@ -16,7 +16,7 @@ import type {
 export type Severity = 'critical' | 'high' | 'medium' | 'info'
 export type StatusFilter = 'all' | 'critical_rule' | 'pending' | 'accepted' | 'dismissed'
 export type CategoryFilter = 'all' | 'ssh' | 'port'
-export type SortColumn = 'severity' | 'ip' | 'port' | 'network' | 'time'
+export type SortColumn = 'severity' | 'type' | 'ip' | 'port' | 'network' | 'time'
 export type SortDirection = 'asc' | 'desc'
 
 export type AlertFiltersState = {
@@ -294,26 +294,65 @@ export function useAlerts(filters: AlertFiltersState) {
     })
 
     const severityOrder = { critical: 0, high: 1, medium: 2, info: 3 }
-    return filtered.sort((a, b) => {
-      let comparison = 0
+
+    // Compute a representative sort value per ip:port group so groups stay together.
+    // For each group, use the port alert's value (preferred) or the first alert's value.
+    const groupKey = (alert: Alert) => `${alert.ip}:${alert.port}`
+    const groupSortVal = new Map<string, number>()
+
+    const getSortVal = (alert: Alert): number => {
       switch (sortColumn) {
         case 'severity':
-          comparison = severityOrder[a.severity as Severity] - severityOrder[b.severity as Severity]
-          break
+          return severityOrder[alert.severity as Severity]
+        case 'type':
+          return alert.type.startsWith('ssh_') ? 1 : 0
         case 'ip':
-          comparison = compareIPs(a.ip, b.ip)
-          break
+          return 0 // handled separately
         case 'port':
-          comparison = a.port - b.port
-          break
+          return alert.port
         case 'network':
-          comparison = (a.network_name ?? '').localeCompare(b.network_name ?? '')
-          break
+          return 0 // handled separately
         case 'time':
-          comparison = parseUtcDate(a.created_at).getTime() - parseUtcDate(b.created_at).getTime()
-          break
+          return parseUtcDate(alert.created_at).getTime()
       }
-      return sortDirection === 'asc' ? comparison : -comparison
+    }
+
+    for (const alert of filtered) {
+      const key = groupKey(alert)
+      const val = getSortVal(alert)
+      const existing = groupSortVal.get(key)
+      const isPortAlert = !alert.type.startsWith('ssh_')
+      if (existing === undefined || isPortAlert) {
+        groupSortVal.set(key, val)
+      }
+    }
+
+    return filtered.sort((a, b) => {
+      const keyA = groupKey(a)
+      const keyB = groupKey(b)
+
+      // Different ip:port group — sort by group representative value
+      if (keyA !== keyB) {
+        let comparison = 0
+        if (sortColumn === 'ip') {
+          comparison = compareIPs(a.ip, b.ip)
+          if (comparison === 0) comparison = a.port - b.port
+        } else if (sortColumn === 'network') {
+          comparison = (a.network_name ?? '').localeCompare(b.network_name ?? '')
+        } else {
+          comparison = (groupSortVal.get(keyA) ?? 0) - (groupSortVal.get(keyB) ?? 0)
+        }
+        if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison
+        // Tiebreak: ip then port
+        const ipCmp = compareIPs(a.ip, b.ip)
+        if (ipCmp !== 0) return ipCmp
+        return a.port - b.port
+      }
+
+      // Same ip:port group — port alerts first, then SSH alerts
+      const aIsSSH = a.type.startsWith('ssh_') ? 1 : 0
+      const bIsSSH = b.type.startsWith('ssh_') ? 1 : 0
+      return aIsSSH - bIsSSH
     })
   }, [alerts, filters, isAlertAccepted, getEffectiveRuleStatus, portMap])
 

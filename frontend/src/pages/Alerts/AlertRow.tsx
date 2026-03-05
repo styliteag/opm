@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { parseUtcDate, formatDateTime, formatRelativeTime } from '../../lib/formatters'
 import type { Alert, User } from '../../types'
+import { getAlertLabelCompact, getAlertStyleCompact } from '../../constants/alerts'
 import type { Severity } from './useAlerts'
 
 const severityStyles: Record<Severity, string> = {
@@ -119,6 +120,13 @@ export default function AlertRow({
           className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${severityStyles[severity]}`}
         >
           {severityLabels[severity]}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span
+          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${getAlertStyleCompact(alert.type)}`}
+        >
+          {getAlertLabelCompact(alert.type)}
         </span>
       </td>
       <td className="px-4 py-3">
