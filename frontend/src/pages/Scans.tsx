@@ -139,11 +139,12 @@ const Scans = () => {
     const scansToFilter = isValidStatusFilter
       ? scansData.filter((scan) => scan.status === statusFilter)
       : scansData
+    const pendingStatuses = new Set(['planned', 'running'])
     return [...scansToFilter].sort((a, b) => {
-      const aRunning = a.status === 'running'
-      const bRunning = b.status === 'running'
-      if (aRunning !== bRunning) {
-        return aRunning ? -1 : 1
+      const aPending = pendingStatuses.has(a.status)
+      const bPending = pendingStatuses.has(b.status)
+      if (aPending !== bPending) {
+        return aPending ? -1 : 1
       }
       const aTime = a.started_at ? parseUtcDate(a.started_at).getTime() : 0
       const bTime = b.started_at ? parseUtcDate(b.started_at).getTime() : 0
