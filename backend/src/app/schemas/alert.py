@@ -49,6 +49,7 @@ class AlertResponse(BaseModel):
     created_at: datetime
     dismiss_reason: str | None = None
     severity: Severity = Severity.MEDIUM  # Computed field
+    severity_override: Severity | None = None
     # Host information (if available)
     host_id: int | None = None
     hostname: str | None = None
@@ -144,6 +145,12 @@ class AlertStatusRequest(BaseModel):
     """Request schema for updating alert resolution status."""
 
     resolution_status: ResolutionStatus
+
+
+class AlertSeverityRequest(BaseModel):
+    """Request schema for updating alert severity override."""
+
+    severity: Severity | None  # None to reset to computed default
 
 
 class DismissSuggestion(BaseModel):

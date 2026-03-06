@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { parseUtcDate, formatDateTime, formatRelativeTime } from '../../lib/formatters'
-import type { Alert, User } from '../../types'
+import type { Alert, Severity, User } from '../../types'
 import { getAlertLabelCompact, getAlertStyleCompact } from '../../constants/alerts'
-import type { Severity } from './useAlerts'
 
 const severityStyles: Record<Severity, string> = {
   critical: 'border-rose-500/50 bg-rose-500/20 text-rose-700 dark:text-rose-200',
@@ -37,6 +36,8 @@ type Props = {
   users: User[]
   onAssign: (alertId: number, userId: number | null) => void
   isAssigning: boolean
+  onSeverityChange: (alertId: number, severity: Severity | null) => void
+  isChangingSeverity: boolean
 }
 
 export default function AlertRow({
@@ -57,21 +58,27 @@ export default function AlertRow({
   users,
   onAssign,
   isAssigning,
+  onSeverityChange,
+  isChangingSeverity,
 }: Props) {
   const now = new Date()
   const alertDate = parseUtcDate(alert.created_at)
   const severity = alert.severity as Severity
   const [assignOpen, setAssignOpen] = useState(false)
+  const [severityOpen, setSeverityOpen] = useState(false)
 
   useEffect(() => {
-    if (!assignOpen) return
+    if (!assignOpen && !severityOpen) return
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement
-      if (!target.closest('[data-dropdown]')) setAssignOpen(false)
+      if (!target.closest('[data-dropdown]')) {
+        setAssignOpen(false)
+        setSeverityOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [assignOpen])
+  }, [assignOpen, severityOpen])
 
   return (
     <tr
@@ -115,12 +122,81 @@ export default function AlertRow({
           </Link>
         </div>
       </td>
-      <td className="px-4 py-3">
-        <span
-          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${severityStyles[severity]}`}
-        >
-          {severityLabels[severity]}
-        </span>
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <div className="relative" data-dropdown>
+          <button
+            onClick={() => setSeverityOpen(!severityOpen)}
+            disabled={isChangingSeverity}
+            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition ${severityStyles[severity]} hover:ring-1 hover:ring-slate-300 dark:hover:ring-slate-600`}
+            title={
+              alert.severity_override
+                ? `Overridden (default would be computed)`
+                : 'Click to change severity'
+            }
+          >
+            {severityLabels[severity]}
+            {alert.severity_override && (
+              <svg
+                className="h-3 w-3 opacity-60"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                />
+              </svg>
+            )}
+          </button>
+          {severityOpen && (
+            <div className="absolute left-0 top-full z-50 mt-1 w-36 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+              {(['critical', 'high', 'medium', 'info'] as Severity[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => {
+                    onSeverityChange(
+                      alert.id,
+                      s === severity && !alert.severity_override ? null : s,
+                    )
+                    setSeverityOpen(false)
+                  }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-slate-50 dark:hover:bg-slate-700 ${severity === s ? 'font-semibold' : 'text-slate-600 dark:text-slate-300'}`}
+                >
+                  <span
+                    className={`inline-block h-2 w-2 rounded-full ${
+                      s === 'critical'
+                        ? 'bg-rose-500'
+                        : s === 'high'
+                          ? 'bg-orange-500'
+                          : s === 'medium'
+                            ? 'bg-amber-500'
+                            : 'bg-slate-400'
+                    }`}
+                  />
+                  {severityLabels[s]}
+                  {severity === s && <span className="text-cyan-500 ml-auto">&#10003;</span>}
+                </button>
+              ))}
+              {alert.severity_override && (
+                <>
+                  <div className="mx-2 my-0.5 border-t border-slate-100 dark:border-slate-700" />
+                  <button
+                    onClick={() => {
+                      onSeverityChange(alert.id, null)
+                      setSeverityOpen(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-500 transition hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400"
+                  >
+                    Reset to default
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-1.5">

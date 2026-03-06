@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import ReviewModal from '../../components/ReviewModal'
 import { useAuth } from '../../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, getAuthHeaders } from '../../lib/api'
 import { downloadBlob, timestampedFilename } from '../../lib/downloadBlob'
 import { Toast } from '../../components/Toast'
 import { useToast } from '../../lib/useToast'
-import type { Alert } from '../../types'
+import type { Alert, Severity as SeverityType } from '../../types'
 import AlertFilters from './AlertFilters'
 import AlertTableHeader from './AlertTableHeader'
 import AlertRow from './AlertRow'
@@ -27,6 +28,7 @@ type ReviewModalState = {
 
 const AlertsPage = () => {
   const { token } = useAuth()
+  const queryClient = useQueryClient()
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [reviewModal, setReviewModal] = useState<ReviewModalState>(null)
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
@@ -39,6 +41,7 @@ const AlertsPage = () => {
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [updatingAssignment, setUpdatingAssignment] = useState<number | null>(null)
+  const [updatingSeverity, setUpdatingSeverity] = useState<number | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [revokeConfirm, setRevokeConfirm] = useState(false)
 
@@ -225,6 +228,27 @@ const AlertsPage = () => {
         },
       },
     )
+  }
+
+  const handleSeverityChange = async (alertId: number, severity: SeverityType | null) => {
+    setUpdatingSeverity(alertId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/severity`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ severity }),
+      })
+      if (!res.ok) {
+        const err = await extractErrorMessage(res)
+        throw new Error(err)
+      }
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+      showToast('Severity updated', 'success')
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Error', 'error')
+    } finally {
+      setUpdatingSeverity(null)
+    }
   }
 
   const selectedAlerts = useMemo(
@@ -437,6 +461,8 @@ const AlertsPage = () => {
                           users={users}
                           onAssign={handleAssign}
                           isAssigning={updatingAssignment === alert.id}
+                          onSeverityChange={handleSeverityChange}
+                          isChangingSeverity={updatingSeverity === alert.id}
                         />
                         {isExpanded && (
                           <AlertExpandedRow
