@@ -57,3 +57,5 @@ progress.txt
 prd.json
 .claude/
 scripts/ralph/
+# Temporary files
+tmp/
