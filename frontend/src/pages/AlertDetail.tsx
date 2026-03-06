@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import AlertComments from '../components/AlertComments'
@@ -18,9 +18,8 @@ import type {
   NetworkListResponse,
   PortRuleUnified,
   PortRuleUnifiedListResponse,
+  Severity,
 } from '../types'
-
-type Severity = 'critical' | 'high' | 'medium' | 'info'
 
 const severityStyles: Record<Severity, string> = {
   critical: 'border-rose-500/50 bg-rose-500/20 text-rose-700 dark:text-rose-200',
@@ -257,6 +256,17 @@ export default function AlertDetail() {
   const isValidId = Number.isFinite(parsedId) && parsedId > 0
 
   const [showRuleEditor, setShowRuleEditor] = useState(false)
+  const [severityOpen, setSeverityOpen] = useState(false)
+
+  useEffect(() => {
+    if (!severityOpen) return
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-dropdown]')) setSeverityOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [severityOpen])
   const [editingRule, setEditingRule] = useState<PortRuleUnified | null>(null)
   const [reviewModal, setReviewModal] = useState(false)
 
@@ -429,6 +439,24 @@ export default function AlertDetail() {
     },
   })
 
+  const severityMutation = useMutation({
+    mutationFn: async ({ severity }: { severity: Severity | null }) => {
+      const res = await fetch(`${API_BASE_URL}/api/alerts/${parsedId}/severity`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ severity }),
+      })
+      if (!res.ok) throw new Error(await extractErrorMessage(res))
+      return res.json() as Promise<Alert>
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alert', parsedId] })
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+      showToast('Severity updated', 'success')
+    },
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Error updating severity', 'error'),
+  })
+
   // Navigation
   const allAlertIds = (allAlertsQuery.data?.alerts ?? []).map((a) => a.id)
   const currentIndex = allAlertIds.indexOf(parsedId)
@@ -599,11 +627,94 @@ export default function AlertDetail() {
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-3">
               <div className="flex items-center gap-3 flex-wrap">
-                <span
-                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${severityStyles[severity]}`}
-                >
-                  {severityLabels[severity]}
-                </span>
+                <div className="relative" data-dropdown>
+                  <button
+                    onClick={() => setSeverityOpen(!severityOpen)}
+                    disabled={severityMutation.isPending}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition ${severityStyles[severity]} hover:ring-1 hover:ring-slate-300 dark:hover:ring-slate-600`}
+                    title={
+                      alert.severity_override
+                        ? 'Severity overridden — click to change'
+                        : 'Click to change severity'
+                    }
+                  >
+                    {severityLabels[severity]}
+                    {alert.severity_override && (
+                      <svg
+                        className="h-3 w-3 opacity-60"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                        />
+                      </svg>
+                    )}
+                    <svg
+                      className="h-3 w-3 opacity-40"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </button>
+                  {severityOpen && (
+                    <div className="absolute left-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+                      {(['critical', 'high', 'medium', 'info'] as Severity[]).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => {
+                            severityMutation.mutate({
+                              severity: s === severity && !alert.severity_override ? null : s,
+                            })
+                            setSeverityOpen(false)
+                          }}
+                          className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition hover:bg-slate-50 dark:hover:bg-slate-700 ${severity === s ? 'font-semibold' : 'text-slate-600 dark:text-slate-300'}`}
+                        >
+                          <span
+                            className={`inline-block h-2.5 w-2.5 rounded-full ${
+                              s === 'critical'
+                                ? 'bg-rose-500'
+                                : s === 'high'
+                                  ? 'bg-orange-500'
+                                  : s === 'medium'
+                                    ? 'bg-amber-500'
+                                    : 'bg-slate-400'
+                            }`}
+                          />
+                          {severityLabels[s]}
+                          {severity === s && (
+                            <span className="text-cyan-500 ml-auto">&#10003;</span>
+                          )}
+                        </button>
+                      ))}
+                      {alert.severity_override && (
+                        <>
+                          <div className="mx-2 my-0.5 border-t border-slate-100 dark:border-slate-700" />
+                          <button
+                            onClick={() => {
+                              severityMutation.mutate({ severity: null })
+                              setSeverityOpen(false)
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-500 transition hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-400"
+                          >
+                            Reset to default
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   {alertTypeLabels[alert.type] ?? alert.type}
                 </span>

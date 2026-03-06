@@ -26,6 +26,7 @@ from app.schemas.alert import (
     AlertBulkReopenResponse,
     AlertListResponse,
     AlertResponse,
+    AlertSeverityRequest,
     AlertSSHSummary,
     AlertStatusRequest,
     BulkDeleteRequest,
@@ -54,10 +55,29 @@ from app.services.alert_rules import is_port_blocked
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
+def _severity_override_value(
+    alert: Alert,
+) -> Severity | None:
+    """Convert DB severity_override string to Severity enum."""
+    if alert.severity_override:
+        return Severity(alert.severity_override)
+    return None
+
+
 async def compute_alert_severity(
-    db: DbSession, alert_type: AlertType, ip: str, port: int
+    db: DbSession,
+    alert_type: AlertType,
+    ip: str,
+    port: int,
+    severity_override: str | None = None,
 ) -> Severity:
-    """Compute alert severity based on rules and status."""
+    """Compute alert severity based on rules, status, or user override."""
+    if severity_override is not None:
+        try:
+            return Severity(severity_override)
+        except ValueError:
+            pass
+
     # Check if port is blocked (CRITICAL)
     if await is_port_blocked(db, ip, port):
         return Severity.CRITICAL
@@ -142,7 +162,7 @@ async def list_alerts(
     alert_responses = []
     for alert, network_name in alerts:
         severity = await compute_alert_severity(
-            db, alert.alert_type, alert.ip, alert.port or 0
+            db, alert.alert_type, alert.ip, alert.port or 0, alert.severity_override
         )
         # Get host info from cache
         host_info = host_cache.get(alert.ip)
@@ -179,6 +199,7 @@ async def list_alerts(
                 resolution_status=alert.resolution_status,
                 created_at=alert.created_at,
                 severity=severity,
+                severity_override=_severity_override_value(alert),
                 host_id=host_id,
                 hostname=hostname,
                 user_comment=user_comment,
@@ -473,7 +494,7 @@ async def get_alert(
     alert, network_name = alert_with_network
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port or 0
+        db, alert.alert_type, alert.ip, alert.port or 0, alert.severity_override
     )
 
     # Host info
@@ -511,6 +532,7 @@ async def get_alert(
         resolution_status=alert.resolution_status,
         created_at=alert.created_at,
         severity=severity,
+        severity_override=_severity_override_value(alert),
         host_id=host_id,
         hostname=hostname,
         user_comment=user_comment,
@@ -731,7 +753,7 @@ async def dismiss_alert(
     await db.commit()
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port or 0
+        db, alert.alert_type, alert.ip, alert.port or 0, alert.severity_override
     )
 
     return AlertResponse(
@@ -748,6 +770,7 @@ async def dismiss_alert(
         dismiss_reason=alert.dismiss_reason,
         created_at=alert.created_at,
         severity=severity,
+        severity_override=_severity_override_value(alert),
         related_ssh_alert_count=ssh_alert_count,
         related_ssh_alerts_dismissed=ssh_all_acked,
     )
@@ -843,7 +866,7 @@ async def reopen_alert(
     await db.commit()
 
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port or 0
+        db, alert.alert_type, alert.ip, alert.port or 0, alert.severity_override
     )
 
     return AlertResponse(
@@ -860,6 +883,7 @@ async def reopen_alert(
         dismiss_reason=alert.dismiss_reason,
         created_at=alert.created_at,
         severity=severity,
+        severity_override=_severity_override_value(alert),
     )
 
 
@@ -1314,7 +1338,7 @@ async def assign_alert(
 
     # Compute severity for response
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port or 0
+        db, alert.alert_type, alert.ip, alert.port or 0, alert.severity_override
     )
 
     return AlertResponse(
@@ -1333,6 +1357,7 @@ async def assign_alert(
         resolution_status=alert.resolution_status,
         created_at=alert.created_at,
         severity=severity,
+        severity_override=_severity_override_value(alert),
     )
 
 
@@ -1369,7 +1394,7 @@ async def update_alert_status(
 
     # Compute severity for response
     severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port or 0
+        db, alert.alert_type, alert.ip, alert.port or 0, alert.severity_override
     )
 
     return AlertResponse(
@@ -1388,4 +1413,55 @@ async def update_alert_status(
         resolution_status=alert.resolution_status,
         created_at=alert.created_at,
         severity=severity,
+        severity_override=_severity_override_value(alert),
+    )
+
+
+@router.patch("/{alert_id}/severity", response_model=AlertResponse)
+async def update_alert_severity(
+    user: CurrentUser,
+    db: DbSession,
+    alert_id: int,
+    request: AlertSeverityRequest = Body(...),
+) -> AlertResponse:
+    """Update the severity override of an alert."""
+    alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
+    if alert_with_network is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Alert not found",
+        )
+
+    alert, network_name = alert_with_network
+    alert.severity_override = request.severity.value if request.severity is not None else None
+    await db.commit()
+    await db.refresh(alert)
+
+    assigned_to_email: str | None = None
+    if alert.assigned_to_user_id is not None:
+        assigned_user = await users_service.get_user_by_id(db, alert.assigned_to_user_id)
+        if assigned_user is not None:
+            assigned_to_email = assigned_user.email
+
+    severity = await compute_alert_severity(
+        db, alert.alert_type, alert.ip, alert.port or 0, alert.severity_override
+    )
+
+    return AlertResponse(
+        id=alert.id,
+        type=alert.alert_type,
+        source=alert.source,
+        network_id=alert.network_id,
+        network_name=network_name,
+        global_open_port_id=alert.global_open_port_id,
+        ip=alert.ip,
+        port=alert.port,
+        message=alert.message,
+        dismissed=alert.dismissed,
+        assigned_to_user_id=alert.assigned_to_user_id,
+        assigned_to_email=assigned_to_email,
+        resolution_status=alert.resolution_status,
+        created_at=alert.created_at,
+        severity=severity,
+        severity_override=_severity_override_value(alert),
     )

@@ -70,6 +70,9 @@ class Alert(Base):
         nullable=False,
         default=ResolutionStatus.OPEN,
     )
+    severity_override: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )

@@ -531,6 +531,25 @@ def _should_create_alert(
     return True
 
 
+async def _get_severity_overrides(
+    db: AsyncSession, network_id: int
+) -> dict[AlertKey, str]:
+    """Get severity overrides from the most recent alert per (type, ip, port)."""
+    result = await db.execute(
+        select(
+            Alert.alert_type, Alert.ip, Alert.port, Alert.severity_override
+        ).where(
+            Alert.network_id == network_id,
+            Alert.severity_override.isnot(None),
+        )
+    )
+    overrides: dict[AlertKey, str] = {}
+    for row in result.all():
+        key = (row[0], row[1], int(row[2]) if row[2] is not None else 0)
+        overrides[key] = row[3]
+    return overrides
+
+
 async def generate_alerts_for_scan(
     db: AsyncSession,
     scan: Scan,
@@ -581,6 +600,7 @@ async def generate_alerts_for_scan(
         previous_ports = await _get_previous_scan_ports(db, scan)
 
     existing_alerts = await _get_pending_alerts(db, scan.network_id)
+    severity_overrides = await _get_severity_overrides(db, scan.network_id)
     created_alert_keys: set[AlertKey] = set()
     created_count = 0
     created_alerts: list[Alert] = []
@@ -613,6 +633,7 @@ async def generate_alerts_for_scan(
                     ip=ip,
                     port=port,
                     message=f"New open port detected: {ip}:{port}",
+                    severity_override=severity_overrides.get(key),
                 )
                 db.add(alert)
                 created_alerts.append(alert)
@@ -629,6 +650,7 @@ async def generate_alerts_for_scan(
                     ip=ip,
                     port=port,
                     message=f"Blocked port detected: {ip}:{port}",
+                    severity_override=severity_overrides.get(key),
                 )
                 db.add(alert)
                 created_alerts.append(alert)
@@ -649,6 +671,7 @@ async def generate_alerts_for_scan(
                     ip=ip,
                     port=port,
                     message=f"Open port not in allowlist: {ip}:{port}",
+                    severity_override=severity_overrides.get(key),
                 )
                 db.add(alert)
                 created_alerts.append(alert)
@@ -958,6 +981,7 @@ async def generate_ssh_alerts_for_scan(
 
     # Get existing pending SSH alerts to avoid duplicates
     existing_alerts = await _get_pending_ssh_alerts(db, scan.network_id)
+    severity_overrides = await _get_severity_overrides(db, scan.network_id)
     created_alert_keys: set[SSHAlertKey] = set()
     created_count = 0
     created_alerts: list[Alert] = []
@@ -1000,6 +1024,7 @@ async def generate_ssh_alerts_for_scan(
                         ip=ip,
                         port=port,
                         message=message,
+                        severity_override=severity_overrides.get(key),
                     )
                     db.add(alert)
                     created_alerts.append(alert)
@@ -1028,6 +1053,7 @@ async def generate_ssh_alerts_for_scan(
                         ip=ip,
                         port=port,
                         message=message,
+                        severity_override=severity_overrides.get(key),
                     )
                     db.add(alert)
                     created_alerts.append(alert)
@@ -1056,6 +1082,7 @@ async def generate_ssh_alerts_for_scan(
                         ip=ip,
                         port=port,
                         message=message,
+                        severity_override=severity_overrides.get(key),
                     )
                     db.add(alert)
                     created_alerts.append(alert)
@@ -1088,6 +1115,7 @@ async def generate_ssh_alerts_for_scan(
                         ip=ip,
                         port=port,
                         message=message,
+                        severity_override=severity_overrides.get(key),
                     )
                     db.add(alert)
                     created_alerts.append(alert)
@@ -1291,6 +1319,7 @@ async def generate_ssh_regression_alerts_for_scan(
 
     # Get existing pending SSH alerts to avoid duplicates
     existing_alerts = await _get_pending_ssh_alerts(db, scan.network_id)
+    severity_overrides = await _get_severity_overrides(db, scan.network_id)
     created_alert_keys: set[SSHAlertKey] = set()
     created_count = 0
     created_alerts: list[Alert] = []
@@ -1325,6 +1354,7 @@ async def generate_ssh_regression_alerts_for_scan(
                     ip=current.host_ip,
                     port=current.port,
                     message=message,
+                    severity_override=severity_overrides.get(alert_key),
                 )
                 db.add(alert)
                 created_alerts.append(alert)

@@ -54,6 +54,7 @@ export type Alert = {
   resolution_status: ResolutionStatus
   created_at: string
   severity: Severity
+  severity_override: Severity | null
   // Host information (if available)
   host_id: number | null
   hostname: string | null

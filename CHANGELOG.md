@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frontend category filter uses backend `source` field instead of heuristic type-prefix matching
 
 ### Added
+- User-editable severity override on alerts: clickable severity badge in both the alerts list and alert detail page lets users change severity (critical/high/medium/info) or reset to the computed default
+- Severity overrides persist across new scans — new alerts for the same (type, ip, port) inherit the override from previous alerts
+- `PATCH /api/alerts/{id}/severity` endpoint for updating severity override
+- `severity_override` column on alerts table (migration 013)
 - `alert_rules` table with `source`, `rule_type`, and `match_criteria` JSON column for source-specific matching
 - Alembic migration `012_add_alert_rules_and_source` that creates the new table, backfills data from old tables, and adds `source` column to alerts
 
