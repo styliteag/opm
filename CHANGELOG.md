@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All routers (alerts, policy, hosts, ssh, networks, ports) migrated to use `alert_rules_service`
 - SSH alerts can now be suppressed via accepted rules (previously only dismissable)
 - Frontend category filter uses backend `source` field instead of heuristic type-prefix matching
+- Alert Rules page now supports inline editing of existing rules on `/port-rules`
 
 ### Added
 - User-editable severity override on alerts: clickable severity badge in both the alerts list and alert detail page lets users change severity (critical/high/medium/info) or reset to the computed default
