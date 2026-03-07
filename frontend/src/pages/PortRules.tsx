@@ -17,6 +17,29 @@ type SortDirection = 'asc' | 'desc'
 const ruleKey = (rule: PortRuleUnified): string =>
   `${rule.network_id === null ? 'global' : 'network'}-${rule.id}`
 
+const emptyNewRule = (): PortRuleUnifiedCreatePayload => ({
+  network_id: null,
+  ip: null,
+  port: '',
+  rule_type: 'accepted',
+  description: null,
+  source: 'port',
+})
+
+type RuleEditForm = {
+  ip: string
+  port: string
+  rule_type: 'accepted' | 'critical'
+  description: string
+}
+
+const buildEditForm = (rule: PortRuleUnified): RuleEditForm => ({
+  ip: rule.ip ?? '',
+  port: rule.port,
+  rule_type: rule.rule_type,
+  description: rule.description ?? '',
+})
+
 const PortRules = () => {
   const { token, user } = useAuth()
   const queryClient = useQueryClient()
@@ -29,17 +52,12 @@ const PortRules = () => {
   const [sortKey, setSortKey] = useState<SortKey>('port')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [selectedRules, setSelectedRules] = useState<Set<string>>(new Set())
+  const [editingRuleKey, setEditingRuleKey] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<RuleEditForm | null>(null)
   const { toast, showToast } = useToast()
 
   // Create form state
-  const [newRule, setNewRule] = useState<PortRuleUnifiedCreatePayload>({
-    network_id: null,
-    ip: null,
-    port: '',
-    rule_type: 'accepted',
-    description: null,
-    source: 'port',
-  })
+  const [newRule, setNewRule] = useState<PortRuleUnifiedCreatePayload>(emptyNewRule)
 
   const rulesQuery = useQuery({
     queryKey: ['port-rules', networkFilter],
@@ -111,15 +129,40 @@ const PortRules = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['port-rules'] })
       setShowCreateForm(false)
-      setNewRule({
-        network_id: null,
-        ip: null,
-        port: '',
-        rule_type: 'accepted',
-        description: null,
-        source: 'port',
-      })
+      setNewRule(emptyNewRule())
       showToast('Rule created', 'success')
+    },
+    onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async ({
+      scope,
+      ruleId,
+      payload,
+    }: {
+      scope: 'global' | 'network'
+      ruleId: number
+      payload: {
+        ip: string
+        port: string
+        rule_type: 'accepted' | 'critical'
+        description: string | null
+      }
+    }) => {
+      const res = await fetch(`${API_BASE_URL}/api/port-rules/${scope}/${ruleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(token ?? '') },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(await extractErrorMessage(res))
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['port-rules'] })
+      setEditingRuleKey(null)
+      setEditForm(null)
+      showToast('Rule updated', 'success')
     },
     onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
   })
@@ -178,6 +221,32 @@ const PortRules = () => {
     const portInfo = rule.port ? ` for port ${rule.port}` : ''
     if (!confirm(`Delete this ${scope} ${rule.source ?? 'port'} rule${portInfo}?`)) return
     deleteMutation.mutate({ scope, ruleId: rule.id })
+  }
+
+  const handleEditStart = (rule: PortRuleUnified) => {
+    setEditingRuleKey(ruleKey(rule))
+    setEditForm(buildEditForm(rule))
+  }
+
+  const handleEditCancel = () => {
+    setEditingRuleKey(null)
+    setEditForm(null)
+  }
+
+  const handleEditSave = (rule: PortRuleUnified) => {
+    if (!editForm) return
+    if (rule.source !== 'ssh' && !editForm.port.trim()) return
+
+    updateMutation.mutate({
+      scope: rule.network_id === null ? 'global' : 'network',
+      ruleId: rule.id,
+      payload: {
+        ip: editForm.ip.trim(),
+        port: editForm.port.trim(),
+        rule_type: editForm.rule_type,
+        description: editForm.description.trim() || null,
+      },
+    })
   }
 
   const handleBulkDelete = () => {
@@ -511,6 +580,7 @@ const PortRules = () => {
                   const isGlobal = rule.network_id === null
                   const key = ruleKey(rule)
                   const isSelected = selectedRules.has(key)
+                  const isEditing = editingRuleKey === key && editForm !== null
                   return (
                     <tr
                       key={key}
@@ -551,36 +621,128 @@ const PortRules = () => {
                         </span>
                       </td>
                       <td className="px-6 py-3 font-mono text-sm text-slate-700 dark:text-slate-300">
-                        {rule.ip || (
-                          <span className="text-slate-300 dark:text-slate-600 italic">Any</span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editForm.ip}
+                            onChange={(e) =>
+                              setEditForm((current) =>
+                                current ? { ...current, ip: e.target.value } : current,
+                              )
+                            }
+                            placeholder="Any IP"
+                            className="w-full bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
+                          />
+                        ) : (
+                          rule.ip || (
+                            <span className="text-slate-300 dark:text-slate-600 italic">Any</span>
+                          )
                         )}
                       </td>
                       <td className="px-6 py-3 font-mono text-sm font-bold text-slate-900 dark:text-white">
-                        {rule.port}
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editForm.port}
+                            onChange={(e) =>
+                              setEditForm((current) =>
+                                current ? { ...current, port: e.target.value } : current,
+                              )
+                            }
+                            placeholder={rule.source === 'ssh' ? 'Optional' : 'e.g. 443'}
+                            className="w-full min-w-24 bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
+                          />
+                        ) : (
+                          rule.port
+                        )}
                       </td>
                       <td className="px-6 py-3">
-                        <span
-                          className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                            rule.rule_type === 'accepted'
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                              : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
-                          }`}
-                        >
-                          {rule.rule_type}
-                        </span>
+                        {isEditing ? (
+                          <select
+                            value={editForm.rule_type}
+                            onChange={(e) =>
+                              setEditForm((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      rule_type: e.target.value as 'accepted' | 'critical',
+                                    }
+                                  : current,
+                              )
+                            }
+                            className="w-full bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
+                          >
+                            <option value="accepted">Accepted</option>
+                            <option value="critical">Critical</option>
+                          </select>
+                        ) : (
+                          <span
+                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                              rule.rule_type === 'accepted'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                            }`}
+                          >
+                            {rule.rule_type}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-3 text-sm text-slate-500 dark:text-slate-400 max-w-xs truncate">
-                        {rule.description || '-'}
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editForm.description}
+                            onChange={(e) =>
+                              setEditForm((current) =>
+                                current ? { ...current, description: e.target.value } : current,
+                              )
+                            }
+                            placeholder="Optional"
+                            className="w-full bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
+                          />
+                        ) : (
+                          rule.description || '-'
+                        )}
                       </td>
                       {isAdmin && (
                         <td className="px-6 py-3 text-right">
-                          <button
-                            onClick={() => handleDelete(rule)}
-                            disabled={deleteMutation.isPending}
-                            className="rounded-lg border border-rose-200 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-500/20 dark:border-rose-500/40 dark:text-rose-300 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Delete
-                          </button>
+                          <div className="flex justify-end gap-2">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  onClick={() => handleEditSave(rule)}
+                                  disabled={updateMutation.isPending}
+                                  className="rounded-lg border border-emerald-200 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {updateMutation.isPending ? 'Saving...' : 'Save'}
+                                </button>
+                                <button
+                                  onClick={handleEditCancel}
+                                  disabled={updateMutation.isPending}
+                                  className="rounded-lg border border-slate-200 bg-slate-500/10 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-500/20 dark:border-slate-700 dark:text-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleEditStart(rule)}
+                                  disabled={updateMutation.isPending}
+                                  className="rounded-lg border border-indigo-200 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(rule)}
+                                  disabled={deleteMutation.isPending}
+                                  className="rounded-lg border border-rose-200 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-500/20 dark:border-rose-500/40 dark:text-rose-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
