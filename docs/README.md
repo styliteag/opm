@@ -11,14 +11,14 @@ Complete API documentation for integrating with Open Port Monitor.
 - [API Overview](api/overview.md) - Base URL, error handling, pagination, and authentication patterns
 - [Authentication](api/authentication.md) - User and scanner authentication flows
 - [Networks](api/networks.md) - Network management CRUD operations
-- [Alerts](api/alerts.md) - Alert management, dismissal, and export
+- [Alerts](api/alerts.md) - Alert management, dismissal, severity, assignment, and export
 - [Hosts](api/hosts.md) - Host management and export
 - [Scans](api/scans.md) - Scan details, results, and logs
 - [SSH Security](api/ssh.md) - SSH security scanning, reports, and alerts
 - [Trends](api/trends.md) - Historical trend data
 - [Scanner API](api/scanner-api.md) - Scanner-to-backend protocol for custom scanners
 - [Users](api/users.md) - User management
-- [Global Ports](api/global-ports.md) - Global port rules
+- [Global Ports](api/global-ports.md) - Deduplicated global open port inventory
 
 ### Scanner Documentation
 
@@ -33,7 +33,7 @@ Guides for deploying and operating scanner agents.
 Resources for contributors and developers.
 
 - [Setup Guide](development/setup.md) - Development environment setup
-- [Architecture Overview](development/architecture.md) - System architecture and design
+- [Architecture Overview](development/architecture.md) - Current system architecture and data model
 - [Contributing](development/contributing.md) - Code standards and PR process
 
 ## Quick Links

@@ -1,280 +1,365 @@
-# Alert States & Actions — Explained Simply
+# Alert States
 
-## The Two Big Ideas
+This document describes how alert state works in the current codebase across the database, API, and UI.
 
-An alert has **two independent properties**:
+It is intentionally centered on the current implementation, because the alert system has changed over time and older terminology still appears in some historical notes and migrations.
 
-1. **Visibility**: Is the alert **active** (you see it) or **dismissed** (hidden)?
-2. **Resolution**: Is the alert **open**, **in progress**, **fix planned**, or **resolved**?
+## Core Model
 
-These are independent — you can dismiss an alert that's still "open", or resolve one that's still visible.
+An alert has four largely independent pieces of state:
 
----
+1. `dismissed`
+   Whether the alert is currently hidden from the active review queue.
+2. `resolution_status`
+   Workflow state for remediation tracking: `open`, `in_progress`, `fix_planned`, or `resolved`.
+3. `assigned_to_user_id`
+   Optional owner for follow-up.
+4. `severity_override`
+   Optional manual severity override. If unset, severity is computed from alert type and matching critical rules.
 
-## Alert Types
+The current alert model lives in the `alerts` table and includes:
 
-Alerts are created by scanners and have a **type** and **source**:
+- `type` / `alert_type`
+- `source`
+- `ip`
+- `port` (nullable for sources that may not use a port)
+- `dismissed`
+- `dismiss_reason`
+- `resolution_status`
+- `assigned_to_user_id`
+- `severity_override`
 
-### Port Alerts (source: `port`)
-| Type | Description | Default Severity |
-|------|-------------|-----------------|
-| `new_port` | New open port detected | High |
-| `not_allowed` | Port not in allow-list | Medium |
-| `blocked` | Port matches block-list | Critical |
+Two practical consequences follow from that model:
 
-### SSH Alerts (source: `ssh`)
-| Type | Description | Default Severity |
-|------|-------------|-----------------|
-| `ssh_insecure_auth` | Password/keyboard-interactive login enabled | High |
-| `ssh_weak_cipher` | Weak ciphers detected | Medium |
-| `ssh_weak_kex` | Weak key exchange algorithms | Medium |
-| `ssh_outdated_version` | Outdated SSH version | Medium |
-| `ssh_config_regression` | SSH config changed for the worse | Medium |
+1. Dismissing an alert does not mean it is resolved.
+2. Accepting an alert does not just hide the current record; it changes future alert generation by creating a rule.
 
----
+## Alert Sources And Types
+
+Alerts are grouped by `source`.
+
+### Port alerts (`source = "port"`)
+
+| Type | Meaning |
+|------|---------|
+| `new_port` | A newly observed open port on the network |
+| `not_allowed` | A port that violates the network policy |
+| `blocked` | A port matched by a critical rule |
+
+### SSH alerts (`source = "ssh"`)
+
+| Type | Meaning |
+|------|---------|
+| `ssh_insecure_auth` | Password or keyboard-interactive auth is enabled |
+| `ssh_weak_cipher` | Weak SSH ciphers were detected |
+| `ssh_weak_kex` | Weak key exchange algorithms were detected |
+| `ssh_outdated_version` | SSH version is below the configured threshold |
+| `ssh_config_regression` | SSH security posture regressed compared to a previous scan |
+
+The `source` field matters because rule matching, filtering, and UI grouping now operate on source directly rather than inferring category from the alert type name alone.
 
 ## Severity
 
-Each alert has a **computed severity** based on its type and matching rules:
+Runtime severity is computed by the alerts router, not stored as a fixed column.
 
-| Level | Meaning |
-|-------|---------|
-| **Critical** | Blocked port or blocked rule match |
-| **High** | New port or SSH insecure auth |
-| **Medium** | Not allowed, SSH weak cipher/kex/outdated |
-| **Info** | Acknowledged/monitoring |
+Default runtime mapping today:
 
-### Severity Override
+| Condition | Severity |
+|-----------|----------|
+| Matching global critical rule | `critical` |
+| `blocked` | `critical` |
+| `new_port` | `high` |
+| `not_allowed` | `medium` |
+| `ssh_insecure_auth` | `high` |
+| `ssh_weak_cipher` | `medium` |
+| `ssh_weak_kex` | `medium` |
+| `ssh_outdated_version` | `medium` |
+| `ssh_config_regression` | `high` |
 
-Users can manually override the computed severity to any level (critical, high, medium, info).
-Setting the override to `null` resets it back to the computed default.
+If `severity_override` is set, it wins over the computed value.
 
-Priority: **manual override > blocked rule > alert type default**
+Important: dismissing an alert does not automatically force severity to `info`. `info` is only used when selected as an override.
 
----
+In practice, the severity decision order is:
 
-## The 6 Actions
+1. explicit `severity_override`
+2. matching critical rule when applicable
+3. built-in default for the alert type
 
-### Dismiss
-> "I've seen this, hide it for now."
+## Dismiss, Accept, Reopen, Revoke
 
-- Hides the alert from the active list
-- You can add a reason (becomes a comment on the alert)
-- Optionally set a resolution status (e.g. "fix_planned")
-- The alert still exists — it's just not in your face anymore
-- Supports **bulk dismiss** for multiple alerts at once
-
-### Fix (Dismiss with Fix Planned)
-> "I know about this and a fix is planned."
-
-- Dismisses the alert with resolution status set to `fix_planned`
-- Opens a comment modal to describe what fix is planned
-- A shortcut for: dismiss + set resolution to "fix_planned" + add comment
-
-### Reopen
-> "Wait, I need to look at this again."
-
-- The opposite of Dismiss
-- Brings a dismissed alert back to the active list
-- Clears the dismiss reason
-- Supports **bulk reopen** for multiple alerts at once
-
-### Accept (Global or Network)
-> "This port is fine. Don't bother me about it ever again."
-
-- Creates a **permanent rule** (whitelist entry) for that IP:port
-- Also dismisses the alert as a side effect
-- Future scans won't create new alerts for this IP:port
-- Two scopes:
-  - **Global**: rule applies everywhere
-  - **Network**: rule applies only in one network
-- Supports **bulk accept** for multiple alerts at once
-
-### Revoke
-> "I changed my mind — that port shouldn't be whitelisted anymore."
-
-- **Deletes the acceptance rule** created by Accept
-- Future scans WILL create alerts for this IP:port again
-- Does NOT reopen the already-dismissed alert (use Reopen for that)
-
-### Delete
-> "Remove this alert permanently."
-
-- Gone forever. Cannot be undone.
-- Supports **bulk delete** for multiple alerts at once
-
----
+These actions are easy to confuse because they affect different layers.
 
 ## State Diagram
 
-```
-                         +---------------------------+
-                         |                           |
-                         |    ACTIVE (New)           |
-                         |    dismissed = false       |
-                         |                           |
-                         +----+-----------+----------+
-                              |           |
-                   +----------+           +----------+
-                   |                                 |
-                   v                                 v
-    +------------------------+       +----------------------------+
-    |                        |       |                            |
-    |   DISMISS / FIX        |       |   ACCEPT                  |
-    |   "Hide it"            |       |   "Whitelist it"          |
-    |   (optional reason,    |       |                           |
-    |    resolution status)  |       +------------+--------------+
-    |                        |                    |
-    +-----------+------------+                    |  (creates a rule
-                |                                 |   AND dismisses)
-                |                                 |
-                v                                 v
-    +------------------------------------------------------------+
-    |                                                            |
-    |    DISMISSED                                               |
-    |    dismissed = true                                        |
-    |                                                            |
-    |    May or may not have an acceptance rule behind it        |
-    |                                                            |
-    +-----------+-----------------------------+------------------+
-                |                             |
-                v                             v
-    +----------------------+    +---------------------------+
-    |                      |    |                           |
-    |   REOPEN             |    |   REVOKE                  |
-    |   "Show it again"    |    |   "Delete the rule"       |
-    |                      |    |                           |
-    |   -> back to         |    |   Alert stays dismissed   |
-    |      ACTIVE          |    |   but future scans will   |
-    |                      |    |   create new alerts       |
-    +----------------------+    +---------------------------+
-```
-
----
-
-## Dismiss vs Accept — What's the Difference?
-
-| | Dismiss | Accept |
-|---|---|---|
-| **What it does** | Hides this one alert | Hides this alert AND creates a rule |
-| **Future alerts** | New scan -> new alert appears | New scan -> no alert (rule blocks it) |
-| **Undo action** | Reopen | Revoke (deletes rule) + Reopen (shows alert) |
-| **Use when** | "I'll deal with it later" | "This is expected and safe" |
-
----
-
-## Reopen vs Revoke — What's the Difference?
-
-| | Reopen | Revoke |
-|---|---|---|
-| **What it does** | Un-dismisses an alert (shows it again) | Deletes an acceptance rule |
-| **Affects** | One specific alert | Future scan behavior |
-| **Use when** | "I need to re-investigate this" | "This port should no longer be whitelisted" |
-
----
-
-## Resolution Status (Independent Track)
-
-Separately from dismiss/active, each alert has a resolution status:
-
-```
-  OPEN  -->  IN PROGRESS  -->  FIX PLANNED  -->  RESOLVED
-    ^             |                  |                |
-    +-------------+------------------+                |
-    +-------------------------------------------------+
+```text
+                          +----------------------------------+
+                          |                                  |
+                          |   ACTIVE                         |
+                          |   dismissed = false              |
+                          |                                  |
+                          +----------------+-----------------+
+                                           |
+                  +------------------------+------------------------+
+                  |                                                 |
+                  v                                                 v
+      +---------------------------+                    +---------------------------+
+      | DISMISS                   |                    | ACCEPT                    |
+      | PUT /alerts/{id}/dismiss  |                    | POST bulk-accept-*        |
+      |                           |                    |                           |
+      | Optional:                 |                    | Creates accepted rule      |
+      | - dismiss_reason          |                    | and dismisses matching     |
+      | - resolution_status       |                    | current alerts             |
+      +-------------+-------------+                    +-------------+-------------+
+                    |                                                    |
+                    +------------------------+---------------------------+
+                                             |
+                                             v
+                          +----------------------------------+
+                          |                                  |
+                          |   DISMISSED                      |
+                          |   dismissed = true               |
+                          |                                  |
+                          |   May or may not have an         |
+                          |   accepted rule behind it        |
+                          +----------------+-----------------+
+                                           |
+                     +---------------------+----------------------+
+                     |                                            |
+                     v                                            v
+      +-----------------------------+              +-------------------------------+
+      | REOPEN                      |              | REVOKE                        |
+      | PUT /alerts/{id}/reopen     |              | DELETE /api/port-rules/...    |
+      |                             |              |                               |
+      | Clears dismiss_reason       |              | Removes future suppression    |
+      | and shows the alert again   |              | but does not reopen old       |
+      +--------------+--------------+              | dismissed alerts              |
+                     |                             +-------------------------------+
+                     |
+                     v
+          +---------------------------+
+          | back to ACTIVE            |
+          +---------------------------+
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `open` | Not yet looked at |
-| `in_progress` | Being investigated |
-| `fix_planned` | A fix is planned (typically set via the Fix action with a comment) |
-| `resolved` | Done |
+`resolution_status`, `assigned_to_user_id`, and `severity_override` move on separate tracks. They can be changed while an alert is active or dismissed.
 
-This is for your own tracking ("am I investigating this?") and does **not**
-affect whether the alert is visible or dismissed. You can change resolution
-status at any time regardless of the dismissed state.
+If you want a quick mental model:
 
----
+- `dismiss` is a review/queue action
+- `accept` is a policy/rule action
+- `reopen` is a review/queue action
+- `revoke` is a policy/rule action
+
+### Dismiss
+
+`PUT /api/alerts/{id}/dismiss`
+
+What it does:
+
+- sets `dismissed = true`
+- optionally stores `dismiss_reason`
+- optionally updates `resolution_status`
+- can optionally dismiss related SSH findings for the same `ip:port`
+
+What it does not do:
+
+- it does not create a suppression rule
+- it does not prevent future scans from creating similar alerts
+- it does not mark the issue resolved unless you explicitly set the resolution state
+
+Bulk variant:
+
+- `PUT /api/alerts/dismiss-bulk`
+
+When a dismiss reason is provided, the backend also propagates it to:
+
+- the related `global_open_ports.user_comment` when applicable
+- the related host comment if the host does not already have one
+
+That propagation is useful operationally because the same rationale can then appear in host and port views without duplicating the note manually.
+
+### Accept
+
+Accepting an alert creates an alert rule and dismisses matching current alerts.
+
+Endpoints:
+
+- `POST /api/alerts/bulk-accept-global`
+- `POST /api/alerts/bulk-accept-network`
+
+What it does:
+
+- creates an `accepted` rule in the unified `alert_rules` table
+- dismisses matching active alerts
+- prevents future matching alerts from being generated
+
+This is the closest thing to a permanent "this is expected" decision in the current system.
+
+Accepted rules can be:
+
+- global: `network_id = null`
+- network-scoped: `network_id = <network>`
+
+In the UI this appears as accepting globally or accepting within a network. In the backend both paths create unified rules; only the scope differs.
+
+### Reopen
+
+`PUT /api/alerts/{id}/reopen`
+
+What it does:
+
+- sets `dismissed = false`
+- clears `dismiss_reason`
+
+It does not remove any rule that may have caused the alert to be accepted earlier.
+
+That distinction matters. Reopening makes the alert visible again for review, but it does not undo policy.
+
+Bulk variant:
+
+- `PUT /api/alerts/bulk-reopen`
+
+### Revoke
+
+There is no dedicated revoke-alert endpoint. Revoking acceptance means deleting the underlying rule.
+
+Endpoint:
+
+- `DELETE /api/port-rules/{scope}/{rule_id}`
+
+Scopes:
+
+- `global`
+- `network`
+
+Deleting the rule changes future alert generation. It does not automatically reopen old dismissed alerts.
+
+If you want both effects, the full workflow is:
+
+1. delete the accepted rule
+2. reopen the alert if you want the existing record back in the active queue
+
+## Unified Alert Rules
+
+The legacy split between `port_rules` and `global_port_rules` has been replaced in active API usage by a unified `alert_rules` model exposed through `/api/port-rules`.
+
+Each rule has:
+
+- `source`: currently `port` or `ssh`
+- `rule_type`: `accepted` or `critical`
+- `match_criteria`: JSON criteria such as port ranges, IP, and optional SSH alert type
+- optional `network_id`
+
+This unified model is the biggest architectural change compared with older documentation. It replaces the older split between separate global and network rule tables as the active rule-management interface.
+
+Examples:
+
+- port rule: `{"ip": "10.0.0.5", "port": "22"}`
+- SSH rule: `{"ip": "10.0.0.5", "port": "22", "alert_type": "ssh_weak_cipher"}`
+
+The Alert Rules page in the UI uses `/api/port-rules` for both port and SSH rule management.
+
+That page name is slightly historical. Despite the route name and page label, it is now a unified alert-rule management surface, not just a port-only rule editor.
+
+## Resolution Workflow
+
+`resolution_status` is independent from `dismissed`.
+
+Allowed values:
+
+| Value | Meaning |
+|-------|---------|
+| `open` | Default state |
+| `in_progress` | Someone is actively working the issue |
+| `fix_planned` | Remediation is planned but not done yet |
+| `resolved` | Work is done |
+
+The UI exposes a "Fix" shortcut, but there is no separate backend fix action. It is just a dismiss flow that sets `resolution_status = "fix_planned"` and usually adds a comment.
+
+This means "Fix" should be read as a convenience workflow, not a distinct persistence model.
 
 ## Assignment
 
-Alerts can be **assigned to a user** for ownership tracking. Assigning with a `null` user_id unassigns the alert. Assignment is independent of both visibility and resolution status.
+`PATCH /api/alerts/{id}/assign`
 
----
+What it does:
+
+- assigns the alert to a user
+- `{"user_id": null}` removes the assignment
+
+Assignment does not affect dismissal, severity, or resolution state.
+
+This is purely an ownership signal for team coordination.
 
 ## Comments
 
-Each alert has a **comment thread** for discussion and context:
+Comment endpoints:
 
-- Comments are created automatically when dismissing with a reason
-- Comments are created automatically when using the Fix action
-- Users can add, edit, and delete comments manually
-- Comments are deleted when the alert is deleted (cascade)
+- `GET /api/alerts/{id}/comments`
+- `POST /api/alerts/{id}/comments`
+- `PATCH /api/alerts/{id}/comments/{comment_id}`
+- `DELETE /api/alerts/{id}/comments/{comment_id}`
 
----
+Comments are used for review history and operator notes. Dismissing with a reason affects `dismiss_reason`; comment creation is a separate API flow.
 
-## SSH Security Findings
+That split is deliberate:
 
-SSH alerts are a special **category** of alerts. They flag security issues like:
-- Insecure authentication (password login enabled)
-- Weak ciphers or key exchange algorithms
-- Outdated SSH versions
-- Security regressions (config got worse since last scan)
+- `dismiss_reason` is a structured field tied to queue state
+- comments are a general discussion/history stream
 
-They follow the **exact same state model** above. The only special behavior:
-when you dismiss a port alert, you get the option **"Also dismiss SSH findings"**
-which batch-dismisses related SSH security alerts for the same IP:port.
+## State Combinations That Matter
 
----
+Typical combinations in the UI:
 
-## Full Lifecycle Example
+| Example | Meaning |
+|---------|---------|
+| `dismissed=false`, `resolution_status=open` | New or still-active alert |
+| `dismissed=false`, `resolution_status=in_progress` | Visible and being investigated |
+| `dismissed=true`, `resolution_status=fix_planned` | Hidden from active queue but fix is planned |
+| `dismissed=true`, accepted rule exists | Suppressed now and in future |
+| `dismissed=false`, accepted rule exists | Possible after manual reopen; future scans still follow the rule |
 
+The last combination looks odd at first, but it is valid. It can happen if an operator reopens an alert for review while the suppression rule still exists underneath it.
+
+## Example Lifecycle
+
+```text
+1. A scan finds 192.168.10.15:8080
+   -> alert created as source=port, type=new_port
+
+2. An operator reviews it and decides it is real but not urgent
+   -> dismisses it with a reason
+   -> dismissed=true, future scans can still create similar alerts
+
+3. Later the team confirms this port is intentionally exposed
+   -> accepts it at network scope
+   -> an accepted rule is created
+   -> future matching alerts are suppressed
+
+4. Months later the exception is no longer valid
+   -> the accepted rule is deleted
+   -> future scans can alert again
+
+5. If the team wants the old alert visible again immediately
+   -> they reopen the alert separately
 ```
-1. Scanner finds port 8080 open on 192.168.1.5
-   -> Alert created: ACTIVE, resolution=open, severity=high
 
-2. You override severity to "critical" (this is a production server)
-   -> severity_override=critical
+## Related Endpoints
 
-3. You assign it to yourself
-   -> assigned_to_user_id=42
-
-4. You change resolution status to "in_progress"
-   -> resolution_status=in_progress
-
-5. You click "Fix" with comment "Closing port in next maintenance window"
-   -> Alert becomes: DISMISSED, resolution=fix_planned
-   -> Comment added with the fix description
-
-6. Maintenance done. You click "Reopen" to verify
-   -> Alert becomes: ACTIVE again
-
-7. Next scan confirms port is closed
-   -> No new alert created (port is gone)
-
-8. You mark resolution as "resolved"
-   -> resolution_status=resolved
-```
-
----
-
-## API Reference
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/alerts` | GET | List alerts (with filters) |
-| `/api/alerts/{id}/dismiss` | PUT | Dismiss single alert |
-| `/api/alerts/dismiss-bulk` | PUT | Dismiss multiple alerts |
-| `/api/alerts/{id}/reopen` | PUT | Reopen dismissed alert |
-| `/api/alerts/bulk-reopen` | PUT | Bulk reopen alerts |
-| `/api/alerts/bulk-accept-global` | POST | Accept globally (create rule) |
-| `/api/alerts/bulk-accept-network` | POST | Accept in network (create rule) |
-| `/api/alerts/bulk-delete` | DELETE | Permanently delete alerts |
-| `/api/alerts/{id}/status` | PATCH | Update resolution status |
-| `/api/alerts/{id}/severity` | PATCH | Update severity override |
-| `/api/alerts/{id}/assign` | PATCH | Assign to user |
-| `/api/alerts/{id}/comments` | GET | List comments |
-| `/api/alerts/{id}/comments` | POST | Create comment |
-| `/api/alerts/{id}/comments/{cid}` | PATCH | Update comment |
-| `/api/alerts/{id}/comments/{cid}` | DELETE | Delete comment |
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/alerts` | `GET` | List alerts |
+| `/api/alerts/{id}` | `GET` | Alert detail |
+| `/api/alerts/{id}/dismiss` | `PUT` | Dismiss one alert |
+| `/api/alerts/dismiss-bulk` | `PUT` | Dismiss many alerts |
+| `/api/alerts/{id}/reopen` | `PUT` | Reopen one alert |
+| `/api/alerts/bulk-reopen` | `PUT` | Reopen many alerts |
+| `/api/alerts/bulk-accept-global` | `POST` | Create global accepted rules from alerts |
+| `/api/alerts/bulk-accept-network` | `POST` | Create network accepted rules from alerts |
+| `/api/alerts/bulk-delete` | `DELETE` | Permanently delete alerts |
+| `/api/alerts/{id}/status` | `PATCH` | Update `resolution_status` |
+| `/api/alerts/{id}/severity` | `PATCH` | Update `severity_override` |
+| `/api/alerts/{id}/assign` | `PATCH` | Assign or unassign |
+| `/api/port-rules` | `GET` / `POST` | List or create unified alert rules |
+| `/api/port-rules/{scope}/{id}` | `PATCH` / `DELETE` | Update or delete a rule |
