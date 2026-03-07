@@ -29,6 +29,7 @@ type Props = {
   onToggle: () => void
   onSelect: (checked: boolean) => void
   onResolve: () => void
+  onFix: () => void
   onReopen: (alertId: number) => void
   onRevoke: (scope: 'global' | 'network', ruleId: number) => void
   isRevoking: boolean
@@ -51,6 +52,7 @@ export default function AlertRow({
   onToggle,
   onSelect,
   onResolve,
+  onFix,
   onReopen,
   onRevoke,
   isRevoking,
@@ -374,6 +376,13 @@ export default function AlertRow({
                 >
                   Accepted
                 </span>
+              ) : alert.resolution_status === 'fix_planned' ? (
+                <span
+                  className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200 cursor-default"
+                  title={alert.dismiss_reason || undefined}
+                >
+                  Fix
+                </span>
               ) : (
                 <span
                   className="inline-flex items-center rounded-full border border-sky-300/50 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-200 cursor-default"
@@ -404,12 +413,20 @@ export default function AlertRow({
               )}
             </>
           ) : isAdmin ? (
-            <button
-              onClick={onResolve}
-              className="rounded-full border border-emerald-300 bg-emerald-500/10 px-4 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300"
-            >
-              Accept
-            </button>
+            <>
+              <button
+                onClick={onFix}
+                className="rounded-full border border-amber-300 bg-amber-500/10 px-4 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-300"
+              >
+                Fix
+              </button>
+              <button
+                onClick={onResolve}
+                className="rounded-full border border-emerald-300 bg-emerald-500/10 px-4 py-1 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300"
+              >
+                Accept
+              </button>
+            </>
           ) : (
             <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
               Pending

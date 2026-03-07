@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import FixModal from '../../../components/FixModal'
 import ReviewModal from '../../../components/ReviewModal'
 import ReasonSuggestions from '../../../components/ReasonSuggestions'
 import {
@@ -17,6 +18,7 @@ type Props = {
   hostIp: string
   isAdmin: boolean
   onDismiss: (alertId: number, reason?: string, includeSSH?: boolean) => void
+  onFix: (alertId: number, reason?: string) => void
   onReopen: (alertId: number) => void
   onCreateRule?: (payload: {
     network_id?: number | null
@@ -36,6 +38,7 @@ export default function AlertsSection({
   hostIp,
   isAdmin,
   onDismiss,
+  onFix,
   onReopen,
   onCreateRule,
   isDismissing,
@@ -43,6 +46,7 @@ export default function AlertsSection({
 }: Props) {
   const [showDismissed, setShowDismissed] = useState(false)
   const [reviewAlert, setReviewAlert] = useState<HostAlertSummary | null>(null)
+  const [fixAlert, setFixAlert] = useState<HostAlertSummary | null>(null)
   const [editingAlertId, setEditingAlertId] = useState<number | null>(null)
   const [editReason, setEditReason] = useState('')
   const activeAlerts = alerts.filter((a) => !a.dismissed)
@@ -177,14 +181,24 @@ export default function AlertsSection({
                   {formatRelativeTime(parseUtcDate(alert.created_at))}
                 </span>
                 {isAdmin && (
-                  <button
-                    onClick={() => setReviewAlert(alert)}
-                    disabled={isDismissing}
-                    className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                    title="Review"
-                  >
-                    Review
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setFixAlert(alert)}
+                      disabled={isDismissing}
+                      className="px-2 py-1 text-xs font-medium rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
+                      title="Mark for fixing"
+                    >
+                      Fix
+                    </button>
+                    <button
+                      onClick={() => setReviewAlert(alert)}
+                      disabled={isDismissing}
+                      className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                      title="Review"
+                    >
+                      Review
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -282,6 +296,19 @@ export default function AlertsSection({
         </div>
       )}
 
+      {fixAlert && (
+        <FixModal
+          alertIp={hostIp}
+          alertPort={fixAlert.port}
+          onConfirm={(comment) => {
+            onFix(fixAlert.id, comment || undefined)
+            setFixAlert(null)
+          }}
+          onClose={() => setFixAlert(null)}
+          isProcessing={isDismissing}
+        />
+      )}
+
       {/* ReviewModal for 3-option acknowledge flow */}
       {reviewAlert && (
         <ReviewModal
@@ -297,6 +324,7 @@ export default function AlertsSection({
             },
           ]}
           mode="single"
+          alertCategory={reviewAlert.type.startsWith('ssh_') ? 'ssh' : 'port'}
           onDismiss={handleDismiss}
           onAcceptGlobal={handleAcceptGlobal}
           onAcceptNetwork={handleAcceptNetwork}

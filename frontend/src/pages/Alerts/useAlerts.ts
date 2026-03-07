@@ -14,7 +14,13 @@ import type {
 } from '../../types'
 
 export type Severity = 'critical' | 'high' | 'medium' | 'info'
-export type StatusFilter = 'all' | 'critical_rule' | 'pending' | 'accepted' | 'dismissed'
+export type StatusFilter =
+  | 'all'
+  | 'critical_rule'
+  | 'pending'
+  | 'accepted'
+  | 'fix_planned'
+  | 'dismissed'
 export type CategoryFilter = 'all' | 'ssh' | 'port'
 export type SortColumn = 'severity' | 'type' | 'ip' | 'port' | 'network' | 'time'
 export type SortDirection = 'asc' | 'desc'
@@ -252,8 +258,15 @@ export function useAlerts(filters: AlertFiltersState) {
       if (statusFilter === 'pending' && alert.dismissed) return false
       if (statusFilter === 'accepted' && getEffectiveRuleStatus(alert) !== 'accepted') return false
       if (
+        statusFilter === 'fix_planned' &&
+        (!alert.dismissed || alert.resolution_status !== 'fix_planned')
+      )
+        return false
+      if (
         statusFilter === 'dismissed' &&
-        (!alert.dismissed || getEffectiveRuleStatus(alert) === 'accepted')
+        (!alert.dismissed ||
+          getEffectiveRuleStatus(alert) === 'accepted' ||
+          alert.resolution_status === 'fix_planned')
       )
         return false
 
@@ -384,11 +397,23 @@ export function useAlerts(filters: AlertFiltersState) {
   })
 
   const bulkDismissMutation = useMutation({
-    mutationFn: async ({ alertIds, reason }: { alertIds: number[]; reason?: string }) => {
+    mutationFn: async ({
+      alertIds,
+      reason,
+      resolution_status,
+    }: {
+      alertIds: number[]
+      reason?: string
+      resolution_status?: string
+    }) => {
       const response = await fetch(`${API_BASE_URL}/api/alerts/dismiss-bulk`, {
         method: 'PUT',
         headers: { ...getAuthHeaders(token ?? ''), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alert_ids: alertIds, reason: reason || null }),
+        body: JSON.stringify({
+          alert_ids: alertIds,
+          reason: reason || null,
+          ...(resolution_status ? { resolution_status } : {}),
+        }),
       })
       if (!response.ok) throw new Error(await extractErrorMessage(response))
       return response.json()
@@ -404,10 +429,12 @@ export function useAlerts(filters: AlertFiltersState) {
       alertId,
       reason,
       include_ssh_findings,
+      resolution_status,
     }: {
       alertId: number
       reason?: string
       include_ssh_findings?: boolean
+      resolution_status?: string
     }) => {
       const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/dismiss`, {
         method: 'PUT',
@@ -415,6 +442,7 @@ export function useAlerts(filters: AlertFiltersState) {
         body: JSON.stringify({
           reason: reason || null,
           include_ssh_findings: include_ssh_findings ?? false,
+          ...(resolution_status ? { resolution_status } : {}),
         }),
       })
       if (!response.ok) throw new Error(await extractErrorMessage(response))

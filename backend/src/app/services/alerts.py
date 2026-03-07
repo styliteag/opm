@@ -7,7 +7,7 @@ from sqlalchemy import Integer, and_, case, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.services.global_settings as global_settings_service
-from app.models.alert import Alert, AlertType
+from app.models.alert import Alert, AlertType, ResolutionStatus
 from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.port_rule import PortRule, RuleType
@@ -103,11 +103,16 @@ async def get_alerts(
 
 
 async def dismiss_alert(
-    db: AsyncSession, alert: Alert, dismiss_reason: str | None = None
+    db: AsyncSession,
+    alert: Alert,
+    dismiss_reason: str | None = None,
+    resolution_status: ResolutionStatus | None = None,
 ) -> Alert:
     """Mark an alert as dismissed."""
     alert.dismissed = True
     alert.dismiss_reason = dismiss_reason
+    if resolution_status is not None:
+        alert.resolution_status = resolution_status
     await db.flush()
     await db.refresh(alert)
     return alert
