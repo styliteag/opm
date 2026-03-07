@@ -1,376 +1,192 @@
 # Scanner Deployment Guide
 
-This guide covers deploying and configuring the Open Port Monitor scanner agent.
+This guide covers how to deploy the standalone scanner agent and how that differs from the development setup in `compose-dev.yml`.
+
+## Overview
+
+The scanner is a separate Python 3.12 container that:
+
+- authenticates with the backend using an API key
+- receives short-lived scanner JWTs from `/api/scanner/auth`
+- polls for port-scan and host-discovery jobs
+- runs `masscan`, `nmap`, and `ssh-audit`
+- streams logs and progress back to the backend
+
+For production or remote deployments, the scanner container reads these environment variables directly:
+
+- `BACKEND_URL`
+- `API_KEY`
+- `POLL_INTERVAL`
+- `LOG_LEVEL`
+
+Important: the repository root `compose-dev.yml` uses prefixed host-side variables such as `SCANNER_BACKEND_URL` and maps them into the container as `BACKEND_URL`. The scanner process itself only reads the unprefixed names inside the container.
 
 ## Prerequisites
 
-- Docker 20.10+ and Docker Compose v2+
-- Network access to the backend API endpoint
-- Scanner API key (generated in the web UI under Scanners)
+- Docker 20.10+ or compatible container runtime
+- outbound network access from the scanner host to the backend
+- a scanner record created in the web UI or via `POST /api/scanners`
+- the scanner API key shown at creation time or after key regeneration
 
-## Quick Start
+## Creating A Scanner Record
 
-### Using Docker Run
+In the current UI, scanners are managed from the dedicated **Scanners** page, not from a settings submenu.
+
+Workflow:
+
+1. Open the web UI.
+2. Go to **Scanners**.
+3. Create a scanner.
+4. Copy the API key immediately. It is only returned once.
+
+## Minimal Deployment
+
+### Docker Run
 
 ```bash
 docker run -d \
   --name opm-scanner \
+  --restart unless-stopped \
   --cap-add=NET_RAW \
   --cap-add=NET_ADMIN \
-  --restart unless-stopped \
-  -e BACKEND_URL=https://your-server.com:8000 \
-  -e API_KEY=your-api-key-here \
-  styliteag/open-port-monitor-scanner:latest
-```
-
-### Using Docker Compose
-
-Create a `docker-compose.yml`:
-
-```yaml
-services:
-  scanner:
-    image: styliteag/open-port-monitor-scanner:latest
-    # Or use GitHub Container Registry:
-    # image: ghcr.io/styliteag/open-port-monitor-scanner:latest
-    environment:
-      BACKEND_URL: ${BACKEND_URL}
-      API_KEY: ${API_KEY}
-      POLL_INTERVAL: ${POLL_INTERVAL:-60}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    cap_add:
-      - NET_RAW
-      - NET_ADMIN
-    restart: unless-stopped
-```
-
-Create a `.env` file:
-
-```bash
-BACKEND_URL=https://your-server.com:8000
-API_KEY=your-api-key-here
-POLL_INTERVAL=60
-LOG_LEVEL=INFO
-```
-
-Start the scanner:
-
-```bash
-docker compose up -d
-```
-
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `BACKEND_URL` | Yes | - | Full URL to backend API (e.g., `https://monitor.example.com:8000`) |
-| `API_KEY` | Yes | - | Scanner API key for authentication |
-| `POLL_INTERVAL` | No | 60 | Seconds between job polling (minimum: 5) |
-| `LOG_LEVEL` | No | INFO | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-
-### Environment Variable Notes
-
-- `BACKEND_URL`: Trailing slashes are automatically removed
-- `POLL_INTERVAL`: Values below 5 seconds are reset to 60 seconds
-- `LOG_LEVEL`: Case-insensitive; invalid values default to INFO
-
-## Required Capabilities
-
-The scanner requires two Linux capabilities to perform network scanning:
-
-### NET_RAW
-
-Required for raw socket operations used by masscan and nmap:
-- Crafting custom IP packets for port scanning
-- Advanced scanning techniques and packet construction
-- IPv6 connectivity checks
-- MAC address detection on local networks
-
-### NET_ADMIN
-
-Required for network interface operations:
-- Low-level network configuration
-- Packet filtering and routing
-- ARP ping for host discovery
-- Network statistics access
-
-Without these capabilities, scans will fail with permission errors.
-
-## Deployment Scenarios
-
-### Same-Host Deployment
-
-Scanner and backend on the same Docker host sharing a network:
-
-```yaml
-services:
-  backend:
-    # ... backend configuration ...
-    networks:
-      - opm-network
-
-  scanner:
-    image: styliteag/open-port-monitor-scanner:latest
-    environment:
-      BACKEND_URL: http://backend:8000  # Internal Docker DNS
-      API_KEY: ${SCANNER_API_KEY}
-    cap_add:
-      - NET_RAW
-      - NET_ADMIN
-    networks:
-      - opm-network
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-networks:
-  opm-network:
-    driver: bridge
-```
-
-**Advantages:**
-- Simplest setup
-- No network latency between scanner and backend
-- Internal container networking
-
-**Use case:** Lab environments, single-site deployments
-
-### Remote Deployment
-
-Scanner on a separate host connecting to a centralized backend:
-
-```bash
-# On the remote host
-docker run -d \
-  --name opm-scanner \
-  --cap-add=NET_RAW \
-  --cap-add=NET_ADMIN \
-  --restart unless-stopped \
-  -e BACKEND_URL=https://monitor.company.com:8000 \
-  -e API_KEY=scanner-site-1-key \
+  -e BACKEND_URL=https://monitor.example.com \
+  -e API_KEY=your-scanner-api-key \
   -e POLL_INTERVAL=60 \
   -e LOG_LEVEL=INFO \
   styliteag/open-port-monitor-scanner:latest
 ```
 
-**Requirements:**
-- Outbound HTTPS access to backend API
-- Valid TLS certificate on backend (for production)
-- Firewall rules allowing egress to backend port
-
-**Advantages:**
-- Distributed scanning from multiple locations
-- Each site scans its own networks
-- Central dashboard for all results
-
-### Multiple Sites Deployment
-
-Deploy scanners at different locations, all reporting to a central backend:
-
-```
-                    [Central Backend/Dashboard]
-                           |
-              [HTTPS API on Port 8000]
-              /              |              \
-         [Office]       [Datacenter]     [Branch]
-         Scanner         Scanner          Scanner
-```
-
-Each scanner needs its own API key (generated in the web UI):
-
-**Office Scanner:**
-```bash
-BACKEND_URL=https://monitor.company.com:8000
-API_KEY=office-scanner-key-abc123
-```
-
-**Datacenter Scanner:**
-```bash
-BACKEND_URL=https://monitor.company.com:8000
-API_KEY=datacenter-scanner-key-xyz789
-```
-
-**Job Assignment:**
-- Networks are assigned to specific scanners in the web UI
-- Each scanner only receives jobs for its assigned networks
-- Scanner authenticates with its unique API key
-
-## Health Monitoring
-
-### Container Status
-
-Check if the scanner container is running:
-
-```bash
-# View container status
-docker ps | grep opm-scanner
-
-# View container stats (CPU, memory, network)
-docker stats opm-scanner
-```
-
-### Polling Heartbeat
-
-The scanner updates its `last_seen_at` timestamp each time it polls for jobs. View scanner status in the web UI under **Scanners** to see:
-- Last seen timestamp
-- Connection status (online/offline)
-- Assigned networks
-
-A scanner appears offline if it hasn't polled within 2x the poll interval.
-
-### Custom Health Check
-
-Add a health check to your Docker Compose configuration:
+### Docker Compose
 
 ```yaml
-scanner:
-  image: styliteag/open-port-monitor-scanner:latest
-  healthcheck:
-    test: ["CMD", "pgrep", "-f", "python"]
-    interval: 30s
-    timeout: 10s
-    retries: 3
-    start_period: 10s
-  # ... other configuration ...
+services:
+  scanner:
+    image: styliteag/open-port-monitor-scanner:latest
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    environment:
+      BACKEND_URL: https://monitor.example.com
+      API_KEY: ${API_KEY}
+      POLL_INTERVAL: 60
+      LOG_LEVEL: INFO
 ```
 
-### Dependency Verification
+## Environment Variables
 
-Verify scanning tools are available inside the container:
+| Variable | Required | Default | Notes |
+|----------|----------|---------|-------|
+| `BACKEND_URL` | Yes | none | Base backend URL; trailing slash is stripped |
+| `API_KEY` | Yes | none | Scanner API key |
+| `POLL_INTERVAL` | No | `60` | Seconds between polls; values below `5` are clamped to `5` |
+| `LOG_LEVEL` | No | `INFO` | Any Python logging level; invalid values effectively fall back to `INFO` |
 
-```bash
-# Check tool availability
-docker exec opm-scanner which masscan
-docker exec opm-scanner which nmap
+## Required Capabilities
 
-# Check tool versions
-docker exec opm-scanner masscan --version
-docker exec opm-scanner nmap --version
+The scanner container must run with:
+
+- `NET_RAW`
+- `NET_ADMIN`
+
+Without them, packet-based scanning and parts of host discovery will fail.
+
+## What The Container Expects At Startup
+
+On startup the scanner:
+
+1. loads environment variables
+2. checks whether `masscan` and `nmap` are available in `PATH`
+3. waits for the backend `/health` endpoint to respond
+4. authenticates with `POST /api/scanner/auth`
+5. begins polling for jobs
+
+The scanner image also installs `ssh-audit` so it can perform SSH security probing after port discovery.
+
+## Deployment Patterns
+
+### Same Host As Backend
+
+Use an internal service name when both run on the same Docker network:
+
+```yaml
+services:
+  backend:
+    image: your-backend
+
+  scanner:
+    image: styliteag/open-port-monitor-scanner:latest
+    environment:
+      BACKEND_URL: http://backend:8000
+      API_KEY: ${API_KEY}
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
 ```
 
-## Log Viewing
+### Remote Site Scanner
 
-### Real-Time Logs
-
-Follow scanner logs in real-time:
+Use a public or VPN-reachable backend URL:
 
 ```bash
-# Using docker compose
-docker compose logs -f scanner
+docker run -d \
+  --name opm-scanner-branch-1 \
+  --restart unless-stopped \
+  --cap-add=NET_RAW \
+  --cap-add=NET_ADMIN \
+  -e BACKEND_URL=https://monitor.company.example \
+  -e API_KEY=branch-1-key \
+  styliteag/open-port-monitor-scanner:latest
+```
 
-# Using docker directly
+Each remote scanner should have its own API key and its own scanner record.
+
+## Health And Operations
+
+### Check Container Health
+
+```bash
+docker ps
 docker logs -f opm-scanner
 ```
 
-### Filtered Logs
-
-View specific log levels or time ranges:
+### Check Installed Binaries
 
 ```bash
-# Last 100 lines with timestamps
-docker compose logs --tail=100 -t scanner
-
-# Logs from the last 10 minutes
-docker compose logs --since 10m scanner
-
-# Filter for errors and warnings
-docker compose logs scanner | grep -E "ERROR|WARNING"
-
-# Filter for scan completions
-docker compose logs scanner | grep "completed"
+docker exec opm-scanner which masscan
+docker exec opm-scanner which nmap
+docker exec opm-scanner which ssh-audit
 ```
 
-### Log Format
+### Useful Log Messages
 
-Scanner logs use this format:
-```
-%(asctime)s - %(name)s - %(levelname)s - %(message)s
-```
+Healthy startup usually includes messages like:
 
-Example output:
-```
-2024-01-27 10:30:00 - scanner - INFO - Open Port Monitor Scanner starting...
-2024-01-27 10:30:00 - scanner - INFO - Polling interval set to 60 seconds
-2024-01-27 10:30:05 - scanner - INFO - Found 2 pending port scan job(s)
-2024-01-27 10:30:05 - scanner - INFO - Running masscan for 192.168.1.0/24
-2024-01-27 10:31:45 - scanner - INFO - Masscan completed with 5 open ports
+```text
+Open Port Monitor Scanner vX.Y.Z starting...
+Polling interval set to 60 seconds
+Waiting for backend to be ready...
+Backend is ready
+Authenticating scanner with backend
 ```
 
-### Web UI Logs
+## IPv6 Notes
 
-Scan logs are also stored in the database and viewable in the web UI:
-1. Navigate to **Scans**
-2. Click on a specific scan
-3. View the **Logs** tab for timestamped log entries
+Before any IPv6 scan or IPv6 host-discovery job, the scanner performs a connectivity check against well-known public IPv6 DNS endpoints. If that check fails, the job fails fast instead of hanging indefinitely.
 
-## Building from Source
+## Development Compose Notes
 
-If you need to build the scanner image locally:
+The root `compose-dev.yml` behaves slightly differently from a standalone deployment:
 
-```bash
-# Clone the repository
-git clone https://github.com/styliteag/open-port-monitor.git
-cd open-port-monitor
+- the container receives `BACKEND_URL` from `SCANNER_BACKEND_URL`
+- the container receives `API_KEY` from `SCANNER_API_KEY`
+- the container receives `POLL_INTERVAL` from `SCANNER_POLL_INTERVAL`
+- the container receives `LOG_LEVEL` from `SCANNER_LOG_LEVEL`
+- source is bind-mounted from `./scanner/src:/app/src`
+- scanner code changes require a container restart; there is no automatic hot reload
 
-# Build the scanner image
-docker build -t opm-scanner:local -f scanner/Dockerfile .
+## Troubleshooting Pointers
 
-# Or use the scanner's compose file
-cd scanner
-docker compose build
-```
-
-The Dockerfile installs:
-- Python 3.12 with required dependencies
-- masscan for fast port discovery
-- nmap for service detection
-- Network utilities (iputils-ping, tcpdump, iproute2, etc.)
-
-## Troubleshooting
-
-### Scanner Not Connecting
-
-1. Verify network connectivity:
-   ```bash
-   docker exec opm-scanner curl -v ${BACKEND_URL}/health
-   ```
-
-2. Check API key is valid:
-   ```bash
-   docker exec opm-scanner curl -X POST \
-     -H "X-Api-Key: ${API_KEY}" \
-     ${BACKEND_URL}/api/scanner/auth
-   ```
-
-3. Review logs for authentication errors:
-   ```bash
-   docker logs opm-scanner | grep -i "auth\|401\|403"
-   ```
-
-### Scans Failing
-
-1. Verify capabilities are set:
-   ```bash
-   docker inspect opm-scanner | grep -A5 "CapAdd"
-   ```
-
-2. Check scanning tools:
-   ```bash
-   docker exec opm-scanner masscan --version
-   docker exec opm-scanner nmap --version
-   ```
-
-3. Review scan-specific logs in the web UI
-
-### IPv6 Scans Failing
-
-The scanner checks IPv6 connectivity before scanning IPv6 networks. If the check fails, ensure:
-- The Docker host has IPv6 connectivity
-- Docker is configured for IPv6 (add `"ipv6": true` to Docker daemon config)
-- The container network supports IPv6
-
-## Next Steps
-
-- [Scanner Architecture](architecture.md) - Understand how the scanner works internally
-- [Scanner Troubleshooting](troubleshooting.md) - Diagnose common issues
-- [Scanner API Reference](../api/scanner-api.md) - API documentation for custom integrations
+- Authentication issues: see [Troubleshooting](troubleshooting.md#authentication-failures)
+- Internal scanner behavior: see [Architecture](architecture.md)
+- Scanner-to-backend payloads: see [Scanner API](../api/scanner-api.md)

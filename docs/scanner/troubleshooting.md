@@ -1,427 +1,291 @@
 # Scanner Troubleshooting Guide
 
-This guide helps diagnose and resolve common scanner agent issues.
-
-## Table of Contents
-
-- [Authentication Failures](#authentication-failures)
-- [Network Connectivity Issues](#network-connectivity-issues)
-- [Permission Errors](#permission-errors)
-- [Checking Scanner Status](#checking-scanner-status)
-- [Scan Timeout Configuration](#scan-timeout-configuration)
-- [Masscan vs Nmap Selection](#masscan-vs-nmap-selection)
-- [Interpreting Scanner Logs](#interpreting-scanner-logs)
-
----
+This guide covers the issues that match the current scanner implementation and current UI.
 
 ## Authentication Failures
 
 ### Symptoms
 
-- Scanner logs show `401 Unauthorized` errors
-- Scanner cannot poll for jobs
-- Backend shows scanner as offline
+- scanner logs show `401 Unauthorized`
+- the scanner never appears online on the **Scanners** page
+- job polling keeps failing
 
-### Common Causes and Solutions
+### Checks
 
-#### Invalid API Key
+1. Verify the scanner record exists on the **Scanners** page.
+2. Confirm the container has the correct `API_KEY`.
+3. Confirm `BACKEND_URL` points to the backend, not the frontend.
 
-**Error**: `401 Unauthorized: Invalid API key`
+### Facts From The Current Implementation
 
-**Cause**: The API key configured in the scanner doesn't match any registered scanner.
+- scanner API keys are sent in the `X-API-Key` header to `POST /api/scanner/auth`
+- successful auth returns a short-lived JWT with `expires_in`
+- the scanner client re-authenticates automatically when the token expires
+- auth is rate-limited to 10 attempts per minute per client IP
 
-**Solutions**:
-1. Verify the `API_KEY` environment variable is set correctly
-2. Confirm the scanner exists in the backend (Settings > Scanners in the UI)
-3. API keys are shown only once at creation - if lost, delete the scanner and create a new one
-4. Ensure no whitespace or line breaks in the key value
+### Common Causes
 
-#### Expired JWT Token
+#### Invalid API key
 
-**Error**: `401 Unauthorized` on API calls after authentication
+The backend returns `401 Invalid API key`.
 
-**Cause**: Scanner JWT tokens expire after 15 minutes.
+Fix:
 
-**Solution**: The scanner should automatically re-authenticate. If not:
-1. Check scanner logs for authentication errors
-2. Restart the scanner container to force re-authentication
-3. Verify the backend is accessible
+- regenerate the key from the **Scanners** page or `POST /api/scanners/{id}/regenerate-key`
+- update the container environment
+- restart the scanner container
 
-#### Rate Limiting
+#### Wrong backend URL
 
-**Error**: `429 Too Many Requests: Rate limit exceeded. Maximum 10 attempts per minute.`
+If `BACKEND_URL` points at the wrong host, reverse proxy path, or frontend service, auth will fail or never connect.
 
-**Cause**: Too many authentication attempts from the same IP address.
+Verify from inside the container:
 
-**Solutions**:
-1. Wait 60 seconds before retrying
-2. Check for configuration errors causing repeated auth failures
-3. If running multiple scanners behind NAT, consider spacing their startup times
+```bash
+docker exec opm-scanner curl -sS http://backend:8000/health
+```
 
----
+Adjust the URL for your deployment if needed.
 
-## Network Connectivity Issues
+#### Rate limiting
+
+The backend returns `429 Rate limit exceeded. Maximum 10 attempts per minute.`
+
+Fix:
+
+- stop the failing restart loop or bad key rotation
+- wait one minute
+- try again with the corrected configuration
+
+## Backend Connectivity
 
 ### Symptoms
 
-- Scanner shows as offline in the UI
-- Jobs not being claimed
-- Scans timing out or failing
+- repeated "Backend not reachable" warnings
+- scanner never gets past startup
+- scanner does not update `last_seen_at`
 
-### Common Causes and Solutions
+### What The Scanner Actually Does
 
-#### Scanner Cannot Reach Backend
+Before entering the main loop, the scanner waits for `GET /health` to return `200 OK`. It retries with backoff and eventually exits if the backend never becomes reachable.
 
-**Verification steps**:
+### Checks
+
 ```bash
-# Inside the scanner container
-curl -I https://your-backend-url/api/scanner/jobs
+docker exec opm-scanner curl -v "$BACKEND_URL/health"
+docker logs opm-scanner
 ```
 
-**Solutions**:
-1. Verify `BACKEND_URL` environment variable is correct
-2. Check firewall rules allow outbound HTTPS (port 443)
-3. If using internal DNS, ensure the hostname resolves correctly
-4. For self-signed certificates, the scanner must trust the CA
+Confirm:
 
-#### Connection Timeouts
+- DNS resolution works
+- the backend port is reachable
+- TLS termination or reverse proxy config is correct
 
-The scanner uses retry logic with exponential backoff:
-- Initial retry: 1 second
-- Maximum backoff: 30 seconds
-- Maximum retries: 5
+## Scanner Shows Offline
 
-**If connections consistently timeout**:
-1. Check network latency between scanner and backend
-2. Verify no proxy interference
-3. Check backend server health and load
+The UI derives online/offline state from `last_seen_at`. The backend updates `last_seen_at` whenever the scanner polls for jobs, and the frontend treats a scanner as online when it was seen within roughly five minutes.
 
-#### Scanner Appears Offline
+Checks:
 
-The backend marks a scanner as offline if it hasn't polled within 2x the poll interval.
+```bash
+docker logs opm-scanner
+docker compose -f compose-dev.yml logs scanner
+```
 
-**Solutions**:
-1. Verify the scanner container is running: `docker ps`
-2. Check scanner logs for errors: `docker logs scanner-agent`
-3. Ensure `POLL_INTERVAL` isn't set too high (default: 60 seconds)
-4. Verify no firewall blocking outbound connections
+Look for a healthy cycle:
 
----
+```text
+Backend is ready
+Authenticating scanner with backend
+Found 0 pending port scan job(s)
+```
+
+If the scanner authenticates once and then disappears:
+
+- check network reachability to the backend
+- check whether the container is restarting
+- check whether `POLL_INTERVAL` is set to an unexpectedly large value
 
 ## Permission Errors
 
 ### Symptoms
 
-- Scan fails immediately after starting
-- Logs show "Permission denied" errors
-- `masscan` or `nmap` cannot send packets
+- scans fail immediately
+- `masscan` reports raw socket errors
+- nmap discovery or packet-based scans fail
 
-### Required Docker Capabilities
+### Required Capabilities
 
-The scanner requires two Linux capabilities:
+The scanner requires both:
 
-#### NET_RAW
+- `NET_RAW`
+- `NET_ADMIN`
 
-**Purpose**: Allows creating raw network sockets for packet crafting.
-
-**Required for**:
-- Port scanning with custom IP packets
-- Advanced scanning techniques
-- IPv6 connectivity checks
-- MAC address detection
-
-**Error without it**:
-```
-Permission denied: requires NET_RAW capability
-```
-
-#### NET_ADMIN
-
-**Purpose**: Allows low-level network configuration.
-
-**Required for**:
-- Packet filtering and routing
-- ARP ping for host discovery
-- Network statistics access
-
-### Solution
-
-Ensure your Docker run command or compose file includes both capabilities:
-
-**Docker run**:
-```bash
-docker run --cap-add=NET_RAW --cap-add=NET_ADMIN ...
-```
-
-**Docker Compose**:
-```yaml
-services:
-  scanner:
-    cap_add:
-      - NET_RAW
-      - NET_ADMIN
-```
-
-### Rootless Container Environments
-
-Some environments (Podman rootless, certain Kubernetes configs) may not allow these capabilities. Options:
-1. Run in a privileged security context (if permitted)
-2. Use a dedicated scanning host with proper permissions
-3. Consult your platform's documentation for capability management
-
----
-
-## Checking Scanner Status
-
-### In the Web UI
-
-1. Navigate to **Settings > Scanners**
-2. Each scanner shows:
-   - **Online/Offline** status based on last poll time
-   - **Version** reported by the scanner agent
-   - **Last seen** timestamp
-
-A scanner appears **offline** if it hasn't polled within 2x its configured poll interval.
-
-### From Scanner Logs
-
-Check scanner container logs:
-```bash
-# Docker
-docker logs scanner-agent
-
-# Docker Compose
-docker compose logs scanner
-
-# Follow logs in real-time
-docker logs -f scanner-agent
-```
-
-**Healthy scanner log output**:
-```
-INFO: Starting scanner agent...
-INFO: Successfully authenticated with backend
-INFO: Polling for jobs...
-INFO: No jobs available, waiting 60 seconds
-```
-
-### Backend Scan Status
-
-Scans go through these status transitions:
-
-| Status | Description |
-|--------|-------------|
-| `planned` | Waiting to be claimed by a scanner |
-| `running` | Actively being scanned |
-| `completed` | Successfully finished |
-| `failed` | Error occurred during scan |
-| `cancelled` | User cancelled the scan |
-
-**Failed scans** include an `error_message` field with details about the failure.
-
----
-
-## Scan Timeout Configuration
-
-### Timeout Settings
-
-Each network has two configurable timeouts:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `scan_timeout` | 3600 (1 hour) | Maximum total scan duration |
-| `port_timeout` | 1500 (ms) | Timeout per port probe |
-
-### When to Adjust Timeouts
-
-**Increase `scan_timeout` when**:
-- Scanning large IP ranges
-- Network has high latency
-- Using nmap with service detection (slower than masscan)
-
-**Increase `port_timeout` when**:
-- Scanning across WAN links
-- Targets have slow response times
-- Seeing many false negatives
-
-**Decrease `port_timeout` when**:
-- Scanning local network with low latency
-- Need faster scans and can accept some missed ports
-
-### Timeout Behavior
-
-**Masscan**:
-- Background timeout watcher monitors progress
-- Logs warning at 90% of timeout
-- Terminates scan at 100% of timeout
-
-**Nmap**:
-- Phase 1 (discovery): Gets 70% of total timeout
-- Phase 2 (service detection): Gets 30% of timeout (minimum 120 seconds)
-
-### Setting Timeouts
-
-Configure timeouts when creating or editing a network:
+Verify:
 
 ```bash
-# Create network with custom timeouts
-curl -X POST "https://backend/api/networks" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Production",
-    "cidr": "10.0.0.0/16",
-    "scan_timeout": 7200,
-    "port_timeout": 2000
-  }'
+docker inspect opm-scanner | grep -A5 CapAdd
 ```
 
----
+If they are missing, update your container or Compose configuration and recreate the container.
 
-## Masscan vs Nmap Selection
+## Missing Dependencies
 
-### When to Use Each Scanner
+The scanner checks for `masscan` and `nmap` at startup and logs warnings if either is missing.
 
-| Scanner | Best For | Trade-offs |
-|---------|----------|------------|
-| **masscan** | Large networks, fast discovery | Less service detail, may miss some ports |
-| **nmap** | Thorough scanning, service detection | Slower, better for smaller ranges |
-
-### Configuration
-
-Set the scanner type per network:
+Verify inside the container:
 
 ```bash
-curl -X PATCH "https://backend/api/networks/{id}" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"scanner_type": "nmap"}'
+docker exec opm-scanner which masscan
+docker exec opm-scanner which nmap
+docker exec opm-scanner which ssh-audit
 ```
 
-Valid values: `masscan` (default), `nmap`
+If `ssh-audit` is missing, SSH probing will be impacted even if port scanning still works.
 
-### Hybrid Scanning Mode
+## Job Claim Conflicts
 
-When using masscan with service detection enabled:
-1. **Masscan phase (0-75% progress)**: Fast port discovery
-2. **Nmap phase (75-100% progress)**: Service detection on discovered ports
+### Symptoms
 
-This provides the speed of masscan with the detail of nmap.
+- log messages mention status `404` or `409` while claiming jobs
 
-### Feature Comparison
+### Meaning
 
-| Feature | Masscan | Nmap |
-|---------|---------|------|
-| Port exclusions (!22) | Supported | Not supported |
-| Service detection | Via hybrid mode | Native |
-| IPv6 scanning | Native | Via `-6` flag |
-| UDP scanning | Supported | Supported |
-| Speed | Very fast | Moderate |
+- `404`: there is no matching pending job for that scanner anymore
+- `409`: another worker already claimed a running job for that network
 
-### Troubleshooting Scanner-Specific Issues
+This is usually transient and not a scanner bug. The scanner skips that job and continues polling.
 
-**Masscan not finding ports**:
-- Increase scan rate (but watch for rate limiting by firewalls)
-- Verify target network allows raw packet scanning
-- Check if ports are filtered by IDS/IPS
+## Scan Timeouts
 
-**Nmap scanning too slow**:
-- Reduce port range or IP range
-- Increase timeout values
-- Consider using masscan for initial discovery
+Each network has:
 
----
+- `scan_timeout` in seconds
+- `port_timeout` in milliseconds
 
-## Interpreting Scanner Logs
+Current behavior:
 
-### Log Levels
+- `masscan` uses a watchdog thread that warns at 90% and terminates at 100%
+- `nmap` splits timeout budget across phases
+- SSH probing runs after open-port discovery and uses a separate per-probe timeout
 
-| Level | Description |
-|-------|-------------|
-| `info` | Normal operations, progress updates |
-| `warning` | Non-fatal issues, retries, timeouts |
-| `error` | Failures requiring attention |
+If large scans fail by timeout:
 
-### Common Log Messages
+- increase `scan_timeout`
+- increase `port_timeout` on high-latency networks
+- reduce CIDR size or port scope
+- prefer `masscan` for broad discovery
 
-#### Successful Operations
+## IPv6 Failures
 
-```
-INFO: Authenticated with backend successfully
-INFO: Claimed scan job for network "Production"
-INFO: Starting masscan on 192.168.1.0/24
-INFO: Scan progress: 50%
-INFO: Scan completed, submitting results
-INFO: Submitted 150 open ports
-```
+Before IPv6 port scans or IPv6 host discovery, the scanner checks IPv6 connectivity using public IPv6 DNS targets. If the host has no usable IPv6 route, the job fails fast.
 
-#### Authentication Issues
+Verify host/container IPv6 connectivity before retrying.
 
-```
-ERROR: Authentication failed: Invalid API key
-WARNING: Rate limited, waiting 60 seconds
-ERROR: Authentication failed after 5 retries
-```
+## Host Discovery Issues
 
-#### Network Issues
+Host discovery jobs are separate from port-scan jobs and run through dedicated endpoints.
 
-```
-WARNING: Connection timeout, retrying in 2s
-WARNING: Connection timeout, retrying in 4s
-ERROR: Failed to connect to backend after 5 attempts
+Facts from the current code:
+
+- discovery uses `nmap -sn`
+- reverse DNS is enabled with `-R`
+- ARP ping is disabled
+- hostname enrichment may query external services after discovery when no hostname is known locally
+
+If host discovery returns fewer hosts than expected:
+
+- confirm ICMP echo is allowed
+- confirm the target range is reachable from the scanner host
+- check whether local firewalls suppress ping responses
+- remember that host discovery only returns hosts that responded
+
+## Interpreting Logs
+
+The scanner writes logs both to stdout and back to the backend during scans.
+
+### Useful places to inspect
+
+```bash
+docker logs -f opm-scanner
+docker compose -f compose-dev.yml logs -f scanner
 ```
 
-#### Permission Issues
+In the UI:
 
+1. Open **Scans**
+2. Open a scan detail page
+3. Review the stored log stream there
+
+### Common patterns
+
+#### Healthy startup
+
+```text
+Open Port Monitor Scanner vX.Y.Z starting...
+Polling interval set to 60 seconds
+Waiting for backend to be ready...
+Backend is ready
+Authenticating scanner with backend
 ```
-ERROR: masscan: FAIL: could not initialize network adapter
-ERROR: Operation not permitted (requires NET_RAW capability)
-ERROR: Failed to open raw socket
+
+#### Authentication problems
+
+```text
+Authenticating scanner with backend
+401 Unauthorized
 ```
 
-#### Scan Execution Issues
+#### Cancellation
 
-```
-WARNING: Scan timeout at 90%, terminating soon
-ERROR: Scan cancelled by user
-WARNING: No hosts responded to discovery
-INFO: No open ports found
+```text
+Scan cancelled by user request
 ```
 
-### Reading Logs in the UI
+#### Timeout pressure
 
-1. Navigate to **Networks > [Network Name] > Scans**
-2. Click on a specific scan
-3. Select the **Logs** tab to see timestamped entries
+```text
+Masscan scan approaching timeout (90% elapsed)
+Masscan scan exceeded timeout (...)
+```
 
-Logs are streamed in real-time during scan execution and stored permanently for review.
+## Development Environment Notes
 
-### Log Filtering
+In `compose-dev.yml`:
 
-Use log levels to filter important messages:
-- Focus on `error` logs first for failures
-- Check `warning` logs for degraded operations
-- Use `info` logs to trace execution flow
+- container name is `opm-scanner`
+- host-side env vars are `SCANNER_BACKEND_URL`, `SCANNER_API_KEY`, `SCANNER_POLL_INTERVAL`, `SCANNER_LOG_LEVEL`
+- code changes in `scanner/src` are bind-mounted but do not auto-restart the process
 
----
+After scanner code changes or API key changes:
 
-## Quick Reference: Error Codes
+```bash
+docker compose -f compose-dev.yml restart scanner
+```
 
-| HTTP Status | Meaning | Action |
-|-------------|---------|--------|
-| 401 | Token expired or invalid key | Re-authenticate or verify API key |
-| 404 | Resource not found | Verify scan/network ID and scanner assignment |
-| 409 | Conflict (job claimed) | Skip job, poll for others |
-| 429 | Rate limited | Wait 60 seconds |
-| 500 | Server error | Check backend logs, report if persistent |
+## Quick Reference
 
----
+| HTTP status | Meaning |
+|-------------|---------|
+| `401` | invalid API key or expired/invalid JWT |
+| `404` | job or scan not found for this scanner |
+| `409` | job already claimed or running |
+| `429` | auth rate limit hit |
+| `5xx` | backend-side failure; scanner retries transiently |
 
-## Getting Help
+## When To Collect More Data
 
-If issues persist after following this guide:
+Capture these before escalating:
 
-1. Collect scanner logs: `docker logs scanner-agent > scanner.log 2>&1`
-2. Note the scan ID and network configuration
-3. Check backend logs for corresponding errors
-4. Open an issue with logs and configuration details (redact sensitive info)
+```bash
+docker logs opm-scanner > scanner.log 2>&1
+docker compose -f compose-dev.yml logs backend > backend.log 2>&1
+```
+
+Include:
+
+- scanner name
+- network CIDR
+- scan ID
+- whether the job was IPv4, IPv6, host discovery, or single-host rescan

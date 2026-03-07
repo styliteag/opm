@@ -1,581 +1,308 @@
 # Scanner Architecture
 
-This document explains how the scanner agent works internally, including scan types, the hybrid scanning approach, IPv6 support, host discovery, and the job processing lifecycle.
+This document reflects the current scanner implementation in `scanner/src/`.
+
+The goal of this document is to explain how the scanner behaves at runtime, not just list modules. The scanner is small enough to understand end to end, but it has several phases and background threads that are easy to miss when reading only the entrypoint.
 
 ## Overview
 
-The scanner is a Python-based agent that runs independently from the backend. It polls the backend for scan jobs, executes them using masscan and/or nmap, and submits results back to the backend.
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Scanner Agent                            │
-│                                                                 │
-│  ┌─────────────┐    ┌──────────────┐    ┌──────────────┐       │
-│  │ Job Poller  │───▶│ Scan Engine  │───▶│   Result     │       │
-│  │             │    │              │    │  Submitter   │       │
-│  └─────────────┘    └──────────────┘    └──────────────┘       │
-│         │                  │                   │                │
-│         │           ┌──────┴──────┐           │                │
-│         │           ▼             ▼           │                │
-│         │     ┌─────────┐   ┌─────────┐      │                │
-│         │     │ masscan │   │  nmap   │      │                │
-│         │     └─────────┘   └─────────┘      │                │
-│         │                                     │                │
-│         ▼                                     ▼                │
-│  ┌──────────────────────────────────────────────────────┐     │
-│  │                  Background Threads                   │     │
-│  │  • Progress Reporter (every 5s)                       │     │
-│  │  • Log Streamer (every 5s)                           │     │
-│  │  • Cancellation Watcher (every 5s)                   │     │
-│  └──────────────────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │    Backend API   │
-                    │                  │
-                    │ • /scanner/jobs  │
-                    │ • /scanner/results│
-                    │ • /scanner/logs  │
-                    │ • /scanner/progress│
-                    └──────────────────┘
-```
-
-## Scan Types
-
-The scanner supports two primary scan engines, selected by the `scanner_type` field in the job payload.
-
-### Masscan
-
-**Purpose**: High-speed port discovery optimized for scanning large networks quickly.
-
-**Characteristics**:
-- Asynchronous packet transmission (very fast)
-- Native banner grabbing support
-- JSON output format
-- Supports rate limiting via `--rate` parameter
-- Supports port exclusions via `--exclude-ports`
-
-**Command Structure**:
-```bash
-masscan <CIDR> -p<PORT_SPEC> --banners --wait <seconds> -oJ <output>
-  [--exclude-ports <ports>] [--rate <pps>]
-```
-
-**When to Use**:
-- Large network ranges (hundreds/thousands of hosts)
-- Initial discovery scans
-- When speed is prioritized over service identification
-
-### Nmap
-
-**Purpose**: Thorough scanning with accurate service detection capabilities.
-
-**Characteristics**:
-- More accurate port state detection
-- Built-in service version detection (`-sV`)
-- XML output format
-- Uses timing templates (`-T4` for aggressive)
-
-**Command Structure (Phase 1 - Port Discovery)**:
-```bash
-nmap -sS|-sU -n --max-rtt-timeout <ms> -T4 [-6] -oX <output> <CIDR>
-```
-
-**Command Structure (Phase 2 - Service Detection)**:
-```bash
-nmap -sV --version-intensity 5 -n -T4 [-6] -iL <targets> -oX <output>
-```
-
-**When to Use**:
-- Smaller, targeted networks
-- When accurate service identification is needed
-- When UDP scanning is required
-
-### Comparison
-
-| Feature | Masscan | Nmap |
-|---------|---------|------|
-| Speed | Very fast | Slower but thorough |
-| Service Detection | Banners only | Full service fingerprinting |
-| Rate Control | `--rate` (pps) | Timing templates |
-| IPv6 Support | Native | `-6` flag |
-| Port Exclusions | `--exclude-ports` | Not supported |
-| Output Format | JSON | XML |
-
-## Hybrid Scanning Approach
-
-The scanner implements a hybrid approach that combines masscan's speed with nmap's accuracy.
-
-### Flow Diagram
-
-```
-                    ┌───────────────────┐
-                    │   Job Received    │
-                    └─────────┬─────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │ scanner_type?     │
-                    └─────────┬─────────┘
-                              │
-           ┌──────────────────┼──────────────────┐
-           │                  │                  │
-           ▼                  ▼                  │
-    ┌─────────────┐    ┌─────────────┐          │
-    │  "masscan"  │    │   "nmap"    │          │
-    └──────┬──────┘    └──────┬──────┘          │
-           │                  │                  │
-           ▼                  │                  │
-    ┌─────────────┐          │                  │
-    │   Masscan   │          │                  │
-    │  Discovery  │          │                  │
-    │   (0-75%)   │          │                  │
-    └──────┬──────┘          │                  │
-           │                  │                  │
-           ▼                  ▼                  │
-    ┌─────────────┐    ┌─────────────┐          │
-    │ Nmap Service│    │ Nmap Phase 1│          │
-    │  Detection  │    │  Discovery  │          │
-    │  (75-100%)  │    │   (0-50%)   │          │
-    └──────┬──────┘    └──────┬──────┘          │
-           │                  │                  │
-           │                  ▼                  │
-           │           ┌─────────────┐          │
-           │           │ Nmap Phase 2│          │
-           │           │   Service   │          │
-           │           │  (50-100%)  │          │
-           │           └──────┬──────┘          │
-           │                  │                  │
-           └────────┬─────────┘                  │
-                    │                            │
-                    ▼                            │
-           ┌───────────────────┐                │
-           │  Submit Results   │◀───────────────┘
-           └───────────────────┘
-```
-
-### Masscan + Nmap Service Detection
-
-When `scanner_type == "masscan"`, the scanner:
-
-1. **Masscan Phase (0-75% progress)**:
-   - Runs masscan for fast port discovery
-   - Captures banners, MAC addresses, and vendors
-   - Reports progress based on masscan's stderr output
-
-2. **Nmap Service Detection Phase (75-100% progress)**:
-   - Groups discovered open ports by IP
-   - Runs nmap with `-sV --version-intensity 5`
-   - Merges service information back into masscan results
-   - Uses PTY for real-time progress output
-
-### Nmap Two-Phase Scanning
-
-When `scanner_type == "nmap"`, the scanner:
-
-1. **Phase 1 - Port Discovery (0-50% progress)**:
-   - Runs nmap with SYN scan (`-sS`) and/or UDP scan (`-sU`)
-   - Uses 70% of the total scan timeout
-   - Aggressive timing (`-T4`) for speed
-
-2. **Phase 2 - Service Detection (50-100% progress)**:
-   - Scans only ports found in Phase 1
-   - Uses 30% of the total scan timeout (minimum 120s)
-   - Identifies service names, versions, and products
-
-## IPv6 Scanning Support
-
-The scanner fully supports IPv6 networks.
-
-### Connectivity Check
-
-Before any IPv6 scan, the scanner verifies IPv6 connectivity:
-
-```python
-# Tests connectivity to these well-known IPv6 DNS servers:
-# - 2001:4860:4860::8888 (Google DNS)
-# - 2606:4700:4700::1111 (Cloudflare DNS)
-```
-
-If connectivity fails, the scan is aborted with a clear error message.
-
-### IPv6 in Jobs
-
-The backend determines if a network is IPv6 and sets `is_ipv6: true` in the job payload.
-
-### Scanner-Specific Handling
-
-- **Masscan**: Natively supports IPv6 CIDRs without special flags
-- **Nmap**: Uses the `-6` flag for IPv6 mode
-
-## Host Discovery
-
-Host discovery uses nmap ping scans to find active hosts on a network without port scanning.
-
-### Command
-
-```bash
-nmap -sn -PE --disable-arp-ping -R [-6] --host-timeout <seconds>s -oX <output> <CIDR>
-```
-
-**Flags Explained**:
-| Flag | Purpose |
-|------|---------|
-| `-sn` | Ping scan only (no port scanning) |
-| `-PE` | ICMP echo request only |
-| `--disable-arp-ping` | Don't use ARP (avoids finding all local hosts) |
-| `-R` | Always perform reverse DNS lookup |
-| `-6` | IPv6 mode (if applicable) |
-| `--host-timeout` | Timeout per host |
-
-### Output
-
-For each discovered host, the scanner reports:
-- IP address
-- Hostname (from reverse DNS)
-- Ping status (up/down)
-- MAC address and vendor (if locally connected)
-
-### Workflow
-
-```
-┌─────────────────────┐
-│ Poll for Discovery  │
-│       Jobs          │
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│ Claim Discovery Job │
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│  Run Nmap Ping Scan │
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│  Parse XML Results  │
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│  Submit Host        │
-│  Discovery Results  │
-└─────────────────────┘
-```
-
-## Job Lifecycle
-
-### Polling and Claiming
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                       Main Loop                              │
-│                                                              │
-│  1. GET /api/scanner/jobs         ←─── Poll for jobs         │
-│                                                              │
-│  2. For each job:                                            │
-│     POST /api/scanner/jobs/{network_id}/claim                │
-│                                                              │
-│  3. If claim succeeds (returns scan_id):                     │
-│     Execute scan                                             │
-│                                                              │
-│  4. Sleep for POLL_INTERVAL seconds                          │
-│                                                              │
-│  5. Repeat                                                   │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### Progress Reporting
-
-A background thread reports progress every 5 seconds:
-
-- **Thread-safe updates**: Progress and message can be updated from scan threads
-- **Smart reporting**: Only sends when values change
-- **Failure handling**: Network failures don't interrupt the scan
-
-**Progress Scaling by Phase**:
-| Scan Type | Phase | Progress Range |
-|-----------|-------|----------------|
-| Masscan | Port Discovery | 0-75% |
-| Masscan | Service Detection | 75-100% |
-| Nmap | Phase 1 (Discovery) | 0-50% |
-| Nmap | Phase 2 (Service) | 50-100% |
-
-### Log Streaming
-
-A background thread streams logs every 5 seconds:
-
-- **Buffer**: Logs are captured via a custom logging handler
-- **Retry**: Failed submissions are requeued for the next attempt
-- **Format**: Each entry includes timestamp, level, and message
-
-**Log Levels**:
-- `info`: Normal operation messages
-- `warning`: Non-fatal issues
-- `error`: Failures and exceptions
-
-### Result Submission
-
-After scan completion, results are submitted to the backend:
-
-```
-POST /api/scanner/results
-{
-    "scan_id": 123,
-    "status": "success" | "failed",
-    "open_ports": [...],
-    "error_message": null | "Error description"
-}
-```
-
-**Open Port Data**:
-```json
-{
-    "ip": "192.168.1.1",
-    "port": 443,
-    "protocol": "tcp",
-    "ttl": 64,
-    "banner": "HTTP/1.1 200 OK",
-    "service_guess": "https",
-    "mac_address": "00:11:22:33:44:55",
-    "mac_vendor": "Cisco Systems"
-}
-```
-
-## SSH Security Probing
-
-After port and service detection, the scanner automatically probes any discovered SSH services for security analysis.
-
-### Detection
-
-SSH services are identified by:
-1. **Port 22** (standard SSH port)
-2. **Service identification** containing "ssh" (from nmap service detection)
-
-### Probing Process
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│               SSH Security Probing Phase                     │
-│                    (90-100% progress)                        │
-│                                                             │
-│  1. Detect SSH services from open ports                     │
-│                                                             │
-│  2. For each SSH service (parallel, 10 concurrent):         │
-│     └── Run ssh-audit with JSON output                      │
-│                                                             │
-│  3. Parse results:                                          │
-│     • Authentication methods                                │
-│     • Supported ciphers                                     │
-│     • Key exchange algorithms                               │
-│     • MAC algorithms                                        │
-│     • SSH version                                           │
-│                                                             │
-│  4. Classify weak algorithms                                │
-│                                                             │
-│  5. Include SSH results in submission                       │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### ssh-audit Command
-
-```bash
-ssh-audit -j --timeout <seconds> <host>:<port>
-```
-
-For IPv6 addresses, the host is wrapped in brackets: `[2001:db8::1]:22`
-
-### SSH Result Data
-
-```json
-{
-    "host": "192.168.1.1",
-    "port": 22,
-    "success": true,
-    "publickey_enabled": true,
-    "password_enabled": true,
-    "keyboard_interactive_enabled": false,
-    "ssh_version": "OpenSSH_8.9p1",
-    "protocol_version": "2.0",
-    "server_banner": "SSH-2.0-OpenSSH_8.9p1 Ubuntu",
-    "ciphers": [
-        {"name": "aes256-gcm@openssh.com", "keysize": 256, "is_weak": false, "notes": []}
-    ],
-    "kex_algorithms": [
-        {"name": "curve25519-sha256", "keysize": null, "is_weak": false, "notes": []}
-    ],
-    "mac_algorithms": [
-        {"name": "hmac-sha2-256-etm@openssh.com", "keysize": null, "is_weak": false, "notes": []}
-    ],
-    "host_key_types": ["ssh-ed25519", "rsa-sha2-512"]
-}
-```
-
-### Weak Algorithm Classification
-
-The scanner classifies algorithms as weak based on security best practices:
-
-**Weak Ciphers**: DES, 3DES, RC4/Arcfour, Blowfish, CBC-mode ciphers
-
-**Weak KEX**: SHA1-based algorithms, weak DH groups (group1, group14-sha1), NIST curves
-
-**Weak MACs**: MD5-based, SHA1-based algorithms
-
-### Dependencies
-
-| Tool | Purpose |
-|------|---------|
-| ssh-audit | SSH security analysis |
-
-The scanner checks for ssh-audit at startup and logs a warning if missing. SSH probing is skipped if the tool is unavailable.
-
-## Cancellation Handling
-
-The scanner supports graceful cancellation of running scans.
-
-### Detection
-
-A background thread polls the scan status every 5 seconds:
-
-```
-GET /api/scanner/scans/{scan_id}/status
-```
-
-If status is `cancelled`:
-1. Set the cancellation flag
-2. Send SIGTERM to the scanning process
-3. Wait 5 seconds for graceful exit
-4. Send SIGKILL if process still running
-
-### Partial Results
-
-When a scan is cancelled:
-- Results collected up to that point are submitted
-- Status is set to "failed" with error message "Scan cancelled by user request"
-- Progress reporter and log streamer are stopped gracefully
-
-## Timeout Handling
-
-### Scan Timeout
-
-The total time allowed for a complete scan (including all phases).
-
-**Masscan**: A background timeout watcher:
-1. Logs warning at 90% of timeout elapsed
-2. Terminates process at 100% of timeout
-3. Uses SIGTERM then SIGKILL if needed
-
-**Nmap**: Inline timeout tracking:
-1. Phase 1 gets 70% of total timeout
-2. Phase 2 gets 30% (minimum 120 seconds)
-3. Warning at 90%, termination at 100%
-
-### Port Timeout
-
-The time to wait for a response from each port.
-
-- **Masscan**: Converted to `--wait` parameter (seconds)
-- **Nmap**: Used as `--max-rtt-timeout` (milliseconds)
-
-## Error Handling and Retry
-
-### HTTP Request Retry
-
-The scanner client implements exponential backoff:
-
-| Attempt | Delay |
-|---------|-------|
-| 1 | 1s |
-| 2 | 2s |
-| 3 | 4s |
-| 4 | 8s |
-| 5 | 16s (capped at 30s) |
-
-**Retry Conditions**:
-- Network errors: Retry
-- 429 (Rate Limited): Retry
-- 5xx (Server Error): Retry
-- 401 (Unauthorized): Re-authenticate and retry once
-- 404/409: No retry (return immediately)
-
-### Process Failure Handling
-
-If masscan or nmap fails:
-1. Exception is logged with full traceback
-2. Results submitted with status "failed"
-3. Error message includes the exception details
+The scanner is a long-running Python agent that:
+
+1. loads local configuration
+2. waits for the backend health endpoint
+3. authenticates using a scanner API key
+4. polls for both port-scan and host-discovery jobs
+5. executes the requested work
+6. streams logs and progress
+7. submits results back to the backend
+
+Two distinct job families run through the same process:
+
+- port-scan jobs
+- host-discovery jobs
+
+Those paths share authentication and polling, but diverge once a job is claimed.
+
+The main entry point is [`scanner/src/main.py`](../../scanner/src/main.py).
+
+## Main Loop
+
+The main loop does two independent polls each cycle:
+
+- `GET /api/scanner/jobs` for port-scan jobs
+- `GET /api/scanner/host-discovery-jobs` for host discovery jobs
+
+If neither returns work, the process sleeps for `POLL_INTERVAL` seconds and repeats.
+
+That means a single scanner container can service both full port scans and discovery-only workflows without needing separate worker types.
+
+## Scanner Modules
+
+| Path | Role |
+|------|------|
+| `scanner/src/main.py` | process startup and poll loop |
+| `scanner/src/client.py` | backend HTTP client, auth, retries |
+| `scanner/src/orchestration.py` | job claiming and scan orchestration |
+| `scanner/src/scanners/masscan.py` | masscan-based port scan path |
+| `scanner/src/scanners/nmap.py` | nmap-based scan path |
+| `scanner/src/discovery.py` | host discovery and SSH target detection |
+| `scanner/src/ssh_probe.py` | `ssh-audit` parsing and SSH security probing |
+| `scanner/src/threading_utils.py` | log streaming, progress reporting, cancellation, timeout watchers |
+| `scanner/src/utils.py` | config loading, validation, command formatting, IPv6 connectivity checks |
+
+## Startup Sequence
+
+At startup the scanner:
+
+1. loads `BACKEND_URL`, `API_KEY`, `POLL_INTERVAL`, and `LOG_LEVEL`
+2. checks that `masscan` and `nmap` are available
+3. logs version information from `VERSION`
+4. waits for backend `/health`
+5. creates a `ScannerClient`
+6. begins the poll loop
+
+The explicit backend readiness wait is important in development and during coordinated container startups. It reduces noisy failures when the backend container is still booting or migrating.
 
 ## Authentication Flow
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Scanner Startup                          │
-│                                                             │
-│  1. Load API_KEY from environment                           │
-│                                                             │
-│  2. POST /api/scanner/auth                                  │
-│     Header: X-API-Key: <api_key>                           │
-│                                                             │
-│  3. Receive JWT token:                                      │
-│     {                                                       │
-│       "access_token": "eyJ...",                            │
-│       "expires_in": 900  // 15 minutes                     │
-│     }                                                       │
-│                                                             │
-│  4. Store token with expiry (expires_in - 30 seconds)      │
-│                                                             │
-│  5. Use JWT for all subsequent requests:                    │
-│     Header: Authorization: Bearer <jwt_token>              │
-│                                                             │
-│  6. Re-authenticate when token is 90% expired              │
-└─────────────────────────────────────────────────────────────┘
-```
+Authentication is a two-step model:
 
-## Data Structures
+1. The scanner sends its API key to `POST /api/scanner/auth` using the `X-API-Key` header.
+2. The backend returns a short-lived bearer token used for subsequent scanner endpoints.
 
-### ScannerJob
+Implementation notes:
 
-```python
-network_id: int       # Network to scan
-cidr: str             # IP range (e.g., "192.168.1.0/24")
-port_spec: str        # Ports (e.g., "80,443,1-1000,!22")
-rate: int | None      # Packets per second (masscan only)
-scanner_type: str     # "masscan" or "nmap"
-scan_timeout: int     # Total timeout (seconds)
-port_timeout: int     # Per-port timeout (milliseconds)
-scan_protocol: str    # "tcp", "udp", or "both"
-is_ipv6: bool         # IPv6 network flag
-```
+- the client caches the bearer token
+- it re-authenticates automatically before expiry
+- auth requests are rate-limited by the backend
 
-### Port Specification Format
+From an operational perspective, scanner authentication is therefore:
 
-**Include Ports**:
-- Single: `80`
-- Range: `80-443`
-- Multiple: `80,443,8080`
+- long-lived trust anchored by the API key
+- short-lived request authorization via scanner JWT
 
-**Exclude Ports** (masscan only):
-- Prefix with `!`: `!22,!25`
+## Port-Scan Jobs
 
-**Combined Example**: `1-1000,8080,!22,!25`
+### Job Payload
 
-### Protocol Handling
+A port-scan job includes:
 
-For masscan port specifications:
-- TCP only: `-p 80,443` or `-p T:80,443`
-- UDP only: `-pU:80,443`
-- Both: `-p T:80,443,U:80,443`
+- `network_id`
+- `cidr`
+- `port_spec`
+- `scanner_type`
+- `scan_timeout`
+- `port_timeout`
+- `scan_protocol`
+- `is_ipv6`
+- optional `target_ip`
 
-## Dependencies
+If `target_ip` is present, the scanner treats it as a single-host rescan and forces the nmap path for better service detection.
 
-The scanner requires these external tools:
+That is an intentional quality-over-speed choice. For targeted rescans, the scanner prefers richer service data rather than the broadest possible packet rate.
 
-| Tool | Purpose | Required Capabilities |
-|------|---------|----------------------|
-| masscan | Fast port scanning | `NET_RAW` |
-| nmap | Service detection, host discovery | `NET_RAW`, `NET_ADMIN` |
+### Claiming
 
-The scanner checks for these at startup and logs warnings if missing.
+For each polled job, the scanner claims work through:
+
+- `POST /api/scanner/jobs/{network_id}/claim`
+
+If the backend returns `404` or `409`, the scanner skips that job and continues.
+
+This is normal under contention or when another scanner or worker already consumed the pending work.
+
+## Scan Engines
+
+### Registered scanner types
+
+The backend metadata currently registers:
+
+- `masscan`
+- `nmap`
+
+These values are validated by the backend and sent to the scanner in job payloads.
+
+### Masscan path
+
+Masscan is used for fast broad discovery.
+
+Current behavior:
+
+- validates and sanitizes CIDR and port spec before execution
+- supports excluded ports such as `!88`
+- supports `tcp`, `udp`, and `both`
+- reports progress by parsing masscan output
+- runs nmap service detection afterward on the discovered open ports
+
+So "masscan mode" is not masscan-only. In practice it is a hybrid workflow:
+
+1. masscan quickly finds candidate open ports
+2. nmap enriches those candidates with service details
+
+Progress model:
+
+- masscan discovery: `0-75%`
+- nmap service detection after masscan: `75-90%`
+- SSH probing can use the last portion of progress when SSH targets exist
+
+### Nmap path
+
+Nmap is used either when a network is configured with `scanner_type = "nmap"` or when the job is a single-host rescan.
+
+Current behavior:
+
+- phase 1: port discovery
+- phase 2: service detection
+- supports `tcp`, `udp`, and `both`
+- supports IPv6 via `-6`
+- reports progress by parsing nmap status output
+
+This path is slower but more straightforward. It is a better fit when the network is smaller or when the operator wants service detection fidelity to dominate scan speed.
+
+## SSH Security Probing
+
+After a port scan completes successfully and returns open ports, the scanner detects SSH services and probes them with `ssh-audit`.
+
+SSH services are identified by:
+
+- port `22`
+- or `service_guess` containing `ssh`
+
+The probing phase:
+
+- runs in parallel using a thread pool
+- defaults to concurrency `10`
+- defaults to timeout `10` seconds per target
+- captures auth methods, SSH version, ciphers, KEX, MACs, and host key types
+- classifies weak ciphers, weak KEX, and weak MACs
+
+This phase is logically separate from open-port detection. The port scan discovers that SSH is reachable; the SSH probe then determines whether the reachable service is configured securely.
+
+These results are included in the scan result submission as `ssh_results`.
+
+The backend uses those results to persist SSH state and generate SSH-source alerts.
+
+## Host Discovery Jobs
+
+Host discovery is handled separately from port scanning.
+
+### Polling and claiming
+
+- `GET /api/scanner/host-discovery-jobs`
+- `POST /api/scanner/host-discovery-jobs/{scan_id}/claim`
+
+### Discovery implementation
+
+Host discovery uses nmap ping scanning:
+
+- `-sn`
+- `-PE`
+- `--disable-arp-ping`
+- `-R`
+- optional `-6`
+
+It returns hosts that responded and includes:
+
+- IP address
+- hostname from reverse DNS when available
+- ping status
+- MAC address and vendor when visible
+
+If the backend provides `known_hostnames`, those are applied before external enrichment runs.
+
+This avoids redundant hostname lookups for IPs the system already knows.
+
+## Progress, Logs, Cancellation, Timeout
+
+### Progress reporting
+
+`ProgressReporter` runs in a background thread and posts:
+
+- `POST /api/scanner/progress`
+
+It only sends updates when the percent or message changed.
+
+That keeps progress traffic low while still allowing the UI to feel live.
+
+### Log streaming
+
+`LogStreamer` drains buffered log records and posts them to:
+
+- `POST /api/scanner/logs`
+
+Failed log submissions are requeued instead of dropped.
+
+So transient backend or network issues do not immediately erase the log trail for an in-flight scan.
+
+### Cancellation
+
+Long-running scan processes are watched by `ScanCancellationWatcher`, which polls:
+
+- `GET /api/scanner/scans/{scan_id}/status`
+
+If the backend marks the scan as `cancelled`, the watcher terminates the subprocess.
+
+The scanner therefore treats cancellation as a control-plane signal from the backend, not as a purely local process concern.
+
+### Timeout handling
+
+- `ProcessTimeoutWatcher` is used for masscan-style subprocesses
+- nmap paths enforce timeout budgets inline
+- warnings are logged around 90% of the configured timeout
+
+This split exists because the subprocess behavior is different enough that one timeout model does not cleanly fit every scan path.
+
+## Result Submission
+
+Port-scan results are submitted to:
+
+- `POST /api/scanner/results`
+
+Payload includes:
+
+- `scan_id`
+- `status`
+- `open_ports`
+- optional `ssh_results`
+- optional `error_message`
+
+Important current behavior on the backend:
+
+- results are accepted only when the scan is in `running` or `cancelled`
+- if the scan was already marked `cancelled`, the backend keeps the scan status as `cancelled` while still storing any submitted partial results
+- alert generation only runs for successfully completed scans
+
+That last point is important when reasoning about incident noise: partial or cancelled scans can still persist data, but they should not generate fresh alert churn as though they were clean completed runs.
+
+## Retry Behavior
+
+`ScannerClient` retries transient HTTP failures with backoff for cases such as:
+
+- request/network errors
+- `429`
+- `5xx`
+
+It does not retry terminal claim outcomes like `404` or `409`.
+
+In other words, the scanner is resilient to transient transport errors, but it does not treat coordination outcomes as failures to be retried blindly.
+
+## IPv6 Handling
+
+Before IPv6 scans or IPv6 host discovery, the scanner checks connectivity by attempting TCP connections to well-known IPv6 DNS servers. If connectivity is missing, the job fails immediately with a clear error.
+
+## Relationship To The Backend
+
+The scanner is intentionally thin: it executes scans and submits raw findings. The backend remains responsible for:
+
+- persisting scans, ports, hosts, and SSH results
+- generating alerts and alert rules
+- auto-triggering host-discovery jobs after the first successful network scan when host discovery is enabled
+- scheduling cron-based scans
+
+That separation keeps scanning logic deployable near the target network while leaving policy, history, alerting, and UI-facing aggregation centralized in the backend.
+
+## Related Files
+
+- [Scanner deployment](deployment.md)
+- [Scanner troubleshooting](troubleshooting.md)
+- [Scanner API reference](../api/scanner-api.md)

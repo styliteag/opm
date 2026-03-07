@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Refreshed stale Markdown documentation to match the current scanner workflow, alert-state model, unified alert rules, and Docker-first development setup
+- Restored a state diagram to the alert-state documentation while keeping the updated alert semantics accurate
+- Expanded the refreshed docs with more architectural explanation and operational context without reverting to outdated behavior
 - Unified alert rules: replaced separate `port_rules` and `global_port_rules` tables with a single `alert_rules` table supporting multiple alert sources (port, SSH, future TLS etc.)
 - Alerts now carry a `source` field ("port" or "ssh") instead of inferring category from alert type prefix
 - Alert `port` field is now nullable to support source types that don't have ports

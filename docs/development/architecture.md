@@ -1,496 +1,271 @@
 # Architecture Overview
 
-This document describes the overall system architecture of Open Port Monitor, including the three-tier design, database schema, scan lifecycle, and alert generation logic.
+This document summarizes the current architecture of Open Port Monitor across frontend, backend, database, and scanner components.
 
-## Three-Tier Architecture
+It is intended as a practical orientation document for contributors. It focuses on the architecture that is actually implemented now, rather than older design intent.
 
-Open Port Monitor follows a classic three-tier architecture:
+## System Shape
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     FRONTEND (React + TypeScript)                │
-│                         Port 5173 (dev)                          │
-│  • Single Page Application                                       │
-│  • TanStack Query for data fetching                              │
-│  • React Router for navigation                                   │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │ HTTP REST API
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     BACKEND (FastAPI + Python)                   │
-│                          Port 8000                               │
-│  • REST API endpoints                                            │
-│  • Business logic services                                       │
-│  • SQLAlchemy ORM                                                │
-│  • APScheduler for scheduled scans                               │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │ SQLAlchemy Async
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     DATABASE (MySQL)                             │
-│                          Port 3306                               │
-│  • 14 main tables                                                │
-│  • Alembic migrations                                            │
-└─────────────────────────────────────────────────────────────────┘
+Open Port Monitor is split into three main runtime parts plus the database:
 
-        ┌───────────────────────────────────────────────────────┐
-        │              SCANNER AGENTS (Python)                   │
-        │  • Distributed port scanning agents                    │
-        │  • Masscan for fast port discovery                     │
-        │  • Nmap for service detection                          │
-        │  • Poll backend for jobs                               │
-        └───────────────────────────────────────────────────────┘
-```
+1. frontend
+2. backend API
+3. scanner agents
+4. MariaDB
 
-### Frontend
+At a high level:
 
-**Technology**: React 18, TypeScript, Vite, TanStack Query, React Router
+- the frontend is an operator console
+- the backend owns policy, persistence, scheduling, and aggregation
+- scanners are remote executors that perform network-facing work
+- the database stores the historical state that ties scans, hosts, alerts, and rules together
 
-**Key Directories**:
-- `frontend/src/pages/` - Page components (Networks, Scans, Alerts, etc.)
-- `frontend/src/components/` - Reusable UI components
-- `frontend/src/lib/api.ts` - API client for backend communication
-- `frontend/src/context/` - Auth and Theme context providers
+## Frontend
 
-**Main Routes**:
-| Path | Purpose |
-|------|---------|
-| `/` | Dashboard with scan overview |
-| `/networks` | Network management |
-| `/scans` | Scan history and results |
-| `/alerts` | Alert management |
-| `/hosts` | Discovered hosts |
-| `/ports` | Global open ports |
-| `/policy` | Port rules configuration |
-| `/users` | User management (admin) |
-| `/trends` | Historical analytics |
+Current stack:
 
-### Backend
+- React 18
+- TypeScript
+- Vite
+- React Router
+- TanStack Query
 
-**Technology**: FastAPI, Python 3.11+, SQLAlchemy 2.0 (async), Pydantic v2
+Primary routes visible in the app today:
 
-**Key Directories**:
-- `backend/src/app/routers/` - API endpoint definitions
-- `backend/src/app/services/` - Business logic layer
-- `backend/src/app/models/` - SQLAlchemy ORM models
-- `backend/src/app/schemas/` - Pydantic request/response schemas
-- `backend/src/app/core/` - Configuration and database setup
+| Route | Purpose |
+|-------|---------|
+| `/` | dashboard |
+| `/scanners` | scanner management |
+| `/networks` | network inventory |
+| `/networks/:id` | network detail |
+| `/scans` | scan history |
+| `/scans/:id` | scan detail |
+| `/hosts` | hosts and ports overview |
+| `/hosts/:hostId` | host detail |
+| `/alerts` | alert review queue |
+| `/alerts/:id` | alert detail |
+| `/port-rules` | unified alert rules page |
+| `/trends` | historical charts |
+| `/users` | admin-only user management |
 
-**API Routes** (registered in `main.py`):
+The frontend is not just a thin CRUD shell. It also contains a fair amount of workflow logic around alert review, filtering, scanner administration, host detail views, and rule management, with TanStack Query acting as the main synchronization layer with the backend.
+
+## Backend
+
+Current stack:
+
+- FastAPI
+- SQLAlchemy async ORM
+- Pydantic v2
+- Alembic
+- APScheduler
+
+Main router groups currently registered by `backend/src/app/main.py`:
+
 | Prefix | Purpose |
 |--------|---------|
-| `/api/auth` | User authentication |
-| `/api/scanner` | Scanner agent endpoints |
-| `/api/networks` | Network CRUD |
-| `/api/scans` | Scan management |
-| `/api/alerts` | Alert management |
-| `/api/hosts` | Host discovery |
-| `/api/global-ports` | Global open ports |
-| `/api/policy` | Port rules |
-| `/api/users` | User management |
-| `/api/trends` | Analytics |
+| `/api/auth` | user auth |
+| `/api/alerts` | alert review, comments, exports |
+| `/api/global-ports` | deduplicated global open ports |
+| `/api/global-settings` | shared security defaults |
+| `/api/hosts` | host overview and host actions |
+| `/api/metadata` | scanner type and alert type metadata |
+| `/api/networks` | network CRUD and scan triggers |
+| `/api/port-rules` | unified alert rules for port and SSH sources |
+| `/api/ports` | port-oriented views |
+| `/api/scanner` | scanner-to-backend protocol |
+| `/api/scanners` | scanner CRUD and key management |
+| `/api/scans` | scan list/detail/logs |
+| `/api/ssh` | SSH findings and reporting |
+| `/api/trends` | trend aggregates |
+| `/api/users` | user CRUD |
+| `/api/version` | version metadata |
 
-### Scanner Agent
+The backend follows a mostly conventional FastAPI layering:
 
-**Technology**: Python, Masscan, Nmap
+- routers handle HTTP concerns
+- services hold business logic
+- models define persistence
+- schemas define typed request and response payloads
 
-**Key Files**:
-- `scanner/src/main.py` - Main scanner loop and execution logic
+The important architectural point is that alert generation, scan scheduling, and policy evaluation are backend concerns, not scanner concerns.
 
-**Workflow**:
-1. Authenticate with backend using API key
-2. Poll for pending scan jobs every 60 seconds
-3. Claim jobs and execute port scans
-4. Stream progress, logs, and results back to backend
+## Scanner Agents
 
----
+Scanner agents are external workers that poll the backend for work.
 
-## Database Schema
+Current behavior:
 
-### Entity Relationship Diagram
+- authenticate with API key plus short-lived scanner JWT
+- poll for port-scan jobs
+- poll for host-discovery jobs
+- run `masscan`, `nmap`, and `ssh-audit`
+- stream logs and progress
+- submit results for persistence and alert generation
 
-```
-┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-│   users     │       │  scanners   │       │  networks   │
-├─────────────┤       ├─────────────┤       ├─────────────┤
-│ id (PK)     │       │ id (PK)     │◄──────│ scanner_id  │
-│ email       │       │ name        │       │ id (PK)     │
-│ password_   │       │ api_key_    │       │ name        │
-│   hash      │       │   hash      │       │ cidr        │
-│ role        │       │ last_seen_  │       │ port_spec   │
-│ created_at  │       │   at        │       │ scan_       │
-└──────┬──────┘       └──────┬──────┘       │   schedule  │
-       │                     │              └──────┬──────┘
-       │                     │                     │
-       │              ┌──────┴──────┐              │
-       │              │             │              │
-       ▼              ▼             ▼              ▼
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│   alerts    │  │   scans     │◄─│ port_rules  │
-├─────────────┤  ├─────────────┤  ├─────────────┤
-│ id (PK)     │  │ id (PK)     │  │ id (PK)     │
-│ scan_id(FK) │──│ network_id  │  │ network_id  │
-│ network_id  │  │ scanner_id  │  │ port        │
-│ alert_type  │  │ status      │  │ rule_type   │
-│ ip          │  │ started_at  │  └─────────────┘
-│ port        │  │ completed_  │
-│ dismissed   │  │   at        │
-│ assigned_   │  │ trigger_    │
-│   to_user_  │  │   type      │
-│   id (FK)   │  └──────┬──────┘
-└──────┬──────┘         │
-       │                │
-       ▼                ▼
-┌─────────────┐  ┌─────────────┐
-│   alert_    │  │ open_ports  │
-│  comments   │  ├─────────────┤
-├─────────────┤  │ id (PK)     │
-│ id (PK)     │  │ scan_id(FK) │
-│ alert_id    │  │ ip          │
-│ user_id     │  │ port        │
-│ comment     │  │ protocol    │
-└─────────────┘  │ service_    │
-                 │   guess     │
-                 └─────────────┘
+This design keeps scanners stateless enough to deploy near the networks they observe. A scanner does not need the full business context of the application; it only needs enough context to execute a job safely and report back.
 
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│   hosts     │  │global_open_ │  │global_port_ │
-├─────────────┤  │   ports     │  │   rules     │
-│ id (PK)     │◄─├─────────────┤  ├─────────────┤
-│ ip (UNIQUE) │  │ id (PK)     │  │ id (PK)     │
-│ hostname    │  │ host_id(FK) │  │ port        │
-│ is_pingable │  │ ip          │  │ rule_type   │
-│ seen_by_    │  │ port        │  │ ip          │
-│   networks  │  │ protocol    │  │ description │
-└─────────────┘  │ first_seen_ │  └─────────────┘
-                 │   at        │
-                 └─────────────┘
+## Data Model
 
-┌─────────────┐  ┌─────────────┐
-│ scan_logs   │  │host_discov- │
-├─────────────┤  │  ery_scans  │
-│ id (PK)     │  ├─────────────┤
-│ scan_id(FK) │  │ id (PK)     │
-│ timestamp   │  │ network_id  │
-│ level       │  │ scanner_id  │
-│ message     │  │ status      │
-└─────────────┘  └─────────────┘
-```
-
-### Key Tables
+The most important active tables are:
 
 | Table | Purpose |
 |-------|---------|
-| `users` | User accounts with roles (admin/viewer) |
-| `scanners` | Registered scanner agents |
-| `networks` | Network configurations (CIDR, ports, schedule) |
-| `scans` | Scan executions with status tracking |
-| `open_ports` | Ports discovered in each scan |
-| `global_open_ports` | Deduplicated ports across all scans |
-| `hosts` | Discovered hosts from host discovery |
-| `alerts` | Security alerts generated from scans |
-| `alert_comments` | Comments on alerts for collaboration |
-| `port_rules` | Network-specific port allow/block rules |
-| `global_port_rules` | Global port allow/block rules |
-| `scan_logs` | Execution logs from scanner agents |
-| `host_discovery_scans` | Host discovery job tracking |
+| `users` | local user accounts |
+| `scanners` | registered scanner agents and API key hashes |
+| `networks` | scan targets and policy config |
+| `scans` | scan executions, progress, errors, single-host target support |
+| `open_ports` | per-scan open-port records |
+| `global_open_ports` | cross-scan deduplicated open ports |
+| `hosts` | discovered hosts and host-level metadata |
+| `alerts` | generated alerts |
+| `alert_comments` | discussion and review notes |
+| `alert_rules` | unified accepted/critical rules across `port` and `ssh` sources |
+| `ssh_scan_results` | SSH probe results |
+| `host_discovery_scans` | discovery-job tracking |
+| `scan_logs` | streamed scanner logs |
+| `global_settings` | shared SSH/global settings |
 
-### Key Relationships
+If you are new to the schema, the easiest way to think about it is as four connected domains:
 
-- **scans.network_id** → networks.id (many-to-one)
-- **scans.scanner_id** → scanners.id (many-to-one)
-- **open_ports.scan_id** → scans.id (many-to-one, CASCADE DELETE)
-- **alerts.scan_id** → scans.id (many-to-one)
-- **alerts.network_id** → networks.id (many-to-one)
-- **alerts.global_open_port_id** → global_open_ports.id (many-to-one)
-- **alert_comments.alert_id** → alerts.id (many-to-one, CASCADE DELETE)
-- **port_rules.network_id** → networks.id (many-to-one)
-- **global_open_ports.host_id** → hosts.id (many-to-one)
+1. inventory: `networks`, `hosts`, `global_open_ports`
+2. execution history: `scans`, `scan_logs`, `host_discovery_scans`
+3. findings: `open_ports`, `ssh_scan_results`, `alerts`
+4. policy and collaboration: `alert_rules`, `alert_comments`, assignments, user accounts
 
----
+## Notable Model Changes Versus Older Docs
+
+These are the areas that most often drift in stale documentation:
+
+- active alert-rule management is centered on `alert_rules`, exposed via `/api/port-rules`
+- alerts carry a `source` field, not just a type
+- alerts support `severity_override`
+- scans support `target_ip` for single-host rescans
+- networks include `scanner_type`, `scan_protocol`, `scan_timeout`, `port_timeout`, and `host_discovery_enabled`
+- SSH findings are persisted in `ssh_scan_results`
+
+Those items are where stale documentation most often goes wrong, so they are worth checking first whenever older notes or diagrams disagree with the code.
 
 ## Scan Lifecycle
 
-Scans progress through a defined set of states from creation to completion.
+Scan status values:
 
-### State Diagram
+- `planned`
+- `running`
+- `completed`
+- `failed`
+- `cancelled`
 
-```
-                    ┌─────────────────────────────────────────┐
-                    │                                         │
-                    ▼                                         │
-┌─────────┐    ┌─────────┐    ┌───────────┐              │
-│ PLANNED │───▶│ RUNNING │───▶│ COMPLETED │              │
-└─────────┘    └────┬────┘    └───────────┘              │
-     │              │                                     │
-     │              │         ┌───────────┐              │
-     │              └────────▶│  FAILED   │              │
-     │              │         └───────────┘              │
-     │              │                                     │
-     │              │         ┌───────────┐              │
-     │              └────────▶│ CANCELLED │◀─────────────┘
-     │                        └───────────┘
-     │                              ▲
-     └──────────────────────────────┘
-```
+Trigger types:
 
-### Status Definitions
+- `manual`
+- `scheduled`
 
-| Status | Description |
-|--------|-------------|
-| **PLANNED** | Scan created, waiting for scanner to claim |
-| **RUNNING** | Scanner claimed job, executing scan |
-| **COMPLETED** | Scan finished successfully, results stored |
-| **FAILED** | Scan encountered error during execution |
-| **CANCELLED** | User cancelled scan (from PLANNED or RUNNING) |
+Typical flow:
 
-### Trigger Types
+1. A user or scheduler creates a `planned` scan.
+2. A scanner polls for jobs and claims the network.
+3. The backend marks the scan `running`.
+4. The scanner streams progress and logs during execution.
+5. The scanner submits results.
+6. The backend stores ports, hosts, SSH findings, and generated alerts.
 
-| Trigger | Description |
-|---------|-------------|
-| **MANUAL** | User initiated via UI or API |
-| **SCHEDULED** | Created by scheduler based on network's cron schedule |
+For contributors, the key architectural split is:
 
-### Lifecycle Flow
+- scanners discover and submit facts
+- backend services decide what those facts mean operationally
 
-```
-1. SCAN CREATION
-   ├─ Manual: User clicks "Scan" in UI
-   │   └─ POST /api/networks/{id}/scan
-   │   └─ Creates Scan with status=PLANNED, trigger_type=MANUAL
-   │
-   └─ Scheduled: Scheduler evaluates cron expressions every minute
-       └─ services/scheduler.py → evaluate_schedules()
-       └─ Creates Scan with status=PLANNED, trigger_type=SCHEDULED
+If a scan is cancelled mid-flight:
 
-2. JOB POLLING (Scanner Agent)
-   └─ Scanner polls GET /api/scanner/jobs every 60 seconds
-   └─ Returns networks with PLANNED scans for this scanner
+- the backend may still accept partial results
+- the final scan status remains `cancelled`
+- alert generation only runs for completed scans
 
-3. JOB CLAIMING
-   └─ Scanner: POST /api/scanner/jobs/{network_id}/claim
-   └─ Backend: Updates status=RUNNING, started_at=now
-   └─ Returns scan_id to scanner
+## Scheduling
 
-4. SCAN EXECUTION
-   ├─ Phase 1: Masscan port discovery (0-75% progress)
-   ├─ Phase 2: Nmap service detection (75-100% progress)
-   ├─ Progress updates: POST /api/scanner/progress
-   └─ Log streaming: POST /api/scanner/logs
+The backend scheduler evaluates cron schedules every minute using APScheduler.
 
-5. CANCELLATION CHECK (during execution)
-   └─ Scanner periodically checks: GET /api/scanner/scans/{id}/status
-   └─ If status=CANCELLED: terminate execution gracefully
+Important current behavior:
 
-6. RESULT SUBMISSION
-   └─ Scanner: POST /api/scanner/results
-   └─ Payload includes: status (success/failure), open_ports[], error_message
-   └─ Backend: Updates Scan status, stores OpenPort records, generates alerts
+- schedules use `SCHEDULE_TIMEZONE` when configured
+- otherwise schedules use the server local timezone
+- row locking is used to prevent duplicate scheduled scans across concurrent workers
 
-7. COMPLETION
-   ├─ COMPLETED: Results stored, alerts generated
-   ├─ FAILED: Error message stored, scan marked failed
-   └─ CANCELLED: Partial results may be stored
-```
-
----
+The locking detail matters because the backend may run with multiple workers. Without that protection, scheduled scans could be created more than once for the same network and minute boundary.
 
 ## Alert Generation
 
-Alerts are security notifications generated when open ports are detected. The system generates two types of alerts: network-scoped and global.
+Alert generation is backend-driven and occurs after successful scan result processing.
 
-### Alert Types
+Current sources:
 
-| Type | Description |
-|------|-------------|
-| **NEW_PORT** | Previously unknown port discovered |
-| **NOT_ALLOWED** | Port open but not in network's allow list |
-| **BLOCKED** | Port matches network's block rule |
+- port findings
+- SSH security findings
 
-### Alert Severity
+Important alert concepts:
 
-Severity is computed dynamically based on alert type and dismissal status:
+- alerts are deduplicated while active
+- accepted rules suppress future matching alerts
+- critical rules can elevate severity to `critical`
+- dismissing an alert and accepting an alert are different operations
 
-| Condition | Severity |
-|-----------|----------|
-| Alert dismissed | INFO |
-| BLOCKED alert type | CRITICAL |
-| NEW_PORT alert type | HIGH |
-| NOT_ALLOWED alert type | MEDIUM |
+That last distinction is operationally important:
 
-### Resolution Status
+- dismiss = queue visibility / review state
+- accept = policy change that suppresses future matching alerts
 
-| Status | Description |
-|--------|-------------|
-| **OPEN** | New alert, not yet addressed |
-| **IN_PROGRESS** | Under investigation |
-| **RESOLVED** | Issue remediated |
+## Development Runtime
 
-### Generation Flow
+The local development stack from `compose-dev.yml` is:
 
-When a scan completes successfully, two alert generation functions are called:
+- `opm-db`
+- `opm-backend`
+- `opm-frontend`
+- `opm-scanner`
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    SCAN COMPLETED                                │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-          ┌─────────────────┴─────────────────┐
-          │                                   │
-          ▼                                   ▼
-┌─────────────────────┐           ┌─────────────────────┐
-│  Network-Scoped     │           │  Global Alerts      │
-│  Alerts             │           │                     │
-│  (per network)      │           │  (cross-network)    │
-└─────────────────────┘           └─────────────────────┘
-```
+Reload behavior:
 
-#### Network-Scoped Alerts
+- backend: reload enabled
+- frontend: Vite HMR
+- scanner: manual restart required
 
-Generated by `generate_alerts_for_scan()` in `services/alerts.py`:
+That asymmetry is easy to forget. Backend and frontend changes normally appear immediately in dev; scanner changes do not.
 
-```
-For each open port (ip, port) discovered:
-  1. Check global accept rules → Skip if accepted
-  2. Check network's alert_config for enabled types
-  3. Evaluate against port_rules:
-     ├─ BLOCK rules: Generate BLOCKED alert
-     ├─ ALLOW rules: Skip if port allowed
-     └─ No allow rules: Generate NOT_ALLOWED if network has allow list
-  4. Check if port is new to this network:
-     └─ Compare against previous scans → Generate NEW_PORT
-  5. Deduplicate against existing pending alerts
-  6. Create Alert record with scan_id and network_id
-```
-
-#### Global Alerts
-
-Generated by `generate_global_alerts_for_scan()` in `services/alerts.py`:
-
-```
-For each open port (ip, port, protocol) discovered:
-  1. Upsert to global_open_ports table:
-     ├─ If new: is_new=True, set first_seen_at
-     └─ If exists: is_new=False, update last_seen_at
-  2. Skip if NOT new globally
-  3. Check global accept rules → Skip if accepted
-  4. Deduplicate against existing pending global alerts
-  5. Create Alert record with global_open_port_id link
-```
-
-### Duplicate Prevention
-
-Alerts are deduplicated using composite keys:
-
-- **Network alerts**: `(alert_type, ip, port)`
-- **Global alerts**: `(ip, port, protocol)`
-
-Only one pending alert exists for each key combination.
-
----
-
-## Data Flow Example
-
-This example traces a manual port scan from initiation to alert generation.
-
-```
-1. USER ACTION
-   └─ Click "Scan Network" in UI
-   └─ Frontend: POST /api/networks/1/scan
-
-2. BACKEND CREATES SCAN
-   └─ Create Scan record:
-      { id: 123, network_id: 1, status: "planned", trigger_type: "manual" }
-
-3. SCANNER POLLS FOR JOBS
-   └─ GET /api/scanner/jobs
-   └─ Response: [{ network_id: 1, cidr: "10.0.0.0/24", port_spec: "22,80,443" }]
-
-4. SCANNER CLAIMS JOB
-   └─ POST /api/scanner/jobs/1/claim
-   └─ Backend: Update Scan #123 status="running", started_at=now
-   └─ Response: { scan_id: 123 }
-
-5. SCANNER EXECUTES
-   └─ Run: masscan -p22,80,443 10.0.0.0/24 --rate 1000
-   └─ Found: 10.0.0.5:22, 10.0.0.10:80
-   └─ Run: nmap -sV -p22 10.0.0.5 -p80 10.0.0.10
-   └─ Detected: SSH, HTTP
-
-6. SCANNER REPORTS PROGRESS
-   └─ POST /api/scanner/progress { scan_id: 123, progress_percent: 50 }
-   └─ POST /api/scanner/logs [{ timestamp: "...", level: "info", message: "..." }]
-
-7. SCANNER SUBMITS RESULTS
-   └─ POST /api/scanner/results
-   └─ Payload:
-      {
-        "scan_id": 123,
-        "status": "success",
-        "open_ports": [
-          { "ip": "10.0.0.5", "port": 22, "protocol": "tcp", "service_guess": "SSH" },
-          { "ip": "10.0.0.10", "port": 80, "protocol": "tcp", "service_guess": "HTTP" }
-        ]
-      }
-
-8. BACKEND PROCESSES RESULTS
-   └─ Update Scan #123: status="completed", completed_at=now
-   └─ Create OpenPort records for each discovered port
-   └─ Upsert global_open_ports
-
-9. ALERT GENERATION
-   └─ generate_alerts_for_scan(scan_id=123)
-      └─ Port 22 not in allow list → Create NOT_ALLOWED alert
-      └─ Port 80 is new → Create NEW_PORT alert
-   └─ generate_global_alerts_for_scan(scan_id=123)
-      └─ Port 22 is new globally → Create global NEW_PORT alert
-      └─ Port 80 is new globally → Create global NEW_PORT alert
-
-10. USER VIEWS ALERTS
-    └─ GET /api/alerts
-    └─ Frontend displays alerts for investigation
-```
-
----
-
-## Key File Locations
+## Code Layout
 
 ### Backend
 
 | Path | Purpose |
 |------|---------|
-| `backend/src/app/main.py` | FastAPI application entry point |
-| `backend/src/app/models/` | SQLAlchemy ORM models |
-| `backend/src/app/routers/` | API endpoint definitions |
-| `backend/src/app/services/` | Business logic |
-| `backend/src/app/schemas/` | Pydantic schemas |
-| `backend/src/app/core/config.py` | Environment configuration |
-| `backend/src/app/core/database.py` | Database session management |
+| `backend/src/app/models/` | ORM models |
+| `backend/src/app/schemas/` | request/response schemas |
+| `backend/src/app/services/` | business logic |
+| `backend/src/app/routers/` | HTTP route handlers |
 | `backend/src/migrations/` | Alembic migrations |
 
 ### Frontend
 
 | Path | Purpose |
 |------|---------|
-| `frontend/src/main.tsx` | Application entry point |
-| `frontend/src/App.tsx` | Root component with routing |
-| `frontend/src/pages/` | Page components |
-| `frontend/src/components/` | Reusable UI components |
-| `frontend/src/lib/api.ts` | Backend API client |
-| `frontend/src/context/` | React contexts (Auth, Theme) |
+| `frontend/src/pages/` | route pages |
+| `frontend/src/components/` | reusable UI |
+| `frontend/src/lib/` | API helpers and utilities |
+| `frontend/src/context/` | auth and theme state |
+| `frontend/src/types/` | shared TypeScript types |
 
 ### Scanner
 
 | Path | Purpose |
 |------|---------|
-| `scanner/src/main.py` | Scanner agent implementation |
-| `scanner/Dockerfile` | Container build configuration |
+| `scanner/src/main.py` | startup and poll loop |
+| `scanner/src/client.py` | API client |
+| `scanner/src/orchestration.py` | scan workflow |
+| `scanner/src/discovery.py` | host discovery |
+| `scanner/src/ssh_probe.py` | SSH probing |
+| `scanner/src/scanners/` | scanner backends |
 
----
+## Related Docs
 
-## Related Documentation
-
-- [Developer Setup Guide](./setup.md) - Getting started with development
-- [Contributing Guidelines](./contributing.md) - Code standards and PR process
-- [API Overview](../api/overview.md) - API patterns and authentication
-- [Scanner Architecture](../scanner/architecture.md) - Scanner implementation details
+- [Development setup](setup.md)
+- [Scanner architecture](../scanner/architecture.md)
+- [Alert states](../alert-states.md)

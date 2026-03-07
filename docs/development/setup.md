@@ -1,323 +1,204 @@
 # Developer Setup Guide
 
-This guide walks you through setting up a development environment for Open Port Monitor.
+This guide reflects the current Docker-first workflow used by the repository.
+
+The repository can be inspected locally with Python, Bun, or Node installed on the host, but the normal application runtime for development is Docker Compose.
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+Required:
 
-### Required Software
+- Docker
+- Docker Compose v2
+- Git
 
-| Software | Minimum Version | Purpose |
-|----------|-----------------|---------|
-| Docker | 24.0+ | Container runtime |
-| Docker Compose | 2.20+ | Multi-container orchestration |
-| Git | 2.40+ | Version control |
+Optional local tooling for inspection or non-container tasks:
 
-### Verify Installation
+- Python 3.12
+- `uv`
+- Node.js
+- Bun
 
-```bash
-# Check Docker version
-docker --version
-# Expected: Docker version 24.x.x or higher
-
-# Check Docker Compose version
-docker compose version
-# Expected: Docker Compose version v2.20.x or higher
-
-# Check Git version
-git --version
-# Expected: git version 2.40.x or higher
-```
-
-### Optional (for local development outside containers)
-
-| Software | Version | Purpose |
-|----------|---------|---------|
-| Python | 3.12+ | Backend development |
-| Node.js | 20+ | Frontend development |
-| Bun | 1.0+ | Frontend package manager (alternative to npm) |
-| uv | Latest | Python package manager |
+Important: normal backend and frontend development is expected to run through Docker Compose, not through direct host processes.
 
 ## Quick Start
 
-### 1. Clone the Repository
+### 1. Clone And Configure
 
 ```bash
 git clone <repository-url>
 cd open-port-monitor
-```
-
-### 2. Configure Environment Variables
-
-```bash
-# Copy the example environment file
 cp .env.example .env
 ```
 
-Review and modify `.env` as needed. Key variables for development:
+### 2. Review Key Development Variables
+
+Common `.env` values in the current development stack:
 
 ```bash
-# Database (defaults work for development)
 DB_ROOT_PASSWORD=rootpassword
 DB_NAME=openportmonitor
 DB_USER=opm
 DB_PASSWORD=opmpassword
 
-# Backend
-JWT_SECRET=dev-secret-change-in-production  # OK for dev, change for production
+JWT_SECRET=dev-secret-change-in-production
 JWT_EXPIRATION_MINUTES=60
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=admin
 
-# Scanner (leave API_KEY empty initially - create via UI after first login)
+TZ=Europe/Berlin
+SCHEDULE_TIMEZONE=
+
+SCANNER_BACKEND_URL=http://backend:8000
 SCANNER_API_KEY=
+SCANNER_POLL_INTERVAL=60
+SCANNER_LOG_LEVEL=INFO
+
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
-### 3. Start the Development Environment
+Notes:
+
+- `SCANNER_API_KEY` can stay empty on first boot
+- create a scanner later from the **Scanners** page and then restart the scanner container
+- `SCHEDULE_TIMEZONE` is optional; if unset, cron schedules use the server local timezone
+
+That last point matters if you test scheduled scans across time zones. The app is no longer assuming UTC-only cron interpretation.
+
+### 3. Start The Stack
 
 ```bash
-# Build and start all services
 docker compose -f compose-dev.yml up --build
+```
 
-# Or run in detached mode (background)
+Detached mode is fine too:
+
+```bash
 docker compose -f compose-dev.yml up --build -d
 ```
 
-### 4. Access the Services
+## Development Services
 
-| Service | URL | Description |
-|---------|-----|-------------|
-| Frontend | http://localhost:5173 | React web dashboard |
-| Backend API | http://localhost:8000 | FastAPI REST API |
-| API Docs | http://localhost:8000/docs | Interactive Swagger UI |
-| Database | localhost:3306 | MariaDB (use MySQL client) |
+The current development stack contains four containers:
 
-### 5. Initial Login
+| Service | Container | Port | Notes |
+|---------|-----------|------|-------|
+| database | `opm-db` | `3306` | MariaDB 11 |
+| backend | `opm-backend` | `8000` | FastAPI with reload |
+| frontend | `opm-frontend` | `5173` | Vite dev server |
+| scanner | `opm-scanner` | none | background polling agent |
 
-Log in with the default admin credentials:
-- Email: `admin@example.com`
-- Password: `admin`
+The scanner container is part of the normal development stack because end-to-end scan flows, scanner authentication, and host discovery all depend on it.
 
-> **Note**: Change these credentials in production deployments.
+## First Login
 
-## Development Environment Details
+Use:
 
-### Service Architecture
+- email: `admin@example.com`
+- password: `admin`
 
-The development environment consists of four services defined in `compose-dev.yml`:
+## Hot Reload Behavior
 
-```yaml
-services:
-  db:        # MariaDB 11 database
-  backend:   # FastAPI application (Python 3.12)
-  frontend:  # React + Vite application (Bun runtime)
-  scanner:   # Network scanner agent (Python 3.12)
-```
+### Backend
 
-### Hot-Reloading
+`./backend/src` is bind-mounted to `/app/src`, and the dev image runs the backend with reload enabled.
 
-All services support hot-reloading through Docker bind mounts:
+### Frontend
 
-| Service | Local Path | Container Path | Reload Method |
-|---------|------------|----------------|---------------|
-| Backend | `./backend/src` | `/app/src` | uvicorn `--reload` |
-| Frontend | `./frontend/src` | `/app/src` | Vite HMR |
-| Scanner | `./scanner/src` | `/app/src` | Manual restart |
+`./frontend/src` is bind-mounted to `/app/src`, and Vite HMR updates the browser automatically.
 
-#### Backend Hot-Reload
+### Scanner
 
-The backend uses uvicorn with the `--reload` flag. Changes to Python files in `backend/src/` are detected automatically:
+`./scanner/src` is bind-mounted to `/app/src`, but the scanner process does not auto-restart when code changes.
+
+After scanner code changes:
 
 ```bash
-# View backend logs to confirm reload
-docker compose -f compose-dev.yml logs -f backend
-```
-
-When you save a file, you'll see:
-```
-WARNING:  WatchFiles detected changes in 'src/app/routes/alerts.py'. Reloading...
-INFO:     Application startup complete.
-```
-
-#### Frontend Hot-Reload
-
-The frontend uses Vite's Hot Module Replacement (HMR). Changes to files in `frontend/src/` update in the browser instantly without a full page refresh.
-
-#### Scanner Hot-Reload
-
-The scanner does not have automatic hot-reload. After making changes to scanner code:
-
-```bash
-# Restart the scanner container
 docker compose -f compose-dev.yml restart scanner
 ```
 
-## Database Migrations
+If a change spans backend and scanner behavior, it is usually worth restarting only the scanner container after the backend hot reload settles. That avoids misreading stale scanner behavior as an API bug.
 
-The project uses Alembic for database schema migrations.
+## Database Initialization And Migrations
 
-### Schema Initialization
+The current startup flow is migration-first:
 
-The database schema is automatically initialized on backend startup via SQLAlchemy's `metadata.create_all()`. Existing migrations are applied automatically.
+- backend startup scripts handle database readiness, Alembic migrations, and admin initialization before workers start
+- the FastAPI lifespan still calls `init_db()` to ensure tables exist
 
-### Running Migrations Manually
+Do not rely on `metadata.create_all()` as the primary schema update mechanism for existing databases. Schema changes should go through Alembic migrations.
 
-To run migrations inside the backend container:
+In practice:
 
-```bash
-# Enter the backend container
-docker compose -f compose-dev.yml exec backend bash
+- use migrations for schema evolution
+- treat `init_db()` as a safety net for bootstrapping, not as your migration strategy
 
-# View current migration status
-uv run alembic current
-
-# Apply all pending migrations
-uv run alembic upgrade head
-
-# Rollback one migration
-uv run alembic downgrade -1
-
-# Rollback to specific revision
-uv run alembic downgrade <revision_id>
-```
-
-### Creating New Migrations
-
-When you modify SQLAlchemy models, create a migration:
+### Run Migration Commands
 
 ```bash
-# Enter the backend container
-docker compose -f compose-dev.yml exec backend bash
-
-# Auto-generate migration from model changes
-uv run alembic revision --autogenerate -m "Add new_field to table_name"
-
-# Or create an empty migration for manual editing
-uv run alembic revision -m "Manual migration description"
+docker exec opm-backend uv run alembic current
+docker exec opm-backend uv run alembic upgrade head
+docker exec opm-backend uv run alembic history
 ```
 
-Migration files are created in `backend/src/migrations/versions/`.
-
-### Migration Best Practices
-
-1. Always review auto-generated migrations before applying
-2. Use `IF NOT EXISTS` for table/index creation
-3. Test migrations on a copy of production data before deploying
-4. Keep migrations small and focused on single changes
-
-## Running Tests
-
-### Backend Tests
-
-The backend uses pytest with pytest-asyncio for async test support.
+### Create A New Migration
 
 ```bash
-# Enter the backend container
-docker compose -f compose-dev.yml exec backend bash
-
-# Run all tests
-uv run pytest
-
-# Run with verbose output
-uv run pytest -v
-
-# Run specific test file
-uv run pytest src/tests/test_auth.py
-
-# Run with coverage
-uv run pytest --cov=src/app
+docker exec opm-backend uv run alembic revision --autogenerate -m "describe change"
 ```
 
-### Frontend Tests
+Migration files live in:
 
-The frontend uses standard React testing patterns. Run from the frontend directory:
+- `backend/src/migrations/versions/`
+
+## Quality Checks
+
+Run checks in the containers the project already uses.
+
+### Backend
 
 ```bash
-# Enter the frontend container
-docker compose -f compose-dev.yml exec frontend bash
-
-# Run tests (if configured)
-bun test
-
-# Or from host with Node.js installed
-cd frontend
-npm test
+docker exec opm-backend uv run mypy src/
+docker exec opm-backend uv run ruff check src/
+docker exec opm-backend uv run pytest
 ```
 
-### Type Checking
+These are the checks that matter before shipping backend changes because the codebase uses strict typing and async DB-heavy logic.
 
-#### Backend (mypy)
+### Frontend
 
 ```bash
-# From backend container or host with dev dependencies
-cd backend
-uv run mypy src/app
+docker exec opm-frontend bun run typecheck
+docker exec opm-frontend bun run lint
+docker exec opm-frontend bun run test
 ```
 
-#### Frontend (TypeScript)
+Use `bun run typecheck` or `npm run typecheck`; do not substitute `npx tsc`.
+
+### Scanner
 
 ```bash
-# From frontend container
-cd frontend
-npm run typecheck
-
-# Or with bun
-bun run typecheck
+docker exec opm-scanner uv sync --all-extras
+docker exec opm-scanner uv run mypy src/
 ```
 
-## Code Quality
+Scanner checks are easier to forget because the scanner is not a user-facing web service, but scan orchestration and subprocess handling are brittle enough that type regressions matter here too.
 
-### Linting
+## Working With Scanners In Dev
 
-#### Backend (ruff)
+### Create A Development Scanner
 
-```bash
-cd backend
+1. Open `http://localhost:5173`
+2. Log in as admin
+3. Open **Scanners**
+4. Create a scanner
+5. Copy the API key
 
-# Check for issues
-uv run ruff check src/
+That key is only shown once. If lost, regenerate it from the scanner management flow and update `.env`.
 
-# Auto-fix issues
-uv run ruff check --fix src/
+### Connect The Dev Scanner Container
 
-# Format code
-uv run ruff format src/
-```
-
-#### Frontend (ESLint)
-
-```bash
-cd frontend
-
-# Run linter
-npm run lint
-
-# Or with bun
-bun run lint
-```
-
-### Formatting
-
-#### Frontend (Prettier)
-
-```bash
-cd frontend
-npm run format
-```
-
-## Working with the Scanner
-
-### Creating a Scanner API Key
-
-1. Log into the web UI at http://localhost:5173
-2. Navigate to Settings > Scanners
-3. Click "Add Scanner" and provide a name
-4. Copy the generated API key (shown only once)
-
-### Configuring the Development Scanner
-
-Update your `.env` file with the scanner API key:
+Put the key in `.env`:
 
 ```bash
 SCANNER_API_KEY=your-generated-api-key
@@ -329,156 +210,75 @@ Then restart the scanner:
 docker compose -f compose-dev.yml restart scanner
 ```
 
-### Viewing Scanner Logs
+## Useful Commands
+
+### Logs
 
 ```bash
-# Follow scanner logs
-docker compose -f compose-dev.yml logs -f scanner
-
-# View recent logs
-docker compose -f compose-dev.yml logs --tail=100 scanner
-```
-
-## Troubleshooting
-
-### Database Connection Issues
-
-**Symptom**: Backend fails to start with database connection errors.
-
-**Solutions**:
-1. Wait for the database to be ready (health check takes ~30 seconds)
-2. Check database logs: `docker compose -f compose-dev.yml logs db`
-3. Verify database credentials in `.env` match `compose-dev.yml`
-
-```bash
-# Reset database completely
-docker compose -f compose-dev.yml down -v
-docker compose -f compose-dev.yml up --build
-```
-
-### Port Conflicts
-
-**Symptom**: "Port already in use" errors.
-
-**Solutions**:
-```bash
-# Check what's using the ports
-lsof -i :5173  # Frontend
-lsof -i :8000  # Backend
-lsof -i :3306  # Database
-
-# Stop conflicting services or change ports in compose-dev.yml
-```
-
-### Hot-Reload Not Working
-
-**Symptom**: Changes to source files not reflected.
-
-**Solutions**:
-
-1. **Backend**: Check uvicorn logs for reload messages
-2. **Frontend**: Clear browser cache or hard refresh (Cmd+Shift+R / Ctrl+Shift+R)
-3. **Volume mounts**: Ensure paths in `compose-dev.yml` match your local structure
-
-```bash
-# Verify bind mounts are working
-docker compose -f compose-dev.yml exec backend ls -la /app/src
-docker compose -f compose-dev.yml exec frontend ls -la /app/src
-```
-
-### Container Build Failures
-
-**Symptom**: Docker build fails with dependency errors.
-
-**Solutions**:
-```bash
-# Clean build (no cache)
-docker compose -f compose-dev.yml build --no-cache
-
-# Remove all containers and volumes
-docker compose -f compose-dev.yml down -v
-
-# Prune Docker system (careful - removes unused resources)
-docker system prune -a
-```
-
-### Permission Errors on Linux
-
-**Symptom**: Permission denied when writing to mounted volumes.
-
-**Solutions**:
-```bash
-# Fix ownership of project directories
-sudo chown -R $USER:$USER backend/src frontend/src scanner/src
-
-# Or run containers with current user
-# Add to docker-compose: user: "${UID}:${GID}"
-```
-
-### Scanner Cannot Perform Scans
-
-**Symptom**: Scanner connected but scans fail with permission errors.
-
-**Cause**: Missing network capabilities.
-
-**Solution**: Verify `compose-dev.yml` includes:
-```yaml
-scanner:
-  cap_add:
-    - NET_RAW
-    - NET_ADMIN
-```
-
-### Alembic Migration Errors
-
-**Symptom**: "Target database is not up to date" or revision conflicts.
-
-**Solutions**:
-```bash
-# Check current state
-docker compose -f compose-dev.yml exec backend uv run alembic current
-
-# Mark current state as head (if schema is correct but alembic is confused)
-docker compose -f compose-dev.yml exec backend uv run alembic stamp head
-
-# View history
-docker compose -f compose-dev.yml exec backend uv run alembic history
-```
-
-## Useful Commands Reference
-
-```bash
-# Start development environment
-docker compose -f compose-dev.yml up --build
-
-# Stop all services
-docker compose -f compose-dev.yml down
-
-# View logs for all services
 docker compose -f compose-dev.yml logs -f
-
-# View logs for specific service
 docker compose -f compose-dev.yml logs -f backend
-
-# Restart a specific service
-docker compose -f compose-dev.yml restart backend
-
-# Enter a container shell
-docker compose -f compose-dev.yml exec backend bash
-docker compose -f compose-dev.yml exec frontend sh
-
-# Run backend typecheck
-docker compose -f compose-dev.yml exec backend uv run mypy src/app
-
-# Run frontend typecheck
-docker compose -f compose-dev.yml exec frontend npm run typecheck
-
-# Database shell
-docker compose -f compose-dev.yml exec db mysql -u opm -popmpassword openportmonitor
+docker compose -f compose-dev.yml logs -f frontend
+docker compose -f compose-dev.yml logs -f scanner
 ```
 
-## Next Steps
+### Shell Access
 
-- Review the [Architecture Overview](architecture.md) to understand the system design
-- Check the [Contributing Guidelines](contributing.md) for code standards
-- Explore the [API Documentation](../api/overview.md) for backend endpoints
+```bash
+docker exec -it opm-backend bash
+docker exec -it opm-frontend sh
+docker exec -it opm-scanner bash
+docker exec -it opm-db mariadb -u opm -popmpassword openportmonitor
+```
+
+### Restart A Single Service
+
+```bash
+docker compose -f compose-dev.yml restart backend
+docker compose -f compose-dev.yml restart frontend
+docker compose -f compose-dev.yml restart scanner
+```
+
+## Common Problems
+
+### Scanner starts but never scans
+
+Check:
+
+- `SCANNER_API_KEY` is set
+- the scanner exists on the **Scanners** page
+- `SCANNER_BACKEND_URL` still resolves to `http://backend:8000` in dev
+
+Also check the scanner logs for backend readiness failures before assuming the job queue is broken.
+
+### Hot reload does not reflect changes
+
+- backend: inspect backend logs for reload events
+- frontend: refresh the browser if HMR got stuck
+- scanner: restart the scanner container manually
+
+### Port conflict on host
+
+Check:
+
+```bash
+lsof -i :5173
+lsof -i :8000
+lsof -i :3306
+```
+
+### Database state drift
+
+If you intentionally want to wipe the local dev database:
+
+```bash
+docker compose -f compose-dev.yml down -v
+docker compose -f compose-dev.yml up --build
+```
+
+This is destructive to local dev data.
+
+## Related Docs
+
+- [Development architecture](architecture.md)
+- [Contributing](contributing.md)
+- [Scanner deployment](../scanner/deployment.md)
