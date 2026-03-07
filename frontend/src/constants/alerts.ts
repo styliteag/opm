@@ -20,7 +20,7 @@ const ALERT_TYPE_LABELS_COMPACT: Record<string, string> = {
   new_port: 'New port',
   not_allowed: 'Not allowed',
   blocked: 'Blocked',
-  ssh_insecure_auth: 'SSH insecure auth',
+  ssh_insecure_auth: 'SSH insecure',
   ssh_weak_cipher: 'SSH weak cipher',
   ssh_weak_kex: 'SSH weak KEX',
   ssh_outdated_version: 'SSH outdated',

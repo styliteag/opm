@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import ReviewModal from '../../components/ReviewModal'
+import FixModal from '../../components/FixModal'
 import { useAuth } from '../../context/AuthContext'
 import { API_BASE_URL, extractErrorMessage, getAuthHeaders } from '../../lib/api'
 import { downloadBlob, timestampedFilename } from '../../lib/downloadBlob'
@@ -24,6 +25,7 @@ import type {
 type ReviewModalState = {
   alerts: Alert[]
   mode: 'single' | 'bulk'
+  alertCategory?: 'port' | 'ssh'
 } | null
 
 const AlertsPage = () => {
@@ -31,6 +33,7 @@ const AlertsPage = () => {
   const queryClient = useQueryClient()
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [reviewModal, setReviewModal] = useState<ReviewModalState>(null)
+  const [fixModal, setFixModal] = useState<Alert | null>(null)
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
   const { toast, showToast } = useToast()
   const [editingComment, setEditingComment] = useState<{
@@ -302,7 +305,13 @@ const AlertsPage = () => {
                         const pending = selectedAlerts.filter(
                           (a) => !a.dismissed && !isAlertAccepted(a),
                         )
-                        setReviewModal({ alerts: pending, mode: 'bulk' })
+                        const allSSH = pending.every((a) => a.source === 'ssh')
+                        const allPort = pending.every((a) => a.source !== 'ssh')
+                        setReviewModal({
+                          alerts: pending,
+                          mode: 'bulk',
+                          alertCategory: allSSH ? 'ssh' : allPort ? 'port' : 'port',
+                        })
                       }}
                       className="rounded-full border border-indigo-200 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-500/20 dark:border-indigo-500/40 dark:text-indigo-300"
                     >
@@ -438,7 +447,14 @@ const AlertsPage = () => {
                           acceptedRuleInfo={getAcceptedRuleInfo(alert)}
                           onToggle={() => toggleRow(alert.id)}
                           onSelect={(checked) => handleSelectOne(alert.id, checked)}
-                          onResolve={() => setReviewModal({ alerts: [alert], mode: 'single' })}
+                          onResolve={() =>
+                            setReviewModal({
+                              alerts: [alert],
+                              mode: 'single',
+                              alertCategory: alert.source === 'ssh' ? 'ssh' : 'port',
+                            })
+                          }
+                          onFix={() => setFixModal(alert)}
                           onReopen={(id) =>
                             reopenMutation.mutate(id, {
                               onSuccess: () => showToast('Alert reopened', 'success'),
@@ -517,11 +533,37 @@ const AlertsPage = () => {
             related_ssh_alerts_dismissed: a.related_ssh_alerts_dismissed,
           }))}
           mode={reviewModal.mode}
+          alertCategory={reviewModal.alertCategory}
           onDismiss={handleDismiss}
           onAcceptGlobal={handleAcceptGlobal}
           onAcceptNetwork={handleAcceptNetwork}
           onClose={() => setReviewModal(null)}
           isProcessing={isProcessing}
+        />
+      )}
+
+      {fixModal && (
+        <FixModal
+          alertIp={fixModal.ip}
+          alertPort={fixModal.port}
+          onConfirm={(comment) =>
+            singleDismissMutation.mutate(
+              {
+                alertId: fixModal.id,
+                reason: comment || undefined,
+                resolution_status: 'fix_planned',
+              },
+              {
+                onSuccess: () => {
+                  showToast('Alert marked for fixing.', 'success')
+                  setFixModal(null)
+                },
+                onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
+              },
+            )
+          }
+          onClose={() => setFixModal(null)}
+          isProcessing={singleDismissMutation.isPending}
         />
       )}
 

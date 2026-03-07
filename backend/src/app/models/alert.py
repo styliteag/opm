@@ -38,6 +38,7 @@ class ResolutionStatus(str, Enum):
     OPEN = "open"
     IN_PROGRESS = "in_progress"
     RESOLVED = "resolved"
+    FIX_PLANNED = "fix_planned"
 
 
 class Alert(Base):

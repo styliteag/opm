@@ -637,7 +637,10 @@ async def dismiss_alert(
     alert, network_name = alert_with_network
     reason = request.reason if request else None
     include_ssh = request.include_ssh_findings if request else False
-    alert = await alerts_service.dismiss_alert(db, alert, dismiss_reason=reason)
+    resolution_status = request.resolution_status if request else None
+    alert = await alerts_service.dismiss_alert(
+        db, alert, dismiss_reason=reason, resolution_status=resolution_status
+    )
 
     # Auto-create comment if reason provided
     if reason:
@@ -796,10 +799,12 @@ async def dismiss_alerts_bulk(
     alerts = await alerts_service.get_alerts_by_ids(db, unique_ids)
     reason = request.reason.strip() if request.reason else None
 
-    # Set dismiss_reason on each alert and dismiss
+    # Set dismiss_reason and resolution_status on each alert, then dismiss
     for alert in alerts:
         if reason:
             alert.dismiss_reason = reason
+        if request.resolution_status is not None:
+            alert.resolution_status = request.resolution_status
     await alerts_service.dismiss_alerts(db, alerts)
 
     # Auto-create comments and propagate reason to GlobalOpenPort/Host

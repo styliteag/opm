@@ -106,6 +106,7 @@ class DismissRequest(BaseModel):
 
     reason: str | None = None
     include_ssh_findings: bool = False
+    resolution_status: ResolutionStatus | None = None
 
 
 class BulkDismissRequest(BaseModel):
@@ -113,6 +114,7 @@ class BulkDismissRequest(BaseModel):
 
     alert_ids: list[int]
     reason: str | None = None
+    resolution_status: ResolutionStatus | None = None
 
 
 class BulkDeleteRequest(BaseModel):

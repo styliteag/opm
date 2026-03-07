@@ -83,6 +83,7 @@ export default function AlertFilters({
         <option value="critical_rule">Critical Rule</option>
         <option value="pending">Pending Review</option>
         <option value="accepted">Accepted</option>
+        <option value="fix_planned">Fix Planned</option>
         <option value="dismissed">Dismissed</option>
       </select>
 

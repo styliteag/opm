@@ -111,6 +111,9 @@ const HostDetail = () => {
         onDismiss={(alertId, reason, includeSSH) =>
           dismissMutation.mutate({ alertId, reason, include_ssh_findings: includeSSH })
         }
+        onFix={(alertId, reason) =>
+          dismissMutation.mutate({ alertId, reason, resolution_status: 'fix_planned' })
+        }
         onReopen={(alertId) => reopenMutation.mutate(alertId)}
         onCreateRule={(payload) => createRuleMutation.mutate(payload)}
         isDismissing={dismissMutation.isPending}

@@ -26,7 +26,7 @@ export type SSHAlertConfig = {
   ssh_version_threshold?: string
 }
 export type Severity = 'critical' | 'high' | 'medium' | 'info'
-export type ResolutionStatus = 'open' | 'in_progress' | 'resolved'
+export type ResolutionStatus = 'open' | 'in_progress' | 'resolved' | 'fix_planned'
 
 export type AlertSSHSummary = {
   ssh_version: string | null

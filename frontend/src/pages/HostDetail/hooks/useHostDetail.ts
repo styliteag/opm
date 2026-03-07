@@ -23,10 +23,12 @@ export function useHostDetail(hostId: number) {
       alertId,
       reason,
       include_ssh_findings,
+      resolution_status,
     }: {
       alertId: number
       reason?: string
       include_ssh_findings?: boolean
+      resolution_status?: string
     }) => {
       const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/dismiss`, {
         method: 'PUT',
@@ -37,6 +39,7 @@ export function useHostDetail(hostId: number) {
         body: JSON.stringify({
           reason: reason || null,
           include_ssh_findings: include_ssh_findings ?? false,
+          ...(resolution_status ? { resolution_status } : {}),
         }),
       })
       if (!response.ok) {

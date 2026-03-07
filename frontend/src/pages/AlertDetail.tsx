@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import AlertComments from '../components/AlertComments'
 import InlineRuleEditor from '../components/InlineRuleEditor'
+import FixModal from '../components/FixModal'
 import ReviewModal from '../components/ReviewModal'
 import { Toast } from '../components/Toast'
 import { useAuth } from '../context/AuthContext'
@@ -269,6 +270,7 @@ export default function AlertDetail() {
   }, [severityOpen])
   const [editingRule, setEditingRule] = useState<PortRuleUnified | null>(null)
   const [reviewModal, setReviewModal] = useState(false)
+  const [fixModal, setFixModal] = useState(false)
 
   // Fetch the single alert
   const alertQuery = useQuery({
@@ -317,10 +319,12 @@ export default function AlertDetail() {
       alertId,
       reason,
       include_ssh_findings,
+      resolution_status,
     }: {
       alertId: number
       reason?: string
       include_ssh_findings?: boolean
+      resolution_status?: string
     }) => {
       const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/dismiss`, {
         method: 'PUT',
@@ -328,6 +332,7 @@ export default function AlertDetail() {
         body: JSON.stringify({
           reason: reason || null,
           include_ssh_findings: include_ssh_findings ?? false,
+          ...(resolution_status ? { resolution_status } : {}),
         }),
       })
       if (!response.ok) throw new Error(await extractErrorMessage(response))
@@ -718,7 +723,12 @@ export default function AlertDetail() {
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   {alertTypeLabels[alert.type] ?? alert.type}
                 </span>
-                {alert.dismissed && (
+                {alert.dismissed && alert.resolution_status === 'fix_planned' && (
+                  <span className="inline-flex items-center rounded-full border border-amber-300/50 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-amber-200">
+                    Fix
+                  </span>
+                )}
+                {alert.dismissed && alert.resolution_status !== 'fix_planned' && (
                   <span className="inline-flex items-center rounded-full border border-sky-300/50 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-200">
                     Dismissed
                   </span>
@@ -796,12 +806,21 @@ export default function AlertDetail() {
                 </button>
               )}
               {!alert.dismissed && isAdmin && (
-                <button
-                  onClick={() => setReviewModal(true)}
-                  className="rounded-full border border-emerald-300 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300"
-                >
-                  Accept
-                </button>
+                <>
+                  <button
+                    onClick={() => setFixModal(true)}
+                    disabled={dismissMutation.isPending}
+                    className="rounded-full border border-amber-300 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:border-amber-400 hover:bg-amber-500/20 dark:border-amber-500/40 dark:text-amber-300"
+                  >
+                    Fix
+                  </button>
+                  <button
+                    onClick={() => setReviewModal(true)}
+                    className="rounded-full border border-emerald-300 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300"
+                  >
+                    Accept
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -1090,6 +1109,7 @@ export default function AlertDetail() {
             },
           ]}
           mode="single"
+          alertCategory={alert.source === 'ssh' ? 'ssh' : 'port'}
           onDismiss={(reason, includeSSH) => {
             dismissMutation.mutate(
               {
@@ -1131,6 +1151,31 @@ export default function AlertDetail() {
           }}
           onClose={() => setReviewModal(false)}
           isProcessing={isProcessing}
+        />
+      )}
+
+      {fixModal && (
+        <FixModal
+          alertIp={alert.ip}
+          alertPort={alert.port}
+          onConfirm={(comment) =>
+            dismissMutation.mutate(
+              {
+                alertId: alert.id,
+                reason: comment || undefined,
+                resolution_status: 'fix_planned',
+              },
+              {
+                onSuccess: () => {
+                  showToast('Alert marked for fixing.', 'success')
+                  setFixModal(false)
+                },
+                onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
+              },
+            )
+          }
+          onClose={() => setFixModal(false)}
+          isProcessing={dismissMutation.isPending}
         />
       )}
 
