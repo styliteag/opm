@@ -198,7 +198,7 @@ const Home = () => {
               <div
                 key={card.label}
                 style={{ animationDelay: `${index * 0.08}s` }}
-                className="group animate-rise rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg dark:border-slate-800/70 dark:bg-slate-900/70"
+                className="group animate-rise rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm transition duration-300 hover:shadow-lg hover:border-slate-300 dark:border-slate-800/70 dark:bg-slate-900/70 dark:hover:border-slate-700"
               >
                 <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
                 <div className="mt-3 flex items-baseline gap-2">
@@ -217,7 +217,7 @@ const Home = () => {
                 key={link.title}
                 to={link.to}
                 style={{ animationDelay: `${0.2 + index * 0.08}s` }}
-                className="group animate-rise rounded-2xl border border-slate-200/70 bg-white/70 p-5 text-left shadow-sm transition duration-300 hover:-translate-y-1 hover:border-slate-300 hover:bg-white dark:border-slate-800/70 dark:bg-slate-950/60 dark:hover:border-slate-700"
+                className="group animate-rise rounded-2xl border border-slate-200/70 bg-white/70 p-5 text-left shadow-sm transition duration-300 hover:border-slate-300 hover:bg-white hover:shadow-md dark:border-slate-800/70 dark:bg-slate-950/60 dark:hover:border-slate-700"
               >
                 <h3 className="font-display text-lg text-slate-900 dark:text-white">
                   {link.title}
@@ -318,7 +318,7 @@ const Home = () => {
                       <span
                         className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${
                           isOnline
-                            ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
+                            ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200'
                             : 'border-slate-300/60 bg-slate-200/40 text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/60 dark:text-slate-300'
                         }`}
                       >
