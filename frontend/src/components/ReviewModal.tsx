@@ -57,14 +57,14 @@ export default function ReviewModal({
       : 'Review Alert'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="mx-4 w-full max-w-md rounded-2xl border border-slate-200/70 bg-white p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-900">
         {/* Header */}
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h3>
             {mode === 'single' && (
-              <p className="mt-2 font-mono text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+              <p className="mt-2 font-mono text-2xl font-bold text-cyan-600 dark:text-cyan-400">
                 {first.ip}
                 {first.port != null ? `:${first.port}` : ''}
               </p>
@@ -114,7 +114,7 @@ export default function ReviewModal({
                 : 'e.g. Known web server, authorized management interface...'
             }
             autoFocus
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-600"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 outline-none transition-all dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-600"
           />
         </div>
 
