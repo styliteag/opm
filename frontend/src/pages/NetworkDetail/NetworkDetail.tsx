@@ -331,7 +331,7 @@ const NetworkDetail = () => {
                   type="button"
                   onClick={handleTriggerScan}
                   disabled={triggerScanMutation.isPending}
-                  className="rounded-full border border-cyan-600 bg-cyan-600 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="rounded-full border border-cyan-600 bg-cyan-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {triggerScanMutation.isPending ? 'Triggering...' : 'Trigger Scan'}
                 </button>
@@ -341,7 +341,7 @@ const NetworkDetail = () => {
                   type="button"
                   onClick={handleTriggerHostDiscovery}
                   disabled={triggerHostDiscoveryMutation.isPending}
-                  className="rounded-full border border-violet-600 bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="rounded-full border border-violet-600 bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {triggerHostDiscoveryMutation.isPending ? 'Triggering...' : 'Discover Hosts'}
                 </button>
@@ -351,7 +351,7 @@ const NetworkDetail = () => {
                   type="button"
                   onClick={() => setShowCancelConfirm(true)}
                   disabled={isCancellingScan}
-                  className="rounded-full border border-rose-500/40 bg-rose-500/15 px-4 py-2 text-xs font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-70 dark:text-rose-200"
+                  className="rounded-full border border-rose-500/40 bg-rose-500/15 px-4 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-70 dark:text-rose-200"
                 >
                   {isCancellingScan ? 'Cancelling...' : 'Cancel Scan'}
                 </button>
@@ -360,7 +360,7 @@ const NetworkDetail = () => {
                 <button
                   type="button"
                   onClick={openEditModal}
-                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 >
                   Edit
                 </button>
@@ -372,7 +372,7 @@ const NetworkDetail = () => {
                     setFormError(null)
                     setShowDeleteConfirm(true)
                   }}
-                  className="rounded-full border border-rose-500/40 bg-rose-500/15 px-4 py-2 text-xs font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:bg-rose-500/25 dark:text-rose-200"
+                  className="rounded-full border border-rose-500/40 bg-rose-500/15 px-4 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-500/25 dark:text-rose-200"
                 >
                   Delete
                 </button>

@@ -22,7 +22,7 @@ export function PortRulesSection({ rules, isLoading, isAdmin, onAddRule, onDelet
           <button
             type="button"
             onClick={onAddRule}
-            className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
             Add Rule
           </button>
@@ -76,7 +76,7 @@ export function PortRulesSection({ rules, isLoading, isAdmin, onAddRule, onDelet
                     <button
                       type="button"
                       onClick={() => onDeleteRule(rule)}
-                      className="rounded-full border border-rose-500/40 bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:bg-rose-500/25 dark:text-rose-200"
+                      className="rounded-full border border-rose-500/40 bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-500/25 dark:text-rose-200"
                     >
                       Delete
                     </button>

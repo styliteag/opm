@@ -91,10 +91,10 @@ const Hosts = () => {
   const { toast, showToast } = useToast()
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const isAdmin = user?.role === 'admin'
 
-  // Clear URL param after initial load to avoid keeping it in the URL
   useEffect(() => {
     if (searchParams.has('ip')) {
       setSearchParams({}, { replace: true })
@@ -177,6 +177,7 @@ const Hosts = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['hosts'] })
       setSelectedHosts(new Set())
+      setDeleteConfirm(false)
       showToast(`Deleted ${data.deleted_count} hosts`, 'success')
     },
     onError: (e) => showToast(e instanceof Error ? e.message : 'Error', 'error'),
@@ -234,12 +235,6 @@ const Hosts = () => {
     } else {
       setSelectedHosts(new Set(hosts.map((h) => h.id)))
     }
-  }
-
-  const handleDeleteSelected = () => {
-    if (selectedHosts.size === 0) return
-    if (!confirm(`Delete ${selectedHosts.size} selected hosts?`)) return
-    bulkDeleteMutation.mutate(Array.from(selectedHosts))
   }
 
   const handleExportCsv = async () => {
@@ -307,372 +302,388 @@ const Hosts = () => {
           setSortDirection('asc')
         }
       }}
-      className="flex items-center gap-1 font-black uppercase text-[11px] tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+      className="flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100"
     >
       {label} {sortKey === key && (sortDirection === 'asc' ? '↑' : '↓')}
     </button>
   )
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="relative">
       <Toast toast={toast} />
 
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div>
-          <h1 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
-            Discovered Hosts
-          </h1>
-          <p className="text-indigo-500 mt-3 uppercase text-[11px] font-black tracking-[0.3em] flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Host Discovery Results
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <button
-              onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-              disabled={isExporting}
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
-              {isExporting ? 'Exporting...' : 'Export'}
-            </button>
-            {isExportDropdownOpen && (
-              <div className="absolute right-0 top-full z-20 mt-2 w-48 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden">
+      <div className="pointer-events-none absolute -left-16 top-8 h-64 w-64 animate-drift rounded-full bg-cyan-500/15 blur-[120px]" />
+      <div className="pointer-events-none absolute right-8 top-36 h-64 w-64 animate-drift rounded-full bg-emerald-500/15 blur-[140px]" />
+
+      <section className="relative z-10 space-y-6">
+        <div className="animate-rise rounded-3xl border border-slate-200/70 bg-white/80 p-8 shadow-[0_20px_80px_rgba(15,23,42,0.12)] backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/70">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Host Discovery
+              </p>
+              <h2 className="mt-3 font-display text-3xl text-slate-900 dark:text-white">
+                Discovered Hosts
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
+                Browse hosts found across your monitored networks, filter by status, and manage
+                host records.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {isAdmin && selectedHosts.size > 0 && (
                 <button
-                  onClick={handleExportCsv}
-                  className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-2"
+                  onClick={() => setDeleteConfirm(true)}
+                  className="rounded-full border border-rose-200 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-500/20 dark:border-rose-500/40 dark:text-rose-300"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  Export as CSV
+                  Delete ({selectedHosts.size})
+                </button>
+              )}
+              <div className="relative">
+                <button
+                  onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                  disabled={isExporting}
+                  aria-label="Export hosts"
+                  aria-expanded={isExportDropdownOpen}
+                  className="rounded-full border border-emerald-200 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:border-emerald-500/40 dark:text-emerald-300 disabled:opacity-50"
+                >
+                  {isExporting ? 'Exporting...' : 'Export'}
+                </button>
+                {isExportDropdownOpen && !isExporting && (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-2xl border border-slate-200/70 bg-white shadow-lg dark:border-slate-800/70 dark:bg-slate-900">
+                    <button
+                      onClick={handleExportCsv}
+                      className="w-full rounded-t-2xl px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Export as CSV
+                    </button>
+                    <button
+                      onClick={handleExportPdf}
+                      className="w-full rounded-b-2xl px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Export as PDF
+                    </button>
+                  </div>
+                )}
+              </div>
+              {isAdmin && (
+                <>
+                  <select
+                    value={discoveryNetworkId ?? ''}
+                    onChange={(e) =>
+                      setDiscoveryNetworkId(e.target.value ? Number(e.target.value) : null)
+                    }
+                    className="min-w-[200px] rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">Select Network...</option>
+                    {(networksQuery.data?.networks ?? []).map((n) => (
+                      <option key={n.id} value={n.id} disabled={!n.host_discovery_enabled}>
+                        {n.name} ({n.cidr}){!n.host_discovery_enabled ? ' - disabled' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() =>
+                      discoveryNetworkId && triggerDiscoveryMutation.mutate(discoveryNetworkId)
+                    }
+                    disabled={!discoveryNetworkId || triggerDiscoveryMutation.isPending}
+                    className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  >
+                    {triggerDiscoveryMutation.isPending ? 'Starting...' : 'Discover Hosts'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900/70">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Total Hosts
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-cyan-600 dark:text-cyan-200">
+                {totalCount}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900/70">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Pingable</p>
+              <p className="mt-1 text-2xl font-semibold text-emerald-600 dark:text-emerald-200">
+                {pingableCount}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm dark:border-slate-800/70 dark:bg-slate-900/70 md:col-span-2">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Search</p>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search IP, hostname, MAC..."
+                className="mt-1 w-full border-none bg-transparent p-0 text-lg font-semibold text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-0 dark:text-white dark:placeholder:text-slate-600"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Network
+                </span>
+                <select
+                  value={networkFilter ?? ''}
+                  onChange={(e) => setNetworkFilter(e.target.value ? Number(e.target.value) : null)}
+                  className="w-48 rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  <option value="">All Networks</option>
+                  {(networksQuery.data?.networks ?? []).map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Pingable
+                </span>
+                <select
+                  value={pingableFilter}
+                  onChange={(e) => setPingableFilter(e.target.value)}
+                  className="w-32 rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  <option value="all">All</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                {totalCount} Hosts (showing {hosts.length})
+              </span>
+              <select
+                value={limit}
+                onChange={(e) => setLimit(Number(e.target.value))}
+                className="rounded-2xl border border-slate-200/70 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+              >
+                <option value={64}>64</option>
+                <option value={256}>256</option>
+                <option value={512}>512</option>
+                <option value={1024}>1024</option>
+              </select>
+              <div className="flex gap-2">
+                <button
+                  disabled={offset === 0}
+                  onClick={() => setOffset(Math.max(0, offset - limit))}
+                  className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+                >
+                  Prev
                 </button>
                 <button
-                  onClick={handleExportPdf}
-                  className="w-full px-4 py-3 text-left text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-2 border-t border-slate-100 dark:border-slate-800"
+                  disabled={hosts.length < limit}
+                  onClick={() => setOffset(offset + limit)}
+                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-30 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                    />
-                  </svg>
-                  Export as PDF
+                  Next
                 </button>
               </div>
-            )}
-          </div>
-          {isAdmin && (
-            <>
-              <select
-                value={discoveryNetworkId ?? ''}
-                onChange={(e) =>
-                  setDiscoveryNetworkId(e.target.value ? Number(e.target.value) : null)
-                }
-                className="bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold focus:ring-4 ring-violet-500/10 focus:border-violet-500 outline-none transition-all min-w-[200px]"
-              >
-                <option value="">Select Network...</option>
-                {(networksQuery.data?.networks ?? []).map((n) => (
-                  <option key={n.id} value={n.id} disabled={!n.host_discovery_enabled}>
-                    {n.name} ({n.cidr}){!n.host_discovery_enabled ? ' - disabled' : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() =>
-                  discoveryNetworkId && triggerDiscoveryMutation.mutate(discoveryNetworkId)
-                }
-                disabled={!discoveryNetworkId || triggerDiscoveryMutation.isPending}
-                className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                {triggerDiscoveryMutation.isPending ? 'Starting...' : 'Discover Hosts'}
-              </button>
-            </>
-          )}
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm">
-          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-            Total Hosts
-          </p>
-          <p className="text-5xl font-black mt-2 text-indigo-600 tracking-tighter">{totalCount}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-sm">
-          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-            Pingable
-          </p>
-          <p className="text-5xl font-black mt-2 text-emerald-600 tracking-tighter">
-            {pingableCount}
-          </p>
-        </div>
-        <div className="md:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 blur-[60px] -mr-24 -mt-24 transition-colors group-focus-within:bg-indigo-500/10" />
-          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-1">
-            Search
-          </p>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search IP, hostname, MAC..."
-            className="w-full mt-2 bg-transparent border-none focus:ring-0 text-2xl font-black tracking-tight placeholder:text-slate-200 dark:placeholder:text-slate-800"
-          />
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.05)] overflow-hidden">
-        <div className="px-10 py-4 bg-slate-50/30 dark:bg-slate-800/20 flex flex-wrap justify-between items-center gap-6 border-b border-slate-50 dark:border-slate-800/50">
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
-                Network
-              </span>
-              <select
-                value={networkFilter ?? ''}
-                onChange={(e) => setNetworkFilter(e.target.value ? Number(e.target.value) : null)}
-                className="bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none w-48 transition-all"
-              >
-                <option value="">All Networks</option>
-                {(networksQuery.data?.networks ?? []).map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {n.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
-                Pingable
-              </span>
-              <select
-                value={pingableFilter}
-                onChange={(e) => setPingableFilter(e.target.value)}
-                className="bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none w-32 transition-all"
-              >
-                <option value="all">All</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-            {isAdmin && selectedHosts.size > 0 && (
-              <button
-                onClick={handleDeleteSelected}
-                disabled={bulkDeleteMutation.isPending}
-                className="px-5 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center gap-2 self-end"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-                {bulkDeleteMutation.isPending ? 'Deleting...' : `Delete ${selectedHosts.size}`}
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-[11px] font-bold text-slate-500">
-              {totalCount} Hosts (showing {hosts.length})
-            </span>
-            <select
-              value={limit}
-              onChange={(e) => setLimit(Number(e.target.value))}
-              className="bg-white dark:bg-slate-950 border-2 border-slate-100 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold focus:ring-4 ring-indigo-500/5 focus:border-indigo-500/30 outline-none transition-all"
-            >
-              <option value={64}>64</option>
-              <option value={256}>256</option>
-              <option value={512}>512</option>
-              <option value={1024}>1024</option>
-            </select>
-            <div className="flex gap-2">
-              <button
-                disabled={offset === 0}
-                onClick={() => setOffset(Math.max(0, offset - limit))}
-                className="px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 disabled:opacity-30 hover:border-indigo-200 transition-all active:scale-95"
-              >
-                Prev
-              </button>
-              <button
-                disabled={hosts.length < limit}
-                onClick={() => setOffset(offset + limit)}
-                className="px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-slate-900 text-white dark:bg-white dark:text-slate-900 disabled:opacity-30 hover:scale-[1.02] active:scale-95 transition-all"
-              >
-                Next
-              </button>
             </div>
           </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-50 dark:border-slate-800/50 bg-white dark:bg-slate-900">
-                {isAdmin && (
-                  <th className="px-4 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={hosts.length > 0 && selectedHosts.size === hosts.length}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-2 border-slate-200 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 cursor-pointer"
-                    />
-                  </th>
-                )}
-                <th className="px-6 py-3">{renderSort('IP Address', 'ip')}</th>
-                <th className="px-6 py-3">{renderSort('Hostname', 'hostname')}</th>
-                <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                  Pingable
-                </th>
-                <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                  MAC
-                </th>
-                <th className="px-6 py-3">{renderSort('Last Seen', 'last_seen_at')}</th>
-                {isAdmin && (
-                  <th className="px-6 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                    Actions
-                  </th>
-                )}
-                <th className="px-6 py-3 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                  Details
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/30">
-              {hosts.map((host: Host) => {
-                const isOpen = expandedRows.has(host.id)
-                const isSelected = selectedHosts.has(host.id)
-                return (
-                  <React.Fragment key={host.id}>
-                    <tr
-                      className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${isSelected ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}
-                    >
-                      {isAdmin && (
-                        <td className="px-4 py-2">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelected(host.id)}
-                            className="w-4 h-4 rounded border-2 border-slate-200 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 cursor-pointer"
-                          />
-                        </td>
-                      )}
-                      <td className="px-6 py-2 font-mono text-sm">
-                        <Link
-                          to={`/hosts/${host.id}`}
-                          className="text-blue-600 dark:text-blue-400 hover:underline font-bold tracking-tight"
-                        >
-                          {formatIpAddress(host.ip)}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-2 text-slate-600 dark:text-slate-400 text-sm">
-                        {host.hostname || '-'}
-                      </td>
-                      <td className="px-6 py-2">
-                        {host.is_pingable === null ? (
-                          <span className="text-slate-400">-</span>
-                        ) : host.is_pingable ? (
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 rounded-full text-[10px] font-bold uppercase">
-                            Yes
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 rounded-full text-[10px] font-bold uppercase">
-                            No
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-2 font-mono text-xs text-slate-500">
-                        {host.mac_address || '-'}
-                      </td>
-                      <td className="px-6 py-2 text-slate-500 text-xs">
-                        {formatDateTime(parseUtcDate(host.last_seen_at))}
-                      </td>
-                      {isAdmin && (
-                        <td className="px-6 py-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              rescanHostMutation.mutate(host.ip)
-                            }}
-                            disabled={rescanHostMutation.isPending}
-                            className="rounded-lg border border-cyan-200 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-500/20 dark:border-cyan-500/40 dark:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-                            title="Rescan this host with nmap"
-                          >
-                            {rescanHostMutation.isPending ? 'Scanning...' : 'Rescan'}
-                          </button>
-                        </td>
-                      )}
-                      <td className="px-6 py-2 text-right">
-                        <button
-                          onClick={() => toggleExpanded(host.id)}
-                          className={`p-1.5 rounded-lg transition-all ${isOpen ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                        >
-                          <svg
-                            className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 9l-7 7-7-7"
-                            />
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
-                    {isOpen && (
-                      <HostDetailRow
-                        host={host}
-                        networkMap={networkMap}
-                        isAdmin={isAdmin}
-                        token={token}
-                        onEditComment={(hostId, comment) =>
-                          setEditingComment({ hostId, comment: comment || '' })
-                        }
-                        extraColSpan={isAdmin ? 2 : 0}
-                      />
+          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-800/70">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-200/70 bg-slate-50/80 dark:border-slate-800/70 dark:bg-slate-900/60">
+                    {isAdmin && (
+                      <th className="w-10 px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={hosts.length > 0 && selectedHosts.size === hosts.length}
+                          onChange={toggleSelectAll}
+                          className="h-4 w-4 cursor-pointer rounded border border-slate-300 text-cyan-600 focus:ring-cyan-500 focus:ring-offset-0 dark:border-slate-600"
+                        />
+                      </th>
                     )}
-                  </React.Fragment>
-                )
-              })}
-            </tbody>
-          </table>
+                    <th className="px-5 py-4">{renderSort('IP Address', 'ip')}</th>
+                    <th className="px-5 py-4">{renderSort('Hostname', 'hostname')}</th>
+                    <th className="px-5 py-4 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                      Pingable
+                    </th>
+                    <th className="px-5 py-4 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                      MAC
+                    </th>
+                    <th className="px-5 py-4">{renderSort('Last Seen', 'last_seen_at')}</th>
+                    {isAdmin && (
+                      <th className="px-5 py-4 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                        Actions
+                      </th>
+                    )}
+                    <th className="px-5 py-4 text-right text-xs font-semibold text-slate-500 dark:text-slate-300">
+                      Details
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
+                  {hosts.map((host: Host) => {
+                    const isOpen = expandedRows.has(host.id)
+                    const isSelected = selectedHosts.has(host.id)
+                    return (
+                      <React.Fragment key={host.id}>
+                        <tr
+                          className={`transition hover:bg-slate-50/80 dark:hover:bg-slate-900/60 ${isSelected ? 'bg-cyan-50/50 dark:bg-cyan-900/10' : ''}`}
+                        >
+                          {isAdmin && (
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelected(host.id)}
+                                className="h-4 w-4 cursor-pointer rounded border border-slate-300 text-cyan-600 focus:ring-cyan-500 focus:ring-offset-0 dark:border-slate-600"
+                              />
+                            </td>
+                          )}
+                          <td className="px-5 py-3 font-mono text-sm">
+                            <Link
+                              to={`/hosts/${host.id}`}
+                              className="font-semibold text-cyan-600 hover:underline dark:text-cyan-300"
+                            >
+                              {formatIpAddress(host.ip)}
+                            </Link>
+                          </td>
+                          <td className="px-5 py-3 text-sm text-slate-600 dark:text-slate-400">
+                            {host.hostname || '-'}
+                          </td>
+                          <td className="px-5 py-3">
+                            {host.is_pingable === null ? (
+                              <span className="text-slate-400">-</span>
+                            ) : host.is_pingable ? (
+                              <span className="inline-flex items-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                                Yes
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded-full border border-rose-300/50 bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-200">
+                                No
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 font-mono text-xs text-slate-500">
+                            {host.mac_address || '-'}
+                          </td>
+                          <td className="px-5 py-3 text-xs text-slate-500">
+                            {formatDateTime(parseUtcDate(host.last_seen_at))}
+                          </td>
+                          {isAdmin && (
+                            <td className="px-5 py-3">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  rescanHostMutation.mutate(host.ip)
+                                }}
+                                disabled={rescanHostMutation.isPending}
+                                className="rounded-full border border-cyan-200 bg-cyan-500/10 px-4 py-2 text-xs font-semibold text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-500/20 dark:border-cyan-500/40 dark:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                title="Rescan this host with nmap"
+                              >
+                                {rescanHostMutation.isPending ? 'Scanning...' : 'Rescan'}
+                              </button>
+                            </td>
+                          )}
+                          <td className="px-5 py-3 text-right">
+                            <button
+                              onClick={() => toggleExpanded(host.id)}
+                              className={`rounded-full p-1.5 transition ${isOpen ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            >
+                              <svg
+                                className={`h-4 w-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <HostDetailRow
+                            host={host}
+                            networkMap={networkMap}
+                            isAdmin={isAdmin}
+                            token={token}
+                            onEditComment={(hostId, comment) =>
+                              setEditingComment({ hostId, comment: comment || '' })
+                            }
+                            extraColSpan={isAdmin ? 2 : 0}
+                          />
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
+
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 px-4 backdrop-blur"
+          role="dialog"
+          aria-labelledby="delete-modal-title"
+        >
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
+            <h3
+              id="delete-modal-title"
+              className="font-display text-2xl text-slate-900 dark:text-white"
+            >
+              Delete Hosts
+            </h3>
+            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+              Are you sure you want to permanently delete{' '}
+              <span className="font-semibold text-rose-600 dark:text-rose-400">
+                {selectedHosts.size}
+              </span>{' '}
+              host{selectedHosts.size !== 1 ? 's' : ''}? This action cannot be undone.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(false)}
+                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={bulkDeleteMutation.isPending}
+                onClick={() => bulkDeleteMutation.mutate(Array.from(selectedHosts))}
+                className="rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {bulkDeleteMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingComment && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/95 backdrop-blur-2xl p-4 animate-in fade-in duration-500">
-          <div className="bg-white dark:bg-slate-900 p-16 rounded-[4rem] w-full max-w-2xl border border-slate-100 dark:border-slate-800 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] relative overflow-hidden animate-in zoom-in-95 duration-500">
-            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
-              Edit Comment
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 px-4 backdrop-blur"
+          role="dialog"
+          aria-labelledby="comment-modal-title"
+        >
+          <div className="w-full max-w-2xl rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
+            <h3
+              id="comment-modal-title"
+              className="font-display text-2xl text-slate-900 dark:text-white"
+            >
+              Edit Host Comment
             </h3>
             <form
               onSubmit={(e) => {
@@ -682,26 +693,26 @@ const Hosts = () => {
                   comment: editingComment.comment.trim() || null,
                 })
               }}
-              className="mt-8 space-y-6"
+              className="mt-6 space-y-4"
             >
               <textarea
                 value={editingComment.comment}
                 onChange={(e) => setEditingComment({ ...editingComment, comment: e.target.value })}
                 placeholder="Add a comment about this host..."
-                className="w-full border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 rounded-2xl px-6 py-4 text-sm font-medium focus:ring-4 ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all min-h-32"
+                className="min-h-32 w-full rounded-2xl border border-slate-200/70 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm focus:border-cyan-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
               />
-              <div className="flex items-center gap-4">
+              <div className="flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setEditingComment(null)}
-                  className="text-[11px] font-black text-slate-400 hover:text-slate-900 dark:hover:text-white uppercase tracking-[0.2em] transition-all px-4"
+                  className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={updateCommentMutation.isPending}
-                  className="flex-1 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 >
                   {updateCommentMutation.isPending ? 'Saving...' : 'Save Comment'}
                 </button>
@@ -736,31 +747,31 @@ const HostDetailRow = ({
   })
 
   return (
-    <tr className="bg-slate-50/20 dark:bg-slate-800/10">
-      <td colSpan={6 + extraColSpan} className="px-8 py-4">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+    <tr className="bg-slate-50/50 dark:bg-slate-900/30">
+      <td colSpan={6 + extraColSpan} className="px-5 py-4">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
           <div className="space-y-3">
             <div>
-              <h4 className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest mb-2">
+              <h4 className="mb-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                 Networks ({host.seen_by_networks.length})
               </h4>
               <div className="flex flex-wrap gap-1.5">
                 {host.seen_by_networks.map((id: number) => (
                   <span
                     key={id}
-                    className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-600 dark:text-slate-300"
+                    className="rounded-full border border-slate-200/70 bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-300"
                   >
                     {networkMap.get(id) || `Network ${id}`}
                   </span>
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/50">
+            <div className="grid grid-cols-2 gap-4 border-t border-slate-200/70 pt-2 dark:border-slate-800/70">
               <div>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                   First Seen
                 </p>
-                <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
                   {new Intl.DateTimeFormat(undefined, {
                     dateStyle: 'medium',
                     timeStyle: 'short',
@@ -774,10 +785,10 @@ const HostDetailRow = ({
                 </p>
               </div>
               <div>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                   Last Seen
                 </p>
-                <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
                   {new Intl.DateTimeFormat(undefined, {
                     dateStyle: 'medium',
                     timeStyle: 'short',
@@ -791,58 +802,56 @@ const HostDetailRow = ({
             </div>
           </div>
 
-          <div className="space-y-3 border-l border-slate-100 dark:border-slate-800/50 pl-8">
+          <div className="space-y-3 border-l border-slate-200/70 pl-8 dark:border-slate-800/70">
             <div>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+              <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                 MAC Address
               </p>
-              <p className="text-sm font-bold tracking-wide text-slate-900 dark:text-white uppercase">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">
                 {host.mac_address || 'Unknown'}
               </p>
             </div>
             <div>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+              <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                 Vendor
               </p>
-              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">
+              <p className="text-xs font-semibold text-cyan-600 dark:text-cyan-300">
                 {host.mac_vendor || 'Unknown'}
               </p>
             </div>
           </div>
 
-          <div className="border-l border-slate-100 dark:border-slate-800/50 pl-8">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                Comment
-              </p>
+          <div className="border-l border-slate-200/70 pl-8 dark:border-slate-800/70">
+            <div className="mb-1 flex items-center justify-between">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Comment</p>
               {isAdmin && (
                 <button
                   onClick={() => onEditComment(host.id, host.user_comment)}
-                  className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors"
+                  className="text-xs font-semibold text-cyan-600 transition hover:text-cyan-700 dark:text-cyan-300 dark:hover:text-cyan-200"
                 >
                   Edit
                 </button>
               )}
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400 italic">
+            <p className="text-xs italic text-slate-600 dark:text-slate-400">
               {host.user_comment || 'No comment'}
             </p>
           </div>
 
-          <div className="border-l border-slate-100 dark:border-slate-800/50 pl-8">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <div className="border-l border-slate-200/70 pl-8 dark:border-slate-800/70">
+            <p className="mb-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
               Open Ports ({portsQuery.data?.ports.length ?? 0})
             </p>
             {portsQuery.isLoading ? (
               <p className="text-xs text-slate-400">Loading...</p>
             ) : portsQuery.data?.ports.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No open ports</p>
+              <p className="text-xs italic text-slate-400">No open ports</p>
             ) : (
               <div className="flex flex-wrap gap-1">
                 {portsQuery.data?.ports.map((port) => (
                   <span
                     key={`${port.port}-${port.protocol}`}
-                    className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold"
+                    className="rounded-full border border-slate-200/70 bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:border-slate-800/70 dark:bg-slate-800"
                   >
                     {port.port}/{port.protocol}
                   </span>

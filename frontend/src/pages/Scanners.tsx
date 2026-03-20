@@ -283,7 +283,7 @@ const Scanners = () => {
                 <button
                   type="button"
                   onClick={openCreateModal}
-                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 >
                   Create Scanner
                 </button>
@@ -370,21 +370,21 @@ const Scanners = () => {
                             <button
                               type="button"
                               onClick={() => openEditModal(scanner)}
-                              className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+                              className="rounded-full border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800"
                             >
                               Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => openRegenerateModal(scanner)}
-                              className="rounded-lg border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 transition hover:border-amber-300 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:border-amber-600 dark:hover:bg-amber-900/30"
+                              className="rounded-full border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 transition hover:border-amber-300 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:border-amber-600 dark:hover:bg-amber-900/30"
                             >
                               Key
                             </button>
                             <button
                               type="button"
                               onClick={() => openDeleteModal(scanner)}
-                              className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:border-rose-600 dark:hover:bg-rose-900/30"
+                              className="rounded-full border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:border-rose-600 dark:hover:bg-rose-900/30"
                             >
                               Delete
                             </button>
@@ -406,7 +406,7 @@ const Scanners = () => {
 
       {/* Create Scanner Modal */}
       {showCreate ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
           <div className="w-full max-w-lg rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div className="flex items-start justify-between">
               <div>
@@ -477,7 +477,7 @@ const Scanners = () => {
                 <button
                   type="submit"
                   disabled={createScannerMutation.isPending}
-                  className="rounded-full border border-slate-900 bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  className="rounded-full border border-slate-900 bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 >
                   {createScannerMutation.isPending ? 'Creating...' : 'Create scanner'}
                 </button>
@@ -489,7 +489,7 @@ const Scanners = () => {
 
       {/* Edit Scanner Modal */}
       {showEdit && selectedScanner ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
           <div className="w-full max-w-lg rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div className="flex items-start justify-between">
               <div>
@@ -558,7 +558,7 @@ const Scanners = () => {
                 <button
                   type="submit"
                   disabled={updateScannerMutation.isPending}
-                  className="rounded-full border border-slate-900 bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  className="rounded-full border border-slate-900 bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 >
                   {updateScannerMutation.isPending ? 'Saving...' : 'Save changes'}
                 </button>
@@ -570,7 +570,7 @@ const Scanners = () => {
 
       {/* Delete Confirmation Modal */}
       {showDelete && selectedScanner ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
           <div className="w-full max-w-md rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div>
               <p className="text-xs font-semibold text-rose-500 dark:text-rose-400">
@@ -603,7 +603,7 @@ const Scanners = () => {
                 type="button"
                 onClick={handleDeleteConfirm}
                 disabled={deleteScannerMutation.isPending}
-                className="rounded-full border border-rose-600 bg-rose-600 px-5 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-full border border-rose-600 bg-rose-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {deleteScannerMutation.isPending ? 'Deleting...' : 'Delete scanner'}
               </button>
@@ -614,7 +614,7 @@ const Scanners = () => {
 
       {/* Regenerate API Key Confirmation Modal */}
       {showRegenerate && selectedScanner ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
           <div className="w-full max-w-md rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div>
               <p className="text-xs font-semibold text-amber-500 dark:text-amber-400">
@@ -647,7 +647,7 @@ const Scanners = () => {
                 type="button"
                 onClick={handleRegenerateConfirm}
                 disabled={regenerateKeyMutation.isPending}
-                className="rounded-full border border-amber-600 bg-amber-600 px-5 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-full border border-amber-600 bg-amber-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {regenerateKeyMutation.isPending ? 'Generating...' : 'Regenerate key'}
               </button>
@@ -658,7 +658,7 @@ const Scanners = () => {
 
       {/* API Key Display Modal */}
       {showApiKey && displayedApiKey ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
           <div className="w-full max-w-lg rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div>
               <p className="text-xs font-semibold text-emerald-500 dark:text-emerald-400">
@@ -696,7 +696,7 @@ const Scanners = () => {
               <button
                 type="button"
                 onClick={closeApiKeyModal}
-                className="rounded-full border border-slate-900 bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                className="rounded-full border border-slate-900 bg-slate-900 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
               >
                 Done
               </button>
