@@ -234,7 +234,7 @@ const Users = () => {
                 <button
                   type="button"
                   onClick={openCreateModal}
-                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 >
                   Create User
                 </button>
@@ -328,7 +328,7 @@ const Users = () => {
       </section>
 
       {showCreate ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
           <div className="w-full max-w-lg rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div className="flex items-start justify-between">
               <div>
@@ -413,7 +413,7 @@ const Users = () => {
                 <button
                   type="submit"
                   disabled={createUserMutation.isPending}
-                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 >
                   {createUserMutation.isPending ? 'Creating...' : 'Create user'}
                 </button>
@@ -424,7 +424,7 @@ const Users = () => {
       ) : null}
 
       {showEdit && selectedUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
           <div className="w-full max-w-lg rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div className="flex items-start justify-between">
               <div>
@@ -503,7 +503,7 @@ const Users = () => {
                 <button
                   type="submit"
                   disabled={updateUserMutation.isPending}
-                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  className="rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
                 >
                   {updateUserMutation.isPending ? 'Saving...' : 'Save changes'}
                 </button>
@@ -514,7 +514,7 @@ const Users = () => {
       ) : null}
 
       {showDelete && selectedUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
           <div className="w-full max-w-lg rounded-3xl border border-rose-200/70 bg-white/95 p-6 shadow-2xl dark:border-rose-700/60 dark:bg-slate-950">
             <div className="flex items-start justify-between">
               <div>
@@ -563,7 +563,7 @@ const Users = () => {
                 type="button"
                 onClick={handleDeleteConfirm}
                 disabled={deleteUserMutation.isPending}
-                className="rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500 dark:bg-rose-500 dark:hover:bg-rose-400"
+                className="rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500 dark:bg-rose-500 dark:hover:bg-rose-400"
               >
                 {deleteUserMutation.isPending ? 'Deleting...' : 'Delete user'}
               </button>

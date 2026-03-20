@@ -49,10 +49,10 @@ export default function AlertExpandedRow({
               {portData ? (
                 <>
                   <div>
-                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.25em] mb-2">
+                    <p className="text-[10px] font-semibold text-indigo-500 uppercase tracking-[0.25em] mb-2">
                       Service Detection
                     </p>
-                    <p className="text-lg font-black text-slate-900 dark:text-white">
+                    <p className="text-lg font-semibold text-slate-900 dark:text-white">
                       {getServiceName(portData.service_guess, portData.banner)}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -61,18 +61,18 @@ export default function AlertExpandedRow({
                   </div>
                   <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-100 dark:border-slate-800/50">
                     <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em] mb-2">
                         First Seen
                       </p>
-                      <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                         {formatDateTime(parseUtcDate(portData.first_seen_at))}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em] mb-2">
                         Last Seen
                       </p>
-                      <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                         {formatDateTime(parseUtcDate(portData.last_seen_at))}
                       </p>
                     </div>
@@ -88,7 +88,7 @@ export default function AlertExpandedRow({
             {/* Host comment + matching rules */}
             <div className="border-l border-slate-100 dark:border-slate-800/50 pl-12">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em]">
                   Host Comment
                 </p>
                 {isAdmin && alert.host_id && (
@@ -108,7 +108,7 @@ export default function AlertExpandedRow({
               </p>
               {alert.hostname && (
                 <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-2">
                     Hostname
                   </p>
                   <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
@@ -119,7 +119,7 @@ export default function AlertExpandedRow({
               {/* Matching port rules */}
               {alert.matching_rules.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-2">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-2">
                     Matching Rules
                   </p>
                   <div className="space-y-1">
@@ -154,7 +154,7 @@ export default function AlertExpandedRow({
             <div className="border-l border-slate-100 dark:border-slate-800/50 pl-12 space-y-6">
               {portData?.banner && (
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-4">
                     Application Banner
                   </p>
                   <div className="bg-slate-950 rounded-2xl p-6 overflow-hidden border border-slate-800 relative shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
@@ -168,7 +168,7 @@ export default function AlertExpandedRow({
               {/* SSH Security detail */}
               {alert.ssh_summary && (
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-3">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-3">
                     SSH Security
                   </p>
                   <div className="space-y-2">

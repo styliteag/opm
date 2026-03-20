@@ -150,9 +150,9 @@ function RuleEditModal({
   const scope: 'global' | 'network' = rule.network_id === null ? 'global' : 'network'
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/95 backdrop-blur-2xl p-4">
-      <div className="bg-white dark:bg-slate-900 p-12 rounded-[3rem] w-full max-w-xl border border-slate-100 dark:border-slate-800 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)]">
-        <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 backdrop-blur p-4" role="dialog">
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl w-full max-w-xl border border-slate-200/70 dark:border-slate-800/70 shadow-2xl">
+        <h3 className="font-display text-2xl text-slate-900 dark:text-white">
           Edit Rule
         </h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
@@ -228,14 +228,14 @@ function RuleEditModal({
             <button
               type="button"
               onClick={onClose}
-              className="text-[11px] font-black text-slate-400 hover:text-slate-900 dark:hover:text-white uppercase tracking-[0.2em] transition-all px-4"
+              className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving || !port.trim()}
-              className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+              className="flex-1 rounded-full border border-slate-900 bg-slate-900 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:border-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
             >
               {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
@@ -828,7 +828,7 @@ export default function AlertDetail() {
           {/* Metadata grid */}
           <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-6 pt-6 border-t border-slate-100 dark:border-slate-800/50">
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-1">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-1">
                 Created
               </p>
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -837,7 +837,7 @@ export default function AlertDetail() {
               <p className="text-xs text-slate-500">{formatDateTime(alertDate)}</p>
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-1">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-1">
                 Status
               </p>
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 capitalize">
@@ -846,7 +846,7 @@ export default function AlertDetail() {
             </div>
             {alert.assigned_to_email && (
               <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-1">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-1">
                   Assigned To
                 </p>
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -856,7 +856,7 @@ export default function AlertDetail() {
             )}
             {alert.dismiss_reason && (
               <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-1">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-1">
                   Dismiss Reason
                 </p>
                 <p className="text-sm text-slate-700 dark:text-slate-300">{alert.dismiss_reason}</p>
@@ -864,7 +864,7 @@ export default function AlertDetail() {
             )}
             {alert.user_comment && (
               <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-1">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-1">
                   Host Comment
                 </p>
                 <p className="text-sm text-slate-600 dark:text-slate-400 italic">
@@ -882,10 +882,10 @@ export default function AlertDetail() {
             {/* Service Detection */}
             {portData && (
               <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-8 shadow-sm backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/70">
-                <h3 className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.25em] mb-4">
+                <h3 className="text-[10px] font-semibold text-indigo-500 uppercase tracking-[0.25em] mb-4">
                   Service Detection
                 </h3>
-                <p className="text-xl font-black text-slate-900 dark:text-white">
+                <p className="text-xl font-semibold text-slate-900 dark:text-white">
                   {getServiceName(portData.service_guess, portData.banner)}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -893,7 +893,7 @@ export default function AlertDetail() {
                 </p>
                 <div className="grid grid-cols-2 gap-6 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em] mb-1">
                       First Seen
                     </p>
                     <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -901,7 +901,7 @@ export default function AlertDetail() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em] mb-1">
                       Last Seen
                     </p>
                     <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -911,7 +911,7 @@ export default function AlertDetail() {
                 </div>
                 {portData.banner && (
                   <div className="mt-4">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-3">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-3">
                       Application Banner
                     </p>
                     <div className="bg-slate-950 rounded-2xl p-6 overflow-hidden border border-slate-800 relative shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
@@ -928,7 +928,7 @@ export default function AlertDetail() {
             {/* SSH Security */}
             {alert.ssh_summary && (
               <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-8 shadow-sm backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/70">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">
+                <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-4">
                   SSH Security
                 </h3>
                 <div className="space-y-3">
@@ -989,7 +989,7 @@ export default function AlertDetail() {
             {/* Matching Rules */}
             <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-8 shadow-sm backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/70">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em]">
                   Matching Rules
                 </h3>
                 {effectiveStatus && (
@@ -1087,7 +1087,7 @@ export default function AlertDetail() {
 
         {/* Comments section */}
         <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-8 shadow-sm backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/70">
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">
+          <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.25em] mb-4">
             Comments
           </h3>
           <AlertComments alertId={alert.id} onToast={(message, tone) => showToast(message, tone)} />

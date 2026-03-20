@@ -399,8 +399,16 @@ const Scans = () => {
                   return (
                     <div
                       key={scan.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => handleRowClick(scan.id)}
-                      className={`cursor-pointer px-5 py-4 text-sm transition hover:bg-slate-50/80 dark:hover:bg-slate-900/40 ${
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          handleRowClick(scan.id)
+                        }
+                      }}
+                      className={`cursor-pointer px-5 py-4 text-sm transition hover:bg-slate-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 dark:hover:bg-slate-900/40 ${
                         scan.hidden
                           ? 'border-l border-dashed border-slate-300/60 dark:border-slate-600/70 opacity-70 dark:opacity-80'
                           : ''
@@ -533,7 +541,7 @@ const Scans = () => {
       </section>
 
       {logModalScanId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8">
           <div className="w-full max-w-3xl rounded-3xl border border-slate-200/70 bg-white p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -599,7 +607,7 @@ const Scans = () => {
       )}
 
       {manageScanId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8">
           <div className="w-full max-w-xl rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div className="flex items-start justify-between">
               <div>
@@ -639,7 +647,7 @@ const Scans = () => {
                   }
                 }}
                 disabled={deleteScanMutation.isPending}
-                className="rounded-full border border-rose-600 bg-rose-600 px-5 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-full border border-rose-600 bg-rose-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {deleteScanMutation.isPending ? 'Deleting...' : 'Delete scan'}
               </button>
@@ -664,7 +672,7 @@ const Scans = () => {
       )}
 
       {cancelModalScanId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8">
+        <div role="dialog" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8">
           <div className="w-full max-w-md rounded-3xl border border-slate-200/70 bg-white p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-950">
             <div className="flex items-start justify-between">
               <div>
@@ -702,7 +710,7 @@ const Scans = () => {
                   void cancelScanMutation.mutate(cancelModalScanId)
                 }}
                 disabled={cancelScanMutation.isPending && activeCancelScanId === cancelModalScanId}
-                className="rounded-full border border-rose-600 bg-rose-600 px-5 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-full border border-rose-600 bg-rose-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {cancelScanMutation.isPending && activeCancelScanId === cancelModalScanId
                   ? 'Cancelling...'
