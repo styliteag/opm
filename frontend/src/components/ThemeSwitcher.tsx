@@ -135,7 +135,7 @@ const ThemeSwitcher = () => {
       </button>
       {open ? (
         <div
-          className="absolute right-0 z-50 mt-3 w-48 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-xl backdrop-blur dark:border-slate-800 dark:bg-slate-950/95"
+          className="absolute right-0 z-dropdown mt-3 w-48 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-xl backdrop-blur dark:border-slate-800 dark:bg-slate-950/95"
           role="listbox"
         >
           <p className="px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500">

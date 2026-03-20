@@ -12,7 +12,7 @@ export default function FixModal({ alertIp, alertPort, onConfirm, onClose, isPro
   const [comment, setComment] = useState('')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="mx-4 w-full max-w-md rounded-2xl border border-slate-200/70 bg-white p-6 shadow-2xl dark:border-slate-800/70 dark:bg-slate-900">
         {/* Header */}
         <div className="mb-4 flex items-start justify-between">

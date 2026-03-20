@@ -164,9 +164,9 @@ const Home = () => {
 
   return (
     <div className="relative">
-      <div className="pointer-events-none absolute -left-24 top-12 h-72 w-72 animate-drift rounded-full bg-cyan-500/20 blur-[120px]" />
-      <div className="pointer-events-none absolute right-0 top-40 h-72 w-72 animate-drift rounded-full bg-emerald-500/20 blur-[140px]" />
-      <div className="pointer-events-none absolute -bottom-32 left-1/3 h-72 w-72 animate-drift rounded-full bg-sky-500/10 blur-[160px]" />
+      <div className="pointer-events-none absolute -left-24 top-12 h-72 w-72 rounded-full bg-cyan-500/20 blur-[120px]" />
+      <div className="pointer-events-none absolute right-0 top-40 h-72 w-72 rounded-full bg-emerald-500/20 blur-[140px]" />
+      <div className="pointer-events-none absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-sky-500/10 blur-[160px]" />
 
       <section className="relative z-10 space-y-8">
         <div className="animate-rise rounded-3xl border border-slate-200/60 bg-white/80 p-8 shadow-[0_20px_80px_rgba(15,23,42,0.12)] backdrop-blur dark:border-slate-800/60 dark:bg-slate-950/70">
@@ -183,13 +183,11 @@ const Home = () => {
                 scans and open ports with the quick links.
               </p>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-xs text-slate-500 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60 dark:text-slate-300">
-                {isLoading ? 'Syncing latest telemetry...' : `Updated ${formatDateTime(now)}`}
-              </div>
-              <div className="rounded-xl border border-slate-200/50 bg-slate-100/60 px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-slate-700/50 dark:bg-slate-800/40 dark:text-slate-400">
-                Frontend v{frontendVersion} | Backend v{backendVersion}
-              </div>
+            <div
+              className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-xs text-slate-500 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60 dark:text-slate-300"
+              title={`Frontend v${frontendVersion} | Backend v${backendVersion}`}
+            >
+              {isLoading ? 'Syncing latest telemetry...' : `Updated ${formatDateTime(now)}`}
             </div>
           </div>
 
@@ -202,9 +200,11 @@ const Home = () => {
               >
                 <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className={`text-2xl font-semibold ${card.accent}`}>
-                    {showPlaceholder ? '—' : card.value}
-                  </span>
+                  {showPlaceholder ? (
+                    <div className="h-7 w-16 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
+                  ) : (
+                    <span className={`text-2xl font-semibold ${card.accent}`}>{card.value}</span>
+                  )}
                 </div>
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{card.detail}</p>
               </div>
@@ -217,7 +217,7 @@ const Home = () => {
                 key={link.title}
                 to={link.to}
                 style={{ animationDelay: `${0.2 + index * 0.08}s` }}
-                className="group animate-rise rounded-2xl border border-slate-200/70 bg-white/70 p-5 text-left shadow-sm transition duration-300 hover:border-slate-300 hover:bg-white hover:shadow-md dark:border-slate-800/70 dark:bg-slate-950/60 dark:hover:border-slate-700"
+                className="group animate-rise cursor-pointer rounded-2xl border border-slate-200/70 bg-white/70 p-5 text-left shadow-sm transition duration-300 hover:border-slate-300 hover:bg-white hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 dark:border-slate-800/70 dark:bg-slate-950/60 dark:hover:border-slate-700"
               >
                 <h3 className="font-display text-lg text-slate-900 dark:text-white">
                   {link.title}
@@ -243,12 +243,14 @@ const Home = () => {
             </div>
             <div className="mt-4 space-y-3">
               {hasError ? (
-                <div className="rounded-2xl border border-rose-200/70 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-100">
-                  Unable to load alerts right now.
+                <div className="rounded-2xl border border-rose-200/70 bg-rose-50/80 px-4 py-6 text-center dark:border-rose-500/40 dark:bg-rose-500/10">
+                  <svg className="mx-auto h-8 w-8 text-rose-400 dark:text-rose-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+                  <p className="mt-2 text-sm text-rose-700 dark:text-rose-100">Unable to load alerts right now.</p>
                 </div>
               ) : recentAlerts.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-sm text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-400">
-                  No alerts detected in the latest scans.
+                <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-6 text-center dark:border-slate-800/70 dark:bg-slate-900/60">
+                  <svg className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No alerts detected in the latest scans.</p>
                 </div>
               ) : (
                 recentAlerts.map((alert) => (
@@ -270,7 +272,7 @@ const Home = () => {
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
-                      <span>{alert.message}</span>
+                      <span className="line-clamp-1">{alert.message}</span>
                       <span>{formatRelativeTime(parseUtcDate(alert.created_at), now)}</span>
                     </div>
                   </div>
@@ -291,8 +293,10 @@ const Home = () => {
             </div>
             <div className="mt-4 space-y-3">
               {scanners.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 text-sm text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-400">
-                  No scanners registered yet.
+                <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-6 text-center dark:border-slate-800/70 dark:bg-slate-900/60">
+                  <svg className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" /></svg>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No scanners registered yet.</p>
+                  <Link to="/scanners" className="mt-1 inline-block text-xs font-semibold text-cyan-600 dark:text-cyan-300">Add a scanner</Link>
                 </div>
               ) : (
                 scanners.map((scanner) => {

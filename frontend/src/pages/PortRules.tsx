@@ -289,7 +289,7 @@ const PortRules = () => {
   const colSpan = isAdmin ? 8 : 6
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-rise">
       <Toast toast={toast} />
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">

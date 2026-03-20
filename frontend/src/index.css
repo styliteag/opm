@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,8 +6,8 @@
 
 @layer base {
   :root {
-    --opm-sans: 'Space Grotesk', 'Segoe UI', sans-serif;
-    --opm-display: 'Inter', 'Space Grotesk', 'Segoe UI', sans-serif;
+    --opm-sans: 'Inter', 'Segoe UI', sans-serif;
+    --opm-display: 'Space Grotesk', 'Segoe UI', sans-serif;
     --opm-ink: #0f172a;
     --opm-bg: #f8fafc;
     --opm-card: rgba(255, 255, 255, 0.82);
@@ -52,8 +52,17 @@
     animation: rise 0.7s ease both;
   }
 
-  .animate-drift {
-    animation: drift 12s ease-in-out infinite;
+  .animate-toast-in {
+    animation: toast-in 0.3s ease both;
+  }
+
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -68,13 +77,14 @@
   }
 }
 
-@keyframes drift {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
+@keyframes toast-in {
+  from {
+    opacity: 0;
     transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -83,7 +93,7 @@
     animation: none;
   }
 
-  .animate-drift {
+  .animate-toast-in {
     animation: none;
   }
 }

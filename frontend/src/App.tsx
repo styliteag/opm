@@ -18,7 +18,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <header className="relative z-20 border-b border-slate-200 bg-white/70 backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
+      <header className="sticky top-0 z-header border-b border-slate-200 bg-white/80 backdrop-blur-lg dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-3">
             <div>
@@ -29,14 +29,14 @@ function App() {
                 Security scanning and alerting dashboard
               </p>
             </div>
-            <nav className="flex flex-wrap gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <nav className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1 text-xs font-semibold text-slate-500 scrollbar-none md:mx-0 md:flex-wrap md:overflow-x-visible md:px-0 md:pb-0 dark:text-slate-400">
               {navItems.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>
-                    `rounded-full border px-3 py-1 transition ${
+                    `shrink-0 rounded-full border px-3 py-1 transition ${
                       isActive
                         ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
                         : 'border-slate-200/70 bg-white/60 text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:border-slate-800/70 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-slate-700'
