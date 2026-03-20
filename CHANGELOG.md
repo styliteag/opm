@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-03-20
+
 ### Changed
 - Refreshed stale Markdown documentation to match the current scanner workflow, alert-state model, unified alert rules, and Docker-first development setup
 - Restored a state diagram to the alert-state documentation while keeping the updated alert semantics accurate
