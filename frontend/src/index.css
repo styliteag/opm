@@ -77,3 +77,13 @@
     transform: translateY(-12px);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
+
+  .animate-drift {
+    animation: none;
+  }
+}
