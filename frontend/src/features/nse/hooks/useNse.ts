@@ -59,14 +59,6 @@ export function useNseProfiles() {
   })
 }
 
-export function useNseProfileDetail(profileId: number) {
-  return useQuery({
-    queryKey: ['nse', 'profiles', profileId],
-    queryFn: () => fetchApi<NseProfile>(`/api/nse/profiles/${profileId}`),
-    enabled: profileId > 0,
-  })
-}
-
 export function useNseScripts(search?: string, type?: string) {
   const params = new URLSearchParams()
   if (search) params.set('search', search)

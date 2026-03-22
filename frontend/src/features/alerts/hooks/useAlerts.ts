@@ -39,14 +39,6 @@ export function useAlerts(filters: AlertFilters) {
   })
 }
 
-export function useAlertDetail(alertId: number) {
-  return useQuery({
-    queryKey: ['alerts', alertId],
-    queryFn: () => fetchApi<{ id: number }>(`/api/alerts/${alertId}`),
-    enabled: alertId > 0,
-  })
-}
-
 export function useAlertComments(alertId: number) {
   return useQuery({
     queryKey: ['alerts', alertId, 'comments'],
