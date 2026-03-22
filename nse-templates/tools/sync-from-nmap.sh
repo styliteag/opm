@@ -3,9 +3,12 @@
 # Syncs NSE scripts from upstream nmap/nmap repository.
 set -euo pipefail
 
+# Default output: nse-templates/scripts (sibling of tools/), regardless of cwd
+_sync_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 UPSTREAM_REPO="${UPSTREAM_REPO:-https://github.com/nmap/nmap.git}"
 UPSTREAM_REF="${UPSTREAM_REF:-master}"
-SCRIPTS_DIR="${SCRIPTS_DIR:-scripts}"
+SCRIPTS_DIR="${SCRIPTS_DIR:-$_sync_root/scripts}"
 
 # Create temporary directory and cleanup on exit
 work="$(mktemp -d)"
