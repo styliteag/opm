@@ -27,6 +27,9 @@ MASSCAN_PROGRESS_PATTERN = re.compile(
     r"rate:\s*[\d,]+(?:\.\d+)?[^\d]*"  # rate prefix
     r"(\d+(?:\.\d+)?)\s*%"  # capture percentage
 )
+MASSCAN_RATE_PATTERN = re.compile(
+    r"rate:\s*([\d,]+(?:\.\d+)?)\s*-?kpps"  # capture rate in kpps
+)
 NMAP_PROGRESS_PATTERN = re.compile(
     r"(?:About\s+)?(\d+(?:\.\d+)?)\s*%\s*done",  # e.g., "About 45.23% done" or "45.23% done"
     re.IGNORECASE,
@@ -238,6 +241,28 @@ def parse_masscan_progress(line: str) -> float | None:
     if match:
         try:
             return float(match.group(1))
+        except (ValueError, TypeError):
+            pass
+    return None
+
+
+def parse_masscan_rate(line: str) -> float | None:
+    """Parse masscan output to extract actual scan rate in packets per second.
+
+    Masscan outputs rate like:
+    rate:  8.23-kpps, 45.00% done, ...
+
+    Args:
+        line: Output line from masscan
+
+    Returns:
+        Rate in packets per second (not kpps) or None
+    """
+    match = MASSCAN_RATE_PATTERN.search(line)
+    if match:
+        try:
+            kpps = float(match.group(1).replace(",", ""))
+            return kpps * 1000.0
         except (ValueError, TypeError):
             pass
     return None

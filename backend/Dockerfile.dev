@@ -2,8 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install tzdata for timezone support and uv for package management
-RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+# Install tzdata, git, nmap (for NSE script files), and uv
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata git nmap \
     && rm -rf /var/lib/apt/lists/* \
     && pip install uv
 

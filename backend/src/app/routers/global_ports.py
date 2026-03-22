@@ -52,6 +52,7 @@ async def list_global_open_ports(
     port_max: int | None = Query(None, ge=1, le=65535),
     ip_range: str | None = Query(None),
     service: str | None = Query(None, min_length=1),
+    staleness: str = Query("all", pattern="^(all|active|stale)$"),
     sort_by: str = Query("last_seen_at"),
     sort_dir: str = Query("desc"),
     offset: int = Query(0, ge=0),
@@ -92,9 +93,24 @@ async def list_global_open_ports(
             detail=str(exc),
         ) from exc
 
-    return GlobalOpenPortListResponse(
-        ports=[GlobalOpenPortResponse.model_validate(port) for port in ports]
-    )
+    latest_scan_times = await global_ports_service.get_latest_scan_times_by_network(db)
+
+    result_ports: list[GlobalOpenPortResponse] = []
+    for port in ports:
+        is_stale = global_ports_service.compute_port_staleness(
+            port.last_seen_at,
+            port.seen_by_networks or [],
+            latest_scan_times,
+        )
+        if staleness == "active" and is_stale:
+            continue
+        if staleness == "stale" and not is_stale:
+            continue
+        port_response = GlobalOpenPortResponse.model_validate(port)
+        port_response.is_stale = is_stale
+        result_ports.append(port_response)
+
+    return GlobalOpenPortListResponse(ports=result_ports)
 
 
 @router.get("/{port_id}", response_model=GlobalOpenPortResponse)

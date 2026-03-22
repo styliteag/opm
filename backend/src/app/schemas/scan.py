@@ -81,6 +81,7 @@ class ScanResponse(BaseModel):
     hidden: bool = False
     progress_percent: float | None = None
     progress_message: str | None = None
+    actual_rate: float | None = None
     target_ip: str | None = None
 
     model_config = {"from_attributes": True}
@@ -149,6 +150,7 @@ class ScanWithNamesResponse(BaseModel):
     trigger_type: str
     progress_percent: float | None = None
     progress_message: str | None = None
+    actual_rate: float | None = None
     hidden: bool = False
     port_count: int
 

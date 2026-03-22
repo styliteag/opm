@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Live Scan Rate**: Actual packets-per-second displayed on scan detail page during execution — parsed from masscan output, estimated for nmap scans
+- **Port Staleness Detection**: Ports not found in the latest completed scan are flagged as "Stale" with dimmed rows and an All/Active/Stale filter toggle on the Global Ports view
+- **QuickScan Estimate**: Scan runtime estimate (IPs × ports ÷ pps) shown in the Quick Scan modal when a network is selected
+- **NSE Vulnerability Scanner**: New scanner type using Nmap Scripting Engine for vulnerability detection and CVE discovery
+- **Scan Profiles**: 22 built-in scan profiles organized into scan groups (Quick Scan, Full Vulnerability Scan, Web Application Scan, Infrastructure Scan, SSL/TLS Audit) and individual checks (EternalBlue, Shellshock, Heartbleed, Struts RCE, SQL injection, XSS, etc.)
+- **Profile Management**: Create custom profiles, clone existing ones (including built-in), edit/delete custom profiles
+- **CVE Detection**: Automatic extraction of CVE identifiers from NSE script output with Vulners database integration
+- **NSE Alert Types**: `nse_vulnerability` and `nse_cve_detected` alert types with severity classification, visible in Alerts page with NSE source filter
+- **NSE Scanner Page**: New UI page with profile grid/list views, search, severity/platform/type filters, View/Clone/Run actions
+- **NSE Results API**: Dedicated endpoints for NSE scan results with filtering by scan, severity, IP, and CVE
+- **Built-in Profile Seeding**: 22 profiles automatically seeded on first startup — works out of the box without configuration
+- **NSE Script Repository**: 612 NSE scripts synced from upstream nmap with manifest.json, GitHub Actions auto-sync workflow
+- Agent-based host detection templates planned (user stories #33-#36 in PLANNED-FEATURES.md)
+
+### Changed
+- Scanner agent now supports three scanner types: masscan, nmap, and nse
+- Scanner job system extended with NSE-specific fields (nse_scripts, nse_script_args) passed from profiles
+- Docker images now include git for optional repository sync
+- Alerts Source filter dropdown now includes NSE option
+
 ## [1.3.2] - 2026-03-20
 
 ### Changed

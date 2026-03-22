@@ -7,8 +7,8 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-COPY frontend/package.json ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 
 COPY frontend/ ./
 
@@ -47,9 +47,9 @@ ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 
-# Install nginx, wget, bash, tzdata, and uv
+# Install nginx, wget, bash, tzdata, git, nmap (for NSE script files), and uv
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends nginx wget bash tzdata && \
+    apt-get install -y --no-install-recommends nginx wget bash tzdata git nmap lua5.4 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     pip install --no-cache-dir uv

@@ -51,6 +51,7 @@ async def create_network(
     scanner_type: str = "masscan",
     scan_protocol: str = "tcp",
     alert_config: dict[str, Any] | None = None,
+    nse_profile_id: int | None = None,
     host_discovery_enabled: bool = True,
 ) -> Network:
     """Create a new network."""
@@ -66,6 +67,7 @@ async def create_network(
         scanner_type=scanner_type,
         scan_protocol=scan_protocol,
         alert_config=alert_config,
+        nse_profile_id=nse_profile_id,
         host_discovery_enabled=host_discovery_enabled,
     )
     db.add(network)
@@ -88,6 +90,8 @@ async def update_network(
     scanner_type: str | None = None,
     scan_protocol: str | None = None,
     alert_config: dict[str, Any] | None = None,
+    nse_profile_id: int | None = None,
+    clear_nse_profile: bool = False,
     host_discovery_enabled: bool | None = None,
     clear_schedule: bool = False,
     clear_alert_config: bool = False,
@@ -134,6 +138,8 @@ async def update_network(
         network.scan_protocol = scan_protocol
     if alert_config is not None or clear_alert_config:
         network.alert_config = alert_config
+    if nse_profile_id is not None or clear_nse_profile:
+        network.nse_profile_id = nse_profile_id
     if host_discovery_enabled is not None:
         network.host_discovery_enabled = host_discovery_enabled
 

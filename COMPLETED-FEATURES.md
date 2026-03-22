@@ -119,3 +119,18 @@ Port Rules page was removed from top-level navigation and replaced by redirects 
 3. **Host Detail SSHSecuritySection** — Collapsible section with full SSH detail, auto-collapsed when no issues.
 4. **SSH alert types** appear in the main Alerts list alongside port alerts.
 5. **Standalone SSH Security page deleted** — `/ssh-security` redirects to `/alerts`.
+
+---
+
+## 19. Vulnerability Correlation (CVE Lookup)
+**As a** security analyst, **I want to** automatically cross-reference detected services and versions against known CVE databases, **so that** I can see which hosts are running vulnerable software without manually looking up each service.
+
+**Implemented:** Full NSE vulnerability scanning system with CVE detection:
+
+1. **NSE Scanner Type** — New `nse` scanner that runs nmap with NSE scripts (`-Pn -sV --script <scripts>`) on already-discovered ports. Parses XML output, extracts CVE IDs via regex, infers severity from script output.
+2. **Scan Profiles** — 22 built-in profiles (5 scan groups + 17 individual checks) covering EternalBlue, Shellshock, Heartbleed, Struts RCE, SQL injection, XSS, Vulners CVE database lookup, SSL/TLS audit, and more. Profiles are `builtin` (read-only) or `custom` (user-created).
+3. **Clone & Customize** — Any profile (builtin or custom) can be cloned into an editable custom copy. Users can also create profiles from scratch with any combination of NSE script names.
+4. **CVE Alert Generation** — NSE findings with CVE IDs generate `nse_cve_detected` alerts; findings with "VULNERABLE" markers generate `nse_vulnerability` alerts. Alerts appear in the standard Alerts page with source filter "NSE".
+5. **NSE Scanner Page** — Dedicated UI page at `/nse` with profile grid/list view, search, severity/platform/type filters, View/Clone/Run actions. Run modal lets users select target network and optional target IP.
+6. **Profile Seeding** — 22 built-in profiles automatically seeded on first startup. Works out of the box without any configuration.
+7. **NSE Scripts** — 612 `.nse` scripts synced from upstream nmap in `nse-templates/` with manifest.json and auto-sync GitHub Actions workflow.

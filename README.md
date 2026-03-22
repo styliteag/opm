@@ -4,14 +4,19 @@ Distributed network port scanning and monitoring system for security purposes wi
 
 ## Features
 
-- **Port Scanning**: Masscan-based high-speed port scanning with service detection
+- **Port Scanning**: Masscan and Nmap-based port scanning with service detection
+- **NSE Vulnerability Scanning**: Nmap Scripting Engine integration for CVE detection and vulnerability assessment
+  - 22 built-in scan profiles (Quick Scan, Full Vulnerability, Web App, Infrastructure, SSL/TLS Audit)
+  - Individual checks for EternalBlue, Shellshock, Heartbleed, SQL injection, XSS, and more
+  - Clone and customize profiles or create new ones from scratch
+  - Automatic CVE extraction from scan results with alert generation
 - **SSH Security Analysis**: Automatic SSH server security auditing including:
   - Authentication method detection (publickey, password, keyboard-interactive)
   - Weak cipher and key exchange algorithm detection
   - SSH version tracking with outdated version alerts
   - Configuration regression detection between scans
 - **Multi-Site Scanning**: Deploy scanner agents at different locations
-- **Alerting**: Configurable alerts for new ports, policy violations, and SSH security issues
+- **Alerting**: Configurable alerts for new ports, policy violations, SSH security issues, and NSE vulnerability findings
 - **Compliance Reports**: Export PDF and CSV reports for SSH security compliance
 - **Web Dashboard**: React-based UI with dark mode support
 
@@ -54,7 +59,7 @@ Distributed network port scanning and monitoring system for security purposes wi
 | frontend | 5173 | React + Vite web dashboard           |
 | backend  | 8000 | FastAPI REST API                     |
 | db       | 3306 | MariaDB database                     |
-| scanner  | -    | Masscan-based network scanner agent  |
+| scanner  | -    | Network scanner agent (Masscan, Nmap, NSE) |
 
 ### Development
 

@@ -40,6 +40,7 @@ async def create_scanner(
     db: AsyncSession,
     name: str,
     description: str | None = None,
+    location: str | None = None,
 ) -> tuple[Scanner, str]:
     """Create a new scanner and return it with the plain API key.
 
@@ -53,6 +54,7 @@ async def create_scanner(
         name=name,
         api_key_hash=api_key_hash,
         description=description,
+        location=location,
     )
     db.add(scanner)
     await db.flush()
@@ -65,12 +67,15 @@ async def update_scanner(
     scanner: Scanner,
     name: str | None = None,
     description: str | None = None,
+    location: str | None = None,
 ) -> Scanner:
     """Update an existing scanner."""
     if name is not None:
         scanner.name = name
     if description is not None:
         scanner.description = description
+    if location is not None:
+        scanner.location = location
 
     await db.flush()
     await db.refresh(scanner)

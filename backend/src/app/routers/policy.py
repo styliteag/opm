@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.core.deps import CurrentUser, DbSession, OperatorUser
 from app.models.alert_rule import RuleType as AlertRuleType
 from app.models.global_port_rule import GlobalRuleType
 from app.schemas.policy import (
@@ -101,7 +101,7 @@ async def list_port_rules(
 
 @router.post("", response_model=PortRuleUnifiedResponse, status_code=status.HTTP_201_CREATED)
 async def create_port_rule(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     request: PortRuleUnifiedCreateRequest,
 ) -> PortRuleUnifiedResponse:
@@ -173,7 +173,7 @@ async def create_port_rule(
 
 @router.patch("/{scope}/{rule_id}", response_model=PortRuleUnifiedResponse)
 async def update_port_rule(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     scope: str,  # 'global' or 'network'
     rule_id: int,
@@ -275,7 +275,7 @@ async def update_port_rule(
 
 @router.delete("/{scope}/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_port_rule(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     scope: str,
     rule_id: int,

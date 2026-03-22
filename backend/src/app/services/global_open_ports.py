@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
 from app.models.global_open_port import GlobalOpenPort
+from app.models.scan import Scan, ScanStatus
 
 IPRange = tuple[int, IPv4Address | IPv6Address, IPv4Address | IPv6Address]
 
@@ -173,3 +174,50 @@ async def get_global_open_port_by_id(db: AsyncSession, port_id: int) -> GlobalOp
     """Get a global open port by its ID."""
     result = await db.execute(select(GlobalOpenPort).where(GlobalOpenPort.id == port_id))
     return result.scalar_one_or_none()
+
+
+async def get_latest_scan_times_by_network(
+    db: AsyncSession,
+) -> dict[int, datetime]:
+    """Get the latest completed scan timestamp for each network.
+
+    Returns:
+        Dict mapping network_id to their latest completed scan's completed_at.
+    """
+    result = await db.execute(
+        select(
+            Scan.network_id,
+            func.max(Scan.completed_at),
+        )
+        .where(
+            Scan.status == ScanStatus.COMPLETED,
+            Scan.completed_at.isnot(None),
+        )
+        .group_by(Scan.network_id)
+    )
+    return {row[0]: row[1] for row in result.all()}
+
+
+def compute_port_staleness(
+    port_last_seen: datetime,
+    port_networks: list[int],
+    latest_scan_times: dict[int, datetime],
+) -> bool:
+    """Determine if a port is stale based on its networks' latest scans.
+
+    A port is stale if ALL of its networks have completed a scan after
+    the port's last_seen_at timestamp.
+    """
+    if not port_networks:
+        return False
+
+    for network_id in port_networks:
+        latest_scan = latest_scan_times.get(network_id)
+        if latest_scan is None:
+            # Network has never completed a scan — can't determine staleness
+            return False
+        if port_last_seen >= latest_scan:
+            # Port was seen at or after this network's latest scan
+            return False
+
+    return True

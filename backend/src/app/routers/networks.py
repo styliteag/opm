@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.core.deps import CurrentUser, DbSession, OperatorUser
 from app.models.alert_rule import AlertRule
 from app.schemas.host import (
     HostDiscoveryScanListResponse,
@@ -51,7 +51,7 @@ router = APIRouter(prefix="/api/networks", tags=["networks"])
 
 @router.get("", response_model=NetworkListResponse)
 async def list_networks(
-    admin: AdminUser,
+    admin: CurrentUser,
     db: DbSession,
 ) -> NetworkListResponse:
     """Get list of all networks (admin only)."""
@@ -63,7 +63,7 @@ async def list_networks(
 
 @router.post("", response_model=NetworkResponse, status_code=status.HTTP_201_CREATED)
 async def create_network(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     request: NetworkCreateRequest,
 ) -> NetworkResponse:
@@ -97,6 +97,7 @@ async def create_network(
         scanner_type=request.scanner_type,
         scan_protocol=request.scan_protocol,
         alert_config=request.alert_config,
+        nse_profile_id=request.nse_profile_id,
         host_discovery_enabled=request.host_discovery_enabled,
     )
     await db.commit()
@@ -106,7 +107,7 @@ async def create_network(
 
 @router.get("/{network_id}", response_model=NetworkResponse)
 async def get_network(
-    admin: AdminUser,
+    admin: CurrentUser,
     db: DbSession,
     network_id: int,
 ) -> NetworkResponse:
@@ -122,7 +123,7 @@ async def get_network(
 
 @router.put("/{network_id}", response_model=NetworkResponse)
 async def update_network(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     network_id: int,
     request: NetworkUpdateRequest,
@@ -167,6 +168,8 @@ async def update_network(
         scanner_type=request.scanner_type,
         scan_protocol=request.scan_protocol,
         alert_config=request.alert_config,
+        nse_profile_id=request.nse_profile_id,
+        clear_nse_profile="nse_profile_id" in request.model_fields_set and request.nse_profile_id is None,
         host_discovery_enabled=request.host_discovery_enabled,
         clear_schedule="scan_schedule" in request.model_fields_set,
         clear_alert_config="alert_config" in request.model_fields_set,
@@ -177,7 +180,7 @@ async def update_network(
 
 @router.delete("/{network_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_network(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     network_id: int,
 ) -> None:
@@ -198,7 +201,7 @@ async def delete_network(
 
 @router.get("/{network_id}/rules", response_model=PortRuleListResponse)
 async def list_port_rules(
-    admin: AdminUser,
+    admin: CurrentUser,
     db: DbSession,
     network_id: int,
 ) -> PortRuleListResponse:
@@ -221,7 +224,7 @@ async def list_port_rules(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_port_rule(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     network_id: int,
     request: PortRuleCreateRequest,
@@ -254,7 +257,7 @@ async def create_port_rule(
 
 @router.put("/{network_id}/rules", response_model=PortRuleListResponse)
 async def bulk_update_port_rules(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     network_id: int,
     request: PortRuleBulkRequest,
@@ -291,7 +294,7 @@ async def bulk_update_port_rules(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_port_rule(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     network_id: int,
     rule_id: int,
@@ -333,7 +336,7 @@ async def delete_port_rule(
     status_code=status.HTTP_201_CREATED,
 )
 async def trigger_scan(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     network_id: int,
 ) -> ScanTriggerResponse:
@@ -402,7 +405,7 @@ async def list_network_scans(
     status_code=status.HTTP_201_CREATED,
 )
 async def trigger_host_discovery(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     network_id: int,
 ) -> TriggerHostDiscoveryResponse:

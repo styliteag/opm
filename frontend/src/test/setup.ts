@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom'
 
-// Mock localStorage for tests
+// Mock localStorage for Zustand persist middleware
 const localStorageMock = (() => {
   let store: Record<string, string> = {}
   return {
@@ -21,22 +21,4 @@ const localStorageMock = (() => {
   }
 })()
 
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-  writable: true,
-})
-
-// Mock matchMedia for theme tests
-Object.defineProperty(window, 'matchMedia', {
-  value: (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }),
-  writable: true,
-})
+Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock })

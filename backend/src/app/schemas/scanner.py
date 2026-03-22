@@ -1,6 +1,7 @@
 """Scanner management schemas for CRUD operations and API."""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, field_validator
 
@@ -12,6 +13,7 @@ class ScannerCreateRequest(BaseModel):
 
     name: str
     description: str | None = None
+    location: str | None = None
 
 
 class ScannerUpdateRequest(BaseModel):
@@ -19,6 +21,7 @@ class ScannerUpdateRequest(BaseModel):
 
     name: str | None = None
     description: str | None = None
+    location: str | None = None
 
 
 class ScannerResponse(BaseModel):
@@ -27,6 +30,7 @@ class ScannerResponse(BaseModel):
     id: int
     name: str
     description: str | None
+    location: str | None
     last_seen_at: datetime | None
     scanner_version: str | None
     created_at: datetime
@@ -40,6 +44,7 @@ class ScannerCreateResponse(BaseModel):
     id: int
     name: str
     description: str | None
+    location: str | None
     last_seen_at: datetime | None
     created_at: datetime
     api_key: str  # Only shown once at creation
@@ -87,12 +92,16 @@ class ScannerJobResponse(BaseModel):
     cidr: str
     port_spec: str  # in masscan format
     rate: int | None = None
-    scanner_type: str = "masscan"  # masscan or nmap
+    scanner_type: str = "masscan"  # masscan, nmap, or nse
     scan_timeout: int = 3600  # seconds
     port_timeout: int = 1500  # milliseconds
     scan_protocol: str = "tcp"  # tcp, udp, or both
     is_ipv6: bool = False  # whether the network CIDR is IPv6
     target_ip: str | None = None  # specific IP for single-host scan, None for full network
+    # NSE-specific fields (populated when scanner_type == "nse")
+    nse_scripts: list[str] | None = None
+    nse_script_args: dict[str, Any] | None = None
+    custom_script_hashes: dict[str, str] | None = None
 
     model_config = {"from_attributes": True}
 
@@ -215,6 +224,7 @@ class ScannerProgressRequest(BaseModel):
     scan_id: int
     progress_percent: float  # 0-100
     progress_message: str | None = None
+    actual_rate: float | None = None  # actual packets per second
 
     @field_validator("progress_percent")
     @classmethod

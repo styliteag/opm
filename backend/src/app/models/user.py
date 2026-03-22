@@ -19,6 +19,8 @@ class UserRole(str, Enum):
     """User roles for access control."""
 
     ADMIN = "admin"
+    OPERATOR = "operator"
+    ANALYST = "analyst"
     VIEWER = "viewer"
 
 

@@ -50,6 +50,7 @@ class HostOpenPortResponse(BaseModel):
     user_comment: str | None = None
     first_seen_at: datetime
     last_seen_at: datetime
+    is_stale: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -87,6 +88,8 @@ class EnrichedHostPort(BaseModel):
     matching_rules: list[PortRuleMatch] = []
     # SSH enrichment
     ssh_summary: "HostSSHSummary | None" = None
+    # Staleness
+    is_stale: bool = False
 
 
 class HostOpenPortListResponse(BaseModel):

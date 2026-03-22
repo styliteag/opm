@@ -117,18 +117,24 @@ class ProgressReporter(Thread):
         self._lock = Lock()
         self._current_percent: float = 0.0
         self._current_message: str | None = None
+        self._current_rate: float | None = None
         self._last_reported_percent: float = -1.0
         self._last_reported_message: str | None = None
+        self._last_reported_rate: float | None = None
 
     def stop(self) -> None:
         """Stop the progress reporter thread."""
         self._stop_event.set()
 
-    def update(self, percent: float, message: str | None = None) -> None:
+    def update(
+        self, percent: float, message: str | None = None, actual_rate: float | None = None
+    ) -> None:
         """Update the current progress values (thread-safe)."""
         with self._lock:
             self._current_percent = max(0.0, min(100.0, float(percent)))
             self._current_message = message
+            if actual_rate is not None:
+                self._current_rate = actual_rate
 
     def run(self) -> None:
         while not self._stop_event.is_set():
@@ -142,15 +148,21 @@ class ProgressReporter(Thread):
         with self._lock:
             percent = self._current_percent
             message = self._current_message
+            rate = self._current_rate
 
         # Only report if progress changed or we haven't reported yet
-        if percent == self._last_reported_percent and message == self._last_reported_message:
+        if (
+            percent == self._last_reported_percent
+            and message == self._last_reported_message
+            and rate == self._last_reported_rate
+        ):
             return
 
         try:
-            self._client.submit_progress(self._scan_id, percent, message)
+            self._client.submit_progress(self._scan_id, percent, message, actual_rate=rate)
             self._last_reported_percent = percent
             self._last_reported_message = message
+            self._last_reported_rate = rate
         except Exception:
             # Silently ignore progress report failures to not disrupt scan
             pass

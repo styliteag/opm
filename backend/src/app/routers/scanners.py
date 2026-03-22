@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.core.deps import AdminUser, DbSession
+from app.core.deps import CurrentUser, DbSession, OperatorUser
 from app.schemas.scanner import (
     ScannerCreateRequest,
     ScannerCreateResponse,
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/scanners", tags=["scanners"])
 
 @router.get("", response_model=ScannerListResponse)
 async def list_scanners(
-    admin: AdminUser,
+    admin: CurrentUser,
     db: DbSession,
 ) -> ScannerListResponse:
     """Get list of all scanners with last_seen status (admin only)."""
@@ -30,7 +30,7 @@ async def list_scanners(
 
 @router.post("", response_model=ScannerCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_scanner(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     request: ScannerCreateRequest,
 ) -> ScannerCreateResponse:
@@ -47,6 +47,7 @@ async def create_scanner(
         db=db,
         name=request.name,
         description=request.description,
+        location=request.location,
     )
     await db.commit()
 
@@ -54,6 +55,7 @@ async def create_scanner(
         id=scanner.id,
         name=scanner.name,
         description=scanner.description,
+        location=scanner.location,
         last_seen_at=scanner.last_seen_at,
         created_at=scanner.created_at,
         api_key=api_key,
@@ -62,7 +64,7 @@ async def create_scanner(
 
 @router.get("/{scanner_id}", response_model=ScannerResponse)
 async def get_scanner(
-    admin: AdminUser,
+    admin: CurrentUser,
     db: DbSession,
     scanner_id: int,
 ) -> ScannerResponse:
@@ -78,7 +80,7 @@ async def get_scanner(
 
 @router.put("/{scanner_id}", response_model=ScannerResponse)
 async def update_scanner(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     scanner_id: int,
     request: ScannerUpdateRequest,
@@ -105,6 +107,7 @@ async def update_scanner(
         scanner=scanner,
         name=request.name,
         description=request.description,
+        location=request.location,
     )
     await db.commit()
     return ScannerResponse.model_validate(updated_scanner)
@@ -112,7 +115,7 @@ async def update_scanner(
 
 @router.delete("/{scanner_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_scanner(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     scanner_id: int,
 ) -> None:
@@ -130,7 +133,7 @@ async def delete_scanner(
 
 @router.post("/{scanner_id}/regenerate-key", response_model=ScannerRegenerateKeyResponse)
 async def regenerate_scanner_api_key(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     scanner_id: int,
 ) -> ScannerRegenerateKeyResponse:

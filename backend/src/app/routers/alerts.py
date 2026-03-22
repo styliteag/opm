@@ -13,7 +13,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.core.deps import AnalystUser, CurrentUser, DbSession, OperatorUser
 from app.models.alert import Alert, AlertType
 from app.models.alert_rule import RuleType as AlertRuleType
 from app.models.user import UserRole
@@ -608,7 +608,7 @@ async def get_alert(
 
 @router.put("/{alert_id}/dismiss", response_model=AlertResponse)
 async def dismiss_alert(
-    admin: AdminUser,
+    admin: AnalystUser,
     db: DbSession,
     alert_id: int,
     request: DismissRequest | None = None,
@@ -784,7 +784,7 @@ async def dismiss_alert(
     response_model=AlertBulkDismissResponse,
 )
 async def dismiss_alerts_bulk(
-    admin: AdminUser,
+    admin: AnalystUser,
     db: DbSession,
     request: BulkDismissRequest = Body(...),
 ) -> AlertBulkDismissResponse:
@@ -831,7 +831,7 @@ async def dismiss_alerts_bulk(
     response_model=BulkDeleteResponse,
 )
 async def delete_alerts_bulk(
-    admin: AdminUser,
+    admin: AnalystUser,
     db: DbSession,
     request: BulkDeleteRequest = Body(...),
 ) -> BulkDeleteResponse:
@@ -854,7 +854,7 @@ async def delete_alerts_bulk(
 
 @router.put("/{alert_id}/reopen", response_model=AlertResponse)
 async def reopen_alert(
-    admin: AdminUser,
+    admin: AnalystUser,
     db: DbSession,
     alert_id: int,
 ) -> AlertResponse:
@@ -894,7 +894,7 @@ async def reopen_alert(
 
 @router.put("/bulk-reopen", response_model=AlertBulkReopenResponse)
 async def bulk_reopen_alerts(
-    admin: AdminUser,
+    admin: AnalystUser,
     db: DbSession,
     request: AlertBulkReopenRequest = Body(...),
 ) -> AlertBulkReopenResponse:
@@ -934,7 +934,7 @@ async def bulk_reopen_alerts(
     status_code=status.HTTP_200_OK,
 )
 async def bulk_accept_global(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     request: AlertBulkAcceptRequest = Body(...),
 ) -> AlertBulkAcceptResponse:
@@ -1020,7 +1020,7 @@ async def bulk_accept_global(
     status_code=status.HTTP_200_OK,
 )
 async def bulk_accept_network(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     request: AlertBulkAcceptRequest = Body(...),
 ) -> AlertBulkAcceptResponse:
@@ -1131,7 +1131,7 @@ async def bulk_accept_network(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_comment(
-    user: CurrentUser,
+    user: AnalystUser,
     db: DbSession,
     alert_id: int,
     request: AlertCommentCreate = Body(...),
@@ -1148,6 +1148,42 @@ async def create_comment(
     # Create the comment
     comment = await alert_comments_service.create_comment(
         db, alert_id=alert_id, user_id=user.id, comment=request.comment
+    )
+    await db.commit()
+    await db.refresh(comment)
+
+    return AlertCommentResponse(
+        id=comment.id,
+        alert_id=comment.alert_id,
+        user_id=comment.user_id,
+        user_email=user.email,
+        comment=comment.comment,
+        created_at=comment.created_at,
+        updated_at=comment.updated_at,
+    )
+
+
+@router.post(
+    "/{alert_id}/comments",
+    response_model=AlertCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_comment(
+    user: AnalystUser,
+    db: DbSession,
+    alert_id: int,
+    body: AlertCommentCreate,
+) -> AlertCommentResponse:
+    """Create a new comment on an alert."""
+    alert = await alert_comments_service.get_alert_by_id(db, alert_id)
+    if alert is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Alert not found",
+        )
+
+    comment = await alert_comments_service.create_comment(
+        db=db, alert_id=alert_id, user_id=user.id, comment=body.comment
     )
     await db.commit()
     await db.refresh(comment)
@@ -1199,7 +1235,7 @@ async def list_comments(
 
 @router.patch("/{alert_id}/comments/{comment_id}", response_model=AlertCommentResponse)
 async def update_comment(
-    user: CurrentUser,
+    user: AnalystUser,
     db: DbSession,
     alert_id: int,
     comment_id: int,
@@ -1259,7 +1295,7 @@ async def update_comment(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_comment(
-    user: CurrentUser,
+    user: AnalystUser,
     db: DbSession,
     alert_id: int,
     comment_id: int,
@@ -1309,7 +1345,7 @@ async def delete_comment(
 
 @router.patch("/{alert_id}/assign", response_model=AlertResponse)
 async def assign_alert(
-    user: CurrentUser,
+    user: AnalystUser,
     db: DbSession,
     alert_id: int,
     request: AlertAssignRequest = Body(...),
@@ -1368,7 +1404,7 @@ async def assign_alert(
 
 @router.patch("/{alert_id}/status", response_model=AlertResponse)
 async def update_alert_status(
-    user: CurrentUser,
+    user: AnalystUser,
     db: DbSession,
     alert_id: int,
     request: AlertStatusRequest = Body(...),
@@ -1424,7 +1460,7 @@ async def update_alert_status(
 
 @router.patch("/{alert_id}/severity", response_model=AlertResponse)
 async def update_alert_severity(
-    user: CurrentUser,
+    user: AnalystUser,
     db: DbSession,
     alert_id: int,
     request: AlertSeverityRequest = Body(...),

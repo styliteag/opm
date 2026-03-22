@@ -1,135 +1,174 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { getAuthHeaders, extractErrorMessage, fetchJson } from './api'
 
-describe('getAuthHeaders', () => {
-  it('should return correct authorization header', () => {
-    const token = 'test-token-123'
-    const headers = getAuthHeaders(token)
+import { fetchApi, postApi, putApi, patchApi, deleteApi } from './api'
+import { useAuthStore } from '@/stores/auth.store'
 
-    expect(headers).toEqual({
-      Authorization: 'Bearer test-token-123',
+const setupAuth = () => {
+  useAuthStore.setState({ token: 'test-token', user: null, isAuthenticated: true })
+}
+
+const teardown = () => {
+  vi.restoreAllMocks()
+  useAuthStore.setState({ token: null, user: null, isAuthenticated: false })
+}
+
+describe('fetchApi', () => {
+  beforeEach(setupAuth)
+  afterEach(teardown)
+
+  it('sends authorization header', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ data: 'test' }),
     })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await fetchApi('/api/test')
+
+    expect(mockFetch).toHaveBeenCalledOnce()
+    const [, init] = mockFetch.mock.calls[0]
+    expect(init.headers.Authorization).toBe('Bearer test-token')
   })
 
-  it('should handle empty token', () => {
-    const headers = getAuthHeaders('')
-
-    expect(headers).toEqual({
-      Authorization: 'Bearer ',
+  it('does not send auth header when no token', async () => {
+    useAuthStore.setState({ token: null })
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({}),
     })
-  })
-})
+    vi.stubGlobal('fetch', mockFetch)
 
-describe('extractErrorMessage', () => {
-  it('should extract string detail from response', async () => {
-    const response = new Response(JSON.stringify({ detail: 'User not found' }), {
-      status: 404,
-      statusText: 'Not Found',
-    })
-
-    const message = await extractErrorMessage(response)
-
-    expect(message).toBe('User not found')
+    await fetchApi('/api/test')
+    const [, init] = mockFetch.mock.calls[0]
+    expect(init.headers.Authorization).toBeUndefined()
   })
 
-  it('should extract validation errors from FastAPI 422 response', async () => {
-    const response = new Response(
-      JSON.stringify({
+  it('throws on non-ok response with detail message', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      json: () => Promise.resolve({ detail: 'Invalid input' }),
+    }))
+
+    await expect(fetchApi('/api/test')).rejects.toThrow('Invalid input')
+  })
+
+  it('handles FastAPI validation errors', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      statusText: 'Unprocessable Entity',
+      json: () => Promise.resolve({
         detail: [
-          { loc: ['body', 'email'], msg: 'invalid email format', type: 'value_error' },
-          { loc: ['body', 'password'], msg: 'too short', type: 'value_error' },
+          { msg: 'field required', loc: ['body', 'name'] },
+          { msg: 'too short', loc: ['body', 'password'] },
         ],
       }),
-      { status: 422, statusText: 'Unprocessable Entity' }
-    )
+    }))
 
-    const message = await extractErrorMessage(response)
-
-    expect(message).toContain('email: invalid email format')
-    expect(message).toContain('password: too short')
+    await expect(fetchApi('/api/test')).rejects.toThrow('field required; too short')
   })
 
-  it('should fall back to status text when JSON parsing fails', async () => {
-    const response = new Response('Not JSON', {
-      status: 500,
-      statusText: 'Internal Server Error',
-    })
-
-    const message = await extractErrorMessage(response)
-
-    expect(message).toBe('Internal Server Error')
-  })
-
-  it('should return "Request failed" when no status text', async () => {
-    const response = new Response('Not JSON', {
-      status: 500,
-      statusText: '',
-    })
-
-    const message = await extractErrorMessage(response)
-
-    expect(message).toBe('Request failed')
-  })
-
-  it('should handle validation error without msg field', async () => {
-    const response = new Response(
-      JSON.stringify({
-        detail: [{ loc: ['body', 'field'], type: 'missing' }],
-      }),
-      { status: 422 }
-    )
-
-    const message = await extractErrorMessage(response)
-
-    expect(message).toContain('field: missing')
-  })
-})
-
-describe('fetchJson', () => {
-  const originalFetch = globalThis.fetch
-
-  beforeEach(() => {
-    vi.resetAllMocks()
-  })
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch
-  })
-
-  it('should fetch and return JSON data on success', async () => {
-    const mockData = { id: 1, name: 'Test' }
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockData),
-    })
-
-    const result = await fetchJson('/api/test', 'token123')
-
-    expect(result).toEqual(mockData)
-    expect(globalThis.fetch).toHaveBeenCalledWith('/api/test', {
-      headers: { Authorization: 'Bearer token123' },
-    })
-  })
-
-  it('should throw error with message on failure', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+  it('calls logout on 401', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
       statusText: 'Unauthorized',
-      json: () => Promise.resolve({ detail: 'Invalid credentials' }),
-    })
+      json: () => Promise.resolve({ detail: 'Session expired' }),
+    }))
 
-    await expect(fetchJson('/api/test', 'bad-token')).rejects.toThrow('Invalid credentials')
+    await expect(fetchApi('/api/test')).rejects.toThrow('Session expired')
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })
 
-  it('should use status text when JSON error extraction fails', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+  it('falls back to statusText when json fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',
-      json: () => Promise.reject(new Error('Invalid JSON')),
-    })
+      json: () => Promise.reject(new Error('not json')),
+    }))
 
-    await expect(fetchJson('/api/test', 'token')).rejects.toThrow('Internal Server Error')
+    await expect(fetchApi('/api/test')).rejects.toThrow('Internal Server Error')
+  })
+})
+
+describe('postApi', () => {
+  beforeEach(setupAuth)
+  afterEach(teardown)
+
+  it('sends POST with JSON body', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve({ id: 1 }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    const result = await postApi('/api/items', { name: 'test' })
+
+    const [url, init] = mockFetch.mock.calls[0]
+    expect(url).toBe('/api/items')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({ name: 'test' })
+    expect(result).toEqual({ id: 1 })
+  })
+})
+
+describe('putApi', () => {
+  beforeEach(setupAuth)
+  afterEach(teardown)
+
+  it('sends PUT with JSON body', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ updated: true }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await putApi('/api/items/1', { name: 'updated' })
+    const [, init] = mockFetch.mock.calls[0]
+    expect(init.method).toBe('PUT')
+  })
+})
+
+describe('patchApi', () => {
+  beforeEach(setupAuth)
+  afterEach(teardown)
+
+  it('sends PATCH with JSON body', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ patched: true }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await patchApi('/api/items/1', { status: 'done' })
+    const [, init] = mockFetch.mock.calls[0]
+    expect(init.method).toBe('PATCH')
+  })
+})
+
+describe('deleteApi', () => {
+  beforeEach(setupAuth)
+  afterEach(teardown)
+
+  it('sends DELETE request', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({}),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await deleteApi('/api/items/1')
+    const [url, init] = mockFetch.mock.calls[0]
+    expect(url).toBe('/api/items/1')
+    expect(init.method).toBe('DELETE')
   })
 })

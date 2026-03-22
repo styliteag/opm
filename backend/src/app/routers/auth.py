@@ -1,8 +1,11 @@
 """Authentication router for login, logout, and user info endpoints."""
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.deps import CurrentUser, DbSession
+from app.core.permissions import ROLE_PERMISSIONS
 from app.schemas.auth import LoginRequest, TokenResponse, UserResponse, UserThemeUpdateRequest
 from app.services.auth import authenticate_user, create_user_token
 
@@ -47,6 +50,18 @@ async def update_current_user_info(
     await db.commit()
     await db.refresh(current_user)
     return UserResponse.model_validate(current_user)
+
+
+@router.get("/permissions")
+async def get_current_user_permissions(
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """Get the current user's permissions based on their role."""
+    permissions = ROLE_PERMISSIONS.get(current_user.role, frozenset())
+    return {
+        "role": current_user.role.value,
+        "permissions": sorted(p.value for p in permissions),
+    }
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

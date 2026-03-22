@@ -9,7 +9,14 @@ from typing import Any
 
 import httpx
 
-from src.models import HostDiscoveryJob, HostResult, LogEntry, OpenPortResult, ScannerJob
+from src.models import (
+    HostDiscoveryJob,
+    HostResult,
+    LogEntry,
+    NseScriptResult,
+    OpenPortResult,
+    ScannerJob,
+)
 from src.ssh_probe import SSHProbeResult
 from src.utils import parse_int
 
@@ -134,7 +141,10 @@ class ScannerClient:
                         port_timeout=port_timeout if port_timeout is not None else 1500,
                         scan_protocol=str(job.get("scan_protocol", "tcp")),
                         is_ipv6=bool(job.get("is_ipv6", False)),
-                        target_ip=job.get("target_ip"),  # None for full network scan
+                        target_ip=job.get("target_ip"),
+                        nse_scripts=job.get("nse_scripts"),
+                        nse_script_args=job.get("nse_script_args"),
+                        custom_script_hashes=job.get("custom_script_hashes"),
                     )
                 )
             except (KeyError, TypeError, ValueError) as exc:
@@ -197,6 +207,54 @@ class ScannerClient:
         response = self._request("POST", "/api/scanner/results", json=payload, auth_required=True)
         response.raise_for_status()
 
+    def submit_nse_results(
+        self,
+        scan_id: int,
+        nse_results: list[NseScriptResult],
+        status: str = "success",
+        error_message: str | None = None,
+    ) -> None:
+        """Submit NSE vulnerability scan results to the backend.
+
+        Args:
+            scan_id: The scan ID
+            nse_results: List of NSE script findings
+            status: Scan status (success, failed)
+            error_message: Optional error message
+        """
+        payload: dict[str, Any] = {
+            "scan_id": scan_id,
+            "nse_results": [r.to_payload() for r in nse_results],
+            "status": status,
+            "error_message": error_message,
+        }
+        response = self._request(
+            "POST", "/api/nse/scanner/results", json=payload, auth_required=True
+        )
+        response.raise_for_status()
+
+    def download_script(self, name: str) -> tuple[str, str]:
+        """Download a custom NSE script from the backend.
+
+        Args:
+            name: The script name (e.g., custom_my-check)
+
+        Returns:
+            Tuple of (content, content_hash)
+        """
+        response = self._request(
+            "GET",
+            f"/api/nse/scripts/{name}/download",
+            auth_required=True,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        content = payload.get("content")
+        content_hash = payload.get("content_hash")
+        if not isinstance(content, str) or not isinstance(content_hash, str):
+            raise RuntimeError("Invalid script download response")
+        return content, content_hash
+
     def submit_logs(self, scan_id: int, entries: list[LogEntry]) -> None:
         """Submit log entries to the backend.
 
@@ -212,7 +270,11 @@ class ScannerClient:
         response.raise_for_status()
 
     def submit_progress(
-        self, scan_id: int, progress_percent: float, progress_message: str | None = None
+        self,
+        scan_id: int,
+        progress_percent: float,
+        progress_message: str | None = None,
+        actual_rate: float | None = None,
     ) -> None:
         """Submit progress update to the backend.
 
@@ -220,6 +282,7 @@ class ScannerClient:
             scan_id: The scan ID
             progress_percent: Progress percentage (0-100)
             progress_message: Optional progress message
+            actual_rate: Optional actual scan rate in packets per second
         """
         payload: dict[str, Any] = {
             "scan_id": scan_id,
@@ -227,6 +290,8 @@ class ScannerClient:
         }
         if progress_message is not None:
             payload["progress_message"] = progress_message
+        if actual_rate is not None:
+            payload["actual_rate"] = actual_rate
         response = self._request("POST", "/api/scanner/progress", json=payload, auth_required=True)
         response.raise_for_status()
 
