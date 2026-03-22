@@ -132,9 +132,21 @@ echo ""
 #echo "✓ Frontend build successful"
 #echo ""
 
+# Sync NSE scripts from upstream nmap
+echo "Syncing NSE scripts from upstream nmap..."
+bash nse-templates/tools/sync-from-nmap.sh
+echo "✓ NSE scripts synced"
+echo ""
+
 # Show the Version and CHANGELOG.md changes
 echo "Version and CHANGELOG.md changes:"
 git --no-pager diff VERSION CHANGELOG.md
+NSE_CHANGES=$(git status --short nse-templates/scripts/ 2>/dev/null | head -20)
+if [[ -n "$NSE_CHANGES" ]]; then
+    echo ""
+    echo "NSE script changes:"
+    echo "$NSE_CHANGES"
+fi
 echo ""
 
 # Prompt for confirmation
@@ -147,7 +159,7 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 # Commit changes
-git add VERSION CHANGELOG.md
+git add VERSION CHANGELOG.md nse-templates/scripts/
 git commit -m "chore: bump version to $NEW_VERSION"
 
 # Create annotated tag
