@@ -13,6 +13,8 @@ from app.models.base import Base
 if TYPE_CHECKING:
     from app.models.alert import Alert
     from app.models.network import Network
+    from app.models.nse_result import NseResult
+    from app.models.nse_template import NseTemplate
     from app.models.open_port import OpenPort
     from app.models.scan_log import ScanLog
     from app.models.scanner import Scanner
@@ -60,6 +62,7 @@ class Scan(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     progress_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     progress_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actual_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
     trigger_type: Mapped[TriggerType] = mapped_column(
         SQLEnum(TriggerType, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
@@ -76,6 +79,12 @@ class Scan(Base):
         Text,
         nullable=True,
         comment="Target IP for single-host scan; NULL for full network scan",
+    )
+    nse_template_id: Mapped[int | None] = mapped_column(
+        ForeignKey("nse_templates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="NSE template used for this scan; NULL for non-NSE scans",
     )
 
     # Relationships
@@ -94,6 +103,10 @@ class Scan(Base):
     ssh_scan_results: Mapped[list["SSHScanResult"]] = relationship(
         "SSHScanResult", back_populates="scan", cascade="all, delete-orphan"
     )
+    nse_results: Mapped[list["NseResult"]] = relationship(
+        "NseResult", back_populates="scan", cascade="all, delete-orphan"
+    )
+    nse_template: Mapped["NseTemplate | None"] = relationship("NseTemplate")
 
     @property
     def cancelled_by_email(self) -> str | None:

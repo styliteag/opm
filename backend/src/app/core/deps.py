@@ -71,6 +71,35 @@ async def require_admin(
 AdminUser = Annotated[User, Depends(require_admin)]
 
 
+async def require_operator_role(
+    current_user: CurrentUser,
+) -> User:
+    """Dependency to require operator-level access (admin or operator)."""
+    if current_user.role not in (UserRole.ADMIN, UserRole.OPERATOR):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operator access required",
+        )
+    return current_user
+
+
+async def require_analyst_role(
+    current_user: CurrentUser,
+) -> User:
+    """Dependency to require analyst-level access (admin, operator, or analyst)."""
+    if current_user.role == UserRole.VIEWER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Analyst access required",
+        )
+    return current_user
+
+
+# Type aliases for granular role access
+OperatorUser = Annotated[User, Depends(require_operator_role)]
+AnalystUser = Annotated[User, Depends(require_analyst_role)]
+
+
 async def get_current_scanner(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     db: Annotated[AsyncSession, Depends(get_db)],

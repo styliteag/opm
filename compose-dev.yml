@@ -30,7 +30,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -57,6 +57,8 @@ services:
     container_name: opm-frontend
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      VITE_DEV_ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      VITE_DEV_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       TZ: ${TZ:-Europe/Berlin}
     ports:
       - "5173:5173"
@@ -82,6 +84,7 @@ services:
     volumes:
       - ./scanner/src:/app/src
       - ./VERSION:/app/VERSION:ro
+      - scanner-custom-scripts:/opt/opm/custom-scripts
     networks:
       - opm-network
     depends_on:
@@ -89,6 +92,9 @@ services:
     cap_add:
       - NET_RAW
       - NET_ADMIN
+
+volumes:
+  scanner-custom-scripts:
 
 networks:
   opm-network:

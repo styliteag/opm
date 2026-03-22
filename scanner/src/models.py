@@ -25,12 +25,16 @@ class ScannerJob:
     cidr: str
     port_spec: str
     rate: int | None
-    scanner_type: str  # masscan or nmap
+    scanner_type: str  # masscan, nmap, or nse
     scan_timeout: int  # seconds
     port_timeout: int  # milliseconds
     scan_protocol: str  # tcp, udp, or both
     is_ipv6: bool = False  # whether the network CIDR is IPv6
     target_ip: str | None = None  # specific IP for single-host scan, None for full network
+    # NSE-specific fields
+    nse_scripts: list[str] | None = None
+    nse_script_args: dict[str, Any] | None = None
+    custom_script_hashes: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +99,31 @@ class HostDiscoveryJob:
     is_ipv6: bool = False
     known_hostnames: dict[str, str] | None = None
     ips_with_open_ports: list[str] | None = None
+
+
+@dataclass(frozen=True)
+class NseScriptResult:
+    """Individual NSE script finding from a vulnerability scan."""
+
+    ip: str
+    port: int
+    protocol: str
+    script_name: str
+    script_output: str
+    cve_ids: list[str]
+    severity: str
+
+    def to_payload(self) -> dict[str, Any]:
+        """Convert to JSON-serializable payload."""
+        return {
+            "ip": self.ip,
+            "port": self.port,
+            "protocol": self.protocol,
+            "script_name": self.script_name,
+            "script_output": self.script_output,
+            "cve_ids": self.cve_ids,
+            "severity": self.severity,
+        }
 
 
 @dataclass(frozen=True)

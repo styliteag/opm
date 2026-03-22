@@ -12,7 +12,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.core.deps import CurrentUser, DbSession, OperatorUser
 from app.models.open_port import OpenPort
 from app.models.scan import ScanStatus
 from app.schemas.scan import (
@@ -224,7 +224,7 @@ async def get_scan_logs(
 
 @router.post("/{scan_id}/cancel", response_model=ScanCancelResponse)
 async def cancel_scan(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     scan_id: int,
 ) -> ScanCancelResponse:
@@ -260,7 +260,7 @@ async def cancel_scan(
 
 @router.patch("/{scan_id}/visibility", response_model=ScanResponse)
 async def update_scan_visibility(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     scan_id: int,
     request: ScanVisibilityRequest,
@@ -426,7 +426,7 @@ async def export_scan_pdf(
 
 @router.delete("/{scan_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_scan(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     scan_id: int,
 ) -> None:

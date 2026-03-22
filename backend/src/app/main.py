@@ -13,11 +13,15 @@ from .routers import (
     auth,
     global_ports,
     global_settings,
+    host_timeline,
     hosts,
     metadata,
     networks,
+    nse,
+    organization,
     policy,
     ports,
+    roles,
     scanner,
     scanners,
     scans,
@@ -43,6 +47,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from .core.database import init_db
 
     await init_db()
+
+    # Seed built-in NSE templates on first startup
+    from .core.database import get_db
+    from .services.nse_seed import seed_builtin_profiles
+
+    async for db in get_db():
+        try:
+            seeded = await seed_builtin_profiles(db)
+            if seeded > 0:
+                await db.commit()
+        except Exception:
+            logger.exception("Failed to seed NSE templates")
+        break
 
     start_scheduler()
 
@@ -76,11 +93,15 @@ app.include_router(auth.router)
 app.include_router(alerts.router)
 app.include_router(global_ports.router)
 app.include_router(global_settings.router)
+app.include_router(host_timeline.router)
 app.include_router(hosts.router)
 app.include_router(metadata.router)
 app.include_router(networks.router)
+app.include_router(nse.router)
+app.include_router(organization.router)
 app.include_router(policy.router)
 app.include_router(ports.router)
+app.include_router(roles.router)
 app.include_router(scanner.router)
 app.include_router(scans.router)
 app.include_router(scanners.router)

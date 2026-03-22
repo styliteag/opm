@@ -42,7 +42,16 @@ class Network(Base):
         String(10), nullable=False, server_default="tcp"
     )  # 'tcp' | 'udp' | 'both'
     alert_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    nse_profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("nse_templates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Default NSE profile for scheduled scans when scanner_type is nse",
+    )
     host_discovery_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="1"
+    )
+    scan_schedule_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="1"
     )
     created_at: Mapped[datetime] = mapped_column(

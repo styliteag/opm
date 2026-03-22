@@ -146,11 +146,9 @@
 
 ---
 
-## 19. Vulnerability Correlation (CVE Lookup)
-**As a** security analyst, **I want to** automatically cross-reference detected services and versions against known CVE databases, **so that** I can see which hosts are running vulnerable software without manually looking up each service.
+## ~~19. Vulnerability Correlation (CVE Lookup)~~ — COMPLETED
 
-**Implementing:** no
-**Current state:** Nmap captures service names and version strings, but there is no CVE database integration. Analysts must manually cross-reference detected versions with vulnerability databases.
+Moved to [COMPLETED-FEATURES.md](./COMPLETED-FEATURES.md).
 
 ---
 
@@ -241,3 +239,68 @@
 
 **Implementing:** no
 **Current state:** Each alert is independent. When a scan discovers 50 new ports across 10 hosts, it creates 50 individual alerts with no grouping. The analyst must mentally correlate them. There is no incident/case concept, no way to link alerts together, and no shared resolution tracking.
+
+---
+
+# Agent-Based Detection — User Stories
+
+## 33. Host Agent for Local Vulnerability Detection
+**As a** security engineer, **I want to** install a lightweight agent on target hosts that checks local configuration, file contents, and installed software versions against vulnerability detection templates, **so that** I can detect misconfigurations and vulnerabilities that are invisible from network scans alone (e.g., weak SSH config, missing disk encryption, exposed credentials).
+
+**Implementing:** no
+**Current state:** All vulnerability detection is network-based via nmap NSE scripts. There is no agent that runs on target machines. Local checks like "is PermitRootLogin set to yes in sshd_config" or "are SSH private keys world-readable" require host-level access that network scanning cannot provide.
+
+**Reference:** Three detection types:
+- **file-content** — regex matching against config files (e.g., sshd_config, nginx.conf)
+- **file-hash** — detecting known-vulnerable software by file hash (e.g., Apache binaries)
+- **version-cmd** — running local commands to check system state (e.g., `csrutil status` for SIP, `fdesetup status` for FileVault)
+
+---
+
+## 34. Agent Template Repository & Sync
+**As an** administrator, **I want to** manage agent detection templates from a git-based repository (similar to NSE script repositories), **so that** I can version-control, share, and update detection rules across all agents without redeploying.
+
+**Implementing:** no
+**Current state:** The NSE template repository system exists for network-based scripts but has no equivalent for agent-based detection templates. Agent templates would use YAML format with structured detection steps (file paths, regex patterns, commands) rather than `.nse` scripts.
+
+**Template format example:**
+```yaml
+id: SSH-001
+info:
+  name: SSH Root Login Enabled
+  vulnerability_id: CWE-250
+  severity: high
+  description: "Detects SSH servers configured to allow direct root login."
+  tags: [ssh, misconfiguration, hardening]
+  remediation: "Set 'PermitRootLogin no' in /etc/ssh/sshd_config"
+detection:
+  logic: any
+  steps:
+    - name: "Check sshd_config for PermitRootLogin yes"
+      type: file_content
+      platforms: [linux, darwin]
+      config:
+        path: "/etc/ssh/sshd_config"
+        regex: "^\\s*PermitRootLogin\\s+(yes|without-password)"
+```
+
+---
+
+## 35. Agent Registration & Management
+**As an** administrator, **I want to** register, monitor, and manage host agents from the Open Port Monitor dashboard, **so that** I can see which hosts have agents installed, their last check-in time, agent version, and health status.
+
+**Implementing:** no
+**Current state:** The scanner agent model exists for network scanners but not for host-level agents. A host agent system would need: agent registration with API keys, heartbeat/check-in tracking, template distribution, result collection, and agent version management.
+
+---
+
+## 36. Agent Detection Categories
+**As a** security analyst, **I want** agent-based detection templates organized into categories, **so that** I can enable/disable entire categories per host or group.
+
+**Implementing:** no
+**Current state:** No agent detection system exists. Planned categories:
+- **SSH hardening** — root login, password auth, weak ciphers/MACs, empty passwords
+- **OS security** — SIP disabled (macOS), Gatekeeper, FileVault, firewall status
+- **File permissions** — world-writable /etc, SSH keys readable, sudoers writable
+- **Credential exposure** — plaintext git credentials, AWS keys, Docker config auth tokens
+- **Software versions** — outdated packages with known CVEs via file hash or version commands

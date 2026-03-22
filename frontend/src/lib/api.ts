@@ -1,40 +1,48 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+import { useAuthStore } from '@/stores/auth.store'
 
-export const getAuthHeaders = (token: string) => ({
-  Authorization: `Bearer ${token}`,
-})
-
-export const extractErrorMessage = async (response: Response) => {
-  try {
-    const data = await response.json()
-    // Handle FastAPI validation errors (422)
-    if (Array.isArray(data?.detail)) {
-      const errors = data.detail.map((err: { msg?: string; loc?: unknown[]; type?: string }) => {
-        const field = Array.isArray(err.loc) ? err.loc.slice(1).join('.') : 'field'
-        return `${field}: ${err.msg || err.type || 'validation error'}`
-      })
-      return errors.join(', ')
-    }
-    if (typeof data?.detail === 'string') {
-      return data.detail
-    }
-  } catch {
-    // Ignore JSON parsing errors and fall back to status text.
+const getHeaders = (): HeadersInit => {
+  const token = useAuthStore.getState().token
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
-  return response.statusText || 'Request failed'
 }
 
-export const fetchJson = async <T>(path: string, token: string): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      ...getAuthHeaders(token),
-    },
+export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    ...init,
+    headers: { ...getHeaders(), ...init?.headers },
   })
-
-  if (!response.ok) {
-    const message = await extractErrorMessage(response)
-    throw new Error(message)
+  if (res.status === 401) {
+    useAuthStore.getState().logout()
+    throw new Error('Session expired')
   }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    const msg =
+      typeof body?.detail === 'string'
+        ? body.detail
+        : Array.isArray(body?.detail)
+          ? body.detail.map((e: { msg?: string }) => e.msg).join('; ')
+          : res.statusText
+    throw new Error(msg)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json()
+}
 
-  return response.json()
+export function postApi<T>(path: string, body: unknown): Promise<T> {
+  return fetchApi<T>(path, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function putApi<T>(path: string, body: unknown): Promise<T> {
+  return fetchApi<T>(path, { method: 'PUT', body: JSON.stringify(body) })
+}
+
+export function patchApi<T>(path: string, body: unknown): Promise<T> {
+  return fetchApi<T>(path, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+export function deleteApi(path: string): Promise<void> {
+  return fetchApi(path, { method: 'DELETE' })
 }

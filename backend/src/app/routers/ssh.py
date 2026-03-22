@@ -13,7 +13,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import select, update
 
-from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.core.deps import CurrentUser, DbSession, OperatorUser
 from app.models.alert import Alert, AlertType
 from app.schemas.ssh import (
     AcceptScope,
@@ -646,7 +646,7 @@ async def trigger_ssh_recheck(
 
 @router.post("/ssh/hosts/{host_ip}/dismiss", response_model=SSHDismissResponse)
 async def dismiss_ssh_host(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     host_ip: str,
     request: SSHDismissRequest,
@@ -867,7 +867,7 @@ async def dismiss_ssh_host(
 
 @router.put("/ssh/hosts/{host_ip}/reopen", response_model=SSHReopenResponse)
 async def reopen_ssh_host(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     host_ip: str,
     request: SSHReopenRequest,

@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /opt/opm/custom-scripts
+
 ENV TZ=UTC
 
 RUN pip install uv ssh-audit

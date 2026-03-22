@@ -20,6 +20,7 @@ class GlobalOpenPortResponse(BaseModel):
     last_seen_at: datetime
     seen_by_networks: list[int]
     user_comment: str | None = None
+    is_stale: bool = False
 
     model_config = {"from_attributes": True}
 

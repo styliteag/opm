@@ -9,6 +9,7 @@ from app.models.network import Network
 from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
 from app.schemas.scanner import ScannerJobClaimResponse, ScannerJobResponse
+from app.services import nse_scripts as nse_scripts_service
 
 
 async def get_pending_jobs_for_scanner(
@@ -30,7 +31,7 @@ async def get_pending_jobs_for_scanner(
     # Get planned scans for networks on this scanner
     result = await db.execute(
         select(Scan)
-        .options(selectinload(Scan.network))
+        .options(selectinload(Scan.network), selectinload(Scan.nse_template))
         .join(Network, Network.id == Scan.network_id)
         .where(Network.scanner_id == scanner.id)
         .where(Scan.status == ScanStatus.PLANNED)
@@ -38,29 +39,50 @@ async def get_pending_jobs_for_scanner(
     )
     planned_scans = list(result.scalars().all())
 
-    jobs = [
-        ScannerJobResponse(
-            network_id=scan.network.id,
-            cidr=scan.network.cidr,
-            port_spec=scan.network.port_spec,
-            rate=scan.network.scan_rate,
-            scanner_type=scan.network.scanner_type or "masscan",
-            scan_timeout=(
-                scan.network.scan_timeout
-                if scan.network.scan_timeout is not None
-                else 3600
-            ),
-            port_timeout=(
-                scan.network.port_timeout
-                if scan.network.port_timeout is not None
-                else 1500
-            ),
-            scan_protocol=scan.network.scan_protocol or "tcp",
-            is_ipv6=scan.network.is_ipv6,
-            target_ip=scan.target_ip,  # None for full network scan
+    jobs: list[ScannerJobResponse] = []
+    for scan in planned_scans:
+        # Determine scanner type — NSE scans have nse_template_id set
+        is_nse = scan.nse_template_id is not None
+        scanner_type = "nse" if is_nse else (scan.network.scanner_type or "masscan")
+
+        # Build NSE-specific fields from template
+        nse_scripts = None
+        nse_script_args = None
+        custom_script_hashes = None
+        if is_nse and scan.nse_template is not None:
+            nse_scripts = scan.nse_template.nse_scripts
+            nse_script_args = scan.nse_template.script_args
+            # Look up content hashes for any custom scripts in the profile
+            if nse_scripts:
+                custom_script_hashes = (
+                    await nse_scripts_service.get_custom_script_hashes(db, nse_scripts)
+                ) or None
+
+        jobs.append(
+            ScannerJobResponse(
+                network_id=scan.network.id,
+                cidr=scan.network.cidr,
+                port_spec=scan.network.port_spec,
+                rate=scan.network.scan_rate,
+                scanner_type=scanner_type,
+                scan_timeout=(
+                    scan.network.scan_timeout
+                    if scan.network.scan_timeout is not None
+                    else 3600
+                ),
+                port_timeout=(
+                    scan.network.port_timeout
+                    if scan.network.port_timeout is not None
+                    else 1500
+                ),
+                scan_protocol=scan.network.scan_protocol or "tcp",
+                is_ipv6=scan.network.is_ipv6,
+                target_ip=scan.target_ip,
+                nse_scripts=nse_scripts,
+                nse_script_args=nse_script_args,
+                custom_script_hashes=custom_script_hashes,
+            )
         )
-        for scan in planned_scans
-    ]
 
     return jobs
 

@@ -13,7 +13,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.core.deps import AnalystUser, CurrentUser, DbSession, OperatorUser
 from app.schemas.host import (
     BulkDeleteHostsRequest,
     BulkDeleteHostsResponse,
@@ -31,6 +31,7 @@ from app.schemas.host import (
     PortRuleMatch,
 )
 from app.schemas.scan import ScanTriggerResponse
+from app.services import global_open_ports as global_ports_service
 from app.services import hosts as hosts_service
 
 router = APIRouter(prefix="/api/hosts", tags=["hosts"])
@@ -158,6 +159,7 @@ async def get_host_ports(
     user: CurrentUser,
     db: DbSession,
     host_id: int,
+    staleness: str = Query("all", pattern="^(all|active|stale)$"),
 ) -> HostOpenPortListResponse:
     """Get open ports for a specific host."""
     host = await hosts_service.get_host_by_id(db, host_id)
@@ -167,9 +169,25 @@ async def get_host_ports(
             detail="Host not found",
         )
     ports = await hosts_service.get_host_open_ports(db, host_id)
-    return HostOpenPortListResponse(
-        ports=[HostOpenPortResponse.model_validate(port) for port in ports]
-    )
+    latest_scan_times = await global_ports_service.get_latest_scan_times_by_network(db)
+
+    result_ports: list[HostOpenPortResponse] = []
+    for port in ports:
+        port_networks = port.seen_by_networks or []
+        is_stale = global_ports_service.compute_port_staleness(
+            port.last_seen_at,
+            port_networks,
+            latest_scan_times,
+        )
+        if staleness == "active" and is_stale:
+            continue
+        if staleness == "stale" and not is_stale:
+            continue
+        port_response = HostOpenPortResponse.model_validate(port)
+        port_response.is_stale = is_stale
+        result_ports.append(port_response)
+
+    return HostOpenPortListResponse(ports=result_ports)
 
 
 def _resolve_effective_rule(rules: list[PortRuleMatch]) -> str | None:
@@ -372,6 +390,8 @@ async def get_host_overview(
             ))
         return matches
 
+    latest_scan_times = await global_ports_service.get_latest_scan_times_by_network(db)
+
     enriched_ports: list[EnrichedHostPort] = []
     all_matching_rules: list[PortRuleMatch] = []
     for p in ports:
@@ -401,6 +421,11 @@ async def get_host_overview(
         port_ssh_data = ssh_data_cache.get((host.ip, p.port))
         port_ssh = HostSSHSummary(**port_ssh_data) if port_ssh_data else None
 
+        port_networks = getattr(p, "seen_by_networks", None) or (host.seen_by_networks or [])
+        port_is_stale = global_ports_service.compute_port_staleness(
+            p.last_seen_at, port_networks, latest_scan_times,
+        )
+
         enriched_ports.append(EnrichedHostPort(
             ip=p.ip, port=p.port, protocol=p.protocol,
             banner=p.banner, service_guess=p.service_guess,
@@ -410,6 +435,7 @@ async def get_host_overview(
             alert_severity=alert_severity, dismiss_reason=dismiss_reason,
             rule_status=rule_status, matching_rules=rules,
             ssh_summary=port_ssh,
+            is_stale=port_is_stale,
         ))
 
     # Deduplicate all_matching_rules by (scope, id)
@@ -436,7 +462,7 @@ async def get_host_overview(
 
 @router.patch("/{host_id}", response_model=HostResponse)
 async def update_host(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     host_id: int,
     request: HostUpdateRequest,
@@ -469,7 +495,7 @@ async def update_host(
 
 @router.delete("/{host_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_host(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     host_id: int,
 ) -> None:
@@ -485,7 +511,7 @@ async def delete_host(
 
 @router.post("/bulk-delete", response_model=BulkDeleteHostsResponse)
 async def bulk_delete_hosts(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     request: BulkDeleteHostsRequest,
 ) -> BulkDeleteHostsResponse:
@@ -500,7 +526,7 @@ async def bulk_delete_hosts(
 
 @router.get("/export/csv")
 async def export_hosts_csv(
-    user: CurrentUser,
+    user: AnalystUser,
     db: DbSession,
     network_id: int | None = Query(None, ge=1),
     is_pingable: bool | None = Query(None, alias="status"),
@@ -573,7 +599,7 @@ async def export_hosts_csv(
 
 @router.get("/export/pdf")
 async def export_hosts_pdf(
-    user: CurrentUser,
+    user: AnalystUser,
     db: DbSession,
     network_id: int | None = Query(None, ge=1),
     is_pingable: bool | None = Query(None, alias="status"),
@@ -710,7 +736,7 @@ async def export_hosts_pdf(
 
 @router.post("/{host_ip}/rescan", response_model=ScanTriggerResponse)
 async def trigger_host_rescan(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     host_ip: str,
 ) -> ScanTriggerResponse:

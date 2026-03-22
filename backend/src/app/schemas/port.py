@@ -21,6 +21,7 @@ class OpenPortListItem(BaseModel):
     first_seen_at: datetime
     last_seen_at: datetime
     network_id: int
+    is_stale: bool = False
 
 
 class OpenPortListResponse(BaseModel):

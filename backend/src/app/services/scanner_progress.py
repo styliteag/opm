@@ -41,6 +41,8 @@ async def update_scan_progress(
     # Update progress fields
     scan.progress_percent = request.progress_percent
     scan.progress_message = request.progress_message
+    if request.actual_rate is not None:
+        scan.actual_rate = request.actual_rate
 
     return ScannerProgressResponse(
         scan_id=scan.id,

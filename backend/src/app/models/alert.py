@@ -30,6 +30,9 @@ class AlertType(str, Enum):
     SSH_WEAK_KEX = "ssh_weak_kex"
     SSH_OUTDATED_VERSION = "ssh_outdated_version"
     SSH_CONFIG_REGRESSION = "ssh_config_regression"
+    # NSE vulnerability alert types
+    NSE_VULNERABILITY = "nse_vulnerability"
+    NSE_CVE_DETECTED = "nse_cve_detected"
 
 
 class ResolutionStatus(str, Enum):

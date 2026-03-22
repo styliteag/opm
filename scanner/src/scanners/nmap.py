@@ -635,7 +635,18 @@ def _run_nmap_phase(
                                             if scaled_pct > max_scaled_pct:
                                                 max_scaled_pct = scaled_pct
                                             progress_msg = f"{phase_name}: {hosts_completed}/{total_hosts_up} hosts, batch {batch_pct:.0f}%"
-                                            progress_reporter.update(display_pct, progress_msg)
+                                            # Estimate rate from elapsed time
+                                            nmap_elapsed = time.time() - start_time
+                                            est_rate: float | None = None
+                                            if nmap_elapsed > 1.0 and overall_nmap_pct > 0:
+                                                pct_frac = overall_nmap_pct / 100.0
+                                                probes = pct_frac * total_hosts_up * 1000
+                                                est_rate = probes / nmap_elapsed
+                                            progress_reporter.update(
+                                                display_pct,
+                                                progress_msg,
+                                                actual_rate=est_rate,
+                                            )
                                             logger.info(
                                                 "Progress %.1f%% (overall: %.1f%%, batch: %.1f%%) - %d/%d hosts",
                                                 display_pct,

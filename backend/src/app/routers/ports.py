@@ -4,7 +4,7 @@ from ipaddress import ip_address, ip_network
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.core.deps import CurrentUser, DbSession, OperatorUser
 from app.models.alert_rule import RuleType
 from app.schemas.port import (
     OpenPortListItem,
@@ -13,6 +13,7 @@ from app.schemas.port import (
 )
 from app.schemas.port_rule import PortRuleResponse
 from app.services import alert_rules as alert_rules_service
+from app.services import global_open_ports as global_ports_service
 from app.services import networks as networks_service
 from app.services import ports as ports_service
 
@@ -59,6 +60,7 @@ async def list_open_ports(
     port_max: int | None = Query(None, ge=1, le=65535),
     ip_range: str | None = Query(None),
     service: str | None = Query(None, min_length=1),
+    staleness: str = Query("all", pattern="^(all|active|stale)$"),
     sort_by: str = Query("ip"),
     sort_dir: str = Query("asc"),
     offset: int = Query(0, ge=0),
@@ -100,8 +102,20 @@ async def list_open_ports(
             detail=str(exc),
         ) from exc
 
-    return OpenPortListResponse(
-        ports=[
+    latest_scan_times = await global_ports_service.get_latest_scan_times_by_network(db)
+
+    result_ports: list[OpenPortListItem] = []
+    for port, network_id_value in ports:
+        is_stale = global_ports_service.compute_port_staleness(
+            port.last_seen_at,
+            [network_id_value],
+            latest_scan_times,
+        )
+        if staleness == "active" and is_stale:
+            continue
+        if staleness == "stale" and not is_stale:
+            continue
+        result_ports.append(
             OpenPortListItem(
                 ip=port.ip,
                 port=port.port,
@@ -114,10 +128,11 @@ async def list_open_ports(
                 first_seen_at=port.first_seen_at,
                 last_seen_at=port.last_seen_at,
                 network_id=network_id_value,
+                is_stale=is_stale,
             )
-            for port, network_id_value in ports
-        ]
-    )
+        )
+
+    return OpenPortListResponse(ports=result_ports)
 
 
 @router.post(
@@ -126,7 +141,7 @@ async def list_open_ports(
     status_code=status.HTTP_201_CREATED,
 )
 async def accept_port(
-    admin: AdminUser,
+    admin: OperatorUser,
     db: DbSession,
     request: PortAcceptRequest,
 ) -> PortRuleResponse:

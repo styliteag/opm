@@ -121,8 +121,25 @@ def process_job(
             if not check_ipv6_connectivity(logger):
                 raise RuntimeError("IPv6 connectivity not available")
 
-        # For single-host scans, always use nmap for better results
-        if job.target_ip:
+        # Set NSE scripts on client for NSE scanner to pick up
+        if job.scanner_type == "nse":
+            nse_scripts = list(job.nse_scripts) if job.nse_scripts else None
+
+            # Cache custom scripts locally and replace names with full paths
+            if job.custom_script_hashes and nse_scripts:
+                from src.script_cache import ensure_scripts_cached, get_script_path, is_custom
+
+                ensure_scripts_cached(client, job.custom_script_hashes)
+                nse_scripts = [
+                    str(get_script_path(s)) if is_custom(s) else s
+                    for s in nse_scripts
+                ]
+
+            client._current_nse_scripts = nse_scripts  # type: ignore[attr-defined]
+            client._current_nse_script_args = job.nse_script_args  # type: ignore[attr-defined]
+
+        # For single-host scans with non-NSE scanners, always use nmap for better results
+        if job.target_ip and job.scanner_type != "nse":
             logger.info("Using nmap for single-host scan of %s", job.target_ip)
             result = run_nmap(
                 client,
@@ -138,13 +155,14 @@ def process_job(
             )
             logger.info("Nmap single-host scan completed with %s open ports", len(result.open_ports))
         else:
-            # Dispatch to registered scanner
+            # Dispatch to registered scanner (including NSE)
+            target = job.target_ip if job.target_ip else job.cidr
             scanner = get_scanner(job.scanner_type)
             logger.info("Using scanner: %s (%s)", scanner.name, scanner.label)
             result = scanner.run(
                 client,
                 scan_id,
-                job.cidr,
+                target,
                 job.port_spec,
                 job.rate,
                 job.scan_timeout,
@@ -154,6 +172,20 @@ def process_job(
                 logger,
                 progress_reporter,
             )
+
+        # NSE scans handle their own result submission and scan status update
+        if job.scanner_type == "nse":
+            if result.cancelled:
+                try:
+                    client.submit_nse_results(scan_id, [], status="failed", error_message="Scan cancelled by user request")
+                except Exception:
+                    logger.exception("Failed to submit cancelled NSE results for scan %s", scan_id)
+                return
+
+            progress_reporter.update(100, "NSE scan complete")
+            # NSE results + scan completion already handled by NseScanner._submit_nse_results
+            logger.info("NSE scan completed for scan %s", scan_id)
+            return
 
         # SSH probing phase - runs after port scanning
         ssh_results: list[SSHProbeResult] = []

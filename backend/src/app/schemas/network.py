@@ -129,7 +129,9 @@ class NetworkCreateRequest(BaseModel):
     scanner_type: str = "masscan"
     scan_protocol: str = "tcp"
     alert_config: dict[str, Any] | None = None
+    nse_profile_id: int | None = None
     host_discovery_enabled: bool = True
+    scan_schedule_enabled: bool = True
 
     @field_validator("cidr")
     @classmethod
@@ -192,7 +194,9 @@ class NetworkUpdateRequest(BaseModel):
     scanner_type: str | None = None
     scan_protocol: str | None = None
     alert_config: dict[str, Any] | None = None
+    nse_profile_id: int | None = None
     host_discovery_enabled: bool | None = None
+    scan_schedule_enabled: bool | None = None
 
     @field_validator("cidr")
     @classmethod
@@ -264,7 +268,9 @@ class NetworkResponse(BaseModel):
     scanner_type: str
     scan_protocol: str
     alert_config: dict[str, Any] | None
+    nse_profile_id: int | None
     host_discovery_enabled: bool
+    scan_schedule_enabled: bool
     is_ipv6: bool
     created_at: datetime
     updated_at: datetime

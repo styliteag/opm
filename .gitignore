@@ -59,3 +59,4 @@ prd.json
 scripts/ralph/
 # Temporary files
 tmp/
+.understand-anything/

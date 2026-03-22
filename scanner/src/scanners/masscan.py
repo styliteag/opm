@@ -16,6 +16,7 @@ from src.utils import (
     format_command,
     parse_int,
     parse_masscan_progress,
+    parse_masscan_rate,
     sanitize_cidr,
     sanitize_port_spec,
     split_port_spec,
@@ -241,11 +242,16 @@ def run_masscan(
                 logger.info("Masscan: %s", line)
                 stderr_lines.append(line)
 
-                # Try to parse progress from stdout
+                # Try to parse progress and rate from stdout
                 if progress_reporter:
                     progress = parse_masscan_progress(line)
                     if progress is not None:
-                        progress_reporter.update(progress, f"Scanning: {progress}% complete")
+                        rate_pps = parse_masscan_rate(line)
+                        progress_reporter.update(
+                            progress,
+                            f"Scanning: {progress}% complete",
+                            actual_rate=rate_pps,
+                        )
 
         # Wait for process to complete
         returncode = process.wait()
