@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-03-23
+
 ### Added
 - **Live Scan Rate**: Actual packets-per-second displayed on scan detail page during execution — parsed from masscan output, estimated for nmap scans
 - **Port Staleness Detection**: Ports not found in the latest completed scan are flagged as "Stale" with dimmed rows and an All/Active/Stale filter toggle on the Global Ports view
