@@ -8,7 +8,7 @@ Open Port Monitor is a distributed network port scanning and monitoring system. 
 
 - **Backend** (`backend/`) — FastAPI REST API (Python 3.12, async)
 - **Frontend** (`frontend/`) — React + Vite web dashboard (TypeScript)
-- **Scanner** (`scanner/`) — Masscan/Nmap-based network scanner agent (Python 3.12)
+- **Scanner** (`scanner/`) — Masscan/Nmap/NSE-based network scanner agent (Python 3.12)
 
 Current version: see `VERSION` file (semver). Database: MariaDB 11.
 
@@ -19,39 +19,87 @@ open-port-monitor/
 ├── backend/
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── core/          # Config, database, security, dependencies
-│   │   │   ├── models/        # SQLAlchemy ORM models
-│   │   │   ├── routers/       # FastAPI route handlers
-│   │   │   ├── schemas/       # Pydantic request/response schemas
-│   │   │   ├── services/      # Business logic layer
+│   │   │   ├── core/          # Config, database, security, dependencies, permissions
+│   │   │   │   ├── config.py         # Settings from env vars (db, jwt, smtp, etc.)
+│   │   │   │   ├── database.py       # SQLAlchemy async engine, session mgmt, schema init
+│   │   │   │   ├── deps.py           # DI: CurrentUser, AdminUser, CurrentScanner, DbSession
+│   │   │   │   ├── security.py       # JWT/API key auth, password hashing
+│   │   │   │   ├── permissions.py    # RBAC permission checking
+│   │   │   │   ├── alert_types.py    # Alert type registry
+│   │   │   │   ├── scanner_types.py  # Scanner type registry (masscan, nmap, nse)
+│   │   │   │   └── version.py        # Version file reader
+│   │   │   ├── models/        # SQLAlchemy ORM models (22 models)
+│   │   │   ├── routers/       # FastAPI route handlers (21 routers)
+│   │   │   ├── schemas/       # Pydantic request/response schemas (19 schema modules)
+│   │   │   ├── services/      # Business logic layer (31 service modules)
 │   │   │   └── main.py        # App entry point, lifespan, router registration
 │   │   └── migrations/versions/  # Alembic migration files
+│   ├── scripts/               # init_admin.py, wait-for-db.py
 │   ├── tests/                 # pytest async tests (SQLite in-memory)
 │   ├── pyproject.toml         # Dependencies, mypy/ruff/pytest config
 │   └── alembic.ini
 ├── frontend/
 │   ├── src/
-│   │   ├── components/        # Reusable React components
-│   │   ├── context/           # AuthContext, ThemeContext
-│   │   ├── pages/             # Route pages (Dashboard, Networks, Scans, etc.)
-│   │   ├── lib/               # API client (fetch wrapper)
-│   │   ├── types/             # TypeScript type definitions
-│   │   ├── utils/             # Utility functions
-│   │   └── constants/         # Static constants
+│   │   ├── routes/            # TanStack Router file-based routing
+│   │   │   ├── __root.tsx            # HTML shell
+│   │   │   ├── login.tsx             # Public login page
+│   │   │   ├── _authenticated.tsx    # Auth guard layout
+│   │   │   └── _authenticated/       # Protected routes
+│   │   │       ├── index.tsx                # Dashboard
+│   │   │       ├── networks/                # Networks list + detail
+│   │   │       ├── hosts/                   # Hosts list + detail
+│   │   │       ├── alerts/                  # Alerts list + detail
+│   │   │       ├── scans/                   # Scans list + detail
+│   │   │       ├── scanners.tsx             # Scanner registration
+│   │   │       ├── port-rules.tsx           # Unified port rules
+│   │   │       ├── trends.tsx               # Trend charts
+│   │   │       ├── nse/                     # NSE profiles, library, editor, results
+│   │   │       └── admin/                   # Users, roles, organization (admin-only)
+│   │   ├── features/          # Feature modules (domain-organized)
+│   │   │   ├── admin/         # User, role, organization management
+│   │   │   ├── alerts/        # Alert lifecycle, filtering, comments, assignment
+│   │   │   ├── auth/          # Login, current user, JWT storage
+│   │   │   ├── dashboard/     # Stats, scanner status, threat pulse, upcoming scans
+│   │   │   ├── hosts/         # Host table, global ports, enriched port table, SSH inline
+│   │   │   ├── networks/      # Network CRUD, port rules editor, NSE profile selection
+│   │   │   ├── nse/           # NSE profile/script CRUD, results browsing
+│   │   │   ├── scanners/      # Scanner registration, API key management
+│   │   │   └── scans/         # Quick scan, diff view, logs, CSV/PDF export
+│   │   ├── components/        # Shared UI components (ui/, layout/, data-display/, feedback/)
+│   │   └── lib/               # API client, types, query client, utilities
+│   │       ├── api.ts                # Fetch wrapper with auth header injection
+│   │       ├── api-client.ts         # Typed API client functions
+│   │       ├── api-types.ts          # API response type definitions
+│   │       ├── query-client.ts       # TanStack Query client config
+│   │       ├── types.ts              # Domain type definitions
+│   │       ├── risk-score.ts         # Host risk score calculation
+│   │       ├── scan-estimate.ts      # Scan duration estimation
+│   │       └── utils.ts              # Formatting, date helpers
 │   ├── package.json           # Dependencies, scripts
 │   ├── tsconfig.json          # Strict TypeScript config
 │   ├── eslint.config.js       # ESLint + Prettier config
 │   └── vite.config.ts         # Vite + Vitest config
 ├── scanner/
 │   ├── src/
-│   │   ├── scanners/          # Scanner implementations (masscan, nmap, base, registry)
-│   │   ├── main.py            # Scanner entry point
+│   │   ├── scanners/          # Scanner implementations
+│   │   │   ├── base.py               # Abstract base class
+│   │   │   ├── masscan.py            # High-speed port scanner
+│   │   │   ├── nmap.py               # Service detection + banner grabbing
+│   │   │   ├── nse.py                # NSE vulnerability scripts
+│   │   │   └── registry.py           # Scanner type registry pattern
+│   │   ├── main.py            # Scanner entry point, job polling loop
 │   │   ├── client.py          # Backend API client
-│   │   ├── models.py          # Pydantic models
+│   │   ├── models.py          # Pydantic models (ScannerJob, OpenPortResult, etc.)
 │   │   ├── orchestration.py   # Scan job orchestration
 │   │   ├── ssh_probe.py       # SSH security probing
-│   │   └── discovery.py       # Host discovery
+│   │   ├── discovery.py       # Host discovery via nmap/masscan ping
+│   │   ├── hostname_enrichment.py  # DNS reverse lookups
+│   │   ├── script_cache.py    # NSE script caching with ETag support
+│   │   └── threading_utils.py # Log buffering (batched submission)
 │   └── tests/
+├── nse-templates/             # NSE script repository (613+ scripts synced from nmap)
+│   ├── scripts/               # .nse script files
+│   └── tools/                 # sync-from-nmap.sh and utilities
 ├── docker/                    # Nginx config, startup scripts for production
 ├── docs/                      # API reference, scanner docs, development guides
 ├── .github/workflows/         # CI: release.yml (tag-triggered Docker builds)
@@ -166,10 +214,12 @@ Keep entries concise but descriptive. Reference issue numbers when applicable.
 
 Routes → Services → Models (with Pydantic schemas for validation)
 
-- **Routers** (`routers/`): Thin HTTP handlers, delegate to services, call `db.commit()` after service ops
-- **Services** (`services/`): Business logic, database queries, no HTTP concerns
-- **Models** (`models/`): SQLAlchemy 2.0 style with `Mapped[]` + `mapped_column()`
-- **Schemas** (`schemas/`): Pydantic v2 with `model_validate()` and `from_attributes=True`
+- **Routers** (`routers/`): 21 thin HTTP handlers, delegate to services, call `db.commit()` after service ops
+  - `auth`, `alerts`, `global_ports`, `global_settings`, `host_timeline`, `hosts`, `metadata`, `networks`, `nse`, `organization`, `policy`, `ports`, `roles`, `scanner`, `scanners`, `scans`, `ssh`, `trends`, `users`, `version`
+  - Plus `/health` endpoint on the app directly
+- **Services** (`services/`): 31 business logic modules, no HTTP concerns
+- **Models** (`models/`): 22 SQLAlchemy 2.0 models with `Mapped[]` + `mapped_column()`
+- **Schemas** (`schemas/`): 19 Pydantic v2 modules with `model_validate()` and `from_attributes=True`
 
 ### Database & ORM
 
@@ -254,20 +304,32 @@ Routes → Services → Models (with Pydantic schemas for validation)
 ### Tech Stack
 
 - React 18, Vite, TypeScript (strict mode)
-- React Router v7, TanStack Query (React Query) for server state
+- TanStack Router (file-based routing), TanStack Query (React Query) for server state
+- React Hook Form + Zod for form validation
 - Tailwind CSS for styling
 - Context API for auth (`AuthContext`) and theme (`ThemeContext`)
 
 ### Architecture
 
-- Pages in `src/pages/` — each maps to a route
-- Main pages: Dashboard, Networks, Scans, Hosts, Risk Overview, Policy, Users (admin-only)
-- Reusable components in `src/components/`
-- API calls through `src/lib/api.ts` (fetch wrapper)
-- All types centralized in `src/types/index.ts`
+- **File-based routing** in `src/routes/` via TanStack Router (NOT `src/pages/`)
+  - `__root.tsx` — HTML shell
+  - `_authenticated.tsx` — auth guard layout (replaces `ProtectedRoute` wrapper)
+  - `_authenticated/` — all protected routes nested under auth guard
+- **Feature modules** in `src/features/` — domain-organized (admin, alerts, auth, dashboard, hosts, networks, nse, scanners, scans)
+  - Each feature contains: `components/`, `hooks/`, and optionally `schemas/`
+- **Shared components** in `src/components/` — organized by category: `ui/`, `layout/`, `data-display/`, `feedback/`
+- **API layer** in `src/lib/`:
+  - `api.ts` — fetch wrapper with auth header injection and error handling
+  - `api-client.ts` — typed API client functions
+  - `api-types.ts` — API response type definitions
+  - `types.ts` — domain type definitions
+  - `query-client.ts` — TanStack Query client config
+  - `risk-score.ts` — host risk score calculation
+  - `scan-estimate.ts` — scan duration estimation
+  - `utils.ts` — formatting and date helpers
+- Main routes: Dashboard, Networks, Hosts, Alerts, Scans, Scanners, Port Rules, Trends, NSE (profiles/library/editor/results), Admin (users/roles/organization)
 - Auth token stored in `localStorage` under `opm-auth-token`
 - `VITE_API_BASE_URL` env var for API base URL (relative fallback)
-- Protected routes use `ProtectedRoute` component wrapper
 
 ### Code Style
 
@@ -280,17 +342,22 @@ Routes → Services → Models (with Pydantic schemas for validation)
 - Uses `uv` package manager with hatchling build system
 - All Python projects need `[tool.hatch.build.targets.wheel]` config in `pyproject.toml`
 - Scanner types are extensible via a registry pattern (`scanners/registry.py`)
+- Three scanner implementations: **masscan** (port discovery), **nmap** (service detection + banners), **nse** (vulnerability scripts)
 - Masscan requires `NET_RAW` and `NET_ADMIN` Docker capabilities
 - Port spec exclusions prefixed with `!` convert to `--exclude-ports`; defaults to full range if only exclusions are provided
-- Logs batched locally, sent to `/api/scanner/logs` every ~5 seconds
+- Logs batched locally via `threading_utils.py`, sent to `/api/scanner/logs` every ~5 seconds
 - IPv6 scans check connectivity to public DNS IPv6 addresses, fail fast if unreachable
 - SSH probing detects auth methods, weak ciphers/KEX, version info
+- Hostname enrichment via DNS reverse lookups (`hostname_enrichment.py`)
+- NSE script caching with content hash and ETag support (`script_cache.py`)
+- Host discovery polls `/api/scanner/host-discovery-jobs` separately from scan jobs
 
 ## Release Process
 
-1. Run `./release.sh [major|minor|patch]` — bumps `VERSION`, updates `CHANGELOG.md`, commits, tags, pushes
+1. Run `./release.sh [major|minor|patch]` — bumps `VERSION`, updates `CHANGELOG.md`, syncs NSE scripts from upstream nmap, commits, tags, pushes
 2. Tag push triggers GitHub Actions (`release.yml`): runs frontend typecheck, builds multi-arch Docker images, pushes to Docker Hub and GHCR, creates GitHub Release with changelog notes
 3. Docker images: `styliteag/open-port-monitor` (combined app) and `styliteag/open-port-monitor-scanner`
+4. NSE scripts in `nse-templates/scripts/` are synced from the nmap GitHub repo during release; built-in profiles are seeded on first backend startup
 
 ## Alert State Terminology
 
