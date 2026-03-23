@@ -112,7 +112,7 @@ function AlertsPage() {
               <DropdownMenuItem
                 onClick={() => {
                   bulkAcceptGlobal.mutate(
-                    { alert_ids: selectedIds },
+                    { alert_ids: selectedIds, reason: 'Bulk accepted globally' },
                     { onSuccess: () => setSelectedIds([]) },
                   )
                 }}
@@ -145,7 +145,7 @@ function AlertsPage() {
               const networkId = Number(e.target.value)
               if (networkId > 0) {
                 bulkAcceptNetwork.mutate(
-                  { alert_ids: selectedIds, network_id: networkId },
+                  { alert_ids: selectedIds, network_id: networkId, reason: 'Bulk accepted for network' },
                   {
                     onSuccess: () => {
                       setSelectedIds([])

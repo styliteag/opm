@@ -61,7 +61,7 @@ export function useNetworkMutations() {
 
   const triggerScan = useMutation({
     mutationFn: (networkId: number) =>
-      postApi(`/api/networks/${networkId}/trigger-scan`, {}),
+      postApi(`/api/networks/${networkId}/scan`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
   })
 

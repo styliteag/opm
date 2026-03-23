@@ -70,13 +70,14 @@ function HostDetailPage() {
   const { hostId } = Route.useParams()
   const id = Number(hostId)
   const { data, isLoading, error, refetch } = useHostDetail(id)
+  const hostIp = data?.host.ip ?? ''
+  const vulns = useHostVulnerabilities(hostIp)
 
   if (isLoading) return <LoadingState rows={8} />
   if (error) return <ErrorState message={error.message} onRetry={refetch} />
   if (!data) return <ErrorState message="Host not found" />
 
   const { host, ports, alerts, ssh, recent_scans, networks } = data
-  const vulns = useHostVulnerabilities(host.ip)
   const vulnList = vulns.data?.results ?? []
   const riskScore = computeRiskScore(alerts, ports, ssh)
 
