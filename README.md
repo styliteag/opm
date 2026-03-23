@@ -59,7 +59,7 @@ Distributed network port scanning and monitoring system for security purposes wi
 | frontend | 5173 | React + Vite web dashboard           |
 | backend  | 8000 | FastAPI REST API                     |
 | db       | 3306 | MariaDB database                     |
-| scanner  | -    | Network scanner agent (Masscan, Nmap, NSE) |
+| scanner  | -    | Network scanner agent (Masscan, Nmap, NSE, SSH probe) |
 
 ### Development
 

@@ -21,6 +21,15 @@ Complete API documentation for integrating with Open Port Monitor.
 - [Users](api/users.md) - User management
 - [Global Ports](api/global-ports.md) - Deduplicated global open port inventory
 
+### Additional API Endpoints (not yet individually documented)
+
+- **Roles** (`/api/roles`) — RBAC role management
+- **Organization** (`/api/organization`) — Organization settings
+- **Settings** (`/api/settings`) — System-wide global settings
+- **Metadata** (`/api/metadata`) — Scanner type and alert type metadata
+- **Ports** (`/api/ports`) — Port-oriented views
+- **Host Timeline** (`/api/hosts/:id/timeline`) — Host historical data
+
 ### Scanner Documentation
 
 Guides for deploying and operating scanner agents.
