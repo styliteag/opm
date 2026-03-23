@@ -94,6 +94,24 @@ async def get_scans_by_network_id(
     return [(row[0], int(row[1])) for row in result.all()]
 
 
+async def get_previous_scan_id(
+    db: AsyncSession, network_id: int, current_scan_id: int
+) -> int | None:
+    """Find the most recent completed scan before the given scan for the same network."""
+    result = await db.execute(
+        select(Scan.id)
+        .where(
+            Scan.network_id == network_id,
+            Scan.id < current_scan_id,
+            Scan.status == ScanStatus.COMPLETED,
+        )
+        .order_by(Scan.id.desc())
+        .limit(1)
+    )
+    row = result.scalar_one_or_none()
+    return row
+
+
 async def get_scan_with_ports(db: AsyncSession, scan_id: int) -> Scan | None:
     """Get a scan by ID with open ports and SSH results loaded."""
     result = await db.execute(

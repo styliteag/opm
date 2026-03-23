@@ -65,5 +65,11 @@ export function useNetworkMutations() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
   })
 
-  return { create, update, remove, triggerScan }
+  const triggerDiscovery = useMutation({
+    mutationFn: (networkId: number) =>
+      postApi(`/api/networks/${networkId}/discover-hosts`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
+  })
+
+  return { create, update, remove, triggerScan, triggerDiscovery }
 }

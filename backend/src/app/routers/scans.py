@@ -156,15 +156,30 @@ async def get_scan_diff(
     user: CurrentUser,
     db: DbSession,
     scan_id: int,
-    compare_to: int = Query(..., ge=1),
+    compare_to: int | None = Query(None, ge=1),
 ) -> ScanDiffResponse:
-    """Get diff between two scans."""
+    """Get diff between two scans.
+
+    If compare_to is not provided, automatically compares against the previous
+    completed scan for the same network.
+    """
     scan = await scans_service.get_scan_with_ports(db, scan_id)
     if scan is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Scan not found",
         )
+
+    if compare_to is None:
+        # Auto-find the previous completed scan for the same network
+        compare_to = await scans_service.get_previous_scan_id(
+            db, scan.network_id, scan_id
+        )
+        if compare_to is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No previous scan found to compare against",
+            )
 
     compare_scan = await scans_service.get_scan_with_ports(db, compare_to)
     if compare_scan is None:

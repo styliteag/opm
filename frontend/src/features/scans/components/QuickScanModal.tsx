@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { X, Zap, Clock } from 'lucide-react'
+import { X, Zap, Clock, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useUiStore } from '@/stores/ui.store'
@@ -8,7 +8,7 @@ import { useNseProfiles } from '@/features/nse/hooks/useNse'
 import { useNetworkMutations } from '@/features/networks/hooks/useNetworkDetail'
 import { computeScanEstimate } from '@/lib/scan-estimate'
 
-type ScanType = 'port' | 'nse'
+type ScanType = 'port' | 'nse' | 'discovery'
 
 export function QuickScanModal() {
   const isOpen = useUiStore((s) => s.quickScanModalOpen)
@@ -19,7 +19,7 @@ export function QuickScanModal() {
 
   const networks = useNetworks()
   const profiles = useNseProfiles()
-  const { triggerScan } = useNetworkMutations()
+  const { triggerScan, triggerDiscovery } = useNetworkMutations()
 
   const selectedNet = useMemo(
     () => (networks.data?.networks ?? []).find((n) => n.id === selectedNetwork),
@@ -40,19 +40,25 @@ export function QuickScanModal() {
       toast.error('Select an NSE profile')
       return
     }
-    triggerScan.mutate(Number(selectedNetwork), {
-      onSuccess: () => {
-        toast.success('Scan triggered successfully')
-        close()
-        setSelectedNetwork('')
-        setScanType('port')
-        setSelectedProfile('')
-      },
-      onError: (err) => {
-        toast.error(err.message)
-      },
-    })
+    const onSuccess = () => {
+      toast.success(scanType === 'discovery' ? 'Host discovery triggered' : 'Scan triggered successfully')
+      close()
+      setSelectedNetwork('')
+      setScanType('port')
+      setSelectedProfile('')
+    }
+    const onError = (err: Error) => {
+      toast.error(err.message)
+    }
+    const networkId = Number(selectedNetwork)
+    if (scanType === 'discovery') {
+      triggerDiscovery.mutate(networkId, { onSuccess, onError })
+    } else {
+      triggerScan.mutate(networkId, { onSuccess, onError })
+    }
   }
+
+  const isPending = triggerScan.isPending || triggerDiscovery.isPending
 
   const selectClass =
     'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
@@ -123,6 +129,17 @@ export function QuickScanModal() {
               </button>
               <button
                 type="button"
+                onClick={() => setScanType('discovery')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  scanType === 'discovery'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-accent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Host Discovery
+              </button>
+              <button
+                type="button"
                 onClick={() => setScanType('nse')}
                 className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   scanType === 'nse'
@@ -157,11 +174,17 @@ export function QuickScanModal() {
 
           <button
             onClick={handleScan}
-            disabled={!selectedNetwork || (scanType === 'nse' && !selectedProfile) || triggerScan.isPending}
+            disabled={!selectedNetwork || (scanType === 'nse' && !selectedProfile) || isPending}
             className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <Zap className="h-4 w-4" />
-            {triggerScan.isPending ? 'Starting...' : scanType === 'nse' ? 'Start NSE Scan' : 'Start Port Scan'}
+            {scanType === 'discovery' ? <Search className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+            {isPending
+              ? 'Starting...'
+              : scanType === 'nse'
+                ? 'Start NSE Scan'
+                : scanType === 'discovery'
+                  ? 'Start Host Discovery'
+                  : 'Start Port Scan'}
           </button>
         </div>
       </div>
