@@ -12,11 +12,11 @@ interface ScanDiffPort {
 }
 
 interface ScanDiffResponse {
-  current_scan_id: number
-  previous_scan_id: number
-  added: ScanDiffPort[]
-  removed: ScanDiffPort[]
-  unchanged: ScanDiffPort[]
+  scan_id: number
+  compare_to_id: number
+  added_ports: ScanDiffPort[]
+  removed_ports: ScanDiffPort[]
+  unchanged_ports: ScanDiffPort[]
 }
 
 interface ScanDiffViewProps {
@@ -28,12 +28,13 @@ export function ScanDiffView({ scanId }: ScanDiffViewProps) {
     queryKey: ['scans', scanId, 'diff'],
     queryFn: () => fetchApi<ScanDiffResponse>(`/api/scans/${scanId}/diff`),
     enabled: scanId > 0,
+    retry: false,
   })
 
   if (isLoading) return <div className="animate-pulse h-32 rounded-lg bg-card" />
   if (!data) return null
 
-  const hasChanges = data.added.length > 0 || data.removed.length > 0
+  const hasChanges = data.added_ports.length > 0 || data.removed_ports.length > 0
 
   if (!hasChanges) {
     return (
@@ -50,11 +51,11 @@ export function ScanDiffView({ scanId }: ScanDiffViewProps) {
           Port Changes vs Previous Scan
         </h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          +{data.added.length} added · -{data.removed.length} removed
+          +{data.added_ports.length} added · -{data.removed_ports.length} removed
         </p>
       </div>
       <div className="divide-y divide-border">
-        {data.added.map((port) => (
+        {data.added_ports.map((port) => (
           <div key={`add-${port.ip}:${port.port}`} className="flex items-center gap-3 px-5 py-2 bg-emerald-500/5">
             <Plus className="h-3.5 w-3.5 text-emerald-400" />
             <span className="font-mono text-sm text-emerald-400">
@@ -65,7 +66,7 @@ export function ScanDiffView({ scanId }: ScanDiffViewProps) {
             )}
           </div>
         ))}
-        {data.removed.map((port) => (
+        {data.removed_ports.map((port) => (
           <div key={`rm-${port.ip}:${port.port}`} className="flex items-center gap-3 px-5 py-2 bg-red-500/5">
             <Minus className="h-3.5 w-3.5 text-red-400" />
             <span className="font-mono text-sm text-red-400">

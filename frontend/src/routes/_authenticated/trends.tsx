@@ -148,8 +148,8 @@ function TrendsPage() {
           <CardTitle className="text-sm">Open Ports</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div>
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <LineChart data={openPortsData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis
@@ -185,8 +185,8 @@ function TrendsPage() {
           <CardTitle className="text-sm">Hosts Discovered</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div>
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <LineChart data={hostsData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis
@@ -222,8 +222,8 @@ function TrendsPage() {
           <CardTitle className="text-sm">Alerts</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div>
+            <ResponsiveContainer width="100%" height={256} minWidth={0}>
               <LineChart data={alertsData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis
