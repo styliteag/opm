@@ -864,6 +864,7 @@ def run_nmap(
         "-oX",
         phase2_output,
         "--open",
+        "-Pn",  # Skip host discovery (hosts confirmed up in phase 1)
         "-T4",
         "--stats-every",
         "5s",
@@ -903,12 +904,33 @@ def run_nmap(
         phase2_ports = _parse_nmap_xml(xml_content2, logger)
         logger.info("Phase 2 complete: service detection on %d ports", len(phase2_ports))
 
+        # Merge: use phase 1 as base, enrich with service info from phase 2
+        service_map: dict[tuple[str, int], OpenPortResult] = {}
+        for p in phase2_ports:
+            service_map[(p.ip, p.port)] = p
+
+        merged_ports: list[OpenPortResult] = []
+        for p in phase1_ports:
+            phase2_match = service_map.get((p.ip, p.port))
+            if phase2_match is not None:
+                # Use phase 2 result (has service info)
+                merged_ports.append(phase2_match)
+            else:
+                # Keep phase 1 result (no service info, but port is open)
+                merged_ports.append(p)
+
+        logger.info(
+            "Merged results: %d open ports (%d with service info)",
+            len(merged_ports),
+            len(service_map),
+        )
+
         if progress_reporter:
             progress_reporter.update(
-                100.0, f"Complete - {len(phase2_ports)} open ports with service info"
+                100.0, f"Complete - {len(merged_ports)} open ports ({len(service_map)} with service info)"
             )
 
-        return ScanRunResult(open_ports=phase2_ports, cancelled=False)
+        return ScanRunResult(open_ports=merged_ports, cancelled=False)
     finally:
         # Clean up targets file
         try:

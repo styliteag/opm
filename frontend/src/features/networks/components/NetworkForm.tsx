@@ -23,7 +23,10 @@ const schema = z.object({
   scan_protocol: z.enum(['tcp', 'udp', 'both']),
   scan_rate: z.coerce.number().optional(),
   scan_schedule: z.string().optional(),
-  nse_profile_id: z.coerce.number().optional(),
+  nse_profile_id: z.preprocess(
+    (val) => (val === '' || val === undefined || val === null ? undefined : Number(val)),
+    z.number().optional(),
+  ),
 })
 
 type FormData = z.infer<typeof schema>

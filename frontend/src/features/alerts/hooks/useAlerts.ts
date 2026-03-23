@@ -42,7 +42,10 @@ export function useAlerts(filters: AlertFilters) {
 export function useAlertComments(alertId: number) {
   return useQuery({
     queryKey: ['alerts', alertId, 'comments'],
-    queryFn: () => fetchApi<AlertComment[]>(`/api/alerts/${alertId}/comments`),
+    queryFn: async () => {
+      const res = await fetchApi<{ comments: AlertComment[] }>(`/api/alerts/${alertId}/comments`)
+      return res.comments
+    },
     enabled: alertId > 0,
   })
 }
@@ -80,13 +83,13 @@ export function useAlertMutations() {
   })
 
   const bulkAcceptGlobal = useMutation({
-    mutationFn: (data: { alert_ids: number[] }) =>
+    mutationFn: (data: { alert_ids: number[]; reason: string }) =>
       postApi('/api/alerts/bulk-accept-global', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
   })
 
   const bulkAcceptNetwork = useMutation({
-    mutationFn: (data: { alert_ids: number[]; network_id: number }) =>
+    mutationFn: (data: { alert_ids: number[]; network_id: number; reason: string }) =>
       postApi('/api/alerts/bulk-accept-network', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
   })
