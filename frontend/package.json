@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
     "generate:api": "openapi-typescript http://localhost:8000/openapi.json -o src/lib/api-types.ts"
   },
   "dependencies": {
