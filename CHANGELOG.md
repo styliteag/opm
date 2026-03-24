@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Multi-phase scan pipeline on networks: Host Discovery → Port Scan → Vulnerability
+- Phase toggle cards in network form (SiriusScan-style) with per-phase config
+- Phase-aware progress reporting in scanner: "Port Scan: 45% (2 of 3 phases)"
+- `phases` JSON column on networks table for pipeline configuration
+- Sequential phase pipeline in scanner agent with inter-phase data flow
+
 ## [1.6.0] - 2026-03-24
 
 ## [1.5.1] - 2026-03-23
