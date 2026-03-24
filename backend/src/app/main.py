@@ -48,18 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await init_db()
 
-    # Seed built-in NSE templates on first startup
-    from .core.database import get_db
-    from .services.nse_seed import seed_builtin_profiles
-
-    async for db in get_db():
-        try:
-            seeded = await seed_builtin_profiles(db)
-            if seeded > 0:
-                await db.commit()
-        except Exception:
-            logger.exception("Failed to seed NSE templates")
-        break
+    # NSE profile seeding is handled by scripts/seed_nse.py before workers start
 
     start_scheduler()
 

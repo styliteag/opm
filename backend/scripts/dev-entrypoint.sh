@@ -23,5 +23,9 @@ uv run alembic upgrade head
 echo "Initializing admin user..."
 uv run python /app/scripts/init_admin.py || exit 1
 
+# Seed built-in NSE profiles BEFORE starting uvicorn (single process, no race condition)
+echo "Seeding NSE profiles..."
+uv run python /app/scripts/seed_nse.py || exit 1
+
 # Start application
 exec uv run uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --reload
