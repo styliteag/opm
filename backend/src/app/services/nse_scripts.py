@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.nse_script import NseScript
-from app.models.nse_template import NseTemplate
+from app.models.nse_template import ScanProfile
 from app.schemas.nse import NseScriptCreate, NseScriptListItem, NseScriptUpdate
 
 logger = logging.getLogger(__name__)
@@ -195,8 +195,8 @@ async def delete_script(db: AsyncSession, script: NseScript) -> int:
 
 
 async def _remove_script_from_profiles(db: AsyncSession, script_name: str) -> int:
-    """Remove a script name from all NseTemplate.nse_scripts arrays."""
-    result = await db.execute(select(NseTemplate))
+    """Remove a script name from all ScanProfile.nse_scripts arrays."""
+    result = await db.execute(select(ScanProfile))
     templates = list(result.scalars().all())
 
     updated_count = 0

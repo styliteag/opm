@@ -132,6 +132,7 @@ class NetworkCreateRequest(BaseModel):
     nse_profile_id: int | None = None
     host_discovery_enabled: bool = True
     scan_schedule_enabled: bool = True
+    scan_profile_id: int | None = None
 
     @field_validator("cidr")
     @classmethod
@@ -197,6 +198,7 @@ class NetworkUpdateRequest(BaseModel):
     nse_profile_id: int | None = None
     host_discovery_enabled: bool | None = None
     scan_schedule_enabled: bool | None = None
+    scan_profile_id: int | None = None
 
     @field_validator("cidr")
     @classmethod
@@ -271,6 +273,7 @@ class NetworkResponse(BaseModel):
     nse_profile_id: int | None
     host_discovery_enabled: bool
     scan_schedule_enabled: bool
+    scan_profile_id: int | None
     is_ipv6: bool
     created_at: datetime
     updated_at: datetime
