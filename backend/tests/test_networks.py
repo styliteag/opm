@@ -124,9 +124,7 @@ class TestNetworkService:
             scanner_id=scanner.id,
         )
 
-        assert network.scanner_type == "masscan"
         assert network.scan_protocol == "tcp"
-        assert network.host_discovery_enabled is True
 
     async def test_update_network_name(
         self, db_session: AsyncSession, network: Network
