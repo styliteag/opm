@@ -20,7 +20,9 @@ interface PortRule {
   network_id: number | null
   network_name?: string | null
   rule_type: 'accepted' | 'critical'
-  match_criteria: { port: number; ip?: string }
+  ip: string | null
+  port: string
+  source: string
   description: string | null
   created_at: string
 }
@@ -32,7 +34,7 @@ interface PolicyResponse {
 function usePortRules() {
   return useQuery({
     queryKey: ['policy', 'rules'],
-    queryFn: () => fetchApi<PolicyResponse>('/api/policy'),
+    queryFn: () => fetchApi<PolicyResponse>('/api/port-rules'),
   })
 }
 
@@ -48,7 +50,7 @@ function GlobalRuleAddForm({ onAdded }: { onAdded: () => void }) {
       ip?: string
       rule_type: string
       description?: string
-    }) => postApi('/api/policy/rules', data),
+    }) => postApi('/api/port-rules', data),
     onSuccess: () => {
       toast.success('Global rule added')
       setPort('')
@@ -144,8 +146,8 @@ function RuleRow({
     <div className="flex items-center justify-between px-5 py-3 group">
       <div className="flex items-center gap-3">
         <span className="font-mono text-sm text-foreground">
-          {rule.match_criteria.ip ? `${rule.match_criteria.ip}:` : ''}
-          {rule.match_criteria.port}
+          {rule.ip ? `${rule.ip}:` : ''}
+          {rule.port}
         </span>
         <StatusBadge
           label={rule.rule_type}
@@ -209,7 +211,7 @@ function PortRulesPage() {
   ) => {
     if (
       window.confirm(
-        `Remove rule for port ${rule.match_criteria.port}? This cannot be undone.`,
+        `Remove rule for port ${rule.port}? This cannot be undone.`,
       )
     ) {
       deleteRule.mutate({ scope, id: rule.id })

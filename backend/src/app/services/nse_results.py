@@ -79,7 +79,13 @@ async def submit_nse_results(
     if scan is None or scan.scanner_id != scanner.id:
         return 0
 
-    if scan.status not in {ScanStatus.RUNNING, ScanStatus.CANCELLED}:
+    if scan.status not in {ScanStatus.RUNNING, ScanStatus.CANCELLED, ScanStatus.PLANNED}:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Rejecting NSE results for scan %d: status is %s (expected RUNNING/CANCELLED/PLANNED)",
+            submission.scan_id,
+            scan.status.value,
+        )
         return 0
 
     is_cancelled = scan.status == ScanStatus.CANCELLED
