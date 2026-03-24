@@ -1,9 +1,9 @@
-"""Pydantic schemas for NSE vulnerability scanning."""
+"""Pydantic schemas for NSE vulnerability scanning and scan profiles."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 # --- Profile Schemas ---
@@ -88,6 +88,143 @@ class NseProfileListResponse(BaseModel):
     """Response containing list of profiles."""
 
     profiles: list[NseProfileResponse]
+    total: int
+
+
+# --- Phase-Aware Scan Profile Schemas ---
+
+VALID_PHASE_NAMES = {"host_discovery", "port_scan", "vulnerability"}
+VALID_PHASE_TOOLS = {
+    "host_discovery": {"nmap"},
+    "port_scan": {"masscan", "nmap"},
+    "vulnerability": {"nmap_nse"},
+}
+VALID_SEVERITIES = {"critical", "high", "medium", "info"}
+
+
+class ScanPhase(BaseModel):
+    """A single scan phase configuration."""
+
+    name: Literal["host_discovery", "port_scan", "vulnerability"]
+    enabled: bool = True
+    tool: str
+    config: dict[str, Any] = {}
+
+    @model_validator(mode="after")
+    def validate_tool_for_phase(self) -> "ScanPhase":
+        valid_tools = VALID_PHASE_TOOLS.get(self.name, set())
+        if self.tool not in valid_tools:
+            raise ValueError(
+                f"Invalid tool '{self.tool}' for phase "
+                f"'{self.name}'. Must be one of: "
+                f"{', '.join(sorted(valid_tools))}"
+            )
+        return self
+
+
+class ScanProfileCreate(BaseModel):
+    """Request to create a scan profile with phases."""
+
+    name: str
+    description: str = ""
+    phases: list[ScanPhase]
+    severity: str | None = None
+    platform: str = "any"
+    category: str | None = None
+    enabled: bool = True
+    priority: int = 10
+
+    @field_validator("phases")
+    @classmethod
+    def validate_phases(
+        cls, v: list[ScanPhase],
+    ) -> list[ScanPhase]:
+        if not v:
+            raise ValueError("At least one phase is required")
+        names = [p.name for p in v]
+        if len(names) != len(set(names)):
+            raise ValueError("Duplicate phase names are not allowed")
+        if not any(p.enabled for p in v):
+            raise ValueError("At least one phase must be enabled")
+        return v
+
+    @field_validator("severity")
+    @classmethod
+    def validate_severity(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if v not in VALID_SEVERITIES:
+            raise ValueError(
+                f"Severity must be one of: "
+                f"{', '.join(sorted(VALID_SEVERITIES))}"
+            )
+        return v
+
+
+class ScanProfileUpdate(BaseModel):
+    """Request to update a scan profile."""
+
+    name: str | None = None
+    description: str | None = None
+    phases: list[ScanPhase] | None = None
+    severity: str | None = None
+    platform: str | None = None
+    category: str | None = None
+    enabled: bool | None = None
+    priority: int | None = None
+
+    @field_validator("phases")
+    @classmethod
+    def validate_phases(
+        cls, v: list[ScanPhase] | None,
+    ) -> list[ScanPhase] | None:
+        if v is None:
+            return v
+        if not v:
+            raise ValueError("At least one phase is required")
+        names = [p.name for p in v]
+        if len(names) != len(set(names)):
+            raise ValueError("Duplicate phase names are not allowed")
+        if not any(p.enabled for p in v):
+            raise ValueError("At least one phase must be enabled")
+        return v
+
+    @field_validator("severity")
+    @classmethod
+    def validate_severity(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if v not in VALID_SEVERITIES:
+            raise ValueError(
+                f"Severity must be one of: "
+                f"{', '.join(sorted(VALID_SEVERITIES))}"
+            )
+        return v
+
+
+class ScanProfileResponse(BaseModel):
+    """Scan profile response with phases."""
+
+    id: int
+    name: str
+    description: str
+    phases: list[dict[str, Any]] | None
+    severity: str | None
+    platform: str
+    category: str | None
+    type: str
+    enabled: bool
+    priority: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ScanProfileListResponse(BaseModel):
+    """Response containing list of scan profiles."""
+
+    profiles: list[ScanProfileResponse]
     total: int
 
 
