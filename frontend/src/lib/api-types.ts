@@ -3170,6 +3170,8 @@ export interface components {
             severity: string | null;
             /** Platform */
             platform: string;
+            /** Category */
+            category: string | null;
             /** Type */
             type: string;
             /** Enabled */

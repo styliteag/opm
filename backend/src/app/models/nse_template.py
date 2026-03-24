@@ -53,6 +53,7 @@ class NseTemplate(Base):
     )
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     script_args: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()

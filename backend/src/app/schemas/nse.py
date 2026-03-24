@@ -17,6 +17,7 @@ class NseProfileCreate(BaseModel):
     nse_scripts: list[str]
     severity: str | None = None
     platform: str = "any"
+    category: str | None = None
     script_args: dict[str, Any] | None = None
     enabled: bool = True
     priority: int = 10
@@ -47,6 +48,7 @@ class NseProfileUpdate(BaseModel):
     nse_scripts: list[str] | None = None
     severity: str | None = None
     platform: str | None = None
+    category: str | None = None
     script_args: dict[str, Any] | None = None
     enabled: bool | None = None
     priority: int | None = None
@@ -71,6 +73,7 @@ class NseProfileResponse(BaseModel):
     nse_scripts: list[str]
     severity: str | None
     platform: str
+    category: str | None
     type: str
     enabled: bool
     script_args: dict[str, Any] | None

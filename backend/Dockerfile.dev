@@ -26,6 +26,7 @@ COPY alembic.ini ./
 COPY scripts/dev-entrypoint.sh ./scripts/dev-entrypoint.sh
 COPY scripts/wait-for-db.py ./scripts/wait-for-db.py
 COPY scripts/init_admin.py ./scripts/init_admin.py
+COPY scripts/seed_nse.py ./scripts/seed_nse.py
 RUN chmod +x ./scripts/wait-for-db.py
 
 # Expose port
