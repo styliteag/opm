@@ -23,12 +23,44 @@ interface PortRule {
   ip: string | null
   port: string
   source: string
+  alert_type: string | null
+  script_name: string | null
   description: string | null
   created_at: string
 }
 
 interface PolicyResponse {
   rules: PortRule[]
+}
+
+type RuleSource = 'port' | 'ssh' | 'nse'
+
+const SSH_ALERT_TYPES = [
+  { value: 'ssh_insecure_auth', label: 'Insecure Auth (password/keyboard-interactive)' },
+  { value: 'ssh_weak_cipher', label: 'Weak Ciphers' },
+  { value: 'ssh_weak_kex', label: 'Weak Key Exchange' },
+  { value: 'ssh_outdated_version', label: 'Outdated SSH Version' },
+  { value: 'ssh_config_regression', label: 'Configuration Regression' },
+]
+
+const NSE_ALERT_TYPES = [
+  { value: 'nse_vulnerability', label: 'NSE Vulnerability' },
+  { value: 'nse_cve_detected', label: 'CVE Detected' },
+]
+
+const SOURCE_BADGES: Record<string, { label: string; className: string }> = {
+  port: { label: 'Port', className: 'bg-blue-500/10 text-blue-500' },
+  ssh: { label: 'SSH', className: 'bg-amber-500/10 text-amber-500' },
+  nse: { label: 'NSE', className: 'bg-purple-500/10 text-purple-500' },
+}
+
+function SourceBadge({ source }: { source: string }) {
+  const badge = SOURCE_BADGES[source] ?? SOURCE_BADGES.port
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${badge.className}`}>
+      {badge.label}
+    </span>
+  )
 }
 
 function usePortRules() {
@@ -39,22 +71,23 @@ function usePortRules() {
 }
 
 function GlobalRuleAddForm({ onAdded }: { onAdded: () => void }) {
+  const [source, setSource] = useState<RuleSource>('port')
   const [port, setPort] = useState('')
   const [ip, setIp] = useState('')
   const [ruleType, setRuleType] = useState<'accepted' | 'critical'>('accepted')
+  const [alertType, setAlertType] = useState('')
+  const [scriptName, setScriptName] = useState('')
   const [description, setDescription] = useState('')
 
   const addRule = useMutation({
-    mutationFn: (data: {
-      port: string
-      ip?: string
-      rule_type: string
-      description?: string
-    }) => postApi('/api/port-rules', data),
+    mutationFn: (data: Record<string, unknown>) =>
+      postApi('/api/port-rules', data),
     onSuccess: () => {
-      toast.success('Global rule added')
+      toast.success('Rule added')
       setPort('')
       setIp('')
+      setAlertType('')
+      setScriptName('')
       setDescription('')
       onAdded()
     },
@@ -64,17 +97,36 @@ function GlobalRuleAddForm({ onAdded }: { onAdded: () => void }) {
   const selectClass =
     'rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
+  const canSubmit =
+    source === 'port' ? Boolean(port) : true // SSH/NSE rules don't require port
+
   return (
     <div className="border-b border-border bg-accent/30 px-5 py-3">
       <div className="flex flex-wrap items-end gap-3">
         <div>
+          <label className="block text-xs text-muted-foreground mb-1">Source</label>
+          <select
+            value={source}
+            onChange={(e) => {
+              setSource(e.target.value as RuleSource)
+              setAlertType('')
+              setScriptName('')
+            }}
+            className={selectClass}
+          >
+            <option value="port">Port</option>
+            <option value="ssh">SSH</option>
+            <option value="nse">NSE</option>
+          </select>
+        </div>
+        <div>
           <label className="block text-xs text-muted-foreground mb-1">
-            Port
+            Port{source !== 'port' ? ' (optional)' : ''}
           </label>
           <Input
             value={port}
             onChange={(e) => setPort(e.target.value)}
-            placeholder="80"
+            placeholder={source === 'ssh' ? '22' : '80'}
             className="w-24 font-mono"
           />
         </div>
@@ -89,25 +141,61 @@ function GlobalRuleAddForm({ onAdded }: { onAdded: () => void }) {
             className="w-36 font-mono"
           />
         </div>
+
+        {source === 'ssh' && (
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">
+              Alert Type (optional)
+            </label>
+            <select value={alertType} onChange={(e) => setAlertType(e.target.value)} className={selectClass}>
+              <option value="">Any SSH alert</option>
+              {SSH_ALERT_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {source === 'nse' && (
+          <>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">
+                Alert Type (optional)
+              </label>
+              <select value={alertType} onChange={(e) => setAlertType(e.target.value)} className={selectClass}>
+                <option value="">Any NSE alert</option>
+                {NSE_ALERT_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">
+                Script Name (optional)
+              </label>
+              <Input
+                value={scriptName}
+                onChange={(e) => setScriptName(e.target.value)}
+                placeholder="http-vuln-cve2017-5638"
+                className="w-52 font-mono"
+              />
+            </div>
+          </>
+        )}
+
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">
-            Type
-          </label>
+          <label className="block text-xs text-muted-foreground mb-1">Type</label>
           <select
             value={ruleType}
-            onChange={(e) =>
-              setRuleType(e.target.value as 'accepted' | 'critical')
-            }
+            onChange={(e) => setRuleType(e.target.value as 'accepted' | 'critical')}
             className={selectClass}
           >
             <option value="accepted">Accepted</option>
             <option value="critical">Critical</option>
           </select>
         </div>
-        <div className="flex-1">
-          <label className="block text-xs text-muted-foreground mb-1">
-            Description
-          </label>
+        <div className="flex-1 min-w-[160px]">
+          <label className="block text-xs text-muted-foreground mb-1">Description</label>
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -118,13 +206,16 @@ function GlobalRuleAddForm({ onAdded }: { onAdded: () => void }) {
           size="sm"
           onClick={() =>
             addRule.mutate({
-              port,
+              port: port || undefined,
               ip: ip || undefined,
               rule_type: ruleType,
               description: description || undefined,
+              source,
+              alert_type: alertType || undefined,
+              script_name: scriptName || undefined,
             })
           }
-          disabled={!port || addRule.isPending}
+          disabled={!canSubmit || addRule.isPending}
         >
           {addRule.isPending ? 'Adding...' : 'Add'}
         </Button>
@@ -142,13 +233,32 @@ function RuleRow({
   onDelete: () => void
   isDeleting: boolean
 }) {
+  // Build extra criteria display
+  const extraParts: string[] = []
+  if (rule.alert_type) {
+    const label =
+      SSH_ALERT_TYPES.find((t) => t.value === rule.alert_type)?.label ??
+      NSE_ALERT_TYPES.find((t) => t.value === rule.alert_type)?.label ??
+      rule.alert_type
+    extraParts.push(label)
+  }
+  if (rule.script_name) {
+    extraParts.push(rule.script_name)
+  }
+
   return (
     <div className="flex items-center justify-between px-5 py-3 group">
       <div className="flex items-center gap-3">
+        <SourceBadge source={rule.source} />
         <span className="font-mono text-sm text-foreground">
           {rule.ip ? `${rule.ip}:` : ''}
-          {rule.port}
+          {rule.port || '*'}
         </span>
+        {extraParts.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {extraParts.join(' · ')}
+          </span>
+        )}
         <StatusBadge
           label={rule.rule_type}
           variant={rule.rule_type === 'accepted' ? 'success' : 'danger'}
@@ -211,7 +321,7 @@ function PortRulesPage() {
   ) => {
     if (
       window.confirm(
-        `Remove rule for port ${rule.port}? This cannot be undone.`,
+        `Remove this ${rule.source} rule? This cannot be undone.`,
       )
     ) {
       deleteRule.mutate({ scope, id: rule.id })
@@ -223,10 +333,10 @@ function PortRulesPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">
-            Port Rules
+            Alert Rules
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage global and per-network port acceptance and criticality rules.
+            Manage global and per-network alert acceptance and criticality rules for port, SSH, and NSE alerts.
           </p>
         </div>
       </div>

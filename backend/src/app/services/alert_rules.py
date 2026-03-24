@@ -296,6 +296,62 @@ async def is_port_blocked(
     return False
 
 
+def nse_rule_matches_alert(
+    rule: AlertRule,
+    ip: str,
+    port: int | None,
+    alert_type: str | None = None,
+    script_name: str | None = None,
+) -> bool:
+    """Check if an NSE-source alert rule matches a given alert."""
+    criteria = rule.match_criteria
+
+    # IP match
+    rule_ip = criteria.get("ip")
+    if rule_ip is not None and rule_ip != ip:
+        return False
+
+    # Port match (optional)
+    rule_port_str = criteria.get("port")
+    if rule_port_str is not None and port is not None:
+        parsed = _parse_port_range(str(rule_port_str))
+        if parsed is not None:
+            start, end = parsed
+            if not (start <= port <= end):
+                return False
+
+    # Alert type match (optional)
+    rule_alert_type = criteria.get("alert_type")
+    if rule_alert_type is not None and alert_type is not None:
+        if rule_alert_type != alert_type:
+            return False
+
+    # Script name match (optional)
+    rule_script = criteria.get("script_name")
+    if rule_script is not None and script_name is not None:
+        if rule_script != script_name:
+            return False
+
+    return True
+
+
+async def is_nse_accepted(
+    db: AsyncSession,
+    ip: str,
+    port: int | None,
+    alert_type: str | None = None,
+    script_name: str | None = None,
+) -> bool:
+    """Check if an NSE alert is accepted by global alert rules."""
+    rules = await get_global_rules(db, source="nse")
+    for rule in rules:
+        if rule.rule_type != RuleType.ACCEPTED:
+            continue
+        if nse_rule_matches_alert(rule, ip, port, alert_type, script_name):
+            return True
+    return False
+
+
 async def is_ssh_accepted(
     db: AsyncSession,
     ip: str,

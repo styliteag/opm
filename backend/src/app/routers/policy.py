@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import CurrentUser, DbSession, OperatorUser
+from app.models.alert_rule import AlertRule
 from app.models.alert_rule import RuleType as AlertRuleType
 from app.models.global_port_rule import GlobalRuleType
 from app.schemas.policy import (
@@ -18,6 +19,28 @@ from app.services import networks as networks_service
 router = APIRouter(prefix="/api/port-rules", tags=["port-rules"])
 
 
+def _build_response(
+    rule: AlertRule,
+    network_name: str | None,
+) -> PortRuleUnifiedResponse:
+    """Build a unified response from an AlertRule model."""
+    criteria = rule.match_criteria
+    return PortRuleUnifiedResponse(
+        id=rule.id,
+        network_id=rule.network_id,
+        network_name=network_name,
+        ip=criteria.get("ip"),
+        port=criteria.get("port", ""),
+        rule_type=GlobalRuleType(rule.rule_type.value),
+        description=rule.description,
+        source=rule.source,
+        alert_type=criteria.get("alert_type"),
+        script_name=criteria.get("script_name"),
+        created_at=rule.created_at,
+        created_by=rule.created_by,
+    )
+
+
 @router.get("", response_model=PortRuleUnifiedListResponse)
 async def list_port_rules(
     user: CurrentUser,
@@ -28,24 +51,10 @@ async def list_port_rules(
 
     rules = []
 
-    # Fetch global rules (port source for backward compat, but also include ssh)
+    # Fetch global rules
     global_rules = await alert_rules_service.get_global_rules(db)
     for rule in global_rules:
-        criteria = rule.match_criteria
-        rules.append(
-            PortRuleUnifiedResponse(
-                id=rule.id,
-                network_id=None,
-                network_name="Global",
-                ip=criteria.get("ip"),
-                port=criteria.get("port", ""),
-                rule_type=GlobalRuleType(rule.rule_type.value),
-                description=rule.description,
-                source=rule.source,
-                created_at=rule.created_at,
-                created_by=rule.created_by,
-            )
-        )
+        rules.append(_build_response(rule, "Global"))
 
     # Fetch network rules
     if network_id:
@@ -53,23 +62,9 @@ async def list_port_rules(
         network = await networks_service.get_network_by_id(db, network_id)
         network_name = network.name if network else f"Network {network_id}"
         for rule in network_rules:
-            criteria = rule.match_criteria
-            rules.append(
-                PortRuleUnifiedResponse(
-                    id=rule.id,
-                    network_id=rule.network_id,
-                    network_name=network_name,
-                    ip=criteria.get("ip"),
-                    port=criteria.get("port", ""),
-                    rule_type=GlobalRuleType(rule.rule_type.value),
-                    description=rule.description,
-                    source=rule.source,
-                )
-            )
+            rules.append(_build_response(rule, network_name))
     else:
-        # Fetch all network rules
         all_network_rules = await alert_rules_service.get_all_rules(db)
-        # Collect unique network IDs for name lookup
         net_ids = {r.network_id for r in all_network_rules if r.network_id is not None}
         net_names: dict[int, str] = {}
         for nid in net_ids:
@@ -78,19 +73,9 @@ async def list_port_rules(
                 net_names[nid] = net.name
         for rule in all_network_rules:
             if rule.network_id is None:
-                continue  # Skip globals, already added above
-            criteria = rule.match_criteria
+                continue
             rules.append(
-                PortRuleUnifiedResponse(
-                    id=rule.id,
-                    network_id=rule.network_id,
-                    network_name=net_names.get(rule.network_id, f"Network {rule.network_id}"),
-                    ip=criteria.get("ip"),
-                    port=criteria.get("port", ""),
-                    rule_type=GlobalRuleType(rule.rule_type.value),
-                    description=rule.description,
-                    source=rule.source,
-                )
+                _build_response(rule, net_names.get(rule.network_id, f"Network {rule.network_id}"))
             )
 
     # Sort: Global first, then by network name, then by port
@@ -116,6 +101,10 @@ async def create_port_rule(
         criteria["port"] = request.port
     if request.ip:
         criteria["ip"] = request.ip
+    if request.alert_type and source in ("ssh", "nse"):
+        criteria["alert_type"] = request.alert_type
+    if request.script_name and source == "nse":
+        criteria["script_name"] = request.script_name
 
     try:
         rule = await alert_rules_service.create_rule(
@@ -145,7 +134,17 @@ async def create_port_rule(
                 db,
                 ip=request.ip,
                 port=int(request.port) if request.port else None,
-                alert_type=None,
+                alert_type=request.alert_type,
+                reason=reason,
+                network_id=request.network_id,
+            )
+        elif source == "nse":
+            await alerts_service.auto_dismiss_alerts_for_nse_rule(
+                db,
+                ip=request.ip,
+                port=int(request.port) if request.port else None,
+                alert_type=request.alert_type,
+                script_name=request.script_name,
                 reason=reason,
                 network_id=request.network_id,
             )
@@ -157,18 +156,7 @@ async def create_port_rule(
         net = await networks_service.get_network_by_id(db, request.network_id)
         net_name = net.name if net else f"Network {request.network_id}"
 
-    return PortRuleUnifiedResponse(
-        id=rule.id,
-        network_id=rule.network_id,
-        network_name=net_name,
-        ip=criteria.get("ip"),
-        port=criteria.get("port", ""),
-        rule_type=GlobalRuleType(rule.rule_type.value),
-        description=rule.description,
-        source=rule.source,
-        created_at=rule.created_at,
-        created_by=rule.created_by,
-    )
+    return _build_response(rule, net_name)
 
 
 @router.patch("/{scope}/{rule_id}", response_model=PortRuleUnifiedResponse)
@@ -233,12 +221,13 @@ async def update_port_rule(
     if updated.rule_type == AlertRuleType.ACCEPTED:
         port_str = updated.match_criteria.get("port")
         ip = updated.match_criteria.get("ip")
+        dismiss_reason = updated.description or "Accepted by rule"
         if updated.source == "port" and port_str:
             await alerts_service.auto_dismiss_alerts_for_accepted_rule(
                 db,
                 ip=ip,
                 port_str=str(port_str),
-                reason=updated.description or "Accepted by rule",
+                reason=dismiss_reason,
                 network_id=updated.network_id,
             )
         elif updated.source == "ssh":
@@ -247,7 +236,17 @@ async def update_port_rule(
                 ip=ip,
                 port=int(port_str) if port_str else None,
                 alert_type=updated.match_criteria.get("alert_type"),
-                reason=updated.description or "Accepted by rule",
+                reason=dismiss_reason,
+                network_id=updated.network_id,
+            )
+        elif updated.source == "nse":
+            await alerts_service.auto_dismiss_alerts_for_nse_rule(
+                db,
+                ip=ip,
+                port=int(port_str) if port_str else None,
+                alert_type=updated.match_criteria.get("alert_type"),
+                script_name=updated.match_criteria.get("script_name"),
+                reason=dismiss_reason,
                 network_id=updated.network_id,
             )
 
@@ -258,19 +257,7 @@ async def update_port_rule(
         net = await networks_service.get_network_by_id(db, rule.network_id)
         net_name = net.name if net else f"Network {rule.network_id}"
 
-    criteria = updated.match_criteria
-    return PortRuleUnifiedResponse(
-        id=updated.id,
-        network_id=updated.network_id,
-        network_name=net_name,
-        ip=criteria.get("ip"),
-        port=criteria.get("port", ""),
-        rule_type=GlobalRuleType(updated.rule_type.value),
-        description=updated.description,
-        source=updated.source,
-        created_at=updated.created_at,
-        created_by=updated.created_by,
-    )
+    return _build_response(updated, net_name)
 
 
 @router.delete("/{scope}/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)

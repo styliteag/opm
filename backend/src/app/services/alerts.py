@@ -248,6 +248,50 @@ async def auto_dismiss_alerts_for_ssh_rule(
     return result.rowcount or 0  # type: ignore[attr-defined]
 
 
+async def auto_dismiss_alerts_for_nse_rule(
+    db: AsyncSession,
+    ip: str | None,
+    port: int | None,
+    alert_type: str | None,
+    script_name: str | None,
+    reason: str,
+    network_id: int | None = None,
+) -> int:
+    """Auto-dismiss pending NSE alerts matching a newly created ACCEPTED rule.
+
+    Returns:
+        Number of alerts dismissed
+    """
+    conditions: list[Any] = [
+        Alert.dismissed.is_(False),
+        Alert.source == "nse",
+    ]
+
+    if ip is not None:
+        conditions.append(Alert.ip == ip)
+
+    if port is not None:
+        conditions.append(Alert.port == port)
+
+    if alert_type is not None:
+        conditions.append(Alert.alert_type == alert_type)
+
+    if network_id is not None:
+        conditions.append(Alert.network_id == network_id)
+
+    # script_name matching via message substring (script name is embedded
+    # in the alert message by the NSE alert generator).
+    if script_name is not None:
+        conditions.append(Alert.message.contains(script_name))
+
+    stmt = update(Alert).where(and_(*conditions)).values(
+        dismissed=True,
+        dismiss_reason=reason,
+    )
+    result = await db.execute(stmt)
+    return result.rowcount or 0  # type: ignore[attr-defined]
+
+
 SSH_ALERT_TYPES = frozenset({
     AlertType.SSH_INSECURE_AUTH,
     AlertType.SSH_WEAK_CIPHER,

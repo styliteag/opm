@@ -19,6 +19,8 @@ class PortRuleUnifiedResponse(BaseModel):
     rule_type: GlobalRuleType
     description: str | None = None
     source: str = "port"
+    alert_type: str | None = None  # For ssh/nse rules
+    script_name: str | None = None  # For nse rules
     created_at: datetime | None = None
     created_by: int | None = None
 
@@ -40,6 +42,8 @@ class PortRuleUnifiedCreateRequest(BaseModel):
     rule_type: GlobalRuleType = GlobalRuleType.ACCEPTED
     description: str | None = None
     source: str = "port"
+    alert_type: str | None = None  # For ssh/nse rules: specific alert type
+    script_name: str | None = None  # For nse rules: specific NSE script name
 
     @field_validator("port")
     @classmethod
