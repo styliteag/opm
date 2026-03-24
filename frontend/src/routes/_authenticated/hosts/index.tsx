@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Download, Search } from 'lucide-react'
+import { Download, Search, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { LoadingState } from '@/components/data-display/LoadingState'
 import { ErrorState } from '@/components/data-display/ErrorState'
 import { EmptyState } from '@/components/data-display/EmptyState'
 import { HostsTable } from '@/features/hosts/components/HostsTable'
 import { GlobalPortsTable } from '@/features/hosts/components/GlobalPortsTable'
-import { useHosts } from '@/features/hosts/hooks/useHosts'
+import { useHosts, useHostMutations } from '@/features/hosts/hooks/useHosts'
 import { useGlobalPorts } from '@/features/hosts/hooks/useGlobalPorts'
 import { useNetworks } from '@/features/dashboard/hooks/useDashboardData'
 
@@ -22,6 +23,7 @@ function HostsPage() {
   const [search, setSearch] = useState('')
   const [networkId, setNetworkId] = useState<number | undefined>()
   const [staleness, setStaleness] = useState<'all' | 'active' | 'stale'>('all')
+  const [selectedHostIds, setSelectedHostIds] = useState<number[]>([])
   const [page, setPage] = useState(0)
   const limit = 50
 
@@ -39,6 +41,7 @@ function HostsPage() {
     limit,
   })
   const networks = useNetworks()
+  const { bulkDelete } = useHostMutations()
 
   const hostList = hosts.data?.hosts ?? []
   const totalCount = hosts.data?.total_count ?? 0
@@ -191,6 +194,41 @@ function HostsPage() {
         )}
       </div>
 
+      {viewMode === 'hosts' && selectedHostIds.length > 0 && (
+        <div className="flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2">
+          <span className="text-sm text-destructive">
+            {selectedHostIds.length} selected
+          </span>
+          <button
+            onClick={() => {
+              if (confirm(`Delete ${selectedHostIds.length} host(s) permanently?`)) {
+                bulkDelete.mutate(
+                  { host_ids: selectedHostIds },
+                  {
+                    onSuccess: () => {
+                      toast.success(`Deleted ${selectedHostIds.length} host(s)`)
+                      setSelectedHostIds([])
+                    },
+                    onError: (e) => toast.error(e.message),
+                  },
+                )
+              }
+            }}
+            disabled={bulkDelete.isPending}
+            className="flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1 text-xs text-white hover:bg-destructive/90 transition-colors disabled:opacity-50"
+          >
+            <Trash2 className="h-3 w-3" />
+            {bulkDelete.isPending ? 'Deleting...' : 'Delete'}
+          </button>
+          <button
+            onClick={() => setSelectedHostIds([])}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {isLoading ? (
         <LoadingState rows={8} />
       ) : error ? (
@@ -202,7 +240,11 @@ function HostsPage() {
       ) : (
         <>
           {viewMode === 'hosts' ? (
-            <HostsTable hosts={hostList} />
+            <HostsTable
+              hosts={hostList}
+              selectedIds={selectedHostIds}
+              onSelectChange={setSelectedHostIds}
+            />
           ) : (
             <GlobalPortsTable ports={portList} />
           )}

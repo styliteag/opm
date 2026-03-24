@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowLeft, XCircle } from 'lucide-react'
+import { ArrowLeft, XCircle, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { LoadingState } from '@/components/data-display/LoadingState'
@@ -7,7 +7,7 @@ import { ErrorState } from '@/components/data-display/ErrorState'
 import { StatusBadge } from '@/components/data-display/StatusBadge'
 import { useScanDetail, useScanLogs, useScanMutations } from '@/features/scans/hooks/useScans'
 import { ScanDiffView } from '@/features/scans/components/ScanDiffView'
-import { formatDate, formatRelativeTime, parseUTC } from '@/lib/utils'
+import { formatDate, parseUTC } from '@/lib/utils'
 
 function formatRate(pps: number): string {
   if (pps >= 1_000_000) return `${(pps / 1_000_000).toFixed(1)}M pps`
@@ -24,7 +24,7 @@ function ScanDetailPage() {
   const id = Number(scanId)
   const { data, isLoading, error, refetch } = useScanDetail(id)
   const logs = useScanLogs(id)
-  const { cancel } = useScanMutations()
+  const { cancel, toggleVisibility } = useScanMutations()
 
   if (isLoading) return <LoadingState rows={6} />
   if (error) return <ErrorState message={error.message} onRetry={refetch} />
@@ -51,6 +51,22 @@ function ScanDetailPage() {
           variant={data.status === 'completed' ? 'success' : data.status === 'running' ? 'warning' : data.status === 'error' ? 'danger' : 'neutral'}
           dot
         />
+        <button
+          onClick={() =>
+            toggleVisibility.mutate(
+              { scanId: id, hidden: !data.hidden },
+              {
+                onSuccess: () => toast.success(data.hidden ? 'Scan visible' : 'Scan hidden'),
+                onError: (e) => toast.error(e.message),
+              },
+            )
+          }
+          disabled={toggleVisibility.isPending}
+          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        >
+          {data.hidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+          {data.hidden ? 'Show' : 'Hide'}
+        </button>
         {isActive && (
           <button
             onClick={() => cancel.mutate(id, {

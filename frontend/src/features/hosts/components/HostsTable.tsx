@@ -76,14 +76,33 @@ const columns: ColumnDef<Host>[] = [
 
 interface HostsTableProps {
   hosts: Host[]
+  selectedIds?: number[]
+  onSelectChange?: (ids: number[]) => void
 }
 
-export function HostsTable({ hosts }: HostsTableProps) {
+export function HostsTable({ hosts, selectedIds, onSelectChange }: HostsTableProps) {
+  const selectable = Boolean(onSelectChange)
   const table = useReactTable({
     data: hosts,
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  const toggleId = (id: number) => {
+    if (!onSelectChange || !selectedIds) return
+    onSelectChange(
+      selectedIds.includes(id)
+        ? selectedIds.filter((x) => x !== id)
+        : [...selectedIds, id],
+    )
+  }
+
+  const toggleAll = () => {
+    if (!onSelectChange || !selectedIds) return
+    const allIds = hosts.map((h) => h.id)
+    const allSelected = allIds.every((id) => selectedIds.includes(id))
+    onSelectChange(allSelected ? [] : allIds)
+  }
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
@@ -91,6 +110,16 @@ export function HostsTable({ hosts }: HostsTableProps) {
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id} className="border-b border-border bg-card">
+              {selectable && (
+                <th className="w-10 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={hosts.length > 0 && hosts.every((h) => selectedIds?.includes(h.id))}
+                    onChange={toggleAll}
+                    className="rounded border-border"
+                  />
+                </th>
+              )}
               {hg.headers.map((header) => (
                 <th
                   key={header.id}
@@ -109,6 +138,16 @@ export function HostsTable({ hosts }: HostsTableProps) {
               key={row.id}
               className="border-b border-border hover:bg-accent/50 transition-colors"
             >
+              {selectable && (
+                <td className="w-10 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds?.includes(row.original.id) ?? false}
+                    onChange={() => toggleId(row.original.id)}
+                    className="rounded border-border"
+                  />
+                </td>
+              )}
               {row.getVisibleCells().map((cell) => (
                 <td key={cell.id} className="px-4 py-3">
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}

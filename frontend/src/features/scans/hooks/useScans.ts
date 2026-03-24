@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { fetchApi, postApi, deleteApi } from '@/lib/api'
+import { fetchApi, postApi, patchApi, deleteApi } from '@/lib/api'
 import type { ScanSummary } from '@/lib/types'
 
 interface ScanListResponse {
@@ -73,5 +73,11 @@ export function useScanMutations() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
   })
 
-  return { cancel, remove }
+  const toggleVisibility = useMutation({
+    mutationFn: ({ scanId, hidden }: { scanId: number; hidden: boolean }) =>
+      patchApi(`/api/scans/${scanId}/visibility`, { hidden }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
+  })
+
+  return { cancel, remove, toggleVisibility }
 }

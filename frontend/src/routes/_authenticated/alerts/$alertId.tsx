@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowLeft, CheckCircle, RotateCcw, MessageSquare } from 'lucide-react'
+import { ArrowLeft, CheckCircle, RotateCcw, MessageSquare, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -25,9 +25,8 @@ function AlertDetailPage() {
   const id = Number(alertId)
   const [dismissOpen, setDismissOpen] = useState(false)
 
-  const alerts = useAlerts({ limit: 1, offset: 0 })
   const comments = useAlertComments(id)
-  const { reopen } = useAlertMutations()
+  const { reopen, overrideSeverity } = useAlertMutations()
 
   // Fetch the single alert by querying and finding it
   // (the backend GET /api/alerts/:id returns the full alert)
@@ -132,6 +131,35 @@ function AlertDetailPage() {
               <div>
                 <dt className="text-xs text-muted-foreground">Assigned To</dt>
                 <dd className="mt-0.5 text-sm text-foreground">{alert.assigned_to_email ?? 'Unassigned'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground flex items-center gap-1">
+                  <ShieldAlert className="h-3 w-3" />
+                  Severity Override
+                </dt>
+                <dd className="mt-0.5">
+                  <select
+                    value={alert.severity_override ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value || null
+                      overrideSeverity.mutate(
+                        { id: alert.id, severity: val as 'critical' | 'high' | 'medium' | 'info' | null },
+                        {
+                          onSuccess: () => toast.success(val ? `Severity overridden to ${val}` : 'Severity reset to auto'),
+                          onError: (err) => toast.error(err.message),
+                        },
+                      )
+                    }}
+                    disabled={overrideSeverity.isPending}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
+                  >
+                    <option value="">Auto (computed)</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="info">Info</option>
+                  </select>
+                </dd>
               </div>
               {alert.dismiss_reason && (
                 <div className="col-span-2">
