@@ -25,6 +25,10 @@ alembic upgrade head
 echo "Initializing admin user..."
 python3 /app/scripts/init_admin.py || exit 1
 
+# Seed built-in NSE profiles BEFORE starting workers (single process, no race condition)
+echo "Seeding NSE profiles..."
+python3 /app/scripts/seed_nse.py || exit 1
+
 # Start application with workers
 echo "Starting application..."
 exec uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --workers 4

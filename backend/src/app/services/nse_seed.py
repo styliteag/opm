@@ -225,20 +225,53 @@ BUILTIN_PROFILES: list[dict] = [
 ]
 
 
-async def seed_builtin_profiles(db: AsyncSession) -> int:
-    """Seed built-in NSE profiles if none exist yet.
+async def _deduplicate_builtin_profiles(db: AsyncSession) -> int:
+    """Remove duplicate builtin profiles, keeping the lowest-id copy of each name.
 
-    Only inserts profiles when no builtin profiles exist (first startup).
-    Returns the number of profiles seeded.
+    Returns the number of duplicates removed.
     """
     result = await db.execute(
-        select(NseTemplate).where(NseTemplate.type == NseTemplateType.BUILTIN).limit(1)
+        select(NseTemplate).where(NseTemplate.type == NseTemplateType.BUILTIN)
     )
-    if result.scalar_one_or_none() is not None:
-        return 0  # Already has builtin profiles, skip
+    all_builtins = result.scalars().all()
+
+    # Group by name, keep lowest id
+    seen: dict[str, int] = {}
+    duplicates: list[NseTemplate] = []
+    for t in all_builtins:
+        if t.name in seen:
+            duplicates.append(t)
+        else:
+            seen[t.name] = t.id
+
+    for dup in duplicates:
+        await db.delete(dup)
+
+    if duplicates:
+        logger.info("Removed %d duplicate builtin profiles", len(duplicates))
+    return len(duplicates)
+
+
+async def seed_builtin_profiles(db: AsyncSession) -> int:
+    """Seed built-in NSE profiles, skipping any that already exist by name.
+
+    Also removes duplicate builtin profiles caused by prior race conditions.
+    Returns the number of profiles seeded.
+    """
+    # Clean up duplicates from prior race-condition seeds
+    await _deduplicate_builtin_profiles(db)
+
+    # Fetch existing builtin profile names
+    result = await db.execute(
+        select(NseTemplate.name).where(NseTemplate.type == NseTemplateType.BUILTIN)
+    )
+    existing_names = {row[0] for row in result.all()}
 
     count = 0
     for p in BUILTIN_PROFILES:
+        if p["name"] in existing_names:
+            continue
+
         profile = NseTemplate(
             name=p["name"],
             description=p["description"],
@@ -251,7 +284,9 @@ async def seed_builtin_profiles(db: AsyncSession) -> int:
             priority=p.get("priority", 10),
         )
         db.add(profile)
+        existing_names.add(p["name"])
         count += 1
 
-    logger.info("Seeded %d built-in NSE profiles", count)
+    if count:
+        logger.info("Seeded %d built-in NSE profiles", count)
     return count
