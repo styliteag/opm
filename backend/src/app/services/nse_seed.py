@@ -11,7 +11,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.nse_template import NseTemplate, NseTemplateSeverity, NseTemplateType
+from app.models.nse_template import ScanProfile, ScanProfileSeverity, ScanProfileType
 from app.services.nse_all_scripts import ALL_NSE_SCRIPTS
 
 logger = logging.getLogger(__name__)
@@ -248,13 +248,13 @@ async def _deduplicate_builtin_profiles(db: AsyncSession) -> int:
     Returns the number of duplicates converted.
     """
     result = await db.execute(
-        select(NseTemplate).where(NseTemplate.type == NseTemplateType.BUILTIN)
+        select(ScanProfile).where(ScanProfile.type == ScanProfileType.BUILTIN)
     )
     all_builtins = result.scalars().all()
 
     # Group by name, keep lowest id as builtin
     seen: dict[str, int] = {}
-    duplicates: list[NseTemplate] = []
+    duplicates: list[ScanProfile] = []
     for t in all_builtins:
         if t.name in seen:
             duplicates.append(t)
@@ -262,7 +262,7 @@ async def _deduplicate_builtin_profiles(db: AsyncSession) -> int:
             seen[t.name] = t.id
 
     for dup in duplicates:
-        dup.type = NseTemplateType.CUSTOM
+        dup.type = ScanProfileType.CUSTOM
         dup.name = f"{dup.name} (copy)"
 
     if duplicates:
@@ -277,7 +277,7 @@ async def _sync_builtin_profiles(db: AsyncSession) -> int:
     Returns the number of profiles updated.
     """
     result = await db.execute(
-        select(NseTemplate).where(NseTemplate.type == NseTemplateType.BUILTIN)
+        select(ScanProfile).where(ScanProfile.type == ScanProfileType.BUILTIN)
     )
     existing = {t.name: t for t in result.scalars().all()}
 
@@ -331,7 +331,7 @@ async def seed_builtin_profiles(db: AsyncSession) -> int:
 
     # Fetch existing builtin profile names
     result = await db.execute(
-        select(NseTemplate.name).where(NseTemplate.type == NseTemplateType.BUILTIN)
+        select(ScanProfile.name).where(ScanProfile.type == ScanProfileType.BUILTIN)
     )
     existing_names = {row[0] for row in result.all()}
 
@@ -340,13 +340,13 @@ async def seed_builtin_profiles(db: AsyncSession) -> int:
         if p["name"] in existing_names:
             continue
 
-        profile = NseTemplate(
+        profile = ScanProfile(
             name=p["name"],
             description=p["description"],
             nse_scripts=p["nse_scripts"],
-            severity=NseTemplateSeverity(p["severity"]) if p.get("severity") else None,
+            severity=ScanProfileSeverity(p["severity"]) if p.get("severity") else None,
             platform=p["platform"],
-            type=NseTemplateType.BUILTIN,
+            type=ScanProfileType.BUILTIN,
             enabled=True,
             script_args=p.get("script_args"),
             category=p.get("category"),

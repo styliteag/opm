@@ -11,7 +11,7 @@ from sqlalchemy.sql import func
 from app.models.base import Base
 
 if TYPE_CHECKING:
-    from app.models.nse_template import NseTemplate
+    from app.models.nse_template import ScanProfile
     from app.models.scan import Scan
 
 
@@ -40,6 +40,6 @@ class NseResult(Base):
 
     # Relationships
     scan: Mapped["Scan"] = relationship("Scan", back_populates="nse_results")
-    template: Mapped["NseTemplate | None"] = relationship(
-        "NseTemplate", back_populates="results"
+    template: Mapped["ScanProfile | None"] = relationship(
+        "ScanProfile", back_populates="results"
     )

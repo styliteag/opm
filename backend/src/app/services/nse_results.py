@@ -116,7 +116,7 @@ async def submit_nse_results(
             script_output=nse_data.script_output,
             cve_ids=nse_data.cve_ids,
             severity=nse_data.severity,
-            template_id=scan.nse_template_id,
+            template_id=scan.scan_profile_id or scan.nse_template_id,
         )
         db.add(nse_result)
         results_recorded += 1

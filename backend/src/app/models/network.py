@@ -12,6 +12,7 @@ from app.models.base import Base
 if TYPE_CHECKING:
     from app.models.alert import Alert
     from app.models.host_discovery_scan import HostDiscoveryScan
+    from app.models.nse_template import ScanProfile
     from app.models.port_rule import PortRule
     from app.models.scan import Scan
     from app.models.scanner import Scanner
@@ -46,7 +47,13 @@ class Network(Base):
         ForeignKey("nse_templates.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="Default NSE profile for scheduled scans when scanner_type is nse",
+        comment="Legacy — use scan_profile_id instead",
+    )
+    scan_profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("nse_templates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Default scan profile for scheduled scans",
     )
     host_discovery_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="1"
@@ -74,6 +81,9 @@ class Network(Base):
     )
     host_discovery_scans: Mapped[list["HostDiscoveryScan"]] = relationship(
         "HostDiscoveryScan", back_populates="network", cascade="all, delete-orphan"
+    )
+    scan_profile: Mapped["ScanProfile | None"] = relationship(
+        "ScanProfile", foreign_keys=[scan_profile_id]
     )
 
     @property

@@ -12,7 +12,7 @@ from app.models.host_discovery_scan import HostDiscoveryScan
 from app.models.network import Network
 from app.models.nse_result import NseResult
 from app.models.nse_script import NseScript
-from app.models.nse_template import NseTemplate
+from app.models.nse_template import ScanProfile
 from app.models.open_port import OpenPort
 from app.models.port_rule import PortRule
 from app.models.scan import Scan
@@ -39,7 +39,7 @@ __all__ = [
     "GlobalSetting",
     "Host",
     "HostDiscoveryScan",
-    "NseTemplate",
+    "ScanProfile",
     "NseScript",
     "NseResult",
 ]
