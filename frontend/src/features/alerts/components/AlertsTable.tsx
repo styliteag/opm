@@ -59,15 +59,26 @@ const columns: ColumnDef<Alert>[] = [
   {
     accessorKey: 'message',
     header: 'Alert Name',
-    cell: ({ row }) => (
-      <Link
-        to="/alerts/$alertId"
-        params={{ alertId: String(row.original.id) }}
-        className="text-sm text-foreground hover:text-primary transition-colors"
-      >
-        {row.original.message}
-      </Link>
-    ),
+    cell: ({ row }) => {
+      const src = row.original.source ?? 'port'
+      const badgeColors: Record<string, string> = {
+        port: 'bg-blue-500/10 text-blue-500',
+        ssh: 'bg-amber-500/10 text-amber-500',
+        nse: 'bg-purple-500/10 text-purple-500',
+      }
+      return (
+        <Link
+          to="/alerts/$alertId"
+          params={{ alertId: String(row.original.id) }}
+          className="inline-flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors"
+        >
+          <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase shrink-0 ${badgeColors[src] ?? badgeColors.port}`}>
+            {src}
+          </span>
+          {row.original.message}
+        </Link>
+      )
+    },
   },
   {
     id: 'target',

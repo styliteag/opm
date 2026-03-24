@@ -65,11 +65,21 @@ export function AlertFilters({ filters, onChange, networks }: AlertFiltersProps)
         className={selectClass}
       >
         <option value="">Type: All</option>
-        {ALERT_TYPES.map((t) => (
-          <option key={t.value} value={t.value}>
-            {t.label}
-          </option>
-        ))}
+        <optgroup label="Port Alerts">
+          {ALERT_TYPES.filter((t) => ['new_port', 'not_allowed', 'blocked'].includes(t.value)).map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </optgroup>
+        <optgroup label="SSH Alerts">
+          {ALERT_TYPES.filter((t) => t.value.startsWith('ssh_')).map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </optgroup>
+        <optgroup label="NSE Alerts">
+          {ALERT_TYPES.filter((t) => t.value.startsWith('nse_')).map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </optgroup>
       </select>
 
       <select
