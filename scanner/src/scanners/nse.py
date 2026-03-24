@@ -137,8 +137,9 @@ class NseScanner:
                 vuln_count,
             )
 
-        # Submit NSE results to backend
-        if nse_results and not cancelled:
+        # Submit NSE results to backend (always submit, even if empty,
+        # so the scan status transitions from RUNNING to COMPLETED)
+        if not cancelled:
             _submit_nse_results(client, scan_id, nse_results, logger)
 
         # Return empty ScanRunResult — NSE scans don't discover ports,
@@ -516,8 +517,5 @@ def _submit_nse_results(
     logger: logging.Logger,
 ) -> None:
     """Submit NSE results to the backend."""
-    try:
-        client.submit_nse_results(scan_id, nse_results)
-        logger.info("Submitted %d NSE results to backend", len(nse_results))
-    except Exception as exc:
-        logger.error("Failed to submit NSE results: %s", exc)
+    client.submit_nse_results(scan_id, nse_results)
+    logger.info("Submitted %d NSE results to backend", len(nse_results))
