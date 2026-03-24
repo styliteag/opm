@@ -54,6 +54,9 @@ class Network(Base):
     scan_schedule_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="1"
     )
+    phases: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSON, nullable=True, comment="Multi-phase scan pipeline config"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )

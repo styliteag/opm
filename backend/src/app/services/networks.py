@@ -53,6 +53,7 @@ async def create_network(
     alert_config: dict[str, Any] | None = None,
     nse_profile_id: int | None = None,
     host_discovery_enabled: bool = True,
+    phases: list[dict[str, Any]] | None = None,
 ) -> Network:
     """Create a new network."""
     network = Network(
@@ -69,6 +70,7 @@ async def create_network(
         alert_config=alert_config,
         nse_profile_id=nse_profile_id,
         host_discovery_enabled=host_discovery_enabled,
+        phases=phases,
     )
     db.add(network)
     await db.flush()
@@ -93,6 +95,8 @@ async def update_network(
     nse_profile_id: int | None = None,
     clear_nse_profile: bool = False,
     host_discovery_enabled: bool | None = None,
+    phases: list[dict[str, Any]] | None = None,
+    clear_phases: bool = False,
     clear_schedule: bool = False,
     clear_alert_config: bool = False,
 ) -> Network:
@@ -142,6 +146,8 @@ async def update_network(
         network.nse_profile_id = nse_profile_id
     if host_discovery_enabled is not None:
         network.host_discovery_enabled = host_discovery_enabled
+    if phases is not None or clear_phases:
+        network.phases = phases
 
     await db.flush()
     await db.refresh(network)
