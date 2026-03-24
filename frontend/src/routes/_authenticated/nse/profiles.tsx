@@ -8,8 +8,13 @@ import { ErrorState } from '@/components/data-display/ErrorState'
 import { EmptyState } from '@/components/data-display/EmptyState'
 import { SeverityBadge } from '@/components/data-display/SeverityBadge'
 import { StatusBadge } from '@/components/data-display/StatusBadge'
-import { useNseProfiles, useNseMutations } from '@/features/nse/hooks/useNse'
-import { ProfileEditModal } from '@/features/nse/components/ProfileEditModal'
+import {
+  useScanProfiles,
+  useScanProfileMutations,
+  type ScanProfile,
+  type ScanPhase,
+} from '@/features/profiles/hooks/useProfiles'
+import { ProfileEditModal } from '@/features/profiles/components/ProfileEditModal'
 
 export const Route = createFileRoute('/_authenticated/nse/profiles')({
   component: NseProfilesPage,
@@ -27,35 +32,34 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = Object.keys(CATEGORY_LABELS)
 
-type Profile = {
-  id: number
-  name: string
-  description: string | null
-  severity: string | null
-  nse_scripts: string[]
-  platform: string
-  category: string | null
-  type: string
+function getPhasesSummary(phases: ScanPhase[] | null): string {
+  if (!phases || phases.length === 0) return 'No phases configured'
+  const enabled = phases.filter((p) => p.enabled)
+  const labels: Record<string, string> = {
+    host_discovery: 'Discovery',
+    port_scan: 'Port Scan',
+    vulnerability: 'Vuln Scan',
+  }
+  return enabled.map((p) => labels[p.name] || p.name).join(' → ')
+}
+
+function getScriptCount(phases: ScanPhase[] | null): number {
+  if (!phases) return 0
+  const vuln = phases.find((p) => p.name === 'vulnerability')
+  if (!vuln) return 0
+  const scripts = vuln.config?.scripts as string[] | undefined
+  return scripts?.length ?? 0
 }
 
 function NseProfilesPage() {
   const [createOpen, setCreateOpen] = useState(false)
-  const [editProfile, setEditProfile] = useState<
-    | {
-        id: number
-        name: string
-        description: string | null
-        severity: string | null
-        nse_scripts: string[]
-      }
-    | undefined
-  >()
-  const { data, isLoading, error, refetch } = useNseProfiles()
-  const { duplicateProfile, deleteProfile } = useNseMutations()
+  const [editProfile, setEditProfile] = useState<ScanProfile | undefined>()
+  const { data, isLoading, error, refetch } = useScanProfiles()
+  const { cloneProfile, deleteProfile } = useScanProfileMutations()
 
   const grouped = useMemo(() => {
-    const profiles = (data?.profiles ?? []) as Profile[]
-    const groups = new Map<string, Profile[]>()
+    const profiles = data?.profiles ?? []
+    const groups = new Map<string, ScanProfile[]>()
 
     for (const profile of profiles) {
       const key = profile.category ?? 'other'
@@ -67,7 +71,6 @@ function NseProfilesPage() {
       }
     }
 
-    // Sort groups by defined order, unknown categories go last
     return [...groups.entries()].sort(([a], [b]) => {
       const ai = CATEGORY_ORDER.indexOf(a)
       const bi = CATEGORY_ORDER.indexOf(b)
@@ -85,10 +88,11 @@ function NseProfilesPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">
-            NSE Profiles
+            Scan Profiles
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage Nmap Scripting Engine profiles for vulnerability scanning.
+            Manage multi-phase scan profiles for network discovery and
+            vulnerability scanning.
           </p>
         </div>
         <div className="flex gap-2">
@@ -112,7 +116,7 @@ function NseProfilesPage() {
       {profiles.length === 0 ? (
         <EmptyState
           title="No profiles"
-          message="Create your first NSE profile to start vulnerability scanning."
+          message="Create your first scan profile to start."
           icon={FileCode}
         />
       ) : (
@@ -137,7 +141,9 @@ function NseProfilesPage() {
                           <StatusBadge
                             label={profile.type}
                             variant={
-                              profile.type === 'builtin' ? 'neutral' : 'success'
+                              profile.type === 'builtin'
+                                ? 'neutral'
+                                : 'success'
                             }
                           />
                         </div>
@@ -161,29 +167,30 @@ function NseProfilesPage() {
                     </div>
 
                     <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
-                      <span>{profile.nse_scripts.length} scripts</span>
-                      {profile.platform && <span>{profile.platform}</span>}
+                      <span>{getPhasesSummary(profile.phases)}</span>
+                      <span>
+                        {getScriptCount(profile.phases)} scripts
+                      </span>
                     </div>
 
                     <div className="mt-4 flex items-center gap-2">
-                      {profile.type === 'custom' && (
-                        <button
-                          onClick={() => setEditProfile(profile)}
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-                        >
-                          <Pencil className="h-3 w-3" />
-                          Edit
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setEditProfile(profile)}
+                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        {profile.type === 'builtin' ? 'View' : 'Edit'}
+                      </button>
                       <button
                         onClick={() =>
-                          duplicateProfile.mutate(
+                          cloneProfile.mutate(
                             {
                               id: profile.id,
                               name: `Copy of ${profile.name}`,
                             },
                             {
-                              onSuccess: () => toast.success('Profile duplicated'),
+                              onSuccess: () =>
+                                toast.success('Profile duplicated'),
                               onError: (e) => toast.error(e.message),
                             },
                           )
@@ -197,7 +204,8 @@ function NseProfilesPage() {
                         <button
                           onClick={() =>
                             deleteProfile.mutate(profile.id, {
-                              onSuccess: () => toast.success('Profile deleted'),
+                              onSuccess: () =>
+                                toast.success('Profile deleted'),
                               onError: (e) => toast.error(e.message),
                             })
                           }
