@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Multi-phase scan profiles (SiriusScan-style): Host Discovery → Port Scan → Vulnerability
+- Phase-aware scan pipeline in scanner agent with sequential execution
+- New `/api/scan-profiles/` API with phase-based CRUD
+- Phase toggle cards in frontend profile editor with per-phase config
+- PARTIAL scan status for failed mid-pipeline scans
+- Phase-aware progress reporting: "Port Scan: 45% (2 of 3 phases)"
+
+### Changed
+- Renamed NseTemplate to ScanProfile across backend (model, services, schemas, routers)
+- Scan profiles now define full pipeline config (tool per phase, port range, scripts)
+- Networks reference `scan_profile_id` instead of `scanner_type` + `nse_profile_id`
+- Builtin seed profiles include full 3-phase configurations
+- Table renamed from `nse_templates` to `scan_profiles`
+
+### Removed
+- `scanner_type` column from networks (tool choice now in profile phases)
+- `nse_profile_id` column from networks (replaced by `scan_profile_id`)
+- `nse_template_id` column from scans (replaced by `scan_profile_id`)
+- `nse_scripts` and `script_args` columns from profiles (replaced by phases JSON)
+- `host_discovery_enabled` from networks (now in profile phases)
+- `nse` as a standalone scanner type
+
 ## [1.6.0] - 2026-03-24
 
 ## [1.5.1] - 2026-03-23
