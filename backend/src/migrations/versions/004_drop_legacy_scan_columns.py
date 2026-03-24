@@ -32,30 +32,50 @@ def upgrade() -> None:
     op.drop_column("nse_templates", "nse_scripts")
     op.drop_column("nse_templates", "script_args")
 
-    # 2. Drop legacy columns from networks
-    op.drop_index("ix_networks_nse_profile_id", table_name="networks")
+    # 2. Drop legacy nse_profile_id from networks
+    #    MySQL requires: drop FK first, then index, then column
     op.drop_constraint(
-        "networks_ibfk_2", "networks", type_="foreignkey",
+        "fk_networks_nse_profile_id", "networks", type_="foreignkey",
     )
+    op.drop_index("ix_networks_nse_profile_id", table_name="networks")
     op.drop_column("networks", "nse_profile_id")
     op.drop_column("networks", "scanner_type")
     op.drop_column("networks", "host_discovery_enabled")
 
-    # 3. Drop legacy column from scans
-    op.drop_index("ix_scans_nse_template_id", table_name="scans")
+    # 3. Drop legacy nse_template_id from scans
     op.drop_constraint(
-        "scans_ibfk_4", "scans", type_="foreignkey",
+        "fk_scans_nse_template_id", "scans", type_="foreignkey",
     )
+    op.drop_index("ix_scans_nse_template_id", table_name="scans")
     op.drop_column("scans", "nse_template_id")
 
-    # 4. Rename table nse_templates → scan_profiles
+    # 4. Drop nse_results FK to nse_templates before rename
+    #    (auto-generated name — MySQL uses positional ibfk names)
+    conn = op.get_bind()
+    # Find the actual FK constraint name for template_id
+    result = conn.execute(sa.text(
+        "SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
+        "WHERE TABLE_NAME = 'nse_results' "
+        "AND COLUMN_NAME = 'template_id' "
+        "AND REFERENCED_TABLE_NAME = 'nse_templates' "
+        "AND TABLE_SCHEMA = DATABASE()"
+    ))
+    fk_row = result.fetchone()
+    if fk_row:
+        op.drop_constraint(fk_row[0], "nse_results", type_="foreignkey")
+
+    # Also drop scan_profile_id FKs before rename
+    op.drop_constraint(
+        "fk_networks_scan_profile_id", "networks", type_="foreignkey",
+    )
+    op.drop_constraint(
+        "fk_scans_scan_profile_id", "scans", type_="foreignkey",
+    )
+
+    # 5. Rename table nse_templates → scan_profiles
     op.rename_table("nse_templates", "scan_profiles")
 
-    # 5. Update FK references to new table name
-    # nse_results.template_id → scan_profiles
-    op.drop_constraint(
-        "nse_results_ibfk_2", "nse_results", type_="foreignkey",
-    )
+    # 6. Recreate FK references to renamed table
     op.create_foreign_key(
         "fk_nse_results_template_id",
         "nse_results",
@@ -64,11 +84,6 @@ def upgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
-
-    # networks.scan_profile_id → scan_profiles
-    op.drop_constraint(
-        "fk_networks_scan_profile_id", "networks", type_="foreignkey",
-    )
     op.create_foreign_key(
         "fk_networks_scan_profile_id",
         "networks",
@@ -76,11 +91,6 @@ def upgrade() -> None:
         ["scan_profile_id"],
         ["id"],
         ondelete="SET NULL",
-    )
-
-    # scans.scan_profile_id → scan_profiles
-    op.drop_constraint(
-        "fk_scans_scan_profile_id", "scans", type_="foreignkey",
     )
     op.create_foreign_key(
         "fk_scans_scan_profile_id",
@@ -93,24 +103,28 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Drop FKs before rename
+    op.drop_constraint(
+        "fk_nse_results_template_id", "nse_results", type_="foreignkey",
+    )
+    op.drop_constraint(
+        "fk_networks_scan_profile_id", "networks", type_="foreignkey",
+    )
+    op.drop_constraint(
+        "fk_scans_scan_profile_id", "scans", type_="foreignkey",
+    )
+
     # Reverse table rename
     op.rename_table("scan_profiles", "nse_templates")
 
     # Restore FK references to nse_templates
-    op.drop_constraint(
-        "fk_nse_results_template_id", "nse_results", type_="foreignkey",
-    )
     op.create_foreign_key(
-        "nse_results_ibfk_2",
+        "fk_nse_results_template_id",
         "nse_results",
         "nse_templates",
         ["template_id"],
         ["id"],
         ondelete="SET NULL",
-    )
-
-    op.drop_constraint(
-        "fk_networks_scan_profile_id", "networks", type_="foreignkey",
     )
     op.create_foreign_key(
         "fk_networks_scan_profile_id",
@@ -119,10 +133,6 @@ def downgrade() -> None:
         ["scan_profile_id"],
         ["id"],
         ondelete="SET NULL",
-    )
-
-    op.drop_constraint(
-        "fk_scans_scan_profile_id", "scans", type_="foreignkey",
     )
     op.create_foreign_key(
         "fk_scans_scan_profile_id",
@@ -139,14 +149,16 @@ def downgrade() -> None:
         sa.Column("nse_template_id", sa.Integer(), nullable=True),
     )
     op.create_foreign_key(
-        "scans_ibfk_4",
+        "fk_scans_nse_template_id",
         "scans",
         "nse_templates",
         ["nse_template_id"],
         ["id"],
         ondelete="SET NULL",
     )
-    op.create_index("ix_scans_nse_template_id", "scans", ["nse_template_id"])
+    op.create_index(
+        "ix_scans_nse_template_id", "scans", ["nse_template_id"],
+    )
 
     op.add_column(
         "networks",
@@ -171,7 +183,7 @@ def downgrade() -> None:
         sa.Column("nse_profile_id", sa.Integer(), nullable=True),
     )
     op.create_foreign_key(
-        "networks_ibfk_2",
+        "fk_networks_nse_profile_id",
         "networks",
         "nse_templates",
         ["nse_profile_id"],
