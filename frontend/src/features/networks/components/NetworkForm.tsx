@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod/v4'
@@ -12,7 +13,8 @@ import { useNetworkMutations } from '@/features/networks/hooks/useNetworkDetail'
 import { useScanners } from '@/features/dashboard/hooks/useDashboardData'
 import { useNseProfiles } from '@/features/nse/hooks/useNse'
 import { computeScanEstimate } from '@/lib/scan-estimate'
-import type { Network } from '@/lib/types'
+import type { Network, ScanPhase } from '@/lib/types'
+import { PhaseCards } from './PhaseCards'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -65,6 +67,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
   const scanners = useScanners()
   const profiles = useNseProfiles()
   const isEdit = Boolean(network)
+  const [phases, setPhases] = useState<ScanPhase[] | null>(network?.phases ?? null)
 
   const { register, handleSubmit, reset, setValue, control, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -116,7 +119,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
 
   const onSubmit = (data: FormData) => {
     const { email_recipients, ...rest } = data
-    const payload: Record<string, unknown> = { ...rest }
+    const payload: Record<string, unknown> = { ...rest, phases }
 
     // Build alert_config with email_recipients if provided
     if (email_recipients?.trim()) {
@@ -261,6 +264,11 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Scan Phases */}
+            <div className="col-span-2">
+              <PhaseCards phases={phases} onChange={setPhases} />
             </div>
 
             {/* Schedule with Presets */}
