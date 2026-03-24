@@ -102,6 +102,8 @@ class ScannerJobResponse(BaseModel):
     nse_scripts: list[str] | None = None
     nse_script_args: dict[str, Any] | None = None
     custom_script_hashes: dict[str, str] | None = None
+    # Multi-phase pipeline config (from network)
+    phases: list[dict[str, Any]] | None = None
 
     model_config = {"from_attributes": True}
 

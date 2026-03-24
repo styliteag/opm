@@ -81,6 +81,7 @@ async def get_pending_jobs_for_scanner(
                 nse_scripts=nse_scripts,
                 nse_script_args=nse_script_args,
                 custom_script_hashes=custom_script_hashes,
+                phases=scan.network.phases,
             )
         )
 
