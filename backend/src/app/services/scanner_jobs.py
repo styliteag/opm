@@ -33,7 +33,6 @@ async def get_pending_jobs_for_scanner(
         select(Scan)
         .options(
             selectinload(Scan.network),
-            selectinload(Scan.nse_template),
             selectinload(Scan.scan_profile),
         )
         .join(Network, Network.id == Scan.network_id)
@@ -45,29 +44,24 @@ async def get_pending_jobs_for_scanner(
 
     jobs: list[ScannerJobResponse] = []
     for scan in planned_scans:
-        # Try new phases from scan_profile first, fall back to legacy
-        profile = scan.scan_profile or scan.nse_template
+        profile = scan.scan_profile
         phases = profile.phases if profile and profile.phases else None
 
-        # Determine scanner type — NSE scans have nse_template_id set
-        is_nse = scan.nse_template_id is not None
-        scanner_type = "nse" if is_nse else (scan.network.scanner_type or "masscan")
+        # Determine scanner type from phases for legacy compat
+        scanner_type = "masscan"
+        if phases:
+            for phase in phases:
+                if phase.get("name") == "vulnerability" and phase.get("enabled"):
+                    scanner_type = "nse"
+                    break
+                if phase.get("name") == "port_scan" and phase.get("enabled"):
+                    scanner_type = phase.get("tool", "masscan")
 
-        # Build NSE-specific fields from template (legacy compat)
+        # Extract NSE scripts from vulnerability phase
         nse_scripts = None
         nse_script_args = None
         custom_script_hashes = None
-        if is_nse and scan.nse_template is not None:
-            nse_scripts = scan.nse_template.nse_scripts
-            nse_script_args = scan.nse_template.script_args
-            # Look up content hashes for any custom scripts in the profile
-            if nse_scripts:
-                custom_script_hashes = (
-                    await nse_scripts_service.get_custom_script_hashes(db, nse_scripts)
-                ) or None
-
-        # If phases exist, also extract NSE scripts from vulnerability phase
-        if phases and not nse_scripts:
+        if phases:
             for phase in phases:
                 if phase.get("name") == "vulnerability" and phase.get("enabled"):
                     config = phase.get("config", {})

@@ -42,7 +42,7 @@ class ScanProfile(Base):
     ]
     """
 
-    __tablename__ = "nse_templates"
+    __tablename__ = "scan_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -68,10 +68,6 @@ class ScanProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
     )
-
-    # Legacy columns — kept for migration compatibility, removed in migration 004
-    nse_scripts: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
-    script_args: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
     results: Mapped[list["NseResult"]] = relationship(

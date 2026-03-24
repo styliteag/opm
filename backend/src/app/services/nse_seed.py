@@ -338,19 +338,6 @@ BUILTIN_PROFILES: list[dict[str, Any]] = [
 ]
 
 
-def _extract_scripts_from_phases(
-    phases: list[dict[str, Any]],
-) -> tuple[list[str], dict[str, str] | None]:
-    """Extract nse_scripts and script_args from phases for legacy compat."""
-    for phase in phases:
-        if phase.get("name") == "vulnerability":
-            config = phase.get("config", {})
-            scripts = config.get("scripts", [])
-            args = config.get("script_args") or None
-            return scripts, args
-    return [], None
-
-
 async def _deduplicate_builtin_profiles(db: AsyncSession) -> int:
     """Convert duplicate builtin profiles to custom, keeping lowest-id."""
     result = await db.execute(
@@ -408,15 +395,6 @@ async def _sync_builtin_profiles(db: AsyncSession) -> int:
         if template.phases != new_phases:
             template.phases = new_phases
             changed = True
-        # Sync legacy nse_scripts from phases
-        if new_phases:
-            scripts, args = _extract_scripts_from_phases(new_phases)
-            if template.nse_scripts != scripts:
-                template.nse_scripts = scripts
-                changed = True
-            if template.script_args != args:
-                template.script_args = args
-                changed = True
         # Sync priority
         new_priority = seed.get("priority", 10)
         if template.priority != new_priority:
@@ -457,14 +435,11 @@ async def seed_builtin_profiles(db: AsyncSession) -> int:
             continue
 
         phases = p.get("phases", [])
-        scripts, script_args = _extract_scripts_from_phases(phases)
 
         profile = ScanProfile(
             name=p["name"],
             description=p["description"],
             phases=phases,
-            nse_scripts=scripts,
-            script_args=script_args,
             severity=(
                 ScanProfileSeverity(p["severity"]) if p.get("severity") else None
             ),
