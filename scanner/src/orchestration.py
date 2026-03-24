@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+from typing import Any
 
 from src.client import ScannerClient
 from src.discovery import (
@@ -13,7 +14,13 @@ from src.discovery import (
     run_host_discovery,
     run_ssh_probes,
 )
-from src.models import HostDiscoveryJob, ScannerJob, ScanRunResult
+from src.models import (
+    HostDiscoveryJob,
+    OpenPortResult,
+    ScannerJob,
+    ScanPhase,
+    ScanRunResult,
+)
 from src.scanners.nmap import run_nmap
 from src.scanners.registry import get_scanner
 
@@ -29,15 +36,11 @@ def process_host_discovery_job(
     client: ScannerClient,
     logger: logging.Logger,
 ) -> None:
-    """Process a host discovery job.
-
-    Args:
-        job: Host discovery job to process
-        client: Scanner client for API communication
-        logger: Logger instance
-    """
+    """Process a host discovery job."""
     logger.info(
-        "Claiming host discovery job for network %s (scan_id=%s)", job.network_id, job.scan_id
+        "Claiming host discovery job for network %s (scan_id=%s)",
+        job.network_id,
+        job.scan_id,
     )
 
     claimed_job = client.claim_host_discovery_job(job.scan_id)
@@ -59,7 +62,6 @@ def process_host_discovery_job(
         )
 
         logger.info("Host discovery completed, found %s hosts", len(hosts))
-
         client.submit_host_discovery_results(claimed_job.scan_id, "success", hosts)
         logger.info("Submitted host discovery results for scan %s", claimed_job.scan_id)
 
@@ -69,11 +71,252 @@ def process_host_discovery_job(
             client.submit_host_discovery_results(
                 claimed_job.scan_id, "failed", [], error_message=str(exc)
             )
-            logger.info("Submitted failed host discovery results for scan %s", claimed_job.scan_id)
         except Exception:
             logger.exception(
-                "Failed to submit failure results for host discovery scan %s", claimed_job.scan_id
+                "Failed to submit failure results for host discovery scan %s",
+                claimed_job.scan_id,
             )
+
+
+# ── Phase Pipeline ───────────────────────────────────────────────────────
+
+
+def _format_phase_progress(
+    phase_name: str, pct: float, phase_num: int, total: int,
+) -> str:
+    """Format: 'Port Scan: 45% (2 of 3 phases)'."""
+    labels = {
+        "host_discovery": "Host Discovery",
+        "port_scan": "Port Scan",
+        "vulnerability": "Vulnerability Scan",
+    }
+    label = labels.get(phase_name, phase_name)
+    return f"{label}: {pct:.0f}% ({phase_num} of {total} phases)"
+
+
+def _build_legacy_phases(job: ScannerJob) -> list[ScanPhase]:
+    """Build phases from legacy scanner_type for backward compat."""
+    if job.scanner_type == "nse":
+        return [
+            ScanPhase(name="vulnerability", enabled=True, tool="nmap_nse", config={}),
+        ]
+    return [
+        ScanPhase(name="port_scan", enabled=True, tool=job.scanner_type, config={}),
+    ]
+
+
+class _CancelledError(Exception):
+    """Raised when a scan is cancelled by the user."""
+
+
+def _run_host_discovery_phase(
+    phase: ScanPhase, job: ScannerJob, client: ScannerClient,
+    scan_id: int, logger: logging.Logger,
+    progress_reporter: ProgressReporter, completed: dict[str, Any],
+) -> dict[str, Any]:
+    """Run host discovery phase."""
+    target = job.target_ip or job.cidr
+    logger.info("=== Host Discovery Phase === target=%s", target)
+    hosts = run_host_discovery(target, job.is_ipv6, logger)
+    live_ips = [h.ip for h in hosts]
+    logger.info("Host discovery found %d live hosts", len(live_ips))
+    return {"live_ips": live_ips, "hosts": hosts}
+
+
+def _run_port_scan_phase(
+    phase: ScanPhase, job: ScannerJob, client: ScannerClient,
+    scan_id: int, logger: logging.Logger,
+    progress_reporter: ProgressReporter, completed: dict[str, Any],
+) -> dict[str, Any]:
+    """Run port scan phase."""
+    config = phase.config
+    port_range = config.get("port_range") or job.port_spec
+    target = job.target_ip or job.cidr
+
+    # Use live IPs from host discovery if available
+    hd = completed.get("host_discovery")
+    if hd and hd.get("live_ips"):
+        live_ips = hd["live_ips"]
+        target = ",".join(live_ips)
+        logger.info("Port scan targeting %d live hosts from discovery", len(live_ips))
+
+    logger.info("=== Port Scan Phase === tool=%s target=%s ports=%s", phase.tool, target, port_range)
+
+    if job.target_ip and phase.tool != "nmap":
+        result = run_nmap(
+            client, scan_id, job.target_ip, port_range,
+            job.scan_timeout, job.port_timeout, job.scan_protocol,
+            job.is_ipv6, logger, progress_reporter,
+        )
+    else:
+        scanner = get_scanner(phase.tool)
+        result = scanner.run(
+            client, scan_id, target, port_range, job.rate,
+            job.scan_timeout, job.port_timeout, job.scan_protocol,
+            job.is_ipv6, logger, progress_reporter,
+        )
+
+    if result.cancelled:
+        raise _CancelledError()
+
+    logger.info("Port scan found %d open ports", len(result.open_ports))
+    return {"open_ports": result.open_ports, "result": result}
+
+
+def _run_vulnerability_phase(
+    phase: ScanPhase, job: ScannerJob, client: ScannerClient,
+    scan_id: int, logger: logging.Logger,
+    progress_reporter: ProgressReporter, completed: dict[str, Any],
+) -> dict[str, Any]:
+    """Run NSE vulnerability scan phase."""
+    logger.info("=== Vulnerability Scan Phase ===")
+
+    # Determine target and ports from port_scan phase
+    target = job.target_ip or job.cidr
+    port_spec = job.port_spec
+    ps = completed.get("port_scan")
+    if ps and ps.get("open_ports"):
+        open_ports: list[OpenPortResult] = ps["open_ports"]
+        port_set = sorted({p.port for p in open_ports})
+        if port_set:
+            port_spec = ",".join(str(p) for p in port_set)
+            ips = sorted({p.ip for p in open_ports})
+            if ips:
+                target = ",".join(ips)
+            logger.info("Vuln scan targeting %d ports on %d hosts", len(port_set), len(ips))
+
+    # Scripts come from job-level NSE fields (populated from nse_profile)
+    nse_scripts = list(job.nse_scripts) if job.nse_scripts else None
+
+    if job.custom_script_hashes and nse_scripts:
+        from src.script_cache import ensure_scripts_cached, get_script_path, is_custom
+        ensure_scripts_cached(client, job.custom_script_hashes)
+        nse_scripts = [
+            str(get_script_path(s)) if is_custom(s) else s for s in nse_scripts
+        ]
+
+    client._current_nse_scripts = nse_scripts  # type: ignore[attr-defined]
+    client._current_nse_script_args = job.nse_script_args  # type: ignore[attr-defined]
+
+    scanner = get_scanner("nse")
+    result = scanner.run(
+        client, scan_id, target, port_spec, job.rate,
+        job.scan_timeout, job.port_timeout, job.scan_protocol,
+        job.is_ipv6, logger, progress_reporter,
+    )
+
+    if result.cancelled:
+        raise _CancelledError()
+
+    return {"nse_result": result}
+
+
+_PHASE_RUNNERS = {
+    "host_discovery": _run_host_discovery_phase,
+    "port_scan": _run_port_scan_phase,
+    "vulnerability": _run_vulnerability_phase,
+}
+
+
+def _run_phase_pipeline(
+    phases: list[ScanPhase], job: ScannerJob, client: ScannerClient,
+    scan_id: int, logger: logging.Logger, progress_reporter: ProgressReporter,
+) -> None:
+    """Execute scan phases sequentially as a pipeline."""
+    enabled = [p for p in phases if p.enabled]
+    total = len(enabled)
+    completed: dict[str, Any] = {}
+
+    logger.info("Starting %d-phase pipeline: %s", total, [p.name for p in enabled])
+
+    for idx, phase in enumerate(enabled):
+        num = idx + 1
+
+        # Check cancellation between phases
+        try:
+            status = client.get_scan_status(scan_id)
+            if status == "cancelled":
+                logger.info("Scan cancelled before phase %s", phase.name)
+                _submit_pipeline_results(
+                    client, scan_id, completed, logger,
+                    status="failed", error="Cancelled by user",
+                )
+                return
+        except Exception:
+            pass
+
+        msg = _format_phase_progress(phase.name, 0, num, total)
+        progress_reporter.update((idx / total) * 100, msg)
+
+        runner = _PHASE_RUNNERS.get(phase.name)
+        if runner is None:
+            logger.warning("Unknown phase '%s', skipping", phase.name)
+            continue
+
+        try:
+            result = runner(phase, job, client, scan_id, logger, progress_reporter, completed)
+            completed[phase.name] = result
+        except _CancelledError:
+            logger.info("Scan cancelled during phase %s", phase.name)
+            _submit_pipeline_results(
+                client, scan_id, completed, logger,
+                status="failed", error="Cancelled by user",
+            )
+            return
+        except Exception as exc:
+            logger.exception("Phase %s failed", phase.name)
+            _submit_pipeline_results(
+                client, scan_id, completed, logger,
+                status="failed", error=f"Phase {phase.name} failed: {exc}",
+            )
+            return
+
+        msg = _format_phase_progress(phase.name, 100, num, total)
+        progress_reporter.update((num / total) * 100, msg)
+
+    progress_reporter.update(100, "Scan complete")
+    _submit_pipeline_results(client, scan_id, completed, logger, status="success")
+
+
+def _submit_pipeline_results(
+    client: ScannerClient, scan_id: int, completed: dict[str, Any],
+    logger: logging.Logger, status: str = "success", error: str | None = None,
+) -> None:
+    """Submit results from completed phases."""
+    ps = completed.get("port_scan")
+    open_ports = ps["open_ports"] if ps else []
+
+    # SSH probing on port scan results
+    ssh_results: list[SSHProbeResult] = []
+    if open_ports and status == "success":
+        ssh_targets = detect_ssh_services(open_ports)
+        if ssh_targets:
+            logger.info("Running SSH probes on %d targets", len(ssh_targets))
+            ssh_results = run_ssh_probes(
+                ssh_targets, logger,
+                concurrency=DEFAULT_SSH_PROBE_CONCURRENCY,
+                timeout=DEFAULT_SSH_PROBE_TIMEOUT,
+            )
+
+    vuln = completed.get("vulnerability")
+
+    if ps:
+        try:
+            client.submit_results(scan_id, status, open_ports, ssh_results=ssh_results, error_message=error)
+            logger.info("Submitted port scan results for scan %s", scan_id)
+        except Exception:
+            logger.exception("Failed to submit port scan results for scan %s", scan_id)
+    elif vuln:
+        # NSE scanner handles its own submission
+        logger.info("NSE scan completed for scan %s", scan_id)
+    else:
+        try:
+            client.submit_results(scan_id, status, [], error_message=error)
+        except Exception:
+            logger.exception("Failed to submit results for scan %s", scan_id)
+
+
+# ── Main Entry Point ────────────────────────────────────────────────────
 
 
 def process_job(
@@ -82,14 +325,7 @@ def process_job(
     logger: logging.Logger,
     log_buffer: LogBufferHandler,
 ) -> None:
-    """Process a port scan job.
-
-    Args:
-        job: Port scan job to process
-        client: Scanner client for API communication
-        logger: Logger instance
-        log_buffer: Log buffer for collecting logs
-    """
+    """Process a scan job — phase pipeline or legacy single-scanner."""
     log_buffer.reset()
     logger.info("Claiming job for network %s", job.network_id)
 
@@ -99,21 +335,16 @@ def process_job(
         return
 
     logger.info("Claimed job for network %s with scan ID %s", job.network_id, scan_id)
-    logger.info("Scanner type: %s", job.scanner_type)
-    logger.info("Scan protocol: %s", job.scan_protocol)
     if job.target_ip:
         logger.info("Single-host scan mode: targeting %s", job.target_ip)
 
-    # Start log streamer
     log_streamer = LogStreamer(client=client, log_buffer=log_buffer, scan_id=scan_id)
     log_streamer.start()
 
-    # Start progress reporter
     progress_reporter = ProgressReporter(client=client, scan_id=scan_id)
     progress_reporter.start()
 
     try:
-        # Report 0% at start
         progress_reporter.update(0, "Starting scan...")
 
         if job.is_ipv6:
@@ -121,151 +352,29 @@ def process_job(
             if not check_ipv6_connectivity(logger):
                 raise RuntimeError("IPv6 connectivity not available")
 
-        # Set NSE scripts on client for NSE scanner to pick up
-        if job.scanner_type == "nse":
-            nse_scripts = list(job.nse_scripts) if job.nse_scripts else None
+        # Use phase pipeline when phases are available
+        phases = job.phases or _build_legacy_phases(job)
+        _run_phase_pipeline(phases, job, client, scan_id, logger, progress_reporter)
 
-            # Cache custom scripts locally and replace names with full paths
-            if job.custom_script_hashes and nse_scripts:
-                from src.script_cache import ensure_scripts_cached, get_script_path, is_custom
-
-                ensure_scripts_cached(client, job.custom_script_hashes)
-                nse_scripts = [
-                    str(get_script_path(s)) if is_custom(s) else s
-                    for s in nse_scripts
-                ]
-
-            client._current_nse_scripts = nse_scripts  # type: ignore[attr-defined]
-            client._current_nse_script_args = job.nse_script_args  # type: ignore[attr-defined]
-
-        # For single-host scans with non-NSE scanners, always use nmap for better results
-        if job.target_ip and job.scanner_type != "nse":
-            logger.info("Using nmap for single-host scan of %s", job.target_ip)
-            result = run_nmap(
-                client,
-                scan_id,
-                job.target_ip,  # Use target_ip instead of cidr
-                job.port_spec,
-                job.scan_timeout,
-                job.port_timeout,
-                job.scan_protocol,
-                job.is_ipv6,
-                logger,
-                progress_reporter,
-            )
-            logger.info("Nmap single-host scan completed with %s open ports", len(result.open_ports))
-        else:
-            # Dispatch to registered scanner (including NSE)
-            target = job.target_ip if job.target_ip else job.cidr
-            scanner = get_scanner(job.scanner_type)
-            logger.info("Using scanner: %s (%s)", scanner.name, scanner.label)
-            result = scanner.run(
-                client,
-                scan_id,
-                target,
-                job.port_spec,
-                job.rate,
-                job.scan_timeout,
-                job.port_timeout,
-                job.scan_protocol,
-                job.is_ipv6,
-                logger,
-                progress_reporter,
-            )
-
-        # NSE scans handle their own result submission and scan status update
-        if job.scanner_type == "nse":
-            if result.cancelled:
-                try:
-                    client.submit_nse_results(scan_id, [], status="failed", error_message="Scan cancelled by user request")
-                except Exception:
-                    logger.exception("Failed to submit cancelled NSE results for scan %s", scan_id)
-                return
-
-            progress_reporter.update(100, "NSE scan complete")
-            # NSE results + scan completion already handled by NseScanner._submit_nse_results
-            logger.info("NSE scan completed for scan %s", scan_id)
-            return
-
-        # SSH probing phase - runs after port scanning
-        ssh_results: list[SSHProbeResult] = []
-        if result.open_ports and not result.cancelled:
-            # Detect SSH services from discovered ports
-            ssh_targets = detect_ssh_services(result.open_ports)
-
-            if ssh_targets:
-                logger.info("=== SSH Security Probing Phase ===")
-                progress_reporter.update(
-                    90, f"Starting SSH probes on {len(ssh_targets)} targets..."
-                )
-
-                # Run SSH probes - maps 90-100% progress
-                ssh_results = run_ssh_probes(
-                    ssh_targets,
-                    logger,
-                    progress_reporter,
-                    concurrency=DEFAULT_SSH_PROBE_CONCURRENCY,
-                    timeout=DEFAULT_SSH_PROBE_TIMEOUT,
-                    progress_offset=90.0,
-                    progress_scale=10.0,
-                )
-
-                # Log summary
-                successful_probes = [r for r in ssh_results if r.success]
-                insecure_auth = sum(1 for r in successful_probes if r.has_insecure_auth())
-                weak_ciphers = sum(1 for r in successful_probes if r.has_weak_ciphers())
-
-                logger.info(
-                    "SSH probing complete: %d/%d successful, %d with insecure auth, %d with weak ciphers",
-                    len(successful_probes),
-                    len(ssh_targets),
-                    insecure_auth,
-                    weak_ciphers,
-                )
-
-        if result.cancelled:
-            try:
-                client.submit_results(
-                    scan_id,
-                    "failed",
-                    result.open_ports,
-                    ssh_results=ssh_results,
-                    error_message="Scan cancelled by user request",
-                )
-                logger.info("Submitted cancelled scan results for scan %s", scan_id)
-            except Exception:
-                logger.exception("Failed to submit cancelled scan results for scan %s", scan_id)
-            return
-
-        # Report 100% at completion
-        progress_reporter.update(100, "Scan complete")
-
-        client.submit_results(scan_id, "success", result.open_ports, ssh_results=ssh_results)
-        logger.info("Submitted scan results for scan %s", scan_id)
     except Exception as exc:
         logger.exception("Scan failed for network %s", job.network_id)
         try:
             client.submit_results(scan_id, "failed", [], error_message=str(exc))
-            logger.info("Submitted failed scan results for scan %s", scan_id)
         except Exception:
             logger.exception("Failed to submit failure results for scan %s", scan_id)
     finally:
-        # Stop progress reporter first to ensure final progress is reported
         progress_reporter.stop()
         progress_reporter.join()
-        # Then stop log streamer
         log_streamer.stop()
         log_streamer.join()
 
 
 def check_dependencies(logger: logging.Logger) -> None:
-    """Check if required external tools are available.
-
-    Args:
-        logger: Logger instance
-    """
+    """Check if required external tools are available."""
     for tool in ["masscan", "nmap"]:
         if not shutil.which(tool):
             logger.warning(
-                "Required tool '%s' not found in PATH. Scans using this tool will fail.", tool
+                "Required tool '%s' not found in PATH. "
+                "Scans using this tool will fail.",
+                tool,
             )

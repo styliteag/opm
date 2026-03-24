@@ -18,6 +18,16 @@ class ScannerConfig:
 
 
 @dataclass(frozen=True)
+class ScanPhase:
+    """A single phase in a multi-phase scan pipeline."""
+
+    name: str  # host_discovery, port_scan, vulnerability
+    enabled: bool
+    tool: str  # nmap, masscan, nmap_nse
+    config: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class ScannerJob:
     """A pending scan job from the backend."""
 
@@ -29,12 +39,14 @@ class ScannerJob:
     scan_timeout: int  # seconds
     port_timeout: int  # milliseconds
     scan_protocol: str  # tcp, udp, or both
-    is_ipv6: bool = False  # whether the network CIDR is IPv6
-    target_ip: str | None = None  # specific IP for single-host scan, None for full network
+    is_ipv6: bool = False
+    target_ip: str | None = None
     # NSE-specific fields
     nse_scripts: list[str] | None = None
     nse_script_args: dict[str, Any] | None = None
     custom_script_hashes: dict[str, str] | None = None
+    # Multi-phase pipeline
+    phases: list[ScanPhase] | None = None
 
 
 @dataclass(frozen=True)
