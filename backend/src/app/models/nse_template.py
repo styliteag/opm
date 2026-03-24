@@ -1,4 +1,4 @@
-"""Scan profile model for defining multi-phase scan configurations."""
+"""NSE profile model for vulnerability detection scan configurations."""
 
 from datetime import datetime
 from enum import Enum
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from app.models.nse_result import NseResult
 
 
-class ScanProfileSeverity(str, Enum):
+class NseTemplateSeverity(str, Enum):
     """Profile severity classification."""
 
     CRITICAL = "critical"
@@ -24,42 +24,35 @@ class ScanProfileSeverity(str, Enum):
     INFO = "info"
 
 
-class ScanProfileType(str, Enum):
+class NseTemplateType(str, Enum):
     """Profile source type."""
 
     BUILTIN = "builtin"
     CUSTOM = "custom"
 
 
-class ScanProfile(Base):
-    """Scan profile — a named multi-phase scan configuration.
+class NseTemplate(Base):
+    """NSE scan profile — a named group of NSE scripts to run together."""
 
-    Phases are stored as a JSON array of phase objects:
-    [
-        {"name": "host_discovery", "enabled": true, "tool": "nmap", "config": {...}},
-        {"name": "port_scan", "enabled": true, "tool": "masscan", "config": {...}},
-        {"name": "vulnerability", "enabled": true, "tool": "nmap_nse", "config": {...}},
-    ]
-    """
-
-    __tablename__ = "scan_profiles"
+    __tablename__ = "nse_templates"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    phases: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
-    severity: Mapped[ScanProfileSeverity | None] = mapped_column(
-        SQLEnum(ScanProfileSeverity, values_callable=lambda x: [e.value for e in x]),
+    nse_scripts: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    severity: Mapped[NseTemplateSeverity | None] = mapped_column(
+        SQLEnum(NseTemplateSeverity, values_callable=lambda x: [e.value for e in x]),
         nullable=True,
         default=None,
     )
     platform: Mapped[str] = mapped_column(String(50), nullable=False, default="any")
-    type: Mapped[ScanProfileType] = mapped_column(
-        SQLEnum(ScanProfileType, values_callable=lambda x: [e.value for e in x]),
+    type: Mapped[NseTemplateType] = mapped_column(
+        SQLEnum(NseTemplateType, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
-        default=ScanProfileType.CUSTOM,
+        default=NseTemplateType.CUSTOM,
     )
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    script_args: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     category: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     created_at: Mapped[datetime] = mapped_column(

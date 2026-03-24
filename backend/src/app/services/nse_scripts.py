@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.nse_script import NseScript
-from app.models.nse_template import ScanProfile
+from app.models.nse_template import NseTemplate
 from app.schemas.nse import NseScriptCreate, NseScriptListItem, NseScriptUpdate
 
 logger = logging.getLogger(__name__)
@@ -195,32 +195,16 @@ async def delete_script(db: AsyncSession, script: NseScript) -> int:
 
 
 async def _remove_script_from_profiles(db: AsyncSession, script_name: str) -> int:
-    """Remove a script name from all ScanProfile vulnerability phase configs."""
-    result = await db.execute(select(ScanProfile))
-    profiles = list(result.scalars().all())
+    """Remove a script name from all NseTemplate.nse_scripts arrays."""
+    result = await db.execute(select(NseTemplate))
+    templates = list(result.scalars().all())
 
     updated_count = 0
-    for profile in profiles:
-        if not profile.phases:
-            continue
-        new_phases = []
-        changed = False
-        for phase in profile.phases:
-            if phase.get("name") == "vulnerability":
-                config = phase.get("config", {})
-                scripts = config.get("scripts", [])
-                if script_name in scripts:
-                    new_scripts = [s for s in scripts if s != script_name]
-                    new_phase = {
-                        **phase,
-                        "config": {**config, "scripts": new_scripts},
-                    }
-                    new_phases.append(new_phase)
-                    changed = True
-                    continue
-            new_phases.append(phase)
-        if changed:
-            profile.phases = new_phases
+    for template in templates:
+        if template.nse_scripts and script_name in template.nse_scripts:
+            template.nse_scripts = [
+                s for s in template.nse_scripts if s != script_name
+            ]
             updated_count += 1
 
     return updated_count

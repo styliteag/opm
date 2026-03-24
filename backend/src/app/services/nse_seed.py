@@ -1,138 +1,99 @@
-"""Seed built-in scan profiles on startup.
+"""Seed built-in NSE profiles on startup.
 
-These profiles define multi-phase scan pipelines using nmap's built-in
-NSE scripts. The scanner just calls `nmap --script <name>` and nmap
-finds the script locally.
+These profiles work out of the box because nmap ships with all NSE scripts.
+The scanner just calls `nmap --script <name>` and nmap finds the script locally.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.nse_template import ScanProfile, ScanProfileSeverity, ScanProfileType
+from app.models.nse_template import NseTemplate, NseTemplateSeverity, NseTemplateType
 from app.services.nse_all_scripts import ALL_NSE_SCRIPTS
 
 logger = logging.getLogger(__name__)
 
-
-def _default_phases(
-    scripts: list[str],
-    script_args: dict[str, str] | None = None,
-    port_range: str | None = None,
-    port_scan_tool: str = "nmap",
-) -> list[dict[str, Any]]:
-    """Build a standard 3-phase configuration."""
-    return [
-        {
-            "name": "host_discovery",
-            "enabled": True,
-            "tool": "nmap",
-            "config": {"aggressive": False, "max_retries": 2},
-        },
-        {
-            "name": "port_scan",
-            "enabled": True,
-            "tool": port_scan_tool,
-            "config": {
-                "port_range": port_range,
-                "exclude_ports": None,
-                "aggressive": False,
-                "max_retries": 3,
-            },
-        },
-        {
-            "name": "vulnerability",
-            "enabled": True,
-            "tool": "nmap_nse",
-            "config": {
-                "scripts": scripts,
-                "script_args": script_args or {},
-                "aggressive": False,
-                "parallel": True,
-                "max_retries": 3,
-            },
-        },
-    ]
-
-
 # Built-in profiles — ship with the product, read-only
-BUILTIN_PROFILES: list[dict[str, Any]] = [
-    # -- Scan Profiles (tiered bundles) --
+BUILTIN_PROFILES: list[dict] = [
+    # ── Scan Profiles (tiered bundles) ──────────────────────────────────
     {
         "name": "Quick Scan",
-        "description": (
-            "Fast scan with essential vulnerability detection. "
-            "Best for rapid assessment and initial reconnaissance."
-        ),
-        "phases": _default_phases(
-            ["vulners", "banner", "http-title", "ssl-cert", "ftp-anon", "smb-protocols"],
-            port_range="1-10000",
-            port_scan_tool="masscan",
-        ),
+        "description": "Fast scan with essential vulnerability detection. Best for rapid assessment and initial reconnaissance.",
+        "nse_scripts": [
+            "vulners",
+            "banner",
+            "http-title",
+            "ssl-cert",
+            "ftp-anon",
+            "smb-protocols",
+        ],
         "category": "scan_profiles",
         "platform": "any",
         "priority": 0,
     },
     {
         "name": "High Risk Scan",
-        "description": (
-            "Focused scan with critical vulnerability detection scripts. "
-            "Targets high-impact vulnerabilities and common attack vectors."
-        ),
-        "phases": _default_phases(
-            [
-                "banner", "ssl-ccs-injection", "ssl-cert", "ssl-heartbleed",
-                "ssl-poodle", "vulners", "ftp-anon",
-                "http-auth", "http-enum", "http-shellshock", "http-title",
-                "http-vuln-cve2012-1823", "http-vuln-cve2014-3704",
-                "http-vuln-cve2015-1635", "http-vuln-cve2017-5638",
-                "http-vuln-cve2017-5689",
-                "smb-enum-shares", "smb-os-discovery", "smb-protocols",
-                "smb-security-mode", "smb-vuln-ms08-067", "smb-vuln-ms17-010",
-                "ssh-auth-methods",
-            ],
-            port_range="1-10000",
-        ),
+        "description": "Focused scan with critical vulnerability detection scripts. Targets high-impact vulnerabilities and common attack vectors.",
+        "nse_scripts": [
+            # * (any protocol) — 6
+            "banner",
+            "ssl-ccs-injection",
+            "ssl-cert",
+            "ssl-heartbleed",
+            "ssl-poodle",
+            "vulners",
+            # ftp — 1
+            "ftp-anon",
+            # http — 9
+            "http-auth",
+            "http-enum",
+            "http-shellshock",
+            "http-title",
+            "http-vuln-cve2012-1823",
+            "http-vuln-cve2014-3704",
+            "http-vuln-cve2015-1635",
+            "http-vuln-cve2017-5638",
+            "http-vuln-cve2017-5689",
+            # smb — 6
+            "smb-enum-shares",
+            "smb-os-discovery",
+            "smb-protocols",
+            "smb-security-mode",
+            "smb-vuln-ms08-067",
+            "smb-vuln-ms17-010",
+            # ssh — 1
+            "ssh-auth-methods",
+        ],
         "category": "scan_profiles",
         "platform": "any",
         "priority": 0,
     },
     {
         "name": "All Scripts Scan",
-        "description": (
-            "Comprehensive scan using all available scripts. "
-            "This is the most thorough but slowest scan option."
-        ),
-        "phases": _default_phases(ALL_NSE_SCRIPTS),
+        "description": "Comprehensive scan using all available scripts. This is the most thorough but slowest scan option.",
+        "nse_scripts": ALL_NSE_SCRIPTS,
         "category": "scan_profiles",
         "platform": "any",
         "priority": 0,
     },
-    # -- SMB --
+    # ── SMB ─────────────────────────────────────────────────────────────
     {
         "name": "EternalBlue SMB (MS17-010)",
-        "description": (
-            "Detects Microsoft SMB servers vulnerable to MS17-010 "
-            "(EternalBlue), a critical RCE used by WannaCry."
-        ),
+        "description": "Detects Microsoft SMB servers vulnerable to MS17-010 (EternalBlue), a critical RCE used by WannaCry ransomware.",
+        "nse_scripts": ["smb-vuln-ms17-010"],
         "severity": "critical",
-        "phases": _default_phases(["smb-vuln-ms17-010"], port_range="445"),
         "category": "smb",
         "platform": "smb",
         "priority": 1,
     },
     {
         "name": "Conficker SMB (MS08-067)",
-        "description": (
-            "Detects Microsoft SMB servers vulnerable to MS08-067 "
-            "(Conficker), a critical RCE in the Server service."
-        ),
+        "description": "Detects Microsoft SMB servers vulnerable to MS08-067 (Conficker), a critical RCE in the Server service.",
+        "nse_scripts": ["smb-vuln-ms08-067"],
         "severity": "critical",
-        "phases": _default_phases(["smb-vuln-ms08-067"], port_range="445"),
         "category": "smb",
         "platform": "smb",
         "priority": 1,
@@ -140,133 +101,92 @@ BUILTIN_PROFILES: list[dict[str, Any]] = [
     {
         "name": "SMB Share Enumeration",
         "description": "Enumerates SMB shares and checks for anonymous access.",
+        "nse_scripts": ["smb-enum-shares", "smb-enum-users"],
         "severity": "high",
-        "phases": _default_phases(
-            ["smb-enum-shares", "smb-enum-users"], port_range="445",
-        ),
         "category": "smb",
         "platform": "smb",
         "priority": 2,
     },
     {
         "name": "SMB OS Discovery",
-        "description": (
-            "Discovers OS, computer name, domain, and workgroup "
-            "over SMB for asset inventory."
-        ),
+        "description": "Discovers OS, computer name, domain, and workgroup over SMB for asset inventory.",
+        "nse_scripts": ["smb-os-discovery"],
         "severity": "info",
-        "phases": _default_phases(["smb-os-discovery"], port_range="445"),
         "category": "smb",
         "platform": "smb",
         "priority": 5,
     },
-    # -- Web --
+    # ── Web ─────────────────────────────────────────────────────────────
     {
         "name": "Shellshock (CVE-2014-6271)",
-        "description": (
-            "Detects web servers vulnerable to Shellshock, a critical "
-            "Bash RCE exploitable via CGI scripts."
-        ),
+        "description": "Detects web servers vulnerable to Shellshock, a critical Bash RCE exploitable via CGI scripts.",
+        "nse_scripts": ["http-shellshock"],
         "severity": "critical",
-        "phases": _default_phases(["http-shellshock"], port_range="80,443,8080,8443"),
         "category": "web",
         "platform": "http",
         "priority": 1,
     },
     {
         "name": "Apache Struts RCE (CVE-2017-5638)",
-        "description": (
-            "Detects Apache Struts servers vulnerable to CVE-2017-5638, "
-            "a critical RCE in the Jakarta Multipart parser."
-        ),
+        "description": "Detects Apache Struts servers vulnerable to CVE-2017-5638, a critical RCE in the Jakarta Multipart parser.",
+        "nse_scripts": ["http-vuln-cve2017-5638"],
         "severity": "critical",
-        "phases": _default_phases(
-            ["http-vuln-cve2017-5638"], port_range="80,443,8080,8443",
-        ),
         "category": "web",
         "platform": "http",
         "priority": 1,
     },
     {
         "name": "HTTP SQL Injection",
-        "description": (
-            "Crawls a web application and tests parameters "
-            "for SQL injection vulnerabilities."
-        ),
+        "description": "Crawls a web application and tests parameters for SQL injection vulnerabilities.",
+        "nse_scripts": ["http-sql-injection"],
         "severity": "critical",
-        "phases": _default_phases(
-            ["http-sql-injection"], port_range="80,443,8080,8443",
-        ),
         "category": "web",
         "platform": "http",
         "priority": 2,
     },
     {
         "name": "HTTP XSS Detection",
-        "description": (
-            "Tests for reflected and DOM-based cross-site "
-            "scripting vulnerabilities."
-        ),
+        "description": "Tests for reflected and DOM-based cross-site scripting vulnerabilities.",
+        "nse_scripts": ["http-stored-xss", "http-dombased-xss", "http-phpself-xss"],
         "severity": "high",
-        "phases": _default_phases(
-            ["http-stored-xss", "http-dombased-xss", "http-phpself-xss"],
-            port_range="80,443,8080,8443",
-        ),
         "category": "web",
         "platform": "http",
         "priority": 2,
     },
     {
         "name": "HTTP Enumeration",
-        "description": (
-            "Enumerates common web directories, admin panels, "
-            "backup files, and exposed configuration."
-        ),
+        "description": "Enumerates common web directories, admin panels, backup files, and exposed configuration.",
+        "nse_scripts": ["http-enum"],
         "severity": "medium",
-        "phases": _default_phases(["http-enum"], port_range="80,443,8080,8443"),
         "category": "web",
         "platform": "http",
         "priority": 3,
     },
     {
         "name": "HTTP Security Headers",
-        "description": (
-            "Checks for missing HTTP security headers: CSP, "
-            "X-Frame-Options, HSTS, X-Content-Type-Options."
-        ),
+        "description": "Checks for missing HTTP security headers: CSP, X-Frame-Options, HSTS, X-Content-Type-Options.",
+        "nse_scripts": ["http-security-headers", "http-headers"],
         "severity": "medium",
-        "phases": _default_phases(
-            ["http-security-headers", "http-headers"],
-            port_range="80,443,8080,8443",
-        ),
         "category": "web",
         "platform": "http",
         "priority": 3,
     },
-    # -- SSL/TLS --
+    # ── SSL/TLS ─────────────────────────────────────────────────────────
     {
         "name": "Heartbleed (CVE-2014-0160)",
-        "description": (
-            "Detects OpenSSL servers vulnerable to Heartbleed, "
-            "which allows reading memory contents including private keys."
-        ),
+        "description": "Detects OpenSSL servers vulnerable to Heartbleed, which allows reading memory contents including private keys.",
+        "nse_scripts": ["ssl-heartbleed"],
         "severity": "critical",
-        "phases": _default_phases(["ssl-heartbleed"], port_range="443,8443"),
         "category": "ssl",
         "platform": "ssl",
         "priority": 1,
     },
-    # -- Credentials --
+    # ── Credentials ─────────────────────────────────────────────────────
     {
         "name": "Default Credentials Check",
-        "description": (
-            "Tests common services for default or factory credentials "
-            "including FTP anonymous access and SNMP community strings."
-        ),
+        "description": "Tests common services for default or factory credentials including FTP anonymous access and SNMP community strings.",
+        "nse_scripts": ["ftp-anon", "http-default-accounts", "snmp-brute"],
         "severity": "critical",
-        "phases": _default_phases(
-            ["ftp-anon", "http-default-accounts", "snmp-brute"],
-        ),
         "category": "credentials",
         "platform": "any",
         "priority": 2,
@@ -274,63 +194,47 @@ BUILTIN_PROFILES: list[dict[str, Any]] = [
     {
         "name": "FTP Anonymous Login",
         "description": "Detects FTP servers allowing anonymous login.",
+        "nse_scripts": ["ftp-anon"],
         "severity": "high",
-        "phases": _default_phases(["ftp-anon"], port_range="21"),
         "category": "credentials",
         "platform": "ftp",
         "priority": 2,
     },
-    # -- Network --
+    # ── Network ─────────────────────────────────────────────────────────
     {
         "name": "DNS Zone Transfer",
-        "description": (
-            "Attempts DNS zone transfer (AXFR) to reveal "
-            "all DNS records for a domain."
-        ),
+        "description": "Attempts DNS zone transfer (AXFR) to reveal all DNS records for a domain.",
+        "nse_scripts": ["dns-zone-transfer"],
         "severity": "high",
-        "phases": _default_phases(["dns-zone-transfer"], port_range="53"),
         "category": "network",
         "platform": "dns",
         "priority": 2,
     },
     {
         "name": "SSH Algorithms Audit",
-        "description": (
-            "Enumerates SSH ciphers, KEX, MACs, and host key types "
-            "for identifying weak cryptographic configurations."
-        ),
+        "description": "Enumerates SSH ciphers, KEX, MACs, and host key types for identifying weak cryptographic configurations.",
+        "nse_scripts": ["ssh2-enum-algos", "ssh-hostkey", "ssh-auth-methods"],
         "severity": "medium",
-        "phases": _default_phases(
-            ["ssh2-enum-algos", "ssh-hostkey", "ssh-auth-methods"],
-            port_range="22",
-        ),
         "category": "network",
         "platform": "ssh",
         "priority": 3,
     },
-    # -- Reconnaissance --
+    # ── Reconnaissance ──────────────────────────────────────────────────
     {
         "name": "Vulners CVE Lookup",
-        "description": (
-            "Queries the Vulners CVE database to find known "
-            "vulnerabilities for detected service versions."
-        ),
+        "description": "Queries the Vulners CVE database to find known vulnerabilities for detected service versions.",
+        "nse_scripts": ["vulners"],
         "severity": "high",
-        "phases": _default_phases(
-            ["vulners"], script_args={"vulners.showall": "true"},
-        ),
         "category": "reconnaissance",
+        "script_args": {"vulners.showall": "true"},
         "platform": "any",
         "priority": 2,
     },
     {
         "name": "Service Banner Grabbing",
-        "description": (
-            "Captures service banners from open ports "
-            "to identify software versions."
-        ),
+        "description": "Captures service banners from open ports to identify software versions.",
+        "nse_scripts": ["banner"],
         "severity": "info",
-        "phases": _default_phases(["banner"]),
         "category": "reconnaissance",
         "platform": "any",
         "priority": 5,
@@ -339,14 +243,18 @@ BUILTIN_PROFILES: list[dict[str, Any]] = [
 
 
 async def _deduplicate_builtin_profiles(db: AsyncSession) -> int:
-    """Convert duplicate builtin profiles to custom, keeping lowest-id."""
+    """Convert duplicate builtin profiles to custom, keeping the lowest-id copy as builtin.
+
+    Returns the number of duplicates converted.
+    """
     result = await db.execute(
-        select(ScanProfile).where(ScanProfile.type == ScanProfileType.BUILTIN)
+        select(NseTemplate).where(NseTemplate.type == NseTemplateType.BUILTIN)
     )
     all_builtins = result.scalars().all()
 
+    # Group by name, keep lowest id as builtin
     seen: dict[str, int] = {}
-    duplicates: list[ScanProfile] = []
+    duplicates: list[NseTemplate] = []
     for t in all_builtins:
         if t.name in seen:
             duplicates.append(t)
@@ -354,21 +262,22 @@ async def _deduplicate_builtin_profiles(db: AsyncSession) -> int:
             seen[t.name] = t.id
 
     for dup in duplicates:
-        dup.type = ScanProfileType.CUSTOM
+        dup.type = NseTemplateType.CUSTOM
         dup.name = f"{dup.name} (copy)"
 
     if duplicates:
-        logger.info(
-            "Converted %d duplicate builtin profiles to custom",
-            len(duplicates),
-        )
+        logger.info("Converted %d duplicate builtin profiles to custom", len(duplicates))
     return len(duplicates)
 
 
 async def _sync_builtin_profiles(db: AsyncSession) -> int:
-    """Update existing builtin profiles to match current seed data."""
+    """Update existing builtin profiles to match current seed data.
+
+    Syncs fields that may have been added or changed (e.g. category).
+    Returns the number of profiles updated.
+    """
     result = await db.execute(
-        select(ScanProfile).where(ScanProfile.type == ScanProfileType.BUILTIN)
+        select(NseTemplate).where(NseTemplate.type == NseTemplateType.BUILTIN)
     )
     existing = {t.name: t for t in result.scalars().all()}
 
@@ -390,10 +299,9 @@ async def _sync_builtin_profiles(db: AsyncSession) -> int:
         if template.description != seed["description"]:
             template.description = seed["description"]
             changed = True
-        # Sync phases
-        new_phases = seed.get("phases")
-        if template.phases != new_phases:
-            template.phases = new_phases
+        # Sync nse_scripts
+        if template.nse_scripts != seed["nse_scripts"]:
+            template.nse_scripts = seed["nse_scripts"]
             changed = True
         # Sync priority
         new_priority = seed.get("priority", 10)
@@ -410,7 +318,7 @@ async def _sync_builtin_profiles(db: AsyncSession) -> int:
 
 
 async def seed_builtin_profiles(db: AsyncSession) -> int:
-    """Seed and sync built-in scan profiles.
+    """Seed and sync built-in NSE profiles.
 
     1. Removes duplicates from prior race conditions.
     2. Syncs existing builtins with current seed data.
@@ -423,9 +331,7 @@ async def seed_builtin_profiles(db: AsyncSession) -> int:
 
     # Fetch existing builtin profile names
     result = await db.execute(
-        select(ScanProfile.name).where(
-            ScanProfile.type == ScanProfileType.BUILTIN
-        )
+        select(NseTemplate.name).where(NseTemplate.type == NseTemplateType.BUILTIN)
     )
     existing_names = {row[0] for row in result.all()}
 
@@ -434,18 +340,15 @@ async def seed_builtin_profiles(db: AsyncSession) -> int:
         if p["name"] in existing_names:
             continue
 
-        phases = p.get("phases", [])
-
-        profile = ScanProfile(
+        profile = NseTemplate(
             name=p["name"],
             description=p["description"],
-            phases=phases,
-            severity=(
-                ScanProfileSeverity(p["severity"]) if p.get("severity") else None
-            ),
-            platform=p.get("platform", "any"),
-            type=ScanProfileType.BUILTIN,
+            nse_scripts=p["nse_scripts"],
+            severity=NseTemplateSeverity(p["severity"]) if p.get("severity") else None,
+            platform=p["platform"],
+            type=NseTemplateType.BUILTIN,
             enabled=True,
+            script_args=p.get("script_args"),
             category=p.get("category"),
             priority=p.get("priority", 10),
         )
@@ -454,5 +357,5 @@ async def seed_builtin_profiles(db: AsyncSession) -> int:
         count += 1
 
     if count:
-        logger.info("Seeded %d built-in scan profiles", count)
+        logger.info("Seeded %d built-in NSE profiles", count)
     return count

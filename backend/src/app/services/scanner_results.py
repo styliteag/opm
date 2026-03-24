@@ -208,7 +208,7 @@ async def submit_scan_results(
 
         # Auto-trigger discovery scan if none has ever completed for this network
         network = await networks.get_network_by_id(db, scan.network_id)
-        if network:
+        if network and network.host_discovery_enabled:
             has_completed_discovery = await db.scalar(
                 select(
                     sql_exists().where(

@@ -12,7 +12,6 @@ from app.models.base import Base
 if TYPE_CHECKING:
     from app.models.alert import Alert
     from app.models.host_discovery_scan import HostDiscoveryScan
-    from app.models.nse_template import ScanProfile
     from app.models.port_rule import PortRule
     from app.models.scan import Scan
     from app.models.scanner import Scanner
@@ -36,15 +35,21 @@ class Network(Base):
     port_timeout: Mapped[int | None] = mapped_column(
         Integer, nullable=True, server_default="1500"
     )  # milliseconds
+    scanner_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="masscan"
+    )  # 'masscan' | 'nmap'
     scan_protocol: Mapped[str] = mapped_column(
         String(10), nullable=False, server_default="tcp"
     )  # 'tcp' | 'udp' | 'both'
     alert_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    scan_profile_id: Mapped[int | None] = mapped_column(
-        ForeignKey("scan_profiles.id", ondelete="SET NULL"),
+    nse_profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("nse_templates.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="Default scan profile for scheduled scans",
+        comment="Default NSE profile for scheduled scans when scanner_type is nse",
+    )
+    host_discovery_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="1"
     )
     scan_schedule_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="1"
@@ -70,7 +75,6 @@ class Network(Base):
     host_discovery_scans: Mapped[list["HostDiscoveryScan"]] = relationship(
         "HostDiscoveryScan", back_populates="network", cascade="all, delete-orphan"
     )
-    scan_profile: Mapped["ScanProfile | None"] = relationship("ScanProfile")
 
     @property
     def is_ipv6(self) -> bool:

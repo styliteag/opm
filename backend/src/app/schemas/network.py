@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, field_validator
 
+from app.core.scanner_types import get_valid_scanner_types
+
 
 def validate_cidr(value: str) -> str:
     """Validate CIDR format (e.g., 192.168.1.0/24)."""
@@ -18,18 +20,28 @@ def validate_cidr(value: str) -> str:
 
 
 def validate_port_spec(value: str) -> str:
-    """Validate port_spec format: '80-443,1000-1020,8080,!88'."""
+    """Validate port_spec format: '80-443,1000-1020,8080,!88'.
+
+    Supports:
+    - Single ports: 80, 443
+    - Port ranges: 80-443
+    - Excluded ports (prefixed with !): !88
+    - Comma-separated combinations
+    """
     if not value:
         raise ValueError("port_spec cannot be empty")
 
+    # Split by comma and validate each segment
     segments = [s.strip() for s in value.split(",")]
 
     for segment in segments:
         if not segment:
             raise ValueError("Invalid port_spec: empty segment")
 
+        # Handle exclusion prefix
         port_str = segment.lstrip("!")
 
+        # Check for range
         if "-" in port_str:
             parts = port_str.split("-")
             if len(parts) != 2:
@@ -38,41 +50,37 @@ def validate_port_spec(value: str) -> str:
                 start = int(parts[0])
                 end = int(parts[1])
                 if not (1 <= start <= 65535 and 1 <= end <= 65535):
-                    raise ValueError(
-                        f"Port out of range (1-65535): {segment}",
-                    )
+                    raise ValueError(f"Port out of range (1-65535): {segment}")
                 if start > end:
-                    raise ValueError(
-                        f"Invalid port range (start > end): {segment}",
-                    )
+                    raise ValueError(f"Invalid port range (start > end): {segment}")
             except ValueError as e:
                 if "invalid literal" in str(e):
-                    raise ValueError(
-                        f"Invalid port number in range: {segment}",
-                    ) from e
+                    raise ValueError(f"Invalid port number in range: {segment}") from e
                 raise
         else:
+            # Single port
             try:
                 port = int(port_str)
                 if not (1 <= port <= 65535):
-                    raise ValueError(
-                        f"Port out of range (1-65535): {segment}",
-                    )
+                    raise ValueError(f"Port out of range (1-65535): {segment}")
             except ValueError as e:
                 if "invalid literal" in str(e):
-                    raise ValueError(
-                        f"Invalid port number: {segment}",
-                    ) from e
+                    raise ValueError(f"Invalid port number: {segment}") from e
                 raise
 
     return value
 
 
 def validate_cron_schedule(value: str | None) -> str | None:
-    """Validate cron schedule format."""
+    """Validate cron schedule format or allow null for manual-only.
+
+    Basic cron format: minute hour day_of_month month day_of_week
+    Examples: "0 * * * *" (every hour), "*/5 * * * *" (every 5 minutes)
+    """
     if value is None or value == "":
         return None
 
+    # Basic cron validation (5 or 6 fields)
     parts = value.split()
     if len(parts) < 5 or len(parts) > 6:
         raise ValueError(
@@ -80,6 +88,7 @@ def validate_cron_schedule(value: str | None) -> str | None:
             "(minute hour day_of_month month day_of_week [year])"
         )
 
+    # Basic pattern validation for cron fields
     cron_field_pattern = re.compile(r"^[\d\*\/\-\,]+$")
     for i, part in enumerate(parts):
         if not cron_field_pattern.match(part):
@@ -91,12 +100,18 @@ def validate_cron_schedule(value: str | None) -> str | None:
 VALID_SCAN_PROTOCOLS = ("tcp", "udp", "both")
 
 
+def validate_scanner_type(value: str) -> str:
+    """Validate scanner_type is one of the registered types."""
+    valid = get_valid_scanner_types()
+    if value not in valid:
+        raise ValueError(f"Invalid scanner_type: must be one of {valid}")
+    return value
+
+
 def validate_scan_protocol(value: str) -> str:
     """Validate scan_protocol is one of the allowed values."""
     if value not in VALID_SCAN_PROTOCOLS:
-        raise ValueError(
-            f"Invalid scan_protocol: must be one of {VALID_SCAN_PROTOCOLS}",
-        )
+        raise ValueError(f"Invalid scan_protocol: must be one of {VALID_SCAN_PROTOCOLS}")
     return value
 
 
@@ -111,9 +126,11 @@ class NetworkCreateRequest(BaseModel):
     scan_rate: int | None = None
     scan_timeout: int | None = 3600
     port_timeout: int | None = 1500
+    scanner_type: str = "masscan"
     scan_protocol: str = "tcp"
     alert_config: dict[str, Any] | None = None
-    scan_profile_id: int | None = None
+    nse_profile_id: int | None = None
+    host_discovery_enabled: bool = True
     scan_schedule_enabled: bool = True
 
     @field_validator("cidr")
@@ -152,6 +169,11 @@ class NetworkCreateRequest(BaseModel):
             raise ValueError("Port timeout must be greater than 0")
         return v
 
+    @field_validator("scanner_type")
+    @classmethod
+    def validate_scanner_type_value(cls, v: str) -> str:
+        return validate_scanner_type(v)
+
     @field_validator("scan_protocol")
     @classmethod
     def validate_scan_protocol_value(cls, v: str) -> str:
@@ -169,9 +191,11 @@ class NetworkUpdateRequest(BaseModel):
     scan_rate: int | None = None
     scan_timeout: int | None = None
     port_timeout: int | None = None
+    scanner_type: str | None = None
     scan_protocol: str | None = None
     alert_config: dict[str, Any] | None = None
-    scan_profile_id: int | None = None
+    nse_profile_id: int | None = None
+    host_discovery_enabled: bool | None = None
     scan_schedule_enabled: bool | None = None
 
     @field_validator("cidr")
@@ -214,6 +238,13 @@ class NetworkUpdateRequest(BaseModel):
             raise ValueError("Port timeout must be greater than 0")
         return v
 
+    @field_validator("scanner_type")
+    @classmethod
+    def validate_scanner_type_value(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        return validate_scanner_type(v)
+
     @field_validator("scan_protocol")
     @classmethod
     def validate_scan_protocol_value(cls, v: str | None) -> str | None:
@@ -234,9 +265,11 @@ class NetworkResponse(BaseModel):
     scan_rate: int | None
     scan_timeout: int | None
     port_timeout: int | None
+    scanner_type: str
     scan_protocol: str
     alert_config: dict[str, Any] | None
-    scan_profile_id: int | None
+    nse_profile_id: int | None
+    host_discovery_enabled: bool
     scan_schedule_enabled: bool
     is_ipv6: bool
     created_at: datetime

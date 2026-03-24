@@ -46,3 +46,4 @@ def get_scanner_type_metadata() -> list[dict[str, str | None]]:
 # Register built-in scanner types
 register_scanner_type("masscan", "Masscan", requires_binary="masscan")
 register_scanner_type("nmap", "Nmap", requires_binary="nmap")
+register_scanner_type("nse", "NSE Vulnerability", requires_binary="nmap")

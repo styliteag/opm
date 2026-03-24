@@ -18,16 +18,6 @@ class ScannerConfig:
 
 
 @dataclass(frozen=True)
-class ScanPhase:
-    """A single phase in a multi-phase scan pipeline."""
-
-    name: str  # host_discovery, port_scan, vulnerability
-    enabled: bool
-    tool: str  # nmap, masscan, nmap_nse
-    config: dict[str, Any]
-
-
-@dataclass(frozen=True)
 class ScannerJob:
     """A pending scan job from the backend."""
 
@@ -45,8 +35,6 @@ class ScannerJob:
     nse_scripts: list[str] | None = None
     nse_script_args: dict[str, Any] | None = None
     custom_script_hashes: dict[str, str] | None = None
-    # Phase-based scan configuration
-    phases: list[ScanPhase] | None = None
 
 
 @dataclass(frozen=True)
