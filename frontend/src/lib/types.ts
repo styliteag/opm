@@ -106,9 +106,17 @@ export interface Network {
   nse_profile_id: number | null
   host_discovery_enabled: boolean
   scan_schedule_enabled: boolean
+  phases: ScanPhase[] | null
   is_ipv6: boolean
   created_at: string
   updated_at: string
+}
+
+export interface ScanPhase {
+  name: 'host_discovery' | 'port_scan' | 'vulnerability'
+  enabled: boolean
+  tool: string
+  config: Record<string, unknown>
 }
 
 export interface NetworkListResponse {
