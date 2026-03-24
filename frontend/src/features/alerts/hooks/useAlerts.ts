@@ -117,7 +117,19 @@ export function useAlertMutations() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
   })
 
-  return { dismiss, reopen, bulkDismiss, bulkAcceptGlobal, bulkAcceptNetwork, bulkReopen, updateStatus, assign, remove }
+  const overrideSeverity = useMutation({
+    mutationFn: ({ id, severity }: { id: number; severity: Severity | null }) =>
+      patchApi(`/api/alerts/${id}/severity`, { severity }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
+  })
+
+  const bulkDelete = useMutation({
+    mutationFn: (data: { alert_ids: number[] }) =>
+      postApi('/api/alerts/bulk-delete', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
+  })
+
+  return { dismiss, reopen, bulkDismiss, bulkAcceptGlobal, bulkAcceptNetwork, bulkReopen, updateStatus, assign, remove, overrideSeverity, bulkDelete }
 }
 
 // Need patchApi import

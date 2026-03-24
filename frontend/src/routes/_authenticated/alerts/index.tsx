@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Download, ChevronDown } from 'lucide-react'
+import { Download, ChevronDown, FileText } from 'lucide-react'
 
 import { LoadingState } from '@/components/data-display/LoadingState'
 import { ErrorState } from '@/components/data-display/ErrorState'
@@ -38,7 +38,7 @@ function AlertsPage() {
   const alerts = useAlerts({ ...filters, offset: page * limit, limit })
   const networks = useNetworks()
   const [showNetworkPicker, setShowNetworkPicker] = useState(false)
-  const { bulkDismiss, bulkAcceptGlobal, bulkAcceptNetwork } = useAlertMutations()
+  const { bulkDismiss, bulkAcceptGlobal, bulkAcceptNetwork, bulkDelete } = useAlertMutations()
 
   const alertList = alerts.data?.alerts ?? []
   const criticalCount = alertList.filter((a) => a.severity === 'critical').length
@@ -64,13 +64,27 @@ function AlertsPage() {
             <SeverityBadge severity="high" />
             <span className="text-sm font-medium text-foreground">{highCount}</span>
           </div>
-          <a
-            href="/api/alerts/export/csv"
-            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export
-          </a>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Download className="h-3.5 w-3.5" />
+              Export
+              <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <a href="/api/alerts/export/csv">
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  Export CSV
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="/api/alerts/export/pdf">
+                  <FileText className="h-3.5 w-3.5 mr-1.5" />
+                  Export PDF
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -123,6 +137,19 @@ function AlertsPage() {
                 onClick={() => setShowNetworkPicker(true)}
               >
                 Accept for Network
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => {
+                  if (confirm(`Delete ${selectedIds.length} alert(s) permanently?`)) {
+                    bulkDelete.mutate(
+                      { alert_ids: selectedIds },
+                      { onSuccess: () => setSelectedIds([]) },
+                    )
+                  }
+                }}
+              >
+                Delete Permanently
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

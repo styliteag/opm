@@ -81,10 +81,43 @@ export function useOrgMutations() {
   const qc = useQueryClient()
 
   const update = useMutation({
-    mutationFn: (data: { name?: string; description?: string; contact_email?: string }) =>
-      putApi<OrgResponse>('/api/organization', data),
+    mutationFn: (data: {
+      name?: string
+      description?: string
+      contact_email?: string
+      logo_url?: string | null
+      security_policy_url?: string | null
+    }) => putApi<OrgResponse>('/api/organization', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['organization'] }),
   })
 
   return { update }
+}
+
+// --- SSH Alert Defaults ---
+
+export interface SSHAlertDefaults {
+  ssh_insecure_auth: boolean
+  ssh_weak_cipher: boolean
+  ssh_weak_kex: boolean
+  ssh_outdated_version: boolean
+  ssh_config_regression: boolean
+  ssh_version_threshold: string
+}
+
+export function useSSHAlertDefaults() {
+  return useQuery({
+    queryKey: ['global-settings', 'ssh-alert-defaults'],
+    queryFn: () => fetchApi<SSHAlertDefaults>('/api/settings/ssh-alert-defaults'),
+  })
+}
+
+export function useSSHAlertDefaultsMutation() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: Partial<SSHAlertDefaults>) =>
+      putApi<SSHAlertDefaults>('/api/settings/ssh-alert-defaults', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['global-settings', 'ssh-alert-defaults'] }),
+  })
 }

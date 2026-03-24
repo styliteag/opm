@@ -24,6 +24,7 @@ export const Route = createFileRoute('/_authenticated/trends')({
 })
 
 type RangeKey = '7d' | '30d' | '90d'
+type PeriodKey = 'day' | 'week' | 'month'
 
 const RANGE_DAYS: Record<RangeKey, number> = {
   '7d': 7,
@@ -41,12 +42,12 @@ function dateRange(range: RangeKey) {
   }
 }
 
-function buildParams(range: RangeKey, networkId: number | null) {
+function buildParams(range: RangeKey, networkId: number | null, period: PeriodKey = 'day') {
   const { start_date, end_date } = dateRange(range)
   const params = new URLSearchParams({
     start_date,
     end_date,
-    period: 'day',
+    period,
   })
   if (networkId !== null) {
     params.set('network_id', String(networkId))
@@ -63,24 +64,25 @@ function formatChartDate(dateStr: string) {
 
 function TrendsPage() {
   const [range, setRange] = useState<RangeKey>('30d')
+  const [period, setPeriod] = useState<PeriodKey>('day')
   const [networkId, setNetworkId] = useState<number | null>(null)
   const networks = useNetworks()
   const networkList = networks.data?.networks ?? []
 
-  const qs = buildParams(range, networkId)
+  const qs = buildParams(range, networkId, period)
 
   const openPorts = useQuery({
-    queryKey: ['trends', 'open-ports', range, networkId],
+    queryKey: ['trends', 'open-ports', range, period, networkId],
     queryFn: () => fetchApi<TrendDataResponse>(`/api/trends/open-ports?${qs}`),
   })
 
   const hosts = useQuery({
-    queryKey: ['trends', 'hosts', range, networkId],
+    queryKey: ['trends', 'hosts', range, period, networkId],
     queryFn: () => fetchApi<TrendDataResponse>(`/api/trends/hosts?${qs}`),
   })
 
   const alerts = useQuery({
-    queryKey: ['trends', 'alerts', range, networkId],
+    queryKey: ['trends', 'alerts', range, period, networkId],
     queryFn: () => fetchApi<AlertTrendDataResponse>(`/api/trends/alerts?${qs}`),
   })
 
@@ -124,6 +126,21 @@ function TrendsPage() {
               </option>
             ))}
           </select>
+
+          {/* Period selector */}
+          <div className="flex rounded-md border border-border">
+            {(['day', 'week', 'month'] as PeriodKey[]).map((p) => (
+              <Button
+                key={p}
+                variant={period === p ? 'default' : 'ghost'}
+                size="sm"
+                className="rounded-none first:rounded-l-md last:rounded-r-md capitalize"
+                onClick={() => setPeriod(p)}
+              >
+                {p}
+              </Button>
+            ))}
+          </div>
 
           {/* Date range buttons */}
           <div className="flex rounded-md border border-border">

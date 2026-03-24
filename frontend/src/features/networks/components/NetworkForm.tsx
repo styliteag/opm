@@ -22,11 +22,20 @@ const schema = z.object({
   scanner_type: z.enum(['masscan', 'nmap']),
   scan_protocol: z.enum(['tcp', 'udp', 'both']),
   scan_rate: z.coerce.number().optional(),
+  scan_timeout: z.preprocess(
+    (val) => (val === '' || val === undefined || val === null ? undefined : Number(val)),
+    z.number().min(60).max(86400).optional(),
+  ),
+  port_timeout: z.preprocess(
+    (val) => (val === '' || val === undefined || val === null ? undefined : Number(val)),
+    z.number().min(100).max(30000).optional(),
+  ),
   scan_schedule: z.string().optional(),
   nse_profile_id: z.preprocess(
     (val) => (val === '' || val === undefined || val === null ? undefined : Number(val)),
     z.number().optional(),
   ),
+  email_recipients: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -68,14 +77,21 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
           scanner_type: network.scanner_type as 'masscan' | 'nmap',
           scan_protocol: network.scan_protocol as 'tcp' | 'udp' | 'both',
           scan_rate: network.scan_rate ?? undefined,
+          scan_timeout: network.scan_timeout ?? undefined,
+          port_timeout: network.port_timeout ?? undefined,
           scan_schedule: network.scan_schedule ?? undefined,
           nse_profile_id: network.nse_profile_id ?? undefined,
+          email_recipients: (network.alert_config as Record<string, unknown> | null)?.email_recipients
+            ? String((network.alert_config as Record<string, unknown>).email_recipients)
+            : '',
         }
       : {
           scanner_type: 'masscan',
           scan_protocol: 'tcp',
           port_spec: '1-65535',
           scan_rate: 1000,
+          scan_timeout: 3600,
+          port_timeout: 1500,
         },
   })
 
@@ -99,9 +115,24 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
     'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
   const onSubmit = (data: FormData) => {
+    const { email_recipients, ...rest } = data
+    const payload: Record<string, unknown> = { ...rest }
+
+    // Build alert_config with email_recipients if provided
+    if (email_recipients?.trim()) {
+      const recipients = email_recipients.split(',').map((e) => e.trim()).filter(Boolean)
+      const existingConfig = (network?.alert_config as Record<string, unknown> | null) ?? {}
+      payload.alert_config = { ...existingConfig, email_recipients: recipients }
+    } else if (isEdit && network?.alert_config) {
+      // Clear email_recipients but keep other alert_config settings
+      const existing = { ...(network.alert_config as Record<string, unknown>) }
+      delete existing.email_recipients
+      payload.alert_config = Object.keys(existing).length > 0 ? existing : null
+    }
+
     if (isEdit && network) {
       update.mutate(
-        { id: network.id, ...data },
+        { id: network.id, ...(payload as Partial<Network>) },
         {
           onSuccess: () => {
             toast.success('Network updated')
@@ -111,7 +142,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
         },
       )
     } else {
-      create.mutate(data, {
+      create.mutate(payload as Partial<Network>, {
         onSuccess: () => {
           toast.success('Network created')
           onOpenChange(false)
@@ -194,6 +225,20 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
               </div>
             </div>
 
+            {/* Timeouts */}
+            <div>
+              <Label htmlFor="scan_timeout">Scan Timeout (seconds)</Label>
+              <Input id="scan_timeout" type="number" {...register('scan_timeout')} placeholder="3600" />
+              {errors.scan_timeout && <p className="mt-1 text-xs text-destructive">{errors.scan_timeout.message}</p>}
+              <p className="mt-0.5 text-[10px] text-muted-foreground">Max duration per scan (60-86400)</p>
+            </div>
+            <div>
+              <Label htmlFor="port_timeout">Port Timeout (ms)</Label>
+              <Input id="port_timeout" type="number" {...register('port_timeout')} placeholder="1500" />
+              {errors.port_timeout && <p className="mt-1 text-xs text-destructive">{errors.port_timeout.message}</p>}
+              <p className="mt-0.5 text-[10px] text-muted-foreground">Per-port response timeout (100-30000)</p>
+            </div>
+
             {/* Runtime Estimate */}
             {estimate.ips > 0 && estimate.ports > 0 && watchedRate > 0 && (
               <div className="flex items-end">
@@ -241,6 +286,18 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
               {cronHuman && (
                 <p className="mt-1 text-xs text-muted-foreground">{cronHuman}</p>
               )}
+            </div>
+            {/* Email Recipients */}
+            <div className="col-span-2">
+              <Label htmlFor="email_recipients">Alert Email Recipients</Label>
+              <Input
+                id="email_recipients"
+                {...register('email_recipients')}
+                placeholder="admin@example.com, security@example.com"
+              />
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                Comma-separated email addresses for alert notifications on this network
+              </p>
             </div>
           </div>
           <DialogFooter>

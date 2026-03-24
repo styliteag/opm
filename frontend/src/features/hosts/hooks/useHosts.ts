@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { fetchApi } from '@/lib/api'
+import { fetchApi, postApi } from '@/lib/api'
 import type { HostListResponse, HostOverviewResponse } from '@/lib/types'
 
 interface HostFilters {
@@ -38,4 +38,16 @@ export function useHostDetail(hostId: number) {
       fetchApi<HostOverviewResponse>(`/api/hosts/${hostId}/overview`),
     enabled: hostId > 0,
   })
+}
+
+export function useHostMutations() {
+  const qc = useQueryClient()
+
+  const bulkDelete = useMutation({
+    mutationFn: (data: { host_ids: number[] }) =>
+      postApi<{ deleted: number }>('/api/hosts/bulk-delete', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['hosts'] }),
+  })
+
+  return { bulkDelete }
 }

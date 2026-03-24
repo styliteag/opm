@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { ArrowLeft, Pencil, Radar } from 'lucide-react'
+import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import { LoadingState } from '@/components/data-display/LoadingState'
@@ -8,8 +10,21 @@ import { ErrorState } from '@/components/data-display/ErrorState'
 import { StatusBadge } from '@/components/data-display/StatusBadge'
 import { PortRulesEditor } from '@/features/networks/components/PortRulesEditor'
 import { NetworkForm } from '@/features/networks/components/NetworkForm'
-import { useNetworkDetail, useNetworkScans, useNetworkRules } from '@/features/networks/hooks/useNetworkDetail'
+import { useNetworkDetail, useNetworkScans, useNetworkRules, useNetworkMutations } from '@/features/networks/hooks/useNetworkDetail'
+import { fetchApi } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/utils'
+
+interface HostDiscoveryScan {
+  id: number
+  network_id: number
+  scanner_id: number
+  status: string
+  trigger_type: string
+  started_at: string | null
+  completed_at: string | null
+  hosts_discovered: number
+  error_message: string | null
+}
 
 export const Route = createFileRoute('/_authenticated/networks/$networkId')({
   component: NetworkDetailPage,
@@ -22,6 +37,13 @@ function NetworkDetailPage() {
   const network = useNetworkDetail(id)
   const scans = useNetworkScans(id)
   const rules = useNetworkRules(id)
+  const { triggerDiscovery } = useNetworkMutations()
+  const discoveryScans = useQuery({
+    queryKey: ['networks', id, 'host-discovery-scans'],
+    queryFn: () => fetchApi<{ scans: HostDiscoveryScan[] }>(`/api/networks/${id}/host-discovery-scans`),
+    enabled: id > 0,
+    refetchInterval: 15_000,
+  })
 
   if (network.isLoading) return <LoadingState rows={6} />
   if (network.error) return <ErrorState message={network.error.message} onRetry={network.refetch} />
@@ -96,6 +118,55 @@ function NetworkDetailPage() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Host Discovery */}
+      <div className="rounded-lg border border-border">
+        <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
+          <h3 className="font-display text-sm font-semibold text-foreground">
+            Host Discovery
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={triggerDiscovery.isPending}
+            onClick={() =>
+              triggerDiscovery.mutate(id, {
+                onSuccess: () => toast.success('Host discovery scan triggered'),
+                onError: (e) => toast.error(e.message),
+              })
+            }
+          >
+            <Radar className="h-3.5 w-3.5 mr-1.5" />
+            {triggerDiscovery.isPending ? 'Starting...' : 'Discover Hosts'}
+          </Button>
+        </div>
+        {(discoveryScans.data?.scans ?? []).length === 0 ? (
+          <div className="p-5 text-sm text-muted-foreground">No host discovery scans yet.</div>
+        ) : (
+          <div className="divide-y divide-border">
+            {(discoveryScans.data?.scans ?? []).slice(0, 10).map((ds) => (
+              <div key={ds.id} className="flex items-center justify-between px-5 py-3">
+                <div>
+                  <p className="text-sm text-foreground">
+                    Discovery #{ds.id} · {ds.hosts_discovered} hosts found
+                  </p>
+                  <p className="text-xs text-muted-foreground">{ds.trigger_type}</p>
+                </div>
+                <div className="text-right">
+                  <StatusBadge
+                    label={ds.status}
+                    variant={ds.status === 'completed' ? 'success' : ds.status === 'running' ? 'warning' : ds.status === 'failed' ? 'danger' : 'neutral'}
+                    dot
+                  />
+                  {ds.completed_at && (
+                    <p className="mt-1 text-xs text-muted-foreground">{formatRelativeTime(ds.completed_at)}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Recent Scans */}
