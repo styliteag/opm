@@ -11,7 +11,7 @@ from sqlalchemy.sql import func
 from app.models.base import Base
 
 if TYPE_CHECKING:
-    from app.models.nse_template import ScanProfile
+    from app.models.nse_template import NseTemplate
     from app.models.scan import Scan
 
 
@@ -32,7 +32,7 @@ class NseResult(Base):
     cve_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     severity: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
     template_id: Mapped[int | None] = mapped_column(
-        ForeignKey("scan_profiles.id", ondelete="SET NULL"), nullable=True, index=True
+        ForeignKey("nse_templates.id", ondelete="SET NULL"), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
@@ -40,6 +40,6 @@ class NseResult(Base):
 
     # Relationships
     scan: Mapped["Scan"] = relationship("Scan", back_populates="nse_results")
-    template: Mapped["ScanProfile | None"] = relationship(
-        "ScanProfile", back_populates="results"
+    template: Mapped["NseTemplate | None"] = relationship(
+        "NseTemplate", back_populates="results"
     )

@@ -394,7 +394,7 @@ async def trigger_nse_scan(
         status=ScanStatus.PLANNED,
         trigger_type=TriggerType.MANUAL,
         target_ip=request.target_ip,
-        scan_profile_id=template_id,
+        nse_template_id=template_id,
     )
     db.add(scan)
     await db.flush()

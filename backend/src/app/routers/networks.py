@@ -94,9 +94,11 @@ async def create_network(
         scan_rate=request.scan_rate,
         scan_timeout=request.scan_timeout,
         port_timeout=request.port_timeout,
+        scanner_type=request.scanner_type,
         scan_protocol=request.scan_protocol,
         alert_config=request.alert_config,
-        scan_profile_id=request.scan_profile_id,
+        nse_profile_id=request.nse_profile_id,
+        host_discovery_enabled=request.host_discovery_enabled,
     )
     await db.commit()
 
@@ -163,13 +165,12 @@ async def update_network(
         scan_rate=request.scan_rate,
         scan_timeout=request.scan_timeout,
         port_timeout=request.port_timeout,
+        scanner_type=request.scanner_type,
         scan_protocol=request.scan_protocol,
         alert_config=request.alert_config,
-        scan_profile_id=request.scan_profile_id,
-        clear_scan_profile=(
-            "scan_profile_id" in request.model_fields_set
-            and request.scan_profile_id is None
-        ),
+        nse_profile_id=request.nse_profile_id,
+        clear_nse_profile="nse_profile_id" in request.model_fields_set and request.nse_profile_id is None,
+        host_discovery_enabled=request.host_discovery_enabled,
         clear_schedule="scan_schedule" in request.model_fields_set,
         clear_alert_config="alert_config" in request.model_fields_set,
     )
@@ -419,6 +420,13 @@ async def trigger_host_discovery(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Network not found",
+        )
+
+    # Check if host discovery is enabled for this network
+    if not network.host_discovery_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Host discovery is disabled for this network",
         )
 
     scan = await host_discovery_service.create_host_discovery_scan(db, network)

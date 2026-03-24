@@ -16,7 +16,6 @@ from src.models import (
     NseScriptResult,
     OpenPortResult,
     ScannerJob,
-    ScanPhase,
 )
 from src.ssh_probe import SSHProbeResult
 from src.utils import parse_int
@@ -26,21 +25,6 @@ REQUEST_TIMEOUT_SECONDS = 15.0
 MAX_RETRIES = 5
 BACKOFF_BASE_SECONDS = 1.0
 BACKOFF_MAX_SECONDS = 30.0
-
-
-def _parse_phases(raw: list[dict[str, Any]] | None) -> list[ScanPhase] | None:
-    """Parse phases JSON into ScanPhase dataclass list."""
-    if not raw:
-        return None
-    return [
-        ScanPhase(
-            name=p["name"],
-            enabled=p.get("enabled", True),
-            tool=p["tool"],
-            config=p.get("config", {}),
-        )
-        for p in raw
-    ]
 
 
 class ScannerClient:
@@ -161,7 +145,6 @@ class ScannerClient:
                         nse_scripts=job.get("nse_scripts"),
                         nse_script_args=job.get("nse_script_args"),
                         custom_script_hashes=job.get("custom_script_hashes"),
-                        phases=_parse_phases(job.get("phases")),
                     )
                 )
             except (KeyError, TypeError, ValueError) as exc:

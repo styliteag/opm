@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.models.base import Base
-from app.models.nse_template import ScanProfileType
+from app.models.nse_template import NseTemplateSeverity, NseTemplateType
 
 
 class NseScript(Base):
@@ -23,7 +23,7 @@ class NseScript(Base):
     categories: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     severity: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None)
     type: Mapped[str] = mapped_column(
-        String(20), nullable=False, default=ScanProfileType.CUSTOM.value
+        String(20), nullable=False, default=NseTemplateType.CUSTOM.value
     )
     cloned_from: Mapped[str | None] = mapped_column(
         String(200), nullable=True, default=None

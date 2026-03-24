@@ -22,7 +22,6 @@ from .routers import (
     policy,
     ports,
     roles,
-    scan_profiles,
     scanner,
     scanners,
     scans,
@@ -88,7 +87,6 @@ app.include_router(hosts.router)
 app.include_router(metadata.router)
 app.include_router(networks.router)
 app.include_router(nse.router)
-app.include_router(scan_profiles.router)
 app.include_router(organization.router)
 app.include_router(policy.router)
 app.include_router(ports.router)

@@ -116,12 +116,17 @@ async def evaluate_schedules() -> None:
             if await _has_active_scan(db, network.id):
                 continue
 
+            # For NSE scanner type, attach the network's default profile
+            nse_template_id = None
+            if network.scanner_type == "nse" and network.nse_profile_id is not None:
+                nse_template_id = network.nse_profile_id
+
             scan = Scan(
                 network_id=network.id,
                 scanner_id=network.scanner_id,
                 status=ScanStatus.PLANNED,
                 trigger_type=TriggerType.SCHEDULED,
-                scan_profile_id=network.scan_profile_id,
+                nse_template_id=nse_template_id,
             )
             db.add(scan)
             await db.flush()

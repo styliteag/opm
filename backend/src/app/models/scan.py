@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.models.alert import Alert
     from app.models.network import Network
     from app.models.nse_result import NseResult
-    from app.models.nse_template import ScanProfile
+    from app.models.nse_template import NseTemplate
     from app.models.open_port import OpenPort
     from app.models.scan_log import ScanLog
     from app.models.scanner import Scanner
@@ -30,7 +30,6 @@ class ScanStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-    PARTIAL = "partial"
 
 
 class TriggerType(str, Enum):
@@ -81,11 +80,11 @@ class Scan(Base):
         nullable=True,
         comment="Target IP for single-host scan; NULL for full network scan",
     )
-    scan_profile_id: Mapped[int | None] = mapped_column(
-        ForeignKey("scan_profiles.id", ondelete="SET NULL"),
+    nse_template_id: Mapped[int | None] = mapped_column(
+        ForeignKey("nse_templates.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="Scan profile used for this scan",
+        comment="NSE template used for this scan; NULL for non-NSE scans",
     )
 
     # Relationships
@@ -107,7 +106,7 @@ class Scan(Base):
     nse_results: Mapped[list["NseResult"]] = relationship(
         "NseResult", back_populates="scan", cascade="all, delete-orphan"
     )
-    scan_profile: Mapped["ScanProfile | None"] = relationship("ScanProfile")
+    nse_template: Mapped["NseTemplate | None"] = relationship("NseTemplate")
 
     @property
     def cancelled_by_email(self) -> str | None:
