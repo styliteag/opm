@@ -116,19 +116,12 @@ async def evaluate_schedules() -> None:
             if await _has_active_scan(db, network.id):
                 continue
 
-            # Attach the network's scan profile (if any)
-            scan_profile_id = network.scan_profile_id
-            # Legacy fallback: use nse_profile_id for old NSE networks
-            if scan_profile_id is None and network.scanner_type == "nse":
-                scan_profile_id = network.nse_profile_id
-
             scan = Scan(
                 network_id=network.id,
                 scanner_id=network.scanner_id,
                 status=ScanStatus.PLANNED,
                 trigger_type=TriggerType.SCHEDULED,
-                scan_profile_id=scan_profile_id,
-                nse_template_id=scan_profile_id,  # Legacy compat
+                scan_profile_id=network.scan_profile_id,
             )
             db.add(scan)
             await db.flush()

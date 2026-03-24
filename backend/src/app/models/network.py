@@ -36,27 +36,15 @@ class Network(Base):
     port_timeout: Mapped[int | None] = mapped_column(
         Integer, nullable=True, server_default="1500"
     )  # milliseconds
-    scanner_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default="masscan"
-    )  # 'masscan' | 'nmap'
     scan_protocol: Mapped[str] = mapped_column(
         String(10), nullable=False, server_default="tcp"
     )  # 'tcp' | 'udp' | 'both'
     alert_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    nse_profile_id: Mapped[int | None] = mapped_column(
-        ForeignKey("nse_templates.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-        comment="Legacy — use scan_profile_id instead",
-    )
     scan_profile_id: Mapped[int | None] = mapped_column(
-        ForeignKey("nse_templates.id", ondelete="SET NULL"),
+        ForeignKey("scan_profiles.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
         comment="Default scan profile for scheduled scans",
-    )
-    host_discovery_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default="1"
     )
     scan_schedule_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="1"
@@ -82,9 +70,7 @@ class Network(Base):
     host_discovery_scans: Mapped[list["HostDiscoveryScan"]] = relationship(
         "HostDiscoveryScan", back_populates="network", cascade="all, delete-orphan"
     )
-    scan_profile: Mapped["ScanProfile | None"] = relationship(
-        "ScanProfile", foreign_keys=[scan_profile_id]
-    )
+    scan_profile: Mapped["ScanProfile | None"] = relationship("ScanProfile")
 
     @property
     def is_ipv6(self) -> bool:

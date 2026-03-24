@@ -19,12 +19,15 @@ async def get_all_profiles(
     profile_type: str | None = None,
 ) -> list[ScanProfile]:
     """Get all profiles with optional filtering."""
-    stmt = select(ScanProfile).order_by(ScanProfile.priority.asc(), ScanProfile.name.asc())
+    stmt = select(ScanProfile).order_by(
+        ScanProfile.priority.asc(), ScanProfile.name.asc(),
+    )
 
     if search:
         pattern = f"%{search}%"
         stmt = stmt.where(
-            ScanProfile.name.ilike(pattern) | ScanProfile.description.ilike(pattern)
+            ScanProfile.name.ilike(pattern)
+            | ScanProfile.description.ilike(pattern)
         )
     if severity:
         stmt = stmt.where(ScanProfile.severity == severity)
@@ -37,23 +40,29 @@ async def get_all_profiles(
     return list(result.scalars().all())
 
 
-async def get_profile_by_id(db: AsyncSession, profile_id: int) -> ScanProfile | None:
+async def get_profile_by_id(
+    db: AsyncSession, profile_id: int,
+) -> ScanProfile | None:
     """Get a profile by ID."""
-    result = await db.execute(select(ScanProfile).where(ScanProfile.id == profile_id))
+    result = await db.execute(
+        select(ScanProfile).where(ScanProfile.id == profile_id),
+    )
     return result.scalar_one_or_none()
 
 
-async def create_profile(db: AsyncSession, data: NseProfileCreate) -> ScanProfile:
-    """Create a new custom scan profile."""
+async def create_profile(
+    db: AsyncSession, data: NseProfileCreate,
+) -> ScanProfile:
+    """Create a new custom scan profile (legacy — no phases)."""
     profile = ScanProfile(
         name=data.name,
         description=data.description,
-        nse_scripts=data.nse_scripts,
-        severity=ScanProfileSeverity(data.severity) if data.severity else None,
+        severity=(
+            ScanProfileSeverity(data.severity) if data.severity else None
+        ),
         platform=data.platform,
         type=ScanProfileType.CUSTOM,
         enabled=data.enabled,
-        script_args=data.script_args,
         priority=data.priority,
     )
     db.add(profile)
@@ -76,7 +85,9 @@ async def create_profile_with_phases(
         name=name,
         description=description,
         phases=phases,
-        severity=ScanProfileSeverity(severity) if severity else None,
+        severity=(
+            ScanProfileSeverity(severity) if severity else None
+        ),
         platform=platform,
         type=ScanProfileType.CUSTOM,
         enabled=enabled,
@@ -87,18 +98,18 @@ async def create_profile_with_phases(
     return profile
 
 
-async def clone_profile(db: AsyncSession, source: ScanProfile, new_name: str) -> ScanProfile:
-    """Clone an existing profile (builtin or custom) into a new custom profile."""
+async def clone_profile(
+    db: AsyncSession, source: ScanProfile, new_name: str,
+) -> ScanProfile:
+    """Clone an existing profile into a new custom profile."""
     cloned = ScanProfile(
         name=new_name,
         description=source.description,
         phases=list(source.phases) if source.phases else None,
-        nse_scripts=list(source.nse_scripts) if source.nse_scripts else None,
         severity=source.severity,
         platform=source.platform,
         type=ScanProfileType.CUSTOM,
         enabled=source.enabled,
-        script_args=dict(source.script_args) if source.script_args else None,
         category=source.category,
         priority=source.priority,
     )
@@ -107,22 +118,19 @@ async def clone_profile(db: AsyncSession, source: ScanProfile, new_name: str) ->
 
 
 async def update_profile(
-    db: AsyncSession, profile: ScanProfile, data: NseProfileUpdate
+    db: AsyncSession, profile: ScanProfile, data: NseProfileUpdate,
 ) -> ScanProfile:
     """Update a scan profile."""
-
     if data.name is not None:
         profile.name = data.name
     if data.description is not None:
         profile.description = data.description
-    if data.nse_scripts is not None:
-        profile.nse_scripts = data.nse_scripts
     if data.severity is not None:
-        profile.severity = ScanProfileSeverity(data.severity) if data.severity else None
+        profile.severity = (
+            ScanProfileSeverity(data.severity) if data.severity else None
+        )
     if data.platform is not None:
         profile.platform = data.platform
-    if data.script_args is not None:
-        profile.script_args = data.script_args
     if data.enabled is not None:
         profile.enabled = data.enabled
     if data.priority is not None:
@@ -132,7 +140,7 @@ async def update_profile(
 
 
 async def update_profile_phases(
-    db: AsyncSession, profile: ScanProfile, phases: list[dict[str, Any]]
+    db: AsyncSession, profile: ScanProfile, phases: list[dict[str, Any]],
 ) -> ScanProfile:
     """Update a profile's phases."""
     profile.phases = phases

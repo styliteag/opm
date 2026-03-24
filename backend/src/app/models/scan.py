@@ -81,14 +81,8 @@ class Scan(Base):
         nullable=True,
         comment="Target IP for single-host scan; NULL for full network scan",
     )
-    nse_template_id: Mapped[int | None] = mapped_column(
-        ForeignKey("nse_templates.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-        comment="Legacy — use scan_profile_id instead",
-    )
     scan_profile_id: Mapped[int | None] = mapped_column(
-        ForeignKey("nse_templates.id", ondelete="SET NULL"),
+        ForeignKey("scan_profiles.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
         comment="Scan profile used for this scan",
@@ -113,12 +107,7 @@ class Scan(Base):
     nse_results: Mapped[list["NseResult"]] = relationship(
         "NseResult", back_populates="scan", cascade="all, delete-orphan"
     )
-    nse_template: Mapped["ScanProfile | None"] = relationship(
-        "ScanProfile", foreign_keys=[nse_template_id]
-    )
-    scan_profile: Mapped["ScanProfile | None"] = relationship(
-        "ScanProfile", foreign_keys=[scan_profile_id]
-    )
+    scan_profile: Mapped["ScanProfile | None"] = relationship("ScanProfile")
 
     @property
     def cancelled_by_email(self) -> str | None:

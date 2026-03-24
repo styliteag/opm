@@ -32,7 +32,7 @@ class NseResult(Base):
     cve_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     severity: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
     template_id: Mapped[int | None] = mapped_column(
-        ForeignKey("nse_templates.id", ondelete="SET NULL"), nullable=True, index=True
+        ForeignKey("scan_profiles.id", ondelete="SET NULL"), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
