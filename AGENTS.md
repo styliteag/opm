@@ -15,7 +15,7 @@ Current version: see `VERSION` file (semver). Database: MariaDB 11.
 ## Repository Structure
 
 ```
-open-port-monitor/
+opm/
 ├── backend/
 │   ├── src/
 │   │   ├── app/
