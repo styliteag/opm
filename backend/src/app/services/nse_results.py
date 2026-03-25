@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
-
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -81,6 +78,7 @@ async def submit_nse_results(
 
     if scan.status not in {ScanStatus.RUNNING, ScanStatus.CANCELLED, ScanStatus.PLANNED}:
         import logging
+
         logging.getLogger(__name__).warning(
             "Rejecting NSE results for scan %d: status is %s (expected RUNNING/CANCELLED/PLANNED)",
             submission.scan_id,
@@ -90,19 +88,10 @@ async def submit_nse_results(
 
     is_cancelled = scan.status == ScanStatus.CANCELLED
 
-    # Update scan status
-    if not is_cancelled:
-        if submission.status == "success":
-            scan.status = ScanStatus.COMPLETED
-        else:
-            scan.status = ScanStatus.FAILED
-        scan.completed_at = datetime.now(timezone.utc)
-    else:
-        if scan.completed_at is None:
-            scan.completed_at = datetime.now(timezone.utc)
-
-    if submission.error_message:
-        scan.error_message = submission.error_message
+    # NOTE: Do NOT update scan status here. NSE results are an intermediate
+    # step in the scan pipeline. The main /api/scanner/results endpoint is
+    # responsible for transitioning the scan to COMPLETED/FAILED after all
+    # phases (port scan + NSE + SSH probes) have finished.
 
     # Store NSE results
     results_recorded = 0

@@ -7,6 +7,8 @@ from app.models.alert_rule import AlertRule
 from app.models.alert_rule import RuleType as AlertRuleType
 from app.models.global_port_rule import GlobalRuleType
 from app.schemas.policy import (
+    PortRuleBulkActionRequest,
+    PortRuleBulkActionResponse,
     PortRuleUnifiedCreateRequest,
     PortRuleUnifiedListResponse,
     PortRuleUnifiedResponse,
@@ -36,6 +38,7 @@ def _build_response(
         source=rule.source,
         alert_type=criteria.get("alert_type"),
         script_name=criteria.get("script_name"),
+        enabled=rule.enabled,
         created_at=rule.created_at,
         created_by=rule.created_by,
     )
@@ -171,9 +174,7 @@ async def update_port_rule(
 
     rule = await alert_rules_service.get_rule_by_id(db, rule_id)
     if not rule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
 
     # Validate scope matches
     if scope == "global" and rule.network_id is not None:
@@ -213,6 +214,7 @@ async def update_port_rule(
             match_criteria=new_criteria if new_criteria != rule.match_criteria else None,
             rule_type=new_rule_type,
             description=request.description,
+            enabled=request.enabled,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -271,9 +273,7 @@ async def delete_port_rule(
 
     rule = await alert_rules_service.get_rule_by_id(db, rule_id)
     if not rule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
 
     if scope == "global" and rule.network_id is not None:
         raise HTTPException(
@@ -290,3 +290,54 @@ async def delete_port_rule(
 
     await alert_rules_service.delete_rule(db, rule)
     await db.commit()
+
+
+@router.post("/bulk-delete", response_model=PortRuleBulkActionResponse)
+async def bulk_delete_rules(
+    admin: OperatorUser,
+    db: DbSession,
+    request: PortRuleBulkActionRequest,
+) -> PortRuleBulkActionResponse:
+    """Delete multiple alert rules at once."""
+    deleted = 0
+    for rule_id in request.rule_ids:
+        rule = await alert_rules_service.get_rule_by_id(db, rule_id)
+        if rule:
+            await alert_rules_service.delete_rule(db, rule)
+            deleted += 1
+    await db.commit()
+    return PortRuleBulkActionResponse(affected=deleted)
+
+
+@router.post("/bulk-enable", response_model=PortRuleBulkActionResponse)
+async def bulk_enable_rules(
+    admin: OperatorUser,
+    db: DbSession,
+    request: PortRuleBulkActionRequest,
+) -> PortRuleBulkActionResponse:
+    """Enable multiple alert rules at once."""
+    updated = 0
+    for rule_id in request.rule_ids:
+        rule = await alert_rules_service.get_rule_by_id(db, rule_id)
+        if rule and not rule.enabled:
+            await alert_rules_service.update_rule(db, rule, enabled=True)
+            updated += 1
+    await db.commit()
+    return PortRuleBulkActionResponse(affected=updated)
+
+
+@router.post("/bulk-disable", response_model=PortRuleBulkActionResponse)
+async def bulk_disable_rules(
+    admin: OperatorUser,
+    db: DbSession,
+    request: PortRuleBulkActionRequest,
+) -> PortRuleBulkActionResponse:
+    """Disable multiple alert rules at once."""
+    updated = 0
+    for rule_id in request.rule_ids:
+        rule = await alert_rules_service.get_rule_by_id(db, rule_id)
+        if rule and rule.enabled:
+            await alert_rules_service.update_rule(db, rule, enabled=False)
+            updated += 1
+    await db.commit()
+    return PortRuleBulkActionResponse(affected=updated)

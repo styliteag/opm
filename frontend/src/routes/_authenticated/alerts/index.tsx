@@ -1,48 +1,85 @@
-import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { Download, ChevronDown, FileText } from 'lucide-react'
+import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Download, ChevronDown, FileText } from "lucide-react";
+import { toast } from "sonner";
 
-import { LoadingState } from '@/components/data-display/LoadingState'
-import { ErrorState } from '@/components/data-display/ErrorState'
-import { EmptyState } from '@/components/data-display/EmptyState'
-import { SeverityBadge } from '@/components/data-display/SeverityBadge'
-import { AlertsTable } from '@/features/alerts/components/AlertsTable'
-import { AlertFilters } from '@/features/alerts/components/AlertFilters'
-import { useAlerts, useAlertMutations } from '@/features/alerts/hooks/useAlerts'
-import { useNetworks } from '@/features/dashboard/hooks/useDashboardData'
+import { LoadingState } from "@/components/data-display/LoadingState";
+import { ErrorState } from "@/components/data-display/ErrorState";
+import { EmptyState } from "@/components/data-display/EmptyState";
+import { SeverityBadge } from "@/components/data-display/SeverityBadge";
+import { AlertsTable } from "@/features/alerts/components/AlertsTable";
+import { AlertFilters } from "@/features/alerts/components/AlertFilters";
+import { DismissModal } from "@/features/alerts/components/DismissModal";
+import { AcceptModal } from "@/features/alerts/components/AcceptModal";
+import {
+  useAlerts,
+  useAlertMutations,
+} from "@/features/alerts/hooks/useAlerts";
+import { useNetworks } from "@/features/dashboard/hooks/useDashboardData";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import type { AlertType, Severity } from '@/lib/types'
+} from "@/components/ui/dropdown-menu";
+import type { AlertType, Severity } from "@/lib/types";
 
-export const Route = createFileRoute('/_authenticated/alerts/')({
+export const Route = createFileRoute("/_authenticated/alerts/")({
   component: AlertsPage,
-})
+});
 
 interface FilterState {
-  severity?: Severity
-  type?: AlertType
-  network_id?: number
-  dismissed?: boolean
+  severity?: Severity;
+  type?: AlertType;
+  network_id?: number;
+  dismissed?: boolean;
 }
 
 function AlertsPage() {
-  const [filters, setFilters] = useState<FilterState>({ dismissed: false })
-  const [selectedIds, setSelectedIds] = useState<number[]>([])
-  const [page, setPage] = useState(0)
-  const limit = 50
+  const [filters, setFilters] = useState<FilterState>({ dismissed: false });
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [page, setPage] = useState(0);
+  const limit = 50;
 
-  const alerts = useAlerts({ ...filters, offset: page * limit, limit })
-  const networks = useNetworks()
-  const [showNetworkPicker, setShowNetworkPicker] = useState(false)
-  const { bulkDismiss, bulkAcceptGlobal, bulkAcceptNetwork, bulkDelete } = useAlertMutations()
+  const [dismissTarget, setDismissTarget] = useState<{
+    ids: number[];
+    port?: number;
+  } | null>(null);
+  const [acceptTarget, setAcceptTarget] = useState<{
+    ids: number[];
+  } | null>(null);
 
-  const alertList = alerts.data?.alerts ?? []
-  const criticalCount = alertList.filter((a) => a.severity === 'critical').length
-  const highCount = alertList.filter((a) => a.severity === 'high').length
+  const alerts = useAlerts({ ...filters, offset: page * limit, limit });
+  const networks = useNetworks();
+  const { bulkDelete, reopen } = useAlertMutations();
+
+  const alertList = alerts.data?.alerts ?? [];
+  const criticalCount = alertList.filter(
+    (a) => a.severity === "critical",
+  ).length;
+  const highCount = alertList.filter((a) => a.severity === "high").length;
+
+  const networkList = (networks.data?.networks ?? []).map((n) => ({
+    id: n.id,
+    name: n.name,
+  }));
+
+  const handleReopen = (alertId: number) => {
+    reopen.mutate(alertId, {
+      onSuccess: () => toast.success("Alert reopened"),
+      onError: (e) => toast.error(e.message),
+    });
+  };
+
+  const handleDelete = (alertId: number) => {
+    bulkDelete.mutate(
+      { alert_ids: [alertId] },
+      {
+        onSuccess: () => toast.success("Alert deleted"),
+        onError: (e) => toast.error(e.message),
+      },
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -58,11 +95,15 @@ function AlertsPage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <SeverityBadge severity="critical" />
-            <span className="text-sm font-medium text-foreground">{criticalCount}</span>
+            <span className="text-sm font-medium text-foreground">
+              {criticalCount}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <SeverityBadge severity="high" />
-            <span className="text-sm font-medium text-foreground">{highCount}</span>
+            <span className="text-sm font-medium text-foreground">
+              {highCount}
+            </span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -91,13 +132,10 @@ function AlertsPage() {
       <AlertFilters
         filters={filters}
         onChange={(f) => {
-          setFilters(f)
-          setPage(0)
+          setFilters(f);
+          setPage(0);
         }}
-        networks={(networks.data?.networks ?? []).map((n) => ({
-          id: n.id,
-          name: n.name,
-        }))}
+        networks={networkList}
       />
 
       {selectedIds.length > 0 && (
@@ -106,46 +144,33 @@ function AlertsPage() {
             {selectedIds.length} selected
           </span>
           <DropdownMenu>
-            <DropdownMenuTrigger
-              className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs text-white hover:bg-primary/90 transition-colors"
-            >
+            <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs text-white hover:bg-primary/90 transition-colors">
               Bulk Actions
               <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem
-                onClick={() => {
-                  bulkDismiss.mutate(
-                    { alert_ids: selectedIds, reason: 'Bulk dismissed' },
-                    { onSuccess: () => setSelectedIds([]) },
-                  )
-                }}
+                onClick={() => setDismissTarget({ ids: selectedIds })}
               >
                 Bulk Dismiss
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  bulkAcceptGlobal.mutate(
-                    { alert_ids: selectedIds, reason: 'Bulk accepted globally' },
-                    { onSuccess: () => setSelectedIds([]) },
-                  )
-                }}
+                onClick={() => setAcceptTarget({ ids: selectedIds })}
               >
-                Accept Globally
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setShowNetworkPicker(true)}
-              >
-                Accept for Network
+                Accept (create rule)
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => {
-                  if (confirm(`Delete ${selectedIds.length} alert(s) permanently?`)) {
+                  if (
+                    confirm(
+                      `Delete ${selectedIds.length} alert(s) permanently?`,
+                    )
+                  ) {
                     bulkDelete.mutate(
                       { alert_ids: selectedIds },
                       { onSuccess: () => setSelectedIds([]) },
-                    )
+                    );
                   }
                 }}
               >
@@ -162,57 +187,33 @@ function AlertsPage() {
         </div>
       )}
 
-      {showNetworkPicker && selectedIds.length > 0 && (
-        <div className="flex items-center gap-3 rounded-md border border-border bg-card px-4 py-3">
-          <span className="text-sm text-foreground">Select network:</span>
-          <select
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            defaultValue=""
-            onChange={(e) => {
-              const networkId = Number(e.target.value)
-              if (networkId > 0) {
-                bulkAcceptNetwork.mutate(
-                  { alert_ids: selectedIds, network_id: networkId, reason: 'Bulk accepted for network' },
-                  {
-                    onSuccess: () => {
-                      setSelectedIds([])
-                      setShowNetworkPicker(false)
-                    },
-                  },
-                )
-              }
-            }}
-          >
-            <option value="" disabled>
-              Choose a network...
-            </option>
-            {(networks.data?.networks ?? []).map((n) => (
-              <option key={n.id} value={n.id}>
-                {n.name}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => setShowNetworkPicker(false)}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
       {alerts.isLoading ? (
         <LoadingState rows={8} />
       ) : alerts.error ? (
-        <ErrorState message={alerts.error.message} onRetry={() => alerts.refetch()} />
+        <ErrorState
+          message={alerts.error.message}
+          onRetry={() => alerts.refetch()}
+        />
       ) : alertList.length === 0 ? (
-        <EmptyState title="No alerts" message="No alerts match the current filters." />
+        <EmptyState
+          title="No alerts"
+          message="No alerts match the current filters."
+        />
       ) : (
         <>
           <AlertsTable
             alerts={alertList}
             selectedIds={selectedIds}
             onSelectChange={setSelectedIds}
+            onDismiss={(alert) =>
+              setDismissTarget({
+                ids: [alert.id],
+                port: alert.port ?? undefined,
+              })
+            }
+            onReopen={handleReopen}
+            onAccept={(alertIds) => setAcceptTarget({ ids: alertIds })}
+            onDelete={handleDelete}
           />
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
@@ -237,6 +238,30 @@ function AlertsPage() {
           </div>
         </>
       )}
+
+      {dismissTarget && (
+        <DismissModal
+          alertIds={dismissTarget.ids}
+          port={dismissTarget.port}
+          open={!!dismissTarget}
+          onOpenChange={(open) => {
+            if (!open) setDismissTarget(null);
+          }}
+          onSuccess={() => setSelectedIds([])}
+        />
+      )}
+
+      {acceptTarget && (
+        <AcceptModal
+          alertIds={acceptTarget.ids}
+          open={!!acceptTarget}
+          onOpenChange={(open) => {
+            if (!open) setAcceptTarget(null);
+          }}
+          onSuccess={() => setSelectedIds([])}
+          networks={networkList}
+        />
+      )}
     </div>
-  )
+  );
 }

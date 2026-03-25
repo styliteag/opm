@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Accept modal with scope selection (global/network) and required reason for all accept actions
+- Dismiss modal now explains the difference to Accept and requires a reason
+- Accept button on alert detail page alongside Dismiss
+- Alert action comments (dismiss/accept) now appear in host timeline
+- Multiselect on port rules page with bulk actions: enable, disable, delete
+- `enabled` column on alert rules — disabled rules are skipped during evaluation
+- Bulk API endpoints: `POST /api/port-rules/bulk-delete`, `bulk-enable`, `bulk-disable`
+
+### Fixed
+- NSE result submission no longer prematurely marks scan as completed, which was preventing port results from being saved
+
 ### Changed
 - Rebrand project from "Open Port Monitor" to "Onyx Port Monitor" (OPM); update display name, Docker images (`styliteag/opm`, `styliteag/opm-scanner`), package names, DB defaults, and all documentation
 - Redesign Add/Edit Network modal with sectioned layout (Network, Scanner, Phases, Schedule & Alerts)

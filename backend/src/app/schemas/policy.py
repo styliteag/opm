@@ -21,6 +21,7 @@ class PortRuleUnifiedResponse(BaseModel):
     source: str = "port"
     alert_type: str | None = None  # For ssh/nse rules
     script_name: str | None = None  # For nse rules
+    enabled: bool = True
     created_at: datetime | None = None
     created_by: int | None = None
 
@@ -63,6 +64,7 @@ class PortRuleUnifiedUpdateRequest(BaseModel):
     port: str | None = None
     rule_type: GlobalRuleType | None = None
     description: str | None = None
+    enabled: bool | None = None
 
     @field_validator("port")
     @classmethod
@@ -75,3 +77,15 @@ class PortRuleUnifiedUpdateRequest(BaseModel):
     @classmethod
     def validate_ip_format(cls, v: str | None) -> str | None:
         return validate_ip_address(v)
+
+
+class PortRuleBulkActionRequest(BaseModel):
+    """Request schema for bulk operations on port rules."""
+
+    rule_ids: list[int]
+
+
+class PortRuleBulkActionResponse(BaseModel):
+    """Response schema for bulk operations on port rules."""
+
+    affected: int
