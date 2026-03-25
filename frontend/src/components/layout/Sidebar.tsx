@@ -12,6 +12,7 @@ import {
   Building,
   ChevronLeft,
   ChevronRight,
+  Radar,
   TrendingUp,
   Zap,
 } from "lucide-react";
@@ -31,6 +32,7 @@ interface NavItem {
 const mainNav: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Networks", href: "/networks", icon: Network },
+  { label: "Scans", href: "/scans", icon: Radar },
   { label: "Hosts", href: "/hosts", icon: Monitor },
   { label: "Alerts", href: "/alerts", icon: ShieldAlert },
   { label: "Trends", href: "/trends", icon: TrendingUp },
