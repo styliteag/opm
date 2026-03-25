@@ -53,7 +53,7 @@ docker run -d \
   -e API_KEY=your-scanner-api-key \
   -e POLL_INTERVAL=60 \
   -e LOG_LEVEL=INFO \
-  styliteag/open-port-monitor-scanner:latest
+  styliteag/opm-scanner:latest
 ```
 
 ### Docker Compose
@@ -61,7 +61,7 @@ docker run -d \
 ```yaml
 services:
   scanner:
-    image: styliteag/open-port-monitor-scanner:latest
+    image: styliteag/opm-scanner:latest
     restart: unless-stopped
     cap_add:
       - NET_RAW
@@ -115,7 +115,7 @@ services:
     image: your-backend
 
   scanner:
-    image: styliteag/open-port-monitor-scanner:latest
+    image: styliteag/opm-scanner:latest
     environment:
       BACKEND_URL: http://backend:8000
       API_KEY: ${API_KEY}
@@ -136,7 +136,7 @@ docker run -d \
   --cap-add=NET_ADMIN \
   -e BACKEND_URL=https://monitor.company.example \
   -e API_KEY=branch-1-key \
-  styliteag/open-port-monitor-scanner:latest
+  styliteag/opm-scanner:latest
 ```
 
 Each remote scanner should have its own API key and its own scanner record.
@@ -163,7 +163,7 @@ docker exec opm-scanner which ssh-audit
 Healthy startup usually includes messages like:
 
 ```text
-Open Port Monitor Scanner vX.Y.Z starting...
+Onyx Port Monitor Scanner vX.Y.Z starting...
 Polling interval set to 60 seconds
 Waiting for backend to be ready...
 Backend is ready

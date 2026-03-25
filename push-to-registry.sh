@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Open Port Monitor Docker Registry Push Script with Multi-Architecture Support
+# Onyx Port Monitor Docker Registry Push Script with Multi-Architecture Support
 
 set -e
 
@@ -52,7 +52,7 @@ else
     VERSION_TAG="latest"
 fi
 
-echo "🚀 Building and pushing Open Port Monitor images to registry..."
+echo "🚀 Building and pushing Onyx Port Monitor images to registry..."
 echo "Registry: ${REGISTRY_URL}"
 echo "Namespace: ${NAMESPACE}"
 echo "Version Tag: ${VERSION_TAG}"
@@ -104,8 +104,8 @@ echo "📦 Building combined app (frontend + backend)..."
 docker buildx build \
     --platform $PLATFORMS \
     --build-arg VERSION=${VERSION} \
-    --tag ${REGISTRY_URL}/${NAMESPACE}/open-port-monitor:${VERSION_TAG} \
-    --tag ${REGISTRY_URL}/${NAMESPACE}/open-port-monitor:latest \
+    --tag ${REGISTRY_URL}/${NAMESPACE}/opm:${VERSION_TAG} \
+    --tag ${REGISTRY_URL}/${NAMESPACE}/opm:latest \
     --file Dockerfile \
     --push \
     .
@@ -115,8 +115,8 @@ echo "📦 Building scanner..."
 docker buildx build \
     --platform $PLATFORMS \
     --build-arg VERSION=${VERSION} \
-    --tag ${REGISTRY_URL}/${NAMESPACE}/open-port-monitor-scanner:${VERSION_TAG} \
-    --tag ${REGISTRY_URL}/${NAMESPACE}/open-port-monitor-scanner:latest \
+    --tag ${REGISTRY_URL}/${NAMESPACE}/opm-scanner:${VERSION_TAG} \
+    --tag ${REGISTRY_URL}/${NAMESPACE}/opm-scanner:latest \
     --file scanner/Dockerfile \
     --push \
     scanner
@@ -125,8 +125,8 @@ echo ""
 echo "✅ Images built and pushed successfully!"
 echo ""
 echo "📋 Image URLs:"
-echo "   App:     ${REGISTRY_URL}/${NAMESPACE}/open-port-monitor:${VERSION_TAG}"
-echo "   Scanner: ${REGISTRY_URL}/${NAMESPACE}/open-port-monitor-scanner:${VERSION_TAG}"
+echo "   App:     ${REGISTRY_URL}/${NAMESPACE}/opm:${VERSION_TAG}"
+echo "   Scanner: ${REGISTRY_URL}/${NAMESPACE}/opm-scanner:${VERSION_TAG}"
 echo ""
 echo "🏗️  Built architectures:"
 case "$PLATFORMS" in

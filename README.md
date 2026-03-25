@@ -1,4 +1,4 @@
-# Open Port Monitor
+# Onyx Port Monitor
 
 Distributed network port scanning and monitoring system for security purposes with multi-site scanner support, alerting, and web dashboard.
 
@@ -141,7 +141,7 @@ Key variables:
 
 ## Running a Scanner Agent
 
-The scanner agent can be deployed on a different host to connect to your main Open Port Monitor server. This enables distributed scanning from multiple locations.
+The scanner agent can be deployed on a different host to connect to your main Onyx Port Monitor server. This enables distributed scanning from multiple locations.
 
 ### Prerequisites
 
@@ -160,7 +160,7 @@ docker build -f scanner/Dockerfile --build-arg VERSION=$(cat VERSION) -t opm-sca
 Or use a pre-built image from a registry:
 
 ```bash
-docker pull your-registry/open-port-monitor-scanner:latest
+docker pull your-registry/opm-scanner:latest
 ```
 
 Then run the scanner:

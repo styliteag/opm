@@ -1,12 +1,12 @@
-# Open Port Monitor Documentation
+# Onyx Port Monitor Documentation
 
-Welcome to the Open Port Monitor documentation. This guide covers the API reference, scanner deployment, and development resources.
+Welcome to the Onyx Port Monitor documentation. This guide covers the API reference, scanner deployment, and development resources.
 
 ## Table of Contents
 
 ### API Reference
 
-Complete API documentation for integrating with Open Port Monitor.
+Complete API documentation for integrating with Onyx Port Monitor.
 
 - [API Overview](api/overview.md) - Base URL, error handling, pagination, and authentication patterns
 - [Authentication](api/authentication.md) - User and scanner authentication flows

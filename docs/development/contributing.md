@@ -1,6 +1,6 @@
-# Contributing to Open Port Monitor
+# Contributing to Onyx Port Monitor
 
-This guide covers code standards, commit conventions, and the pull request process for contributing to Open Port Monitor.
+This guide covers code standards, commit conventions, and the pull request process for contributing to Onyx Port Monitor.
 
 ## Code Style
 

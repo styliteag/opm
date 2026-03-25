@@ -23,8 +23,8 @@ services:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     # Alternatively, use a pre-built image from a registry:
-    # image: styliteag/open-port-monitor:latest
-    # image: ghcr.io/styliteag/open-port-monitor:latest
+    # image: styliteag/opm:latest
+    # image: ghcr.io/styliteag/opm:latest
     restart: unless-stopped
     ports:
       - "80:80"

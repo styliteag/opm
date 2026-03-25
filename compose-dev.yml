@@ -4,7 +4,7 @@ services:
     container_name: opm-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${DB_NAME:-openportmonitor}
+      MYSQL_DATABASE: ${DB_NAME:-opm}
       MYSQL_USER: ${DB_USER:-opm}
       MYSQL_PASSWORD: ${DB_PASSWORD:-opmpassword}
       TZ: ${TZ:-Europe/Berlin}
@@ -26,7 +26,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: opm-backend
     environment:
-      DATABASE_URL: mysql+aiomysql://${DB_USER:-opm}:${DB_PASSWORD:-opmpassword}@db:3306/${DB_NAME:-openportmonitor}
+      DATABASE_URL: mysql+aiomysql://${DB_USER:-opm}:${DB_PASSWORD:-opmpassword}@db:3306/${DB_NAME:-opm}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}

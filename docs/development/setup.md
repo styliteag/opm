@@ -37,7 +37,7 @@ Common `.env` values in the current development stack:
 
 ```bash
 DB_ROOT_PASSWORD=rootpassword
-DB_NAME=openportmonitor
+DB_NAME=opm
 DB_USER=opm
 DB_PASSWORD=opmpassword
 
@@ -227,7 +227,7 @@ docker compose -f compose-dev.yml logs -f scanner
 docker exec -it opm-backend bash
 docker exec -it opm-frontend sh
 docker exec -it opm-scanner bash
-docker exec -it opm-db mariadb -u opm -popmpassword openportmonitor
+docker exec -it opm-db mariadb -u opm -popmpassword opm
 ```
 
 ### Restart A Single Service

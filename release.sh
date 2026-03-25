@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Release script for Open Port Monitor
+# Release script for Onyx Port Monitor
 # Usage: ./release.sh [major|minor|patch]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -179,13 +179,13 @@ echo ""
 
 # Display Docker image URLs
 echo "Docker images that will be built:"
-echo "  - docker.io/styliteag/open-port-monitor:$NEW_VERSION"
-echo "  - docker.io/styliteag/open-port-monitor:$TAG_NAME"
-echo "  - ghcr.io/styliteag/open-port-monitor:$NEW_VERSION"
-echo "  - ghcr.io/styliteag/open-port-monitor:$TAG_NAME"
-echo "  - docker.io/styliteag/open-port-monitor-scanner:$NEW_VERSION"
-echo "  - docker.io/styliteag/open-port-monitor-scanner:$TAG_NAME"
-echo "  - ghcr.io/styliteag/open-port-monitor-scanner:$NEW_VERSION"
-echo "  - ghcr.io/styliteag/open-port-monitor-scanner:$TAG_NAME"
+echo "  - docker.io/styliteag/opm:$NEW_VERSION"
+echo "  - docker.io/styliteag/opm:$TAG_NAME"
+echo "  - ghcr.io/styliteag/opm:$NEW_VERSION"
+echo "  - ghcr.io/styliteag/opm:$TAG_NAME"
+echo "  - docker.io/styliteag/opm-scanner:$NEW_VERSION"
+echo "  - docker.io/styliteag/opm-scanner:$TAG_NAME"
+echo "  - ghcr.io/styliteag/opm-scanner:$NEW_VERSION"
+echo "  - ghcr.io/styliteag/opm-scanner:$TAG_NAME"
 echo ""
 echo "Release $NEW_VERSION completed successfully!"
