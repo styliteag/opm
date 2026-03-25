@@ -32,7 +32,7 @@ Distributed network port scanning and monitoring system for security purposes wi
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd open-port-monitor
+   cd opm
    ```
 
 2. Copy the environment file and configure:

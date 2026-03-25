@@ -27,7 +27,7 @@ Important: normal backend and frontend development is expected to run through Do
 
 ```bash
 git clone <repository-url>
-cd open-port-monitor
+cd opm
 cp .env.example .env
 ```
 

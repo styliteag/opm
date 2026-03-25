@@ -192,7 +192,7 @@ wheels = [
 ]
 
 [[package]]
-name = "open-port-monitor-scanner"
+name = "opm-scanner"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
