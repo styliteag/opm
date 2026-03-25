@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Redesign Add/Edit Network modal with sectioned layout (Network, Scanner, Phases, Schedule & Alerts)
+- Widen network form dialog from `sm:max-w-sm` to `sm:max-w-3xl` for better field density
+- NSE Profile field now highlights with warning when vulnerability phase is enabled but no profile is selected
+
 ## [1.6.1] - 2026-03-25
 
 ### Added
