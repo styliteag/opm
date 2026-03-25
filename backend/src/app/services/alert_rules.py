@@ -159,6 +159,7 @@ async def update_rule(
     match_criteria: dict[str, Any] | None = None,
     rule_type: RuleType | None = None,
     description: str | None = None,
+    enabled: bool | None = None,
 ) -> AlertRule:
     """Update an alert rule."""
     if description is not None:
@@ -173,6 +174,9 @@ async def update_rule(
 
     if rule_type is not None:
         rule.rule_type = rule_type
+
+    if enabled is not None:
+        rule.enabled = enabled
 
     await db.flush()
     await db.refresh(rule)
@@ -274,7 +278,7 @@ async def is_port_accepted(
     """Check if a port is accepted by global alert rules."""
     rules = await get_global_rules(db, source="port")
     for rule in rules:
-        if rule.rule_type != RuleType.ACCEPTED:
+        if not rule.enabled or rule.rule_type != RuleType.ACCEPTED:
             continue
         if port_rule_matches_alert(rule, ip, port):
             return True
@@ -289,7 +293,7 @@ async def is_port_blocked(
     """Check if a port is blocked by global alert rules."""
     rules = await get_global_rules(db, source="port")
     for rule in rules:
-        if rule.rule_type != RuleType.CRITICAL:
+        if not rule.enabled or rule.rule_type != RuleType.CRITICAL:
             continue
         if port_rule_matches_alert(rule, ip, port):
             return True
@@ -345,7 +349,7 @@ async def is_nse_accepted(
     """Check if an NSE alert is accepted by global alert rules."""
     rules = await get_global_rules(db, source="nse")
     for rule in rules:
-        if rule.rule_type != RuleType.ACCEPTED:
+        if not rule.enabled or rule.rule_type != RuleType.ACCEPTED:
             continue
         if nse_rule_matches_alert(rule, ip, port, alert_type, script_name):
             return True
@@ -361,7 +365,7 @@ async def is_ssh_accepted(
     """Check if an SSH alert is accepted by global alert rules."""
     rules = await get_global_rules(db, source="ssh")
     for rule in rules:
-        if rule.rule_type != RuleType.ACCEPTED:
+        if not rule.enabled or rule.rule_type != RuleType.ACCEPTED:
             continue
         if ssh_rule_matches_alert(rule, ip, port, alert_type):
             return True
@@ -412,11 +416,7 @@ async def get_accepted_rules(
     source: str | None = None,
 ) -> list[AlertRule]:
     """Get all ACCEPTED rules, optionally filtered by source."""
-    stmt = (
-        select(AlertRule)
-        .where(AlertRule.rule_type == RuleType.ACCEPTED)
-        .order_by(AlertRule.id)
-    )
+    stmt = select(AlertRule).where(AlertRule.rule_type == RuleType.ACCEPTED).order_by(AlertRule.id)
     if source is not None:
         stmt = stmt.where(AlertRule.source == source)
     result = await db.execute(stmt)
@@ -428,11 +428,7 @@ async def get_blocklist_rules(
     source: str | None = None,
 ) -> list[AlertRule]:
     """Get all CRITICAL rules, optionally filtered by source."""
-    stmt = (
-        select(AlertRule)
-        .where(AlertRule.rule_type == RuleType.CRITICAL)
-        .order_by(AlertRule.id)
-    )
+    stmt = select(AlertRule).where(AlertRule.rule_type == RuleType.CRITICAL).order_by(AlertRule.id)
     if source is not None:
         stmt = stmt.where(AlertRule.source == source)
     result = await db.execute(stmt)

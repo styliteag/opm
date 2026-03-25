@@ -1,49 +1,98 @@
-import { useState } from 'react'
-import { X } from 'lucide-react'
-import { toast } from 'sonner'
+import { useState } from "react";
+import { toast } from "sonner";
 
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { useAlertMutations, useDismissSuggestions } from '@/features/alerts/hooks/useAlerts'
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  useAlertMutations,
+  useDismissSuggestions,
+} from "@/features/alerts/hooks/useAlerts";
 
 interface DismissModalProps {
-  alertId: number
-  port?: number
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  alertIds: number[];
+  port?: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export function DismissModal({ alertId, port, open, onOpenChange }: DismissModalProps) {
-  const [reason, setReason] = useState('')
-  const { dismiss } = useAlertMutations()
-  const suggestions = useDismissSuggestions(port)
+export function DismissModal({
+  alertIds,
+  port,
+  open,
+  onOpenChange,
+  onSuccess,
+}: DismissModalProps) {
+  const [reason, setReason] = useState("");
+  const { dismiss, bulkDismiss } = useAlertMutations();
+  const suggestions = useDismissSuggestions(port);
+
+  const isBulk = alertIds.length > 1;
 
   const handleDismiss = () => {
-    dismiss.mutate(
-      { id: alertId, reason: reason || 'Dismissed' },
-      {
-        onSuccess: () => {
-          toast.success('Alert dismissed')
-          onOpenChange(false)
-          setReason('')
+    const trimmed = reason.trim();
+    if (!trimmed) return;
+
+    if (isBulk) {
+      bulkDismiss.mutate(
+        { alert_ids: alertIds, reason: trimmed },
+        {
+          onSuccess: () => {
+            toast.success(`${alertIds.length} alerts dismissed`);
+            onOpenChange(false);
+            setReason("");
+            onSuccess?.();
+          },
+          onError: (e) => toast.error(e.message),
         },
-        onError: (e) => toast.error(e.message),
-      },
-    )
-  }
+      );
+    } else {
+      dismiss.mutate(
+        { id: alertIds[0], reason: trimmed },
+        {
+          onSuccess: () => {
+            toast.success("Alert dismissed");
+            onOpenChange(false);
+            setReason("");
+            onSuccess?.();
+          },
+          onError: (e) => toast.error(e.message),
+        },
+      );
+    }
+  };
+
+  const isPending = dismiss.isPending || bulkDismiss.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Dismiss Alert</DialogTitle>
+          <DialogTitle>
+            {isBulk ? `Dismiss ${alertIds.length} Alerts` : "Dismiss Alert"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            Dismissing hides {isBulk ? "these alerts" : "this alert"} from the
+            active list. Future scans that detect the same issue{" "}
+            <span className="font-medium text-foreground">
+              will still generate new alerts
+            </span>
+            . To permanently suppress alerts for a port, use{" "}
+            <span className="font-medium text-foreground">Accept</span> instead.
+          </p>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
-              Reason
+              Reason <span className="text-destructive">*</span>
             </label>
             <Textarea
               value={reason}
@@ -75,11 +124,14 @@ export function DismissModal({ alertId, port, open, onOpenChange }: DismissModal
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleDismiss} disabled={dismiss.isPending}>
-            {dismiss.isPending ? 'Dismissing...' : 'Dismiss'}
+          <Button
+            onClick={handleDismiss}
+            disabled={isPending || !reason.trim()}
+          >
+            {isPending ? "Dismissing..." : "Dismiss"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -49,7 +49,7 @@ async def get_host_timeline(
             ) AS description
         FROM open_ports op
         JOIN scans s ON s.id = op.scan_id
-        WHERE op.ip = :host_ip {before_clause.replace('ts', 'op.first_seen_at')}
+        WHERE op.ip = :host_ip {before_clause.replace("ts", "op.first_seen_at")}
     """
 
     ssh_q = f"""
@@ -63,7 +63,7 @@ async def get_host_timeline(
                 ' | Password: ', IF(password_enabled, 'yes', 'no')
             ) AS description
         FROM ssh_scan_results
-        WHERE host_ip = :host_ip {before_clause.replace('ts', 'timestamp')}
+        WHERE host_ip = :host_ip {before_clause.replace("ts", "timestamp")}
     """
 
     nse_q = f"""
@@ -80,6 +80,22 @@ async def get_host_timeline(
         WHERE ip = :host_ip {before_clause}
     """
 
+    comments_q = f"""
+        SELECT
+            ac.id,
+            'alert_action' AS event_type,
+            ac.created_at AS ts,
+            CONCAT(
+                COALESCE(u.email, 'system'), ': ',
+                SUBSTRING(ac.comment, 1, 120)
+            ) AS title,
+            CONCAT('Alert #', a.id, ' | ', a.alert_type) AS description
+        FROM alert_comments ac
+        JOIN alerts a ON a.id = ac.alert_id
+        LEFT JOIN users u ON u.id = ac.user_id
+        WHERE a.ip = :host_ip {before_clause.replace("ts", "ac.created_at")}
+    """
+
     full_query = f"""
         SELECT * FROM (
             ({alerts_q})
@@ -89,6 +105,8 @@ async def get_host_timeline(
             ({ssh_q})
             UNION ALL
             ({nse_q})
+            UNION ALL
+            ({comments_q})
         ) AS timeline
         ORDER BY ts DESC
         LIMIT :lim

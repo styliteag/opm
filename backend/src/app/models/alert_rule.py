@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, func
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -44,10 +44,9 @@ class AlertRule(Base):
         SQLEnum(RuleType, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
-    match_criteria: Mapped[dict[str, str | None]] = mapped_column(
-        JSON, nullable=False
-    )
+    match_criteria: Mapped[dict[str, str | None]] = mapped_column(JSON, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True, index=True
     )
