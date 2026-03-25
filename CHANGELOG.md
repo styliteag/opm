@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-03-25
+
+> **Breaking: This release requires a fresh database.** All migrations have been
+> consolidated into a single initial schema. Drop your existing database and let
+> the application recreate it on startup:
+>
+> ```bash
+> # Via Docker (recommended)
+> docker exec opm-db mariadb -u root -p<ROOT_PASSWORD> -e \
+>   "DROP DATABASE <DB_NAME>; CREATE DATABASE <DB_NAME>;"
+> docker restart opm-backend
+> ```
+>
+> The admin user and NSE profiles will be re-seeded automatically.
+
+### Changed
+- Consolidate all database migrations into a single initial schema
+- Checkbox component: improve unchecked border visibility in dark mode
+- Port rules page: selected rows now highlight, disabled badge uses muted pill style
+
 ## [1.7.0] - 2026-03-25
 
 ### Added
