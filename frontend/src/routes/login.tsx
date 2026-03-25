@@ -1,20 +1,20 @@
-import { createFileRoute, Navigate } from '@tanstack/react-router'
-import { ShieldAlert } from 'lucide-react'
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { ShieldAlert } from "lucide-react";
 
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { LoginForm } from '@/features/auth/components/LoginForm'
-import { DevLoginButton } from '@/features/auth/components/DevLoginButton'
-import { useAuthStore } from '@/stores/auth.store'
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { LoginForm } from "@/features/auth/components/LoginForm";
+import { DevLoginButton } from "@/features/auth/components/DevLoginButton";
+import { useAuthStore } from "@/stores/auth.store";
 
-export const Route = createFileRoute('/login')({
+export const Route = createFileRoute("/login")({
   component: LoginPage,
-})
+});
 
 function LoginPage() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   if (isAuthenticated) {
-    return <Navigate to="/" />
+    return <Navigate to="/" />;
   }
 
   return (
@@ -25,7 +25,7 @@ function LoginPage() {
             <ShieldAlert className="h-8 w-8 text-primary" />
           </div>
           <h1 className="font-display text-2xl font-bold text-foreground">
-            Sentinel Lens
+            Onyx Port Monitor
           </h1>
           <p className="text-sm text-muted-foreground">
             Secure access to your attack surface monitor
@@ -37,5 +37,5 @@ function LoginPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

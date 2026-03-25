@@ -1,10 +1,10 @@
-# AGENTS.md - Open Port Monitor
+# AGENTS.md - Onyx Port Monitor
 
 Guidelines for AI assistants working on this codebase. Read this file in full before making any changes.
 
 ## Project Overview
 
-Open Port Monitor is a distributed network port scanning and monitoring system. It consists of three components running in Docker containers:
+Onyx Port Monitor is a distributed network port scanning and monitoring system. It consists of three components running in Docker containers:
 
 - **Backend** (`backend/`) — FastAPI REST API (Python 3.12, async)
 - **Frontend** (`frontend/`) — React + Vite web dashboard (TypeScript)
@@ -356,7 +356,7 @@ Routes → Services → Models (with Pydantic schemas for validation)
 
 1. Run `./release.sh [major|minor|patch]` — bumps `VERSION`, updates `CHANGELOG.md`, syncs NSE scripts from upstream nmap, commits, tags, pushes
 2. Tag push triggers GitHub Actions (`release.yml`): runs frontend typecheck, builds multi-arch Docker images, pushes to Docker Hub and GHCR, creates GitHub Release with changelog notes
-3. Docker images: `styliteag/open-port-monitor` (combined app) and `styliteag/open-port-monitor-scanner`
+3. Docker images: `styliteag/opm` (combined app) and `styliteag/opm-scanner`
 4. NSE scripts in `nse-templates/scripts/` are synced from the nmap GitHub repo during release; built-in profiles are seeded on first backend startup
 
 ## Alert State Terminology

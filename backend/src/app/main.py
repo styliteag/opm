@@ -1,4 +1,4 @@
-"""Open Port Monitor Backend - FastAPI Application."""
+"""Onyx Port Monitor Backend - FastAPI Application."""
 
 import logging
 from collections.abc import AsyncIterator
@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan handler for startup and shutdown events."""
     # Log version at startup
     version_str = get_version()
-    logger.info(f"Open Port Monitor Backend v{version_str} starting...")
+    logger.info(f"Onyx Port Monitor Backend v{version_str} starting...")
 
     # Initialize database schema from models (migrations and admin user
     # are handled by startup scripts before workers start)
@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="Open Port Monitor",
+    title="Onyx Port Monitor",
     description="Distributed network port scanning and monitoring system",
     version=get_version(),
     lifespan=lifespan,

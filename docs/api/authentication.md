@@ -1,6 +1,6 @@
 # Authentication
 
-The Open Port Monitor API uses JWT (JSON Web Tokens) for authentication. There are two authentication flows:
+The Onyx Port Monitor API uses JWT (JSON Web Tokens) for authentication. There are two authentication flows:
 
 1. **User Authentication** - For human users accessing the web interface and API
 2. **Scanner Authentication** - For scanner agents reporting scan results

@@ -1,6 +1,6 @@
 # API Overview
 
-This document covers the common patterns, authentication, error handling, and conventions used across all Open Port Monitor API endpoints.
+This document covers the common patterns, authentication, error handling, and conventions used across all Onyx Port Monitor API endpoints.
 
 ## Base URL
 

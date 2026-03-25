@@ -1,4 +1,4 @@
-"""Open Port Monitor Scanner Agent - Main entry point."""
+"""Onyx Port Monitor Scanner Agent - Main entry point."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def main() -> None:
     check_dependencies(logger)
 
     version = get_version()
-    logger.info("Open Port Monitor Scanner v%s starting...", version)
+    logger.info("Onyx Port Monitor Scanner v%s starting...", version)
     logger.info("Polling interval set to %s seconds", config.poll_interval)
 
     client = ScannerClient(config.backend_url, config.api_key, logger, scanner_version=version)

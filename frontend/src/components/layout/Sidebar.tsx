@@ -128,7 +128,7 @@ export function Sidebar() {
         <ShieldAlert className="h-6 w-6 text-primary shrink-0" />
         {!collapsed && (
           <span className="font-display text-sm font-semibold tracking-tight text-foreground">
-            Sentinel Lens
+            Onyx Port Monitor
           </span>
         )}
       </div>

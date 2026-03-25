@@ -21,7 +21,7 @@ else
 fi
 
 # Log version at startup
-echo "Starting Open Port Monitor version: ${VERSION}"
+echo "Starting Onyx Port Monitor version: ${VERSION}"
 
 # Wait for database to be ready before starting backend
 echo "Waiting for database to be ready..."

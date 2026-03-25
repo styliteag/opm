@@ -50,7 +50,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push open-port-monitor to Docker Hub
+      - name: Build and push opm to Docker Hub
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -58,16 +58,16 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            docker.io/styliteag/open-port-monitor:${{ steps.version.outputs.version }}
-            docker.io/styliteag/open-port-monitor:latest
+            docker.io/styliteag/opm:${{ steps.version.outputs.version }}
+            docker.io/styliteag/opm:latest
           provenance: false
           sbom: false
-          cache-from: type=registry,ref=docker.io/styliteag/open-port-monitor:buildcache
-          cache-to: type=registry,ref=docker.io/styliteag/open-port-monitor:buildcache,mode=max
+          cache-from: type=registry,ref=docker.io/styliteag/opm:buildcache
+          cache-to: type=registry,ref=docker.io/styliteag/opm:buildcache,mode=max
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
 
-      - name: Build and push open-port-monitor to GHCR
+      - name: Build and push opm to GHCR
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -75,16 +75,16 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/styliteag/open-port-monitor:${{ steps.version.outputs.version }}
-            ghcr.io/styliteag/open-port-monitor:latest
+            ghcr.io/styliteag/opm:${{ steps.version.outputs.version }}
+            ghcr.io/styliteag/opm:latest
           provenance: false
           sbom: false
-          cache-from: type=registry,ref=ghcr.io/styliteag/open-port-monitor:buildcache
-          cache-to: type=registry,ref=ghcr.io/styliteag/open-port-monitor:buildcache,mode=max
+          cache-from: type=registry,ref=ghcr.io/styliteag/opm:buildcache
+          cache-to: type=registry,ref=ghcr.io/styliteag/opm:buildcache,mode=max
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
 
-      - name: Build and push open-port-monitor-scanner to Docker Hub
+      - name: Build and push opm-scanner to Docker Hub
         uses: docker/build-push-action@v6
         with:
           context: ./scanner
@@ -92,16 +92,16 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            docker.io/styliteag/open-port-monitor-scanner:${{ steps.version.outputs.version }}
-            docker.io/styliteag/open-port-monitor-scanner:latest
+            docker.io/styliteag/opm-scanner:${{ steps.version.outputs.version }}
+            docker.io/styliteag/opm-scanner:latest
           provenance: false
           sbom: false
-          cache-from: type=registry,ref=docker.io/styliteag/open-port-monitor-scanner:buildcache
-          cache-to: type=registry,ref=docker.io/styliteag/open-port-monitor-scanner:buildcache,mode=max
+          cache-from: type=registry,ref=docker.io/styliteag/opm-scanner:buildcache
+          cache-to: type=registry,ref=docker.io/styliteag/opm-scanner:buildcache,mode=max
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
 
-      - name: Build and push open-port-monitor-scanner to GHCR
+      - name: Build and push opm-scanner to GHCR
         uses: docker/build-push-action@v6
         with:
           context: ./scanner
@@ -109,29 +109,29 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/styliteag/open-port-monitor-scanner:${{ steps.version.outputs.version }}
-            ghcr.io/styliteag/open-port-monitor-scanner:latest
+            ghcr.io/styliteag/opm-scanner:${{ steps.version.outputs.version }}
+            ghcr.io/styliteag/opm-scanner:latest
           provenance: false
           sbom: false
-          cache-from: type=registry,ref=ghcr.io/styliteag/open-port-monitor-scanner:buildcache
-          cache-to: type=registry,ref=ghcr.io/styliteag/open-port-monitor-scanner:buildcache,mode=max
+          cache-from: type=registry,ref=ghcr.io/styliteag/opm-scanner:buildcache
+          cache-to: type=registry,ref=ghcr.io/styliteag/opm-scanner:buildcache,mode=max
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
 
-      - name: Delete old GHCR package versions (open-port-monitor)
+      - name: Delete old GHCR package versions (opm)
         uses: actions/delete-package-versions@v5
         continue-on-error: true
         with:
-          package-name: "open-port-monitor"
+          package-name: "opm"
           package-type: "container"
           min-versions-to-keep: 5
           delete-only-untagged-versions: false
 
-      - name: Delete old GHCR package versions (open-port-monitor-scanner)
+      - name: Delete old GHCR package versions (opm-scanner)
         uses: actions/delete-package-versions@v5
         continue-on-error: true
         with:
-          package-name: "open-port-monitor-scanner"
+          package-name: "opm-scanner"
           package-type: "container"
           min-versions-to-keep: 5
           delete-only-untagged-versions: false

@@ -1,4 +1,4 @@
-"""SQLAlchemy models for Open Port Monitor."""
+"""SQLAlchemy models for Onyx Port Monitor."""
 
 from app.models.alert import Alert
 from app.models.alert_comment import AlertComment
