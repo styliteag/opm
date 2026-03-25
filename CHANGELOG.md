@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-03-25
+
 ### Added
 - Accept modal with scope selection (global/network) and required reason for all accept actions
 - Dismiss modal now explains the difference to Accept and requires a reason
