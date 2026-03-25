@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.8.0] - 2026-03-25
 
+## [1.8.0] - 2026-03-25
+
 > **Breaking: This release requires a fresh database.** All migrations have been
 > consolidated into a single initial schema. Drop your existing database and let
 > the application recreate it on startup:
