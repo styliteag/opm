@@ -11,11 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Disable `react-refresh/only-export-components` lint rule for TanStack Router route files
 - Fix `react-hooks/purity` lint error for `Date.now()` in scanners page online status check
+- Remove duplicate `create_comment` route handler in alerts router
+- Fix missing `datetime` and `ip_network` imports in hosts router after refactor
+- Fix `_is_version_outdated` undefined name in SSH router (renamed to `is_version_outdated`)
 
 ### Changed
 
 - Apply consistent code formatting (double quotes, semicolons) across frontend route and feature files
 - Use `scanStatusVariant` utility for scan status badge styling
+- Extract `parse_ip_range()` to `backend/src/app/lib/ip_utils.py` — shared by hosts and ports services
+- Extract SSH version parsing (`parse_ssh_version`, `is_version_outdated`) to `backend/src/app/lib/ssh_utils.py`
+- Add `PaginationParams` dataclass and `Pagination` dependency to `core/deps.py`; applied to alerts, scans, ssh, and networks routers
+- Create standard HTTP exception subclasses in `backend/src/app/core/exceptions.py`
+- Create shared PDF/CSV export utilities in `backend/src/app/lib/export.py`; applied to alerts, hosts, and scans routers
+- Extract `formatRate()`, `isOnline()`, and `getScanDisplayTime()` to `frontend/src/lib/utils.ts`
+- Move SSH and NSE alert type constants to `frontend/src/lib/alert-types.ts`; removed duplication from PortRulesEditor and port-rules route
+- Create generic `DataTable<T>` component in `frontend/src/components/data-display/DataTable.tsx`; adopted in scans/index and scanners pages
+- Split port-rules page into feature module: `features/port-rules/types.ts`, `hooks/usePortRules.ts`, `components/{SourceBadge,GlobalRuleAddForm,RuleRow,RuleSection}.tsx`
 
 ## [1.8.1] - 2026-03-25
 

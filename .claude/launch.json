@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Full Stack (Docker Compose)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "-f", "compose-dev.yml", "up", "--build"],
+      "port": 5173,
+      "autoPort": false
+    },
+    {
+      "name": "Frontend (Vite)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "-f", "compose-dev.yml", "up", "frontend"],
+      "port": 5173
+    },
+    {
+      "name": "Backend (FastAPI)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "-f", "compose-dev.yml", "up", "backend", "db"],
+      "port": 8000
+    }
+  ]
+}
