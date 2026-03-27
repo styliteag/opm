@@ -1,19 +1,23 @@
 """Hosts API endpoint."""
 
-import csv
-from datetime import datetime, timezone
-from io import BytesIO, StringIO
-from ipaddress import ip_address, ip_network
+from datetime import datetime
+from ipaddress import ip_network
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Paragraph, Spacer
 
 from app.core.deps import AnalystUser, CurrentUser, DbSession, OperatorUser
+from app.lib.export import (
+    build_pdf,
+    csv_response,
+    export_timestamp,
+    make_pdf_table,
+    new_pdf_buffer,
+    pdf_response,
+)
+from app.lib.ip_utils import parse_ip_range
 from app.schemas.host import (
     BulkDeleteHostsRequest,
     BulkDeleteHostsResponse,
@@ -35,39 +39,6 @@ from app.services import global_open_ports as global_ports_service
 from app.services import hosts as hosts_service
 
 router = APIRouter(prefix="/api/hosts", tags=["hosts"])
-
-IPRange = hosts_service.IPRange
-
-
-def parse_ip_range(value: str) -> IPRange:
-    """Parse ip_range value into a normalized range."""
-    raw_value = value.strip()
-    if not raw_value:
-        raise ValueError("ip_range cannot be empty")
-
-    try:
-        if "-" in raw_value:
-            start_raw, end_raw = [part.strip() for part in raw_value.split("-", 1)]
-            if not start_raw or not end_raw:
-                raise ValueError("Invalid ip_range format")
-            start_ip = ip_address(start_raw)
-            end_ip = ip_address(end_raw)
-            if start_ip.version != end_ip.version:
-                raise ValueError("IP range must use the same IP version")
-        else:
-            network = ip_network(raw_value, strict=False)
-            start_ip = network.network_address
-            end_ip = network.broadcast_address
-
-        if int(start_ip) > int(end_ip):
-            raise ValueError("IP range start must be before end")
-    except ValueError as exc:
-        raise ValueError(
-            "Invalid ip_range; expected CIDR (e.g., 192.168.1.0/24) "
-            "or range (e.g., 192.168.1.10-192.168.1.50)"
-        ) from exc
-
-    return (start_ip.version, start_ip, end_ip)
 
 
 @router.get("", response_model=HostListResponse)
@@ -202,9 +173,7 @@ def _resolve_effective_rule(rules: list[PortRuleMatch]) -> str | None:
     best_type: str | None = None
     for r in rules:
         score = 2 if r.ip else 1
-        if score > best_score or (
-            score == best_score and r.rule_type == "accepted"
-        ):
+        if score > best_score or (score == best_score and r.rule_type == "accepted"):
             best_score = score
             best_type = r.rule_type
     return best_type
@@ -243,7 +212,7 @@ async def get_host_overview(
     # Networks
     network_infos = []
     network_map: dict[int, str] = {}
-    for nid in (host.seen_by_networks or []):
+    for nid in host.seen_by_networks or []:
         net = await networks_service.get_network_by_id(db, nid)
         if net:
             network_infos.append(HostNetworkInfo(id=net.id, name=net.name, cidr=net.cidr))
@@ -255,7 +224,9 @@ async def get_host_overview(
     ssh_alert_cache = await alerts_service.get_ssh_alert_summary_for_ips(db, host_ips)
 
     def _build_alert_summary(
-        alert: Alert, severity: str, alert_network_name: str | None = None,
+        alert: Alert,
+        severity: str,
+        alert_network_name: str | None = None,
     ) -> HostAlertSummary:
         alert_port_key = alert.port or 0
         ssh_data = ssh_data_cache.get((alert.ip, alert_port_key))
@@ -276,7 +247,8 @@ async def get_host_overview(
             network_id=alert.network_id,
             network_name=(
                 alert_network_name or network_map.get(alert.network_id, None)
-                if alert.network_id else None
+                if alert.network_id
+                else None
             ),
             ssh_summary=host_ssh,
             related_ssh_alert_count=ssh_info[0] if ssh_info else 0,
@@ -285,7 +257,10 @@ async def get_host_overview(
 
     # Alerts (not dismissed)
     active_alerts_raw = await alerts_service.get_alerts(
-        db, ip=host.ip, dismissed=False, limit=100,
+        db,
+        ip=host.ip,
+        dismissed=False,
+        limit=100,
     )
     alert_summaries = []
     for alert, alert_net_name in active_alerts_raw:
@@ -295,8 +270,10 @@ async def get_host_overview(
         elif alert.alert_type in (AlertType.NEW_PORT,):
             severity = "high"
         elif alert.alert_type in (
-            AlertType.SSH_INSECURE_AUTH, AlertType.SSH_WEAK_CIPHER,
-            AlertType.SSH_WEAK_KEX, AlertType.SSH_OUTDATED_VERSION,
+            AlertType.SSH_INSECURE_AUTH,
+            AlertType.SSH_WEAK_CIPHER,
+            AlertType.SSH_WEAK_KEX,
+            AlertType.SSH_OUTDATED_VERSION,
             AlertType.SSH_CONFIG_REGRESSION,
         ):
             severity = "high"
@@ -304,7 +281,10 @@ async def get_host_overview(
 
     # Dismissed alerts
     dismissed_all = await alerts_service.get_alerts(
-        db, ip=host.ip, dismissed=True, limit=10000,
+        db,
+        ip=host.ip,
+        dismissed=True,
+        limit=10000,
     )
     dismissed_count = len(dismissed_all)
     dismissed_summaries = []
@@ -321,26 +301,28 @@ async def get_host_overview(
 
     # Recent scans (from networks this host belongs to)
     scan_entries = []
-    for nid in (host.seen_by_networks or []):
+    for nid in host.seen_by_networks or []:
         net = await networks_service.get_network_by_id(db, nid)
         if not net:
             continue
         scans = await scans_service.get_scans_by_network_id(db, nid, offset=0, limit=5)
         for scan, scan_port_count in scans:
-            scan_entries.append(HostScanEntry(
-                id=scan.id,
-                network_id=nid,
-                network_name=net.name,
-                status=scan.status.value if hasattr(scan.status, 'value') else str(scan.status),
-                started_at=scan.started_at,
-                completed_at=scan.completed_at,
-                trigger_type=(
-                    scan.trigger_type.value
-                    if hasattr(scan.trigger_type, 'value')
-                    else str(scan.trigger_type)
-                ),
-                port_count=scan_port_count,
-            ))
+            scan_entries.append(
+                HostScanEntry(
+                    id=scan.id,
+                    network_id=nid,
+                    network_name=net.name,
+                    status=scan.status.value if hasattr(scan.status, "value") else str(scan.status),
+                    started_at=scan.started_at,
+                    completed_at=scan.completed_at,
+                    trigger_type=(
+                        scan.trigger_type.value
+                        if hasattr(scan.trigger_type, "value")
+                        else str(scan.trigger_type)
+                    ),
+                    port_count=scan_port_count,
+                )
+            )
     # Sort by most recent first and limit to 10
     scan_entries.sort(key=lambda s: s.started_at or datetime.min, reverse=True)
     scan_entries = scan_entries[:10]
@@ -351,7 +333,7 @@ async def get_host_overview(
 
     global_rules = await alert_rules_service.get_global_rules(db, source="port")
     network_rules_tuples: list[tuple[AlertRule, int, str]] = []
-    for nid in (host.seen_by_networks or []):
+    for nid in host.seen_by_networks or []:
         net_name = network_map.get(nid, "")
         for rule in await alert_rules_service.get_rules_by_network_id(db, nid, source="port"):
             network_rules_tuples.append((rule, nid, net_name))
@@ -374,20 +356,32 @@ async def get_host_overview(
             if not port_rule_matches_alert(rule, port_ip, port_num):
                 continue
             criteria_ip = rule.match_criteria.get("ip")
-            matches.append(PortRuleMatch(
-                id=rule.id, scope="global", network_id=None, network_name=None,
-                rule_type=rule.rule_type.value, description=rule.description,
-                ip=criteria_ip,
-            ))
+            matches.append(
+                PortRuleMatch(
+                    id=rule.id,
+                    scope="global",
+                    network_id=None,
+                    network_name=None,
+                    rule_type=rule.rule_type.value,
+                    description=rule.description,
+                    ip=criteria_ip,
+                )
+            )
         for rule, nid, nname in network_rules_tuples:
             if not port_rule_matches_alert(rule, port_ip, port_num):
                 continue
             criteria_ip = rule.match_criteria.get("ip")
-            matches.append(PortRuleMatch(
-                id=rule.id, scope="network", network_id=nid, network_name=nname,
-                rule_type=rule.rule_type.value, description=rule.description,
-                ip=criteria_ip,
-            ))
+            matches.append(
+                PortRuleMatch(
+                    id=rule.id,
+                    scope="network",
+                    network_id=nid,
+                    network_name=nname,
+                    rule_type=rule.rule_type.value,
+                    description=rule.description,
+                    ip=criteria_ip,
+                )
+            )
         return matches
 
     latest_scan_times = await global_ports_service.get_latest_scan_times_by_network(db)
@@ -423,20 +417,31 @@ async def get_host_overview(
 
         port_networks = getattr(p, "seen_by_networks", None) or (host.seen_by_networks or [])
         port_is_stale = global_ports_service.compute_port_staleness(
-            p.last_seen_at, port_networks, latest_scan_times,
+            p.last_seen_at,
+            port_networks,
+            latest_scan_times,
         )
 
-        enriched_ports.append(EnrichedHostPort(
-            ip=p.ip, port=p.port, protocol=p.protocol,
-            banner=p.banner, service_guess=p.service_guess,
-            user_comment=getattr(p, "user_comment", None),
-            first_seen_at=p.first_seen_at, last_seen_at=p.last_seen_at,
-            alert_id=alert_id, alert_status=alert_status,
-            alert_severity=alert_severity, dismiss_reason=dismiss_reason,
-            rule_status=rule_status, matching_rules=rules,
-            ssh_summary=port_ssh,
-            is_stale=port_is_stale,
-        ))
+        enriched_ports.append(
+            EnrichedHostPort(
+                ip=p.ip,
+                port=p.port,
+                protocol=p.protocol,
+                banner=p.banner,
+                service_guess=p.service_guess,
+                user_comment=getattr(p, "user_comment", None),
+                first_seen_at=p.first_seen_at,
+                last_seen_at=p.last_seen_at,
+                alert_id=alert_id,
+                alert_status=alert_status,
+                alert_severity=alert_severity,
+                dismiss_reason=dismiss_reason,
+                rule_status=rule_status,
+                matching_rules=rules,
+                ssh_summary=port_ssh,
+                is_stale=port_is_stale,
+            )
+        )
 
     # Deduplicate all_matching_rules by (scope, id)
     seen_rules: set[tuple[str, int]] = set()
@@ -543,57 +548,30 @@ async def export_hosts_csv(
         limit=10000,
     )
 
-    # Create CSV in memory
-    output = StringIO()
-    writer = csv.writer(output)
+    def _pingable_status(h: object) -> str:
+        pingable = getattr(h, "is_pingable", None)
+        if pingable is None:
+            return "Unknown"
+        return "Up" if pingable else "Down"
 
-    # Write headers
-    writer.writerow([
-        "IP",
-        "Hostname",
-        "Status",
-        "OS Guess",
-        "First Seen",
-        "Last Seen",
-        "Open Ports Count",
-    ])
-
-    # Write data rows
+    rows = []
     for host in hosts:
-        # Determine status from is_pingable field
-        if host.is_pingable is None:
-            status_value = "Unknown"
-        elif host.is_pingable:
-            status_value = "Up"
-        else:
-            status_value = "Down"
-
-        # Get open port count for this host
         port_count = await hosts_service.get_open_port_count_for_host(db, host.id)
-
-        writer.writerow([
-            host.ip,
-            host.hostname or "",
-            status_value,
-            "",  # OS Guess - not available in current Host model
-            host.first_seen_at.isoformat() if host.first_seen_at else "",
-            host.last_seen_at.isoformat() if host.last_seen_at else "",
-            port_count,
-        ])
-
-    # Get CSV content
-    csv_content = output.getvalue()
-    output.close()
-
-    # Generate filename with timestamp
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"hosts_{timestamp}.csv"
-
-    # Return as streaming response
-    return StreamingResponse(
-        iter([csv_content]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        rows.append(
+            [
+                host.ip,
+                host.hostname or "",
+                _pingable_status(host),
+                "",  # OS Guess - not available in current Host model
+                host.first_seen_at.isoformat() if host.first_seen_at else "",
+                host.last_seen_at.isoformat() if host.last_seen_at else "",
+                port_count,
+            ]
+        )
+    return csv_response(
+        rows,
+        ["IP", "Hostname", "Status", "OS Guess", "First Seen", "Last Seen", "Open Ports Count"],
+        f"hosts_{export_timestamp()}.csv",
     )
 
 
@@ -616,122 +594,57 @@ async def export_hosts_pdf(
         limit=10000,
     )
 
-    # Calculate summary statistics
+    def _pingable_status_pdf(h: object) -> str:
+        pingable = getattr(h, "is_pingable", None)
+        if pingable is None:
+            return "Unknown"
+        return "Up" if pingable else "Down"
+
     total_hosts = len(hosts)
     status_counts = {"Up": 0, "Down": 0, "Unknown": 0}
     for host in hosts:
-        if host.is_pingable is None:
-            status_counts["Unknown"] += 1
-        elif host.is_pingable:
-            status_counts["Up"] += 1
-        else:
-            status_counts["Down"] += 1
+        status_counts[_pingable_status_pdf(host)] += 1
 
-    # Create PDF in memory
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    elements: list[Flowable] = []
-    styles = getSampleStyleSheet()
-
-    # Report header
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    title = Paragraph("<b>Host Inventory Report</b>", styles["Title"])
-    elements.append(title)
-    elements.append(Spacer(1, 0.2 * inch))
-
-    subtitle = Paragraph(f"Generated: {timestamp}", styles["Normal"])
-    elements.append(subtitle)
-    elements.append(Spacer(1, 0.3 * inch))
-
-    # Summary statistics
-    summary_text = (
-        f"<b>Summary Statistics:</b><br/>"
-        f"Total Hosts: {total_hosts}<br/>"
-        f"Up: {status_counts['Up']}<br/>"
-        f"Down: {status_counts['Down']}<br/>"
-        f"Unknown: {status_counts['Unknown']}"
-    )
-    summary = Paragraph(summary_text, styles["Normal"])
-    elements.append(summary)
-    elements.append(Spacer(1, 0.3 * inch))
-
-    # Detailed hosts table
-    table_data = [[
-        "IP",
-        "Hostname",
-        "Status",
-        "First Seen",
-        "Last Seen",
-        "Open Ports",
-    ]]
-
-    for host in hosts:
-        # Determine status from is_pingable field
-        if host.is_pingable is None:
-            status_value = "Unknown"
-        elif host.is_pingable:
-            status_value = "Up"
-        else:
-            status_value = "Down"
-
-        # Get open port count for this host
-        port_count = await hosts_service.get_open_port_count_for_host(db, host.id)
-
-        # Format datetimes
-        first_seen = (
-            host.first_seen_at.strftime("%Y-%m-%d %H:%M")
-            if host.first_seen_at
-            else "N/A"
+    buffer, doc = new_pdf_buffer()
+    with build_pdf("Host Inventory Report") as (elements, styles):
+        elements.append(
+            Paragraph(
+                f"<b>Summary Statistics:</b><br/>"
+                f"Total Hosts: {total_hosts}<br/>"
+                f"Up: {status_counts['Up']}<br/>"
+                f"Down: {status_counts['Down']}<br/>"
+                f"Unknown: {status_counts['Unknown']}",
+                styles["Normal"],
+            )
         )
-        last_seen = (
-            host.last_seen_at.strftime("%Y-%m-%d %H:%M")
-            if host.last_seen_at
-            else "N/A"
+        elements.append(Spacer(1, 0.3 * inch))
+
+        table_rows = []
+        for host in hosts:
+            port_count = await hosts_service.get_open_port_count_for_host(db, host.id)
+            table_rows.append(
+                [
+                    host.ip,
+                    host.hostname or "",
+                    _pingable_status_pdf(host),
+                    host.first_seen_at.strftime("%Y-%m-%d %H:%M") if host.first_seen_at else "N/A",
+                    host.last_seen_at.strftime("%Y-%m-%d %H:%M") if host.last_seen_at else "N/A",
+                    str(port_count),
+                ]
+            )
+
+        col_widths = [1.2 * inch, 1.5 * inch, 0.8 * inch, 1.2 * inch, 1.2 * inch, 0.8 * inch]
+        elements.append(
+            make_pdf_table(
+                ["IP", "Hostname", "Status", "First Seen", "Last Seen", "Open Ports"],
+                table_rows,
+                col_widths,
+                "No hosts found.",
+            )
         )
 
-        table_data.append([
-            host.ip,
-            host.hostname or "",
-            status_value,
-            first_seen,
-            last_seen,
-            str(port_count),
-        ])
-
-    # Create table with style
-    col_widths = [1.2 * inch, 1.5 * inch, 0.8 * inch, 1.2 * inch, 1.2 * inch, 0.8 * inch]
-    table = Table(table_data, colWidths=col_widths)
-    table_style = TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-        ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-        ("GRID", (0, 0), (-1, -1), 1, colors.black),
-        ("FONTSIZE", (0, 1), (-1, -1), 8),
-    ])
-    table.setStyle(table_style)
-    elements.append(table)
-
-    # Build PDF
     doc.build(elements)
-
-    # Get PDF content
-    pdf_content = buffer.getvalue()
-    buffer.close()
-
-    # Generate filename with timestamp
-    filename_timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"hosts_{filename_timestamp}.pdf"
-
-    # Return as streaming response
-    return StreamingResponse(
-        iter([pdf_content]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    return pdf_response(buffer, f"hosts_{export_timestamp()}.pdf")
 
 
 @router.post("/{host_ip}/rescan", response_model=ScanTriggerResponse)

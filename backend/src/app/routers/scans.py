@@ -1,18 +1,19 @@
 """Scan detail and diff endpoints."""
 
-import csv
-from datetime import datetime, timezone
-from io import BytesIO, StringIO
-
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Paragraph, Spacer
 
-from app.core.deps import CurrentUser, DbSession, OperatorUser
+from app.core.deps import CurrentUser, DbSession, OperatorUser, Pagination
+from app.lib.export import (
+    build_pdf,
+    csv_response,
+    export_timestamp,
+    make_pdf_table,
+    new_pdf_buffer,
+    pdf_response,
+)
 from app.models.open_port import OpenPort
 from app.models.scan import ScanStatus
 from app.schemas.scan import (
@@ -84,18 +85,17 @@ async def get_latest_scans_by_network(
 async def get_all_scans(
     user: CurrentUser,
     db: DbSession,
+    pagination: Pagination,
     network_id: int | None = Query(None, ge=1),
     include_hidden: bool = Query(False),
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
 ) -> AllScansListResponse:
     """Get all scans with optional network filter."""
     scan_results = await scans_service.get_all_scans(
         db,
         network_id=network_id,
         include_hidden=include_hidden,
-        offset=offset,
-        limit=limit,
+        offset=pagination.offset,
+        limit=pagination.limit,
     )
 
     scans = [
@@ -172,9 +172,7 @@ async def get_scan_diff(
 
     if compare_to is None:
         # Auto-find the previous completed scan for the same network
-        compare_to = await scans_service.get_previous_scan_id(
-            db, scan.network_id, scan_id
-        )
+        compare_to = await scans_service.get_previous_scan_id(db, scan.network_id, scan_id)
         if compare_to is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -221,9 +219,8 @@ async def get_scan_diff(
 async def get_scan_logs(
     user: CurrentUser,
     db: DbSession,
+    pagination: Pagination,
     scan_id: int,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
 ) -> ScanLogListResponse:
     """Get paginated scan logs for a scan."""
     scan = await scans_service.get_scan_by_id(db, scan_id)
@@ -233,7 +230,9 @@ async def get_scan_logs(
             detail="Scan not found",
         )
 
-    logs = await scans_service.get_scan_logs(db, scan_id, offset=offset, limit=limit)
+    logs = await scans_service.get_scan_logs(
+        db, scan_id, offset=pagination.offset, limit=pagination.limit
+    )
     return ScanLogListResponse(logs=[ScanLogResponse.model_validate(log) for log in logs])
 
 
@@ -308,38 +307,19 @@ async def export_scan_csv(
             detail="Scan not found",
         )
 
-    # Create CSV in memory
-    output = StringIO()
-    writer = csv.writer(output)
-
-    # Write headers
-    writer.writerow(["IP", "Port", "Protocol", "Service", "First Seen", "Last Seen"])
-
-    # Write data rows
-    for port in scan.open_ports:
-        writer.writerow([
+    headers = ["IP", "Port", "Protocol", "Service", "First Seen", "Last Seen"]
+    rows = [
+        [
             port.ip,
             port.port,
             port.protocol,
             port.service_guess or "",
             port.first_seen_at.isoformat() if port.first_seen_at else "",
             port.last_seen_at.isoformat() if port.last_seen_at else "",
-        ])
-
-    # Get CSV content
-    csv_content = output.getvalue()
-    output.close()
-
-    # Generate filename with scan ID and timestamp
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"scan_{scan_id}_{timestamp}.csv"
-
-    # Return as streaming response
-    return StreamingResponse(
-        iter([csv_content]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+        ]
+        for port in scan.open_ports
+    ]
+    return csv_response(rows, headers, f"scan_{scan_id}_{export_timestamp()}.csv")
 
 
 @router.get("/{scan_id}/export/pdf")
@@ -356,87 +336,53 @@ async def export_scan_pdf(
             detail="Scan not found",
         )
 
-    # Create PDF in memory
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    elements: list[Flowable] = []
-    styles = getSampleStyleSheet()
-
-    # Add title
-    title = Paragraph(f"<b>Scan Report - ID: {scan.id}</b>", styles["Title"])
-    elements.append(title)
-    elements.append(Spacer(1, 0.2 * inch))
-
-    # Add scan metadata
-    scan_date = (
-        scan.started_at.strftime('%Y-%m-%d %H:%M:%S UTC') if scan.started_at else 'N/A'
-    )
+    scan_date = scan.started_at.strftime("%Y-%m-%d %H:%M:%S UTC") if scan.started_at else "N/A"
     completed_date = (
-        scan.completed_at.strftime('%Y-%m-%d %H:%M:%S UTC') if scan.completed_at else 'N/A'
+        scan.completed_at.strftime("%Y-%m-%d %H:%M:%S UTC") if scan.completed_at else "N/A"
     )
-    metadata_text = f"""
-    <b>Network:</b> {scan.network.name}<br/>
-    <b>Scan Date:</b> {scan_date}<br/>
-    <b>Status:</b> {scan.status.value}<br/>
-    <b>Completed:</b> {completed_date}
-    """
-    metadata = Paragraph(metadata_text, styles["Normal"])
-    elements.append(metadata)
-    elements.append(Spacer(1, 0.3 * inch))
+    buffer, doc = new_pdf_buffer()
+    with build_pdf(f"Scan Report - ID: {scan.id}") as (elements, styles):
+        elements.append(
+            Paragraph(
+                f"<b>Network:</b> {scan.network.name}<br/>"
+                f"<b>Scan Date:</b> {scan_date}<br/>"
+                f"<b>Status:</b> {scan.status.value}<br/>"
+                f"<b>Completed:</b> {completed_date}",
+                styles["Normal"],
+            )
+        )
+        elements.append(Spacer(1, 0.3 * inch))
+        elements.append(
+            Paragraph(
+                f"<b>Summary Statistics</b><br/>Total open ports found: {len(scan.open_ports)}",
+                styles["Heading2"],
+            )
+        )
+        elements.append(Spacer(1, 0.2 * inch))
 
-    # Add summary statistics
-    total_ports = len(scan.open_ports)
-    summary_text = f"<b>Summary Statistics</b><br/>Total open ports found: {total_ports}"
-    summary = Paragraph(summary_text, styles["Heading2"])
-    elements.append(summary)
-    elements.append(Spacer(1, 0.2 * inch))
-
-    # Add detailed table of open ports
-    if scan.open_ports:
-        table_data = [["IP", "Port", "Protocol", "Service", "First Seen", "Last Seen"]]
-        for port in scan.open_ports:
-            table_data.append([
+        table_rows = [
+            [
                 port.ip,
                 str(port.port),
                 port.protocol,
                 port.service_guess or "",
-                port.first_seen_at.strftime('%Y-%m-%d %H:%M') if port.first_seen_at else "",
-                port.last_seen_at.strftime('%Y-%m-%d %H:%M') if port.last_seen_at else "",
-            ])
-
+                port.first_seen_at.strftime("%Y-%m-%d %H:%M") if port.first_seen_at else "",
+                port.last_seen_at.strftime("%Y-%m-%d %H:%M") if port.last_seen_at else "",
+            ]
+            for port in scan.open_ports
+        ]
         col_widths = [1.2 * inch, 0.7 * inch, 0.8 * inch, 1.2 * inch, 1.3 * inch, 1.3 * inch]
-        table = Table(table_data, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ]))
-        elements.append(table)
-    else:
-        no_ports = Paragraph("No open ports found in this scan.", styles["Normal"])
-        elements.append(no_ports)
+        elements.append(
+            make_pdf_table(
+                ["IP", "Port", "Protocol", "Service", "First Seen", "Last Seen"],
+                table_rows,
+                col_widths,
+                "No open ports found in this scan.",
+            )
+        )
 
-    # Build PDF
     doc.build(elements)
-    pdf_content = buffer.getvalue()
-    buffer.close()
-
-    # Generate filename with scan ID and timestamp
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"scan_{scan_id}_{timestamp}.pdf"
-
-    # Return as streaming response
-    return StreamingResponse(
-        iter([pdf_content]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    return pdf_response(buffer, f"scan_{scan_id}_{export_timestamp()}.pdf")
 
 
 @router.delete("/{scan_id}", status_code=status.HTTP_204_NO_CONTENT)

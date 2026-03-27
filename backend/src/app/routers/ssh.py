@@ -13,7 +13,8 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import select, update
 
-from app.core.deps import CurrentUser, DbSession, OperatorUser
+from app.core.deps import CurrentUser, DbSession, OperatorUser, Pagination
+from app.lib.ssh_utils import is_version_outdated, parse_ssh_version
 from app.models.alert import Alert, AlertType
 from app.schemas.ssh import (
     AcceptScope,
@@ -34,29 +35,11 @@ from app.services import ssh_results as ssh_service
 from app.services.alerts import (
     DEFAULT_SSH_VERSION_THRESHOLD,
     _extract_weak_algorithms,
-    _is_version_outdated,
 )
 
 router = APIRouter(prefix="/api", tags=["ssh"])
 
-# Minimum SSH version threshold for "outdated" classification (major, minor)
-MIN_SSH_VERSION = (8, 0)
-MIN_SSH_VERSION_STR = f"{MIN_SSH_VERSION[0]}.{MIN_SSH_VERSION[1]}"
-
-
-def _parse_ssh_version(version_str: str | None) -> tuple[int, int] | None:
-    """Parse SSH version string to extract (major, minor) version tuple.
-
-    Using tuple comparison instead of float avoids bugs where
-    version "8.10" would incorrectly become 8.1 as a float.
-    """
-    if not version_str:
-        return None
-    import re
-    match = re.search(r"OpenSSH[_\s]?(\d+)\.(\d+)", version_str, re.IGNORECASE)
-    if match:
-        return (int(match.group(1)), int(match.group(2)))
-    return None
+MIN_SSH_VERSION_STR = "8.0"
 
 
 @router.get("/scans/{scan_id}/ssh", response_model=SSHScanResultListResponse)
@@ -84,16 +67,13 @@ async def get_scan_ssh_results(
 async def list_ssh_hosts(
     user: CurrentUser,
     db: DbSession,
+    pagination: Pagination,
     network_id: int | None = Query(None, ge=1, description="Filter by network ID"),
-    password_enabled: bool | None = Query(
-        None, description="Filter by password auth status"
-    ),
+    password_enabled: bool | None = Query(None, description="Filter by password auth status"),
     keyboard_interactive_enabled: bool | None = Query(
         None, description="Filter by keyboard-interactive auth status"
     ),
     ssh_version: str | None = Query(None, description="Filter by SSH version (partial match)"),
-    offset: int = Query(0, ge=0, description="Pagination offset"),
-    limit: int = Query(50, ge=1, le=200, description="Number of results (max 200)"),
 ) -> SSHHostListResponse:
     """
     List all hosts with SSH data, showing the latest scan result for each host/port.
@@ -107,15 +87,13 @@ async def list_ssh_hosts(
         password_enabled=password_enabled,
         keyboard_interactive_enabled=keyboard_interactive_enabled,
         ssh_version=ssh_version,
-        offset=offset,
-        limit=limit,
+        offset=pagination.offset,
+        limit=pagination.limit,
     )
 
     # Enrich with port alert status (cross-reference)
     ip_port_pairs = {(h["host_ip"], h["port"]) for h in hosts}
-    port_alert_cache = await alerts_service.get_port_alert_status_for_ips(
-        db, ip_port_pairs
-    )
+    port_alert_cache = await alerts_service.get_port_alert_status_for_ips(db, ip_port_pairs)
 
     for h in hosts:
         port_alert = port_alert_cache.get((h["host_ip"], h["port"]))
@@ -134,10 +112,9 @@ async def list_ssh_hosts(
 async def get_ssh_host_history(
     user: CurrentUser,
     db: DbSession,
+    pagination: Pagination,
     host_ip: str,
     port: int = Query(22, ge=1, le=65535, description="SSH port number"),
-    offset: int = Query(0, ge=0, description="Pagination offset"),
-    limit: int = Query(50, ge=1, le=200, description="Number of results (max 200)"),
 ) -> SSHHostHistoryResponse:
     """
     Get SSH scan history for a specific host/port combination.
@@ -149,8 +126,8 @@ async def get_ssh_host_history(
         db,
         host_ip=host_ip,
         port=port,
-        offset=offset,
-        limit=limit,
+        offset=pagination.offset,
+        limit=pagination.limit,
     )
 
     if total == 0:
@@ -213,9 +190,7 @@ async def export_ssh_security_pdf(
     hosts_with_weak_ciphers = [h for h in hosts if h["has_weak_ciphers"]]
     hosts_with_weak_kex = [h for h in hosts if h["has_weak_kex"]]
     hosts_with_outdated = [
-        h for h in hosts
-        if _parse_ssh_version(h["ssh_version"]) is not None
-        and _parse_ssh_version(h["ssh_version"]) < MIN_SSH_VERSION  # type: ignore[operator]
+        h for h in hosts if is_version_outdated(h["ssh_version"], DEFAULT_SSH_VERSION_THRESHOLD)
     ]
 
     # Add executive summary
@@ -241,9 +216,7 @@ async def export_ssh_security_pdf(
 
     # Section: Hosts with Password/Keyboard-Interactive Auth
     if hosts_with_insecure_auth:
-        auth_title = Paragraph(
-            "<b>Hosts with Insecure Authentication</b>", styles["Heading2"]
-        )
+        auth_title = Paragraph("<b>Hosts with Insecure Authentication</b>", styles["Heading2"])
         elements.append(auth_title)
         elements.append(Spacer(1, 0.1 * inch))
 
@@ -265,27 +238,33 @@ async def export_ssh_security_pdf(
                 auth_methods.append("keyboard-interactive")
             if h["publickey_enabled"]:
                 auth_methods.append("publickey")
-            table_data.append([
-                h["host_ip"],
-                str(h["port"]),
-                h["ssh_version"] or "Unknown",
-                ", ".join(auth_methods),
-                h["network_name"] or "",
-            ])
+            table_data.append(
+                [
+                    h["host_ip"],
+                    str(h["port"]),
+                    h["ssh_version"] or "Unknown",
+                    ", ".join(auth_methods),
+                    h["network_name"] or "",
+                ]
+            )
 
         col_widths = [1.3 * inch, 0.6 * inch, 1.4 * inch, 2.0 * inch, 1.5 * inch]
         table = Table(table_data, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, 0), 10),
-            ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-            ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-            ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ("FONTSIZE", (0, 1), (-1, -1), 8),
-        ]))
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+                    ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                    ("FONTSIZE", (0, 1), (-1, -1), 8),
+                ]
+            )
+        )
         elements.append(table)
         elements.append(Spacer(1, 0.2 * inch))
 
@@ -300,7 +279,8 @@ async def export_ssh_security_pdf(
 
     # Section: Cipher Analysis
     hosts_with_any_weak_crypto = [
-        h for h in hosts
+        h
+        for h in hosts
         if h["has_weak_ciphers"] or h["has_weak_kex"] or h.get("has_weak_macs", False)
     ]
     if hosts_with_any_weak_crypto:
@@ -324,27 +304,33 @@ async def export_ssh_security_pdf(
             weak_kex_str = ", ".join(h["weak_kex"][:2]) if h["weak_kex"] else "-"
             if len(h["weak_kex"]) > 2:
                 weak_kex_str += f" (+{len(h['weak_kex']) - 2} more)"
-            table_data.append([
-                h["host_ip"],
-                str(h["port"]),
-                weak_ciphers_str,
-                weak_kex_str,
-                h["network_name"] or "",
-            ])
+            table_data.append(
+                [
+                    h["host_ip"],
+                    str(h["port"]),
+                    weak_ciphers_str,
+                    weak_kex_str,
+                    h["network_name"] or "",
+                ]
+            )
 
         col_widths = [1.2 * inch, 0.5 * inch, 2.0 * inch, 1.8 * inch, 1.3 * inch]
         table = Table(table_data, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, 0), 10),
-            ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-            ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-            ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ("FONTSIZE", (0, 1), (-1, -1), 8),
-        ]))
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+                    ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                    ("FONTSIZE", (0, 1), (-1, -1), 8),
+                ]
+            )
+        )
         elements.append(table)
         elements.append(Spacer(1, 0.2 * inch))
 
@@ -380,27 +366,33 @@ async def export_ssh_security_pdf(
                 last_scanned_str = last_scanned.strftime("%Y-%m-%d %H:%M")
             else:
                 last_scanned_str = str(last_scanned)
-            table_data.append([
-                h["host_ip"],
-                str(h["port"]),
-                h["ssh_version"] or "Unknown",
-                h["network_name"] or "",
-                last_scanned_str,
-            ])
+            table_data.append(
+                [
+                    h["host_ip"],
+                    str(h["port"]),
+                    h["ssh_version"] or "Unknown",
+                    h["network_name"] or "",
+                    last_scanned_str,
+                ]
+            )
 
         col_widths = [1.3 * inch, 0.6 * inch, 1.5 * inch, 1.5 * inch, 1.5 * inch]
         table = Table(table_data, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, 0), 10),
-            ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-            ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-            ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ("FONTSIZE", (0, 1), (-1, -1), 8),
-        ]))
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+                    ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                    ("FONTSIZE", (0, 1), (-1, -1), 8),
+                ]
+            )
+        )
         elements.append(table)
         elements.append(Spacer(1, 0.2 * inch))
 
@@ -472,23 +464,25 @@ async def export_ssh_security_csv(
     writer = csv.writer(buffer)
 
     # Write header row
-    writer.writerow([
-        "IP",
-        "Port",
-        "SSH Version",
-        "Publickey Auth",
-        "Password Auth",
-        "Keyboard-Interactive Auth",
-        "Auth Status",
-        "Ciphers (Weak)",
-        "KEX Algorithms (Weak)",
-        "Cipher Status",
-        "KEX Status",
-        "Version Status",
-        "Overall Compliance",
-        "Network",
-        "Last Scanned",
-    ])
+    writer.writerow(
+        [
+            "IP",
+            "Port",
+            "SSH Version",
+            "Publickey Auth",
+            "Password Auth",
+            "Keyboard-Interactive Auth",
+            "Auth Status",
+            "Ciphers (Weak)",
+            "KEX Algorithms (Weak)",
+            "Cipher Status",
+            "KEX Status",
+            "Version Status",
+            "Overall Compliance",
+            "Network",
+            "Last Scanned",
+        ]
+    )
 
     # Write data rows
     for host in hosts:
@@ -502,8 +496,8 @@ async def export_ssh_security_csv(
 
         # Determine version status
         ssh_version = host["ssh_version"]
-        parsed_version = _parse_ssh_version(ssh_version)
-        if parsed_version is not None and parsed_version < MIN_SSH_VERSION:
+        parsed_version = parse_ssh_version(ssh_version)
+        if is_version_outdated(ssh_version, DEFAULT_SSH_VERSION_THRESHOLD):
             version_status = "Outdated"
         elif parsed_version is not None:
             version_status = "Current"
@@ -530,23 +524,25 @@ async def export_ssh_security_csv(
         else:
             last_scanned_str = str(last_scanned) if last_scanned else ""
 
-        writer.writerow([
-            host["host_ip"],
-            host["port"],
-            ssh_version or "",
-            "Yes" if host["publickey_enabled"] else "No",
-            "Yes" if host["password_enabled"] else "No",
-            "Yes" if host["keyboard_interactive_enabled"] else "No",
-            auth_status,
-            weak_ciphers_str,
-            weak_kex_str,
-            cipher_status,
-            kex_status,
-            version_status,
-            overall_compliance,
-            host["network_name"] or "",
-            last_scanned_str,
-        ])
+        writer.writerow(
+            [
+                host["host_ip"],
+                host["port"],
+                ssh_version or "",
+                "Yes" if host["publickey_enabled"] else "No",
+                "Yes" if host["password_enabled"] else "No",
+                "Yes" if host["keyboard_interactive_enabled"] else "No",
+                auth_status,
+                weak_ciphers_str,
+                weak_kex_str,
+                cipher_status,
+                kex_status,
+                version_status,
+                overall_compliance,
+                host["network_name"] or "",
+                last_scanned_str,
+            ]
+        )
 
     # Get CSV content
     csv_content = buffer.getvalue()
@@ -774,7 +770,7 @@ async def dismiss_ssh_host(
         created_ids.append(alert.id)
         all_alert_ids.append(alert.id)
 
-    if _is_version_outdated(ssh_result.ssh_version, DEFAULT_SSH_VERSION_THRESHOLD):
+    if is_version_outdated(ssh_result.ssh_version, DEFAULT_SSH_VERSION_THRESHOLD):
         if AlertType.SSH_OUTDATED_VERSION not in existing_types:
             detected_version = ssh_result.ssh_version or "unknown"
             alert = Alert(
@@ -803,9 +799,7 @@ async def dismiss_ssh_host(
     dismiss_values: dict[str, object] = {"dismissed": True}
     if reason:
         dismiss_values["dismiss_reason"] = reason
-    await db.execute(
-        update(Alert).where(Alert.id.in_(all_alert_ids)).values(**dismiss_values)
-    )
+    await db.execute(update(Alert).where(Alert.id.in_(all_alert_ids)).values(**dismiss_values))
 
     # Unified dismiss: also dismiss port-type alerts for same ip:port
     port_alert_ids: list[int] = []
@@ -916,9 +910,7 @@ async def reopen_ssh_host(
 
     # Bulk update to reopen
     await db.execute(
-        update(Alert)
-        .where(Alert.id.in_(reopened_ids))
-        .values(dismissed=False, dismiss_reason=None)
+        update(Alert).where(Alert.id.in_(reopened_ids)).values(dismissed=False, dismiss_reason=None)
     )
 
     await db.commit()

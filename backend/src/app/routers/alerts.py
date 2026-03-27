@@ -1,19 +1,22 @@
 """Alerts management endpoints."""
 
-import csv
-from datetime import datetime, timezone
-from io import BytesIO, StringIO
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Paragraph, Spacer
 
-from app.core.deps import AnalystUser, CurrentUser, DbSession, OperatorUser
+from app.core.deps import AnalystUser, CurrentUser, DbSession, OperatorUser, Pagination
+from app.lib.export import (
+    build_pdf,
+    csv_response,
+    export_timestamp,
+    make_pdf_table,
+    new_pdf_buffer,
+    pdf_response,
+)
 from app.models.alert import Alert, AlertType
 from app.models.alert_rule import RuleType as AlertRuleType
 from app.models.user import UserRole
@@ -108,14 +111,13 @@ async def compute_alert_severity(
 async def list_alerts(
     user: CurrentUser,
     db: DbSession,
+    pagination: Pagination,
     alert_type: AlertType | None = Query(None, alias="type"),
     network_id: int | None = Query(None, ge=1),
     dismissed: bool | None = Query(None),
     ip: str | None = Query(None),
     start_date: datetime | None = Query(None),
     end_date: datetime | None = Query(None),
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
 ) -> AlertListResponse:
     """List alerts with optional filters."""
     if start_date is not None and end_date is not None and start_date > end_date:
@@ -132,8 +134,8 @@ async def list_alerts(
         ip=ip,
         start_date=start_date,
         end_date=end_date,
-        offset=offset,
-        limit=limit,
+        offset=pagination.offset,
+        limit=pagination.limit,
     )
 
     # Build a cache of hosts by IP to avoid N+1 queries
@@ -171,9 +173,7 @@ async def list_alerts(
         user_comment = host_info[2] if host_info else None
 
         assigned_to_email = (
-            user_email_cache.get(alert.assigned_to_user_id)
-            if alert.assigned_to_user_id
-            else None
+            user_email_cache.get(alert.assigned_to_user_id) if alert.assigned_to_user_id else None
         )
 
         # Get latest comment from cache
@@ -232,9 +232,7 @@ async def list_alerts(
     alert_network_ids = set(r.network_id for r in alert_responses if r.network_id is not None)
     network_alert_rules_by_nid: dict[int, list[Any]] = {}
     for nid in alert_network_ids:
-        network_alert_rules_by_nid[nid] = await alert_rules_service.get_rules_by_network_id(
-            db, nid
-        )
+        network_alert_rules_by_nid[nid] = await alert_rules_service.get_rules_by_network_id(db, nid)
     # Fetch network names
     network_name_cache: dict[int, str] = {}
     for nid in alert_network_ids:
@@ -251,18 +249,22 @@ async def list_alerts(
                 if not port_rule_matches_alert(rule, resp.ip, resp.port):
                     continue
             elif resp.source == "ssh":
-                if not ssh_rule_matches_alert(
-                    rule, resp.ip, resp.port, resp.type.value
-                ):
+                if not ssh_rule_matches_alert(rule, resp.ip, resp.port, resp.type.value):
                     continue
             else:
                 continue
             criteria_ip = rule.match_criteria.get("ip")
-            matches.append(PortRuleMatch(
-                id=rule.id, scope="global", network_id=None, network_name=None,
-                rule_type=rule.rule_type.value, description=rule.description,
-                ip=criteria_ip,
-            ))
+            matches.append(
+                PortRuleMatch(
+                    id=rule.id,
+                    scope="global",
+                    network_id=None,
+                    network_name=None,
+                    rule_type=rule.rule_type.value,
+                    description=rule.description,
+                    ip=criteria_ip,
+                )
+            )
         if resp.network_id and resp.network_id in network_alert_rules_by_nid:
             for rule in network_alert_rules_by_nid[resp.network_id]:
                 if rule.source != resp.source:
@@ -271,19 +273,22 @@ async def list_alerts(
                     if not port_rule_matches_alert(rule, resp.ip, resp.port):
                         continue
                 elif resp.source == "ssh":
-                    if not ssh_rule_matches_alert(
-                        rule, resp.ip, resp.port, resp.type.value
-                    ):
+                    if not ssh_rule_matches_alert(rule, resp.ip, resp.port, resp.type.value):
                         continue
                 else:
                     continue
                 criteria_ip = rule.match_criteria.get("ip")
-                matches.append(PortRuleMatch(
-                    id=rule.id, scope="network", network_id=resp.network_id,
-                    network_name=network_name_cache.get(resp.network_id),
-                    rule_type=rule.rule_type.value, description=rule.description,
-                    ip=criteria_ip,
-                ))
+                matches.append(
+                    PortRuleMatch(
+                        id=rule.id,
+                        scope="network",
+                        network_id=resp.network_id,
+                        network_name=network_name_cache.get(resp.network_id),
+                        rule_type=rule.rule_type.value,
+                        description=rule.description,
+                        ip=criteria_ip,
+                    )
+                )
         resp.matching_rules = matches
 
     return AlertListResponse(alerts=alert_responses)
@@ -309,45 +314,19 @@ async def export_alerts_csv(
         limit=10000,  # Large limit for export
     )
 
-    # Create CSV in memory
-    output = StringIO()
-    writer = csv.writer(output)
-
-    # Write headers: Alert Type, IP, Port, Network, Status, Created At
-    writer.writerow([
-        "Alert Type",
-        "IP",
-        "Port",
-        "Network",
-        "Status",
-        "Created At",
-    ])
-
-    # Write data rows
-    for alert, network_name in alerts:
-        writer.writerow([
+    headers = ["Alert Type", "IP", "Port", "Network", "Status", "Created At"]
+    rows = [
+        [
             alert.alert_type.value,
             alert.ip,
             alert.port,
             network_name or "",
             "Dismissed" if alert.dismissed else "Open",
             alert.created_at.isoformat(),
-        ])
-
-    # Get CSV content
-    csv_content = output.getvalue()
-    output.close()
-
-    # Generate filename with timestamp
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"alerts_{timestamp}.csv"
-
-    # Return as streaming response
-    return StreamingResponse(
-        iter([csv_content]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+        ]
+        for alert, network_name in alerts
+    ]
+    return csv_response(rows, headers, f"alerts_{export_timestamp()}.csv")
 
 
 @router.get("/export/pdf")
@@ -370,25 +349,6 @@ async def export_alerts_pdf(
         limit=10000,  # Large limit for export
     )
 
-    # Create PDF in memory
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    elements: list[Flowable] = []
-    styles = getSampleStyleSheet()
-
-    # Add title
-    title = Paragraph("<b>Alerts Report</b>", styles["Title"])
-    elements.append(title)
-    elements.append(Spacer(1, 0.2 * inch))
-
-    # Add report metadata
-    report_date = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-    metadata_text = f"<b>Generated:</b> {report_date}"
-    metadata = Paragraph(metadata_text, styles["Normal"])
-    elements.append(metadata)
-    elements.append(Spacer(1, 0.3 * inch))
-
-    # Calculate summary statistics
     total_alerts = len(alerts)
     by_type: dict[str, int] = {}
     dismissed_count = 0
@@ -396,72 +356,50 @@ async def export_alerts_pdf(
         by_type[alert.alert_type.value] = by_type.get(alert.alert_type.value, 0) + 1
         if alert.dismissed:
             dismissed_count += 1
-
     open_count = total_alerts - dismissed_count
 
-    # Add summary statistics
-    summary_lines = [
-        f"<b>Total alerts:</b> {total_alerts}",
-        f"<b>Open:</b> {open_count}",
-        f"<b>Dismissed:</b> {dismissed_count}",
-    ]
-    if by_type:
-        summary_lines.append("<b>By type:</b>")
-        for alert_type_name, count in sorted(by_type.items()):
-            summary_lines.append(f"  • {alert_type_name}: {count}")
+    buffer, doc = new_pdf_buffer()
+    with build_pdf("Alerts Report") as (elements, styles):
+        summary_lines = [
+            f"<b>Total alerts:</b> {total_alerts}",
+            f"<b>Open:</b> {open_count}",
+            f"<b>Dismissed:</b> {dismissed_count}",
+        ]
+        if by_type:
+            summary_lines.append("<b>By type:</b>")
+            for alert_type_name, count in sorted(by_type.items()):
+                summary_lines.append(f"  • {alert_type_name}: {count}")
 
-    summary_text = "<b>Summary Statistics</b><br/>" + "<br/>".join(summary_lines)
-    summary = Paragraph(summary_text, styles["Heading2"])
-    elements.append(summary)
-    elements.append(Spacer(1, 0.3 * inch))
+        elements.append(
+            Paragraph(
+                "<b>Summary Statistics</b><br/>" + "<br/>".join(summary_lines), styles["Heading2"]
+            )
+        )
+        elements.append(Spacer(1, 0.3 * inch))
 
-    # Add detailed table of alerts
-    if alerts:
-        headers = ["Alert Type", "IP", "Port", "Network", "Status", "Created At"]
-        table_data = [headers]
-        for alert, network_name in alerts:
-            table_data.append([
+        table_rows = [
+            [
                 alert.alert_type.value,
                 alert.ip,
                 str(alert.port),
                 network_name or "",
                 "Dismissed" if alert.dismissed else "Open",
-                alert.created_at.strftime('%Y-%m-%d %H:%M'),
-            ])
-
+                alert.created_at.strftime("%Y-%m-%d %H:%M"),
+            ]
+            for alert, network_name in alerts
+        ]
         col_widths = [1.3 * inch, 1.2 * inch, 0.7 * inch, 1.3 * inch, 1.2 * inch, 1.3 * inch]
-        table = Table(table_data, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ]))
-        elements.append(table)
-    else:
-        no_alerts = Paragraph("No alerts found matching the filters.", styles["Normal"])
-        elements.append(no_alerts)
+        elements.append(
+            make_pdf_table(
+                ["Alert Type", "IP", "Port", "Network", "Status", "Created At"],
+                table_rows,
+                col_widths,
+                "No alerts found matching the filters.",
+            )
+        )
 
-    # Build PDF
     doc.build(elements)
-    pdf_content = buffer.getvalue()
-    buffer.close()
-
-    # Generate filename with timestamp
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"alerts_{timestamp}.pdf"
-
-    # Return as streaming response
-    return StreamingResponse(
-        iter([pdf_content]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    return pdf_response(buffer, f"alerts_{export_timestamp()}.pdf")
 
 
 @router.get("/dismiss-suggestions", response_model=DismissSuggestionsResponse)
@@ -488,9 +426,7 @@ async def get_alert(
     """Get a single alert by ID with full enrichment."""
     alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
     if not alert_with_network:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     alert, network_name = alert_with_network
 
     severity = await compute_alert_severity(
@@ -511,9 +447,7 @@ async def get_alert(
             assigned_to_email = u.email
 
     # Latest comment
-    latest_comments = await alert_comments_service.get_latest_comments_for_alerts(
-        db, [alert.id]
-    )
+    latest_comments = await alert_comments_service.get_latest_comments_for_alerts(db, [alert.id])
     comment_info = latest_comments.get(alert.id)
 
     resp = AlertResponse(
@@ -565,18 +499,22 @@ async def get_alert(
             if not port_rule_matches_alert(rule, alert.ip, alert.port):
                 continue
         elif alert.source == "ssh":
-            if not ssh_rule_matches_alert(
-                rule, alert.ip, alert.port, alert.alert_type.value
-            ):
+            if not ssh_rule_matches_alert(rule, alert.ip, alert.port, alert.alert_type.value):
                 continue
         else:
             continue
         criteria_ip = rule.match_criteria.get("ip")
-        matches.append(PortRuleMatch(
-            id=rule.id, scope="global", network_id=None, network_name=None,
-            rule_type=rule.rule_type.value, description=rule.description,
-            ip=criteria_ip,
-        ))
+        matches.append(
+            PortRuleMatch(
+                id=rule.id,
+                scope="global",
+                network_id=None,
+                network_name=None,
+                rule_type=rule.rule_type.value,
+                description=rule.description,
+                ip=criteria_ip,
+            )
+        )
     if alert.network_id:
         net_rules = await alert_rules_service.get_rules_by_network_id(db, alert.network_id)
         net = await networks_service.get_network_by_id(db, alert.network_id)
@@ -588,19 +526,22 @@ async def get_alert(
                 if not port_rule_matches_alert(rule, alert.ip, alert.port):
                     continue
             elif alert.source == "ssh":
-                if not ssh_rule_matches_alert(
-                    rule, alert.ip, alert.port, alert.alert_type.value
-                ):
+                if not ssh_rule_matches_alert(rule, alert.ip, alert.port, alert.alert_type.value):
                     continue
             else:
                 continue
             criteria_ip = rule.match_criteria.get("ip")
-            matches.append(PortRuleMatch(
-                id=rule.id, scope="network", network_id=alert.network_id,
-                network_name=net_name,
-                rule_type=rule.rule_type.value, description=rule.description,
-                ip=criteria_ip,
-            ))
+            matches.append(
+                PortRuleMatch(
+                    id=rule.id,
+                    scope="network",
+                    network_id=alert.network_id,
+                    network_name=net_name,
+                    rule_type=rule.rule_type.value,
+                    description=rule.description,
+                    ip=criteria_ip,
+                )
+            )
     resp.matching_rules = matches
 
     return resp
@@ -676,10 +617,7 @@ async def dismiss_alert(
             ssh_alert_ids = [row[0] for row in existing_rows]
 
             # Create missing SSH alerts
-            has_insecure = (
-                ssh_result.password_enabled
-                or ssh_result.keyboard_interactive_enabled
-            )
+            has_insecure = ssh_result.password_enabled or ssh_result.keyboard_interactive_enabled
             if has_insecure and AlertType.SSH_INSECURE_AUTH not in existing_types:
                 auth_methods = []
                 if ssh_result.password_enabled:
@@ -687,8 +625,11 @@ async def dismiss_alert(
                 if ssh_result.keyboard_interactive_enabled:
                     auth_methods.append("keyboard-interactive")
                 new_alert = Alert(
-                    scan_id=ssh_result.scan_id, network_id=alert.network_id,
-                    alert_type=AlertType.SSH_INSECURE_AUTH, ip=alert.ip, port=alert.port,
+                    scan_id=ssh_result.scan_id,
+                    network_id=alert.network_id,
+                    alert_type=AlertType.SSH_INSECURE_AUTH,
+                    ip=alert.ip,
+                    port=alert.port,
                     message=(
                         f"SSH server allows insecure authentication methods: "
                         f"{', '.join(auth_methods)} on {alert.ip}:{alert.port}"
@@ -701,8 +642,11 @@ async def dismiss_alert(
             weak_ciphers = _extract_weak_algorithms(ssh_result.supported_ciphers)
             if weak_ciphers and AlertType.SSH_WEAK_CIPHER not in existing_types:
                 new_alert = Alert(
-                    scan_id=ssh_result.scan_id, network_id=alert.network_id,
-                    alert_type=AlertType.SSH_WEAK_CIPHER, ip=alert.ip, port=alert.port,
+                    scan_id=ssh_result.scan_id,
+                    network_id=alert.network_id,
+                    alert_type=AlertType.SSH_WEAK_CIPHER,
+                    ip=alert.ip,
+                    port=alert.port,
                     message=(
                         f"SSH server supports weak ciphers: "
                         f"{', '.join(weak_ciphers)} on {alert.ip}:{alert.port}"
@@ -715,8 +659,11 @@ async def dismiss_alert(
             weak_kex = _extract_weak_algorithms(ssh_result.kex_algorithms)
             if weak_kex and AlertType.SSH_WEAK_KEX not in existing_types:
                 new_alert = Alert(
-                    scan_id=ssh_result.scan_id, network_id=alert.network_id,
-                    alert_type=AlertType.SSH_WEAK_KEX, ip=alert.ip, port=alert.port,
+                    scan_id=ssh_result.scan_id,
+                    network_id=alert.network_id,
+                    alert_type=AlertType.SSH_WEAK_KEX,
+                    ip=alert.ip,
+                    port=alert.port,
                     message=(
                         f"SSH server supports weak key exchange algorithms: "
                         f"{', '.join(weak_kex)} on {alert.ip}:{alert.port}"
@@ -731,8 +678,11 @@ async def dismiss_alert(
             )
             if is_outdated and AlertType.SSH_OUTDATED_VERSION not in existing_types:
                 new_alert = Alert(
-                    scan_id=ssh_result.scan_id, network_id=alert.network_id,
-                    alert_type=AlertType.SSH_OUTDATED_VERSION, ip=alert.ip, port=alert.port,
+                    scan_id=ssh_result.scan_id,
+                    network_id=alert.network_id,
+                    alert_type=AlertType.SSH_OUTDATED_VERSION,
+                    ip=alert.ip,
+                    port=alert.port,
                     message=(
                         f"SSH server running outdated version: "
                         f"{ssh_result.ssh_version or 'unknown'} on {alert.ip}:{alert.port}"
@@ -1123,44 +1073,6 @@ async def bulk_accept_network(
 # =============================================================================
 # Alert Comments CRUD Endpoints
 # =============================================================================
-
-
-@router.post(
-    "/{alert_id}/comments",
-    response_model=AlertCommentResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_comment(
-    user: AnalystUser,
-    db: DbSession,
-    alert_id: int,
-    request: AlertCommentCreate = Body(...),
-) -> AlertCommentResponse:
-    """Create a new comment on an alert."""
-    # Verify alert exists
-    alert = await alert_comments_service.get_alert_by_id(db, alert_id)
-    if alert is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Alert not found",
-        )
-
-    # Create the comment
-    comment = await alert_comments_service.create_comment(
-        db, alert_id=alert_id, user_id=user.id, comment=request.comment
-    )
-    await db.commit()
-    await db.refresh(comment)
-
-    return AlertCommentResponse(
-        id=comment.id,
-        alert_id=comment.alert_id,
-        user_id=comment.user_id,
-        user_email=user.email,
-        comment=comment.comment,
-        created_at=comment.created_at,
-        updated_at=comment.updated_at,
-    )
 
 
 @router.post(

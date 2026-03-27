@@ -1,10 +1,9 @@
 """Open ports query endpoint."""
 
-from ipaddress import ip_address, ip_network
-
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import CurrentUser, DbSession, OperatorUser
+from app.lib.ip_utils import parse_ip_range
 from app.models.alert_rule import RuleType
 from app.schemas.port import (
     OpenPortListItem,
@@ -18,37 +17,6 @@ from app.services import networks as networks_service
 from app.services import ports as ports_service
 
 router = APIRouter(prefix="/api/ports", tags=["ports"])
-
-
-def parse_ip_range(value: str) -> ports_service.IPRange:
-    """Parse ip_range value into a normalized range."""
-    raw_value = value.strip()
-    if not raw_value:
-        raise ValueError("ip_range cannot be empty")
-
-    try:
-        if "-" in raw_value:
-            start_raw, end_raw = [part.strip() for part in raw_value.split("-", 1)]
-            if not start_raw or not end_raw:
-                raise ValueError("Invalid ip_range format")
-            start_ip = ip_address(start_raw)
-            end_ip = ip_address(end_raw)
-            if start_ip.version != end_ip.version:
-                raise ValueError("IP range must use the same IP version")
-        else:
-            network = ip_network(raw_value, strict=False)
-            start_ip = network.network_address
-            end_ip = network.broadcast_address
-
-        if int(start_ip) > int(end_ip):
-            raise ValueError("IP range start must be before end")
-    except ValueError as exc:
-        raise ValueError(
-            "Invalid ip_range; expected CIDR (e.g., 192.168.1.0/24) "
-            "or range (e.g., 192.168.1.10-192.168.1.50)"
-        ) from exc
-
-    return (start_ip.version, start_ip, end_ip)
 
 
 @router.get("", response_model=OpenPortListResponse)

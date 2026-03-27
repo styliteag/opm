@@ -1,8 +1,8 @@
 """Network management router for admin CRUD operations."""
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, status
 
-from app.core.deps import CurrentUser, DbSession, OperatorUser
+from app.core.deps import CurrentUser, DbSession, OperatorUser, Pagination
 from app.models.alert_rule import AlertRule
 from app.schemas.host import (
     HostDiscoveryScanListResponse,
@@ -170,7 +170,8 @@ async def update_network(
         scan_protocol=request.scan_protocol,
         alert_config=request.alert_config,
         nse_profile_id=request.nse_profile_id,
-        clear_nse_profile="nse_profile_id" in request.model_fields_set and request.nse_profile_id is None,
+        clear_nse_profile="nse_profile_id" in request.model_fields_set
+        and request.nse_profile_id is None,
         host_discovery_enabled=request.host_discovery_enabled,
         phases=request.phases,
         clear_phases="phases" in request.model_fields_set and request.phases is None,
@@ -369,9 +370,8 @@ async def trigger_scan(
 async def list_network_scans(
     user: CurrentUser,
     db: DbSession,
+    pagination: Pagination,
     network_id: int,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
 ) -> ScanListResponse:
     """Get scan history for a network.
 
@@ -386,7 +386,7 @@ async def list_network_scans(
         )
 
     scans_with_counts = await scans_service.get_scans_by_network_id(
-        db, network_id, offset=offset, limit=limit
+        db, network_id, offset=pagination.offset, limit=pagination.limit
     )
     return ScanListResponse(
         scans=[
@@ -445,9 +445,8 @@ async def trigger_host_discovery(
 async def list_host_discovery_scans(
     user: CurrentUser,
     db: DbSession,
+    pagination: Pagination,
     network_id: int,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
 ) -> HostDiscoveryScanListResponse:
     """Get host discovery scan history for a network.
 
@@ -462,7 +461,7 @@ async def list_host_discovery_scans(
         )
 
     scans = await host_discovery_service.get_host_discovery_scans_by_network(
-        db, network_id, offset=offset, limit=limit
+        db, network_id, offset=pagination.offset, limit=pagination.limit
     )
     return HostDiscoveryScanListResponse(
         scans=[HostDiscoveryScanResponse.model_validate(scan) for scan in scans]
