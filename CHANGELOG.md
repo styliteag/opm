@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix backend crash on startup: empty prefix and path in alerts list sub-router (`GET /api/alerts`)
 - Disable `react-refresh/only-export-components` lint rule for TanStack Router route files
 - Fix `react-hooks/purity` lint error for `Date.now()` in scanners page online status check
 - Remove duplicate `create_comment` route handler in alerts router

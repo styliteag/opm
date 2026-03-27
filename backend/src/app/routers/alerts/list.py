@@ -39,7 +39,7 @@ from .detail import _severity_override_value, compute_alert_severity
 router = APIRouter()
 
 
-@router.get("", response_model=AlertListResponse)
+@router.get("/", response_model=AlertListResponse)
 async def list_alerts(
     user: CurrentUser,
     db: DbSession,
