@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move SSH and NSE alert type constants to `frontend/src/lib/alert-types.ts`; removed duplication from PortRulesEditor and port-rules route
 - Create generic `DataTable<T>` component in `frontend/src/components/data-display/DataTable.tsx`; adopted in scans/index and scanners pages
 - Split port-rules page into feature module: `features/port-rules/types.ts`, `hooks/usePortRules.ts`, `components/{SourceBadge,GlobalRuleAddForm,RuleRow,RuleSection}.tsx`
+- Split `services/alerts.py` (1372 lines) into focused modules: `alert_queries.py`, `alert_generation.py`, `ssh_alert_generation.py`, `port_rule_matching.py` with backward-compatible re-export facade
+- Split `routers/alerts.py` (1420 lines) into sub-router package: `alerts/{list,detail,actions,comments,workflow}.py`
 
 ## [1.8.1] - 2026-03-25
 
