@@ -57,3 +57,28 @@ export function formatRelativeTime(date: string | Date): string {
   if (days < 7) return `${days}d ago`;
   return formatDate(date);
 }
+
+/** Return the most relevant display timestamp for a scan (completed > started). */
+export function getScanDisplayTime(scan: {
+  completed_at?: string | null;
+  started_at?: string | null;
+}): string {
+  const ts = scan.completed_at ?? scan.started_at;
+  return ts ? formatRelativeTime(ts) : "";
+}
+
+/** Return true when a device's last_seen_at is within the given threshold (default 5 min). */
+export function isOnline(
+  lastSeenAt: string | null | undefined,
+  thresholdMs = 5 * 60 * 1000,
+): boolean {
+  if (!lastSeenAt) return false;
+  return Date.now() - parseUTC(lastSeenAt).getTime() < thresholdMs;
+}
+
+/** Format a packets-per-second rate as a human-readable string. */
+export function formatRate(pps: number): string {
+  if (pps >= 1_000_000) return `${(pps / 1_000_000).toFixed(1)}M pps`;
+  if (pps >= 1_000) return `${(pps / 1_000).toFixed(1)}k pps`;
+  return `${Math.round(pps)} pps`;
+}

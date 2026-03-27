@@ -11,13 +11,12 @@ import {
   useScanMutations,
 } from "@/features/scans/hooks/useScans";
 import { ScanDiffView } from "@/features/scans/components/ScanDiffView";
-import { formatDate, parseUTC, scanStatusVariant } from "@/lib/utils";
-
-function formatRate(pps: number): string {
-  if (pps >= 1_000_000) return `${(pps / 1_000_000).toFixed(1)}M pps`;
-  if (pps >= 1_000) return `${(pps / 1_000).toFixed(1)}k pps`;
-  return `${Math.round(pps)} pps`;
-}
+import {
+  formatDate,
+  formatRate,
+  parseUTC,
+  scanStatusVariant,
+} from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/scans/$scanId")({
   component: ScanDetailPage,

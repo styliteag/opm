@@ -7,11 +7,16 @@ import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { EmptyState } from "@/components/data-display/EmptyState";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
+import {
+  DataTable,
+  type DataTableColumn,
+} from "@/components/data-display/DataTable";
 import { useScanners } from "@/features/dashboard/hooks/useDashboardData";
 import { useScannerMutations } from "@/features/scanners/hooks/useScanners";
 import { CreateScannerModal } from "@/features/scanners/components/CreateScannerModal";
 import { ApiKeyDisplay } from "@/components/feedback/ApiKeyDisplay";
-import { formatRelativeTime, parseUTC } from "@/lib/utils";
+import { formatRelativeTime, isOnline } from "@/lib/utils";
+import type { Scanner } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/scanners")({
   component: ScannersPage,
@@ -24,12 +29,8 @@ function ScannersPage() {
   const [createOpen, setCreateOpen] = useState(false);
 
   const scannerList = data?.scanners ?? [];
-  // eslint-disable-next-line react-hooks/purity -- Date.now() is impure but needed for online status display
-  const now = Date.now();
-  const onlineCount = scannerList.filter(
-    (s) =>
-      s.last_seen_at &&
-      now - parseUTC(s.last_seen_at).getTime() < 5 * 60 * 1000,
+  const onlineCount = scannerList.filter((s) =>
+    isOnline(s.last_seen_at),
   ).length;
 
   if (isLoading) return <LoadingState rows={6} />;
@@ -101,100 +102,99 @@ function ScannersPage() {
           icon={Server}
         />
       ) : (
-        <div className="rounded-lg border border-border">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-card">
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                  Version
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                  Last Seen
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {scannerList.map((scanner) => {
-                const isOnline =
-                  scanner.last_seen_at &&
-                  now - parseUTC(scanner.last_seen_at).getTime() <
-                    5 * 60 * 1000;
-                return (
-                  <tr
-                    key={scanner.id}
-                    className="border-b border-border hover:bg-accent/50 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-foreground">
-                        {scanner.name}
+        <DataTable<Scanner>
+          columns={
+            [
+              {
+                key: "name",
+                header: "Name",
+                render: (scanner) => (
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {scanner.name}
+                    </p>
+                    {scanner.description && (
+                      <p className="text-xs text-muted-foreground">
+                        {scanner.description}
                       </p>
-                      {scanner.description && (
-                        <p className="text-xs text-muted-foreground">
-                          {scanner.description}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge
-                        label={isOnline ? "Online" : "Offline"}
-                        variant={isOnline ? "success" : "danger"}
-                        dot
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {scanner.scanner_version ?? "-"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {scanner.last_seen_at
-                        ? formatRelativeTime(scanner.last_seen_at)
-                        : "Never"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() =>
-                            regenerateKey.mutate(scanner.id, {
-                              onSuccess: (res) => {
-                                setRevealedKey(res.api_key);
-                                toast.success("API key regenerated");
-                              },
-                              onError: (e) => toast.error(e.message),
-                            })
-                          }
-                          className="rounded p-1 text-muted-foreground hover:text-primary transition-colors"
-                          title="Regenerate API key"
-                        >
-                          <Key className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() =>
-                            remove.mutate(scanner.id, {
-                              onSuccess: () => toast.success("Scanner deleted"),
-                              onError: (e) => toast.error(e.message),
-                            })
-                          }
-                          className="rounded p-1 text-muted-foreground hover:text-red-400 transition-colors"
-                          title="Delete scanner"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: "status",
+                header: "Status",
+                render: (scanner) => {
+                  const online = isOnline(scanner.last_seen_at);
+                  return (
+                    <StatusBadge
+                      label={online ? "Online" : "Offline"}
+                      variant={online ? "success" : "danger"}
+                      dot
+                    />
+                  );
+                },
+              },
+              {
+                key: "version",
+                header: "Version",
+                render: (scanner) => (
+                  <span className="text-sm text-muted-foreground">
+                    {scanner.scanner_version ?? "-"}
+                  </span>
+                ),
+              },
+              {
+                key: "last_seen",
+                header: "Last Seen",
+                render: (scanner) => (
+                  <span className="text-sm text-muted-foreground">
+                    {scanner.last_seen_at
+                      ? formatRelativeTime(scanner.last_seen_at)
+                      : "Never"}
+                  </span>
+                ),
+              },
+              {
+                key: "actions",
+                header: "Actions",
+                render: (scanner) => (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        regenerateKey.mutate(scanner.id, {
+                          onSuccess: (res) => {
+                            setRevealedKey(res.api_key);
+                            toast.success("API key regenerated");
+                          },
+                          onError: (e) => toast.error(e.message),
+                        })
+                      }
+                      className="rounded p-1 text-muted-foreground hover:text-primary transition-colors"
+                      title="Regenerate API key"
+                    >
+                      <Key className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() =>
+                        remove.mutate(scanner.id, {
+                          onSuccess: () => toast.success("Scanner deleted"),
+                          onError: (e) => toast.error(e.message),
+                        })
+                      }
+                      className="rounded p-1 text-muted-foreground hover:text-red-400 transition-colors"
+                      title="Delete scanner"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ),
+              },
+            ] satisfies DataTableColumn<Scanner>[]
+          }
+          rows={scannerList}
+          rowKey={(s) => s.id}
+        />
       )}
 
       <CreateScannerModal

@@ -14,7 +14,7 @@ import {
 } from "@/features/dashboard/hooks/useDashboardData";
 import { useNetworkMutations } from "@/features/networks/hooks/useNetworkDetail";
 import { NetworkForm } from "@/features/networks/components/NetworkForm";
-import { parseUTC } from "@/lib/utils";
+import { isOnline } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/networks/")({
   component: NetworksPage,
@@ -91,10 +91,7 @@ function NetworksPage() {
           </h3>
           <div className="mt-3 space-y-2">
             {(scanners.data?.scanners ?? []).map((scanner) => {
-              const isOnline =
-                scanner.last_seen_at &&
-                Date.now() - parseUTC(scanner.last_seen_at).getTime() <
-                  5 * 60 * 1000;
+              const online = isOnline(scanner.last_seen_at);
               return (
                 <div
                   key={scanner.id}
@@ -107,8 +104,8 @@ function NetworksPage() {
                     </p>
                   </div>
                   <StatusBadge
-                    label={isOnline ? "Online" : "Offline"}
-                    variant={isOnline ? "success" : "danger"}
+                    label={online ? "Online" : "Offline"}
+                    variant={online ? "success" : "danger"}
                     dot
                   />
                 </div>

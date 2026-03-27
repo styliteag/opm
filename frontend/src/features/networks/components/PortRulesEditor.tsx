@@ -1,91 +1,83 @@
-import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { StatusBadge } from '@/components/data-display/StatusBadge'
-import { postApi, deleteApi } from '@/lib/api'
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { postApi, deleteApi } from "@/lib/api";
+import {
+  SSH_ALERT_TYPES,
+  NSE_ALERT_TYPES,
+  RULE_SOURCE_BADGES,
+  getAlertTypeLabel,
+} from "@/lib/alert-types";
 
-type RuleSource = 'port' | 'ssh' | 'nse'
+type RuleSource = "port" | "ssh" | "nse";
 
 interface PortRule {
-  id: number
-  network_id: number | null
-  rule_type: 'accepted' | 'critical'
-  match_criteria: { port?: number; ip?: string; alert_type?: string; script_name?: string }
-  source?: string
-  description: string | null
-  created_at: string
+  id: number;
+  network_id: number | null;
+  rule_type: "accepted" | "critical";
+  match_criteria: {
+    port?: number;
+    ip?: string;
+    alert_type?: string;
+    script_name?: string;
+  };
+  source?: string;
+  description: string | null;
+  created_at: string;
 }
 
 interface PortRulesEditorProps {
-  networkId: number
-  rules: PortRule[]
-}
-
-const SSH_ALERT_TYPES = [
-  { value: 'ssh_insecure_auth', label: 'Insecure Auth' },
-  { value: 'ssh_weak_cipher', label: 'Weak Ciphers' },
-  { value: 'ssh_weak_kex', label: 'Weak KEX' },
-  { value: 'ssh_outdated_version', label: 'Outdated Version' },
-  { value: 'ssh_config_regression', label: 'Config Regression' },
-]
-
-const NSE_ALERT_TYPES = [
-  { value: 'nse_vulnerability', label: 'NSE Vulnerability' },
-  { value: 'nse_cve_detected', label: 'CVE Detected' },
-]
-
-const SOURCE_BADGES: Record<string, { label: string; className: string }> = {
-  port: { label: 'Port', className: 'bg-blue-500/10 text-blue-500' },
-  ssh: { label: 'SSH', className: 'bg-amber-500/10 text-amber-500' },
-  nse: { label: 'NSE', className: 'bg-purple-500/10 text-purple-500' },
+  networkId: number;
+  rules: PortRule[];
 }
 
 export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
-  const [showAdd, setShowAdd] = useState(false)
-  const [source, setSource] = useState<RuleSource>('port')
-  const [port, setPort] = useState('')
-  const [ip, setIp] = useState('')
-  const [ruleType, setRuleType] = useState<'accepted' | 'critical'>('accepted')
-  const [alertType, setAlertType] = useState('')
-  const [scriptName, setScriptName] = useState('')
-  const [description, setDescription] = useState('')
+  const [showAdd, setShowAdd] = useState(false);
+  const [source, setSource] = useState<RuleSource>("port");
+  const [port, setPort] = useState("");
+  const [ip, setIp] = useState("");
+  const [ruleType, setRuleType] = useState<"accepted" | "critical">("accepted");
+  const [alertType, setAlertType] = useState("");
+  const [scriptName, setScriptName] = useState("");
+  const [description, setDescription] = useState("");
 
-  const qc = useQueryClient()
+  const qc = useQueryClient();
 
   const addRule = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
       postApi(`/api/networks/${networkId}/rules`, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['networks', networkId, 'rules'] })
-      toast.success('Rule added')
-      setShowAdd(false)
-      setPort('')
-      setIp('')
-      setAlertType('')
-      setScriptName('')
-      setDescription('')
+      qc.invalidateQueries({ queryKey: ["networks", networkId, "rules"] });
+      toast.success("Rule added");
+      setShowAdd(false);
+      setPort("");
+      setIp("");
+      setAlertType("");
+      setScriptName("");
+      setDescription("");
     },
     onError: (e) => toast.error(e.message),
-  })
+  });
 
   const removeRule = useMutation({
     mutationFn: (ruleId: number) =>
       deleteApi(`/api/networks/${networkId}/rules/${ruleId}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['networks', networkId, 'rules'] })
-      toast.success('Rule removed')
+      qc.invalidateQueries({ queryKey: ["networks", networkId, "rules"] });
+      toast.success("Rule removed");
     },
     onError: (e) => toast.error(e.message),
-  })
+  });
 
   const selectClass =
-    'rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+    "rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
 
-  const canSubmit = source === 'port' ? Boolean(port) : true
+  const canSubmit = source === "port" ? Boolean(port) : true;
 
   return (
     <div className="rounded-lg border border-border">
@@ -93,7 +85,11 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
         <h3 className="font-display text-sm font-semibold text-foreground">
           Alert Rules ({rules.length})
         </h3>
-        <Button variant="outline" size="sm" onClick={() => setShowAdd(!showAdd)}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowAdd(!showAdd)}
+        >
           <Plus className="h-3.5 w-3.5 mr-1" />
           Add Rule
         </Button>
@@ -103,10 +99,16 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
         <div className="border-b border-border bg-accent/30 px-5 py-3">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">Source</label>
+              <label className="block text-xs text-muted-foreground mb-1">
+                Source
+              </label>
               <select
                 value={source}
-                onChange={(e) => { setSource(e.target.value as RuleSource); setAlertType(''); setScriptName('') }}
+                onChange={(e) => {
+                  setSource(e.target.value as RuleSource);
+                  setAlertType("");
+                  setScriptName("");
+                }}
                 className={selectClass}
               >
                 <option value="port">Port</option>
@@ -116,105 +118,173 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">
-                Port{source !== 'port' ? ' (opt)' : ''}
+                Port{source !== "port" ? " (opt)" : ""}
               </label>
-              <Input value={port} onChange={(e) => setPort(e.target.value)} placeholder="80" className="w-24 font-mono" />
+              <Input
+                value={port}
+                onChange={(e) => setPort(e.target.value)}
+                placeholder="80"
+                className="w-24 font-mono"
+              />
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">IP (opt)</label>
-              <Input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="192.168.1.1" className="w-36 font-mono" />
+              <label className="block text-xs text-muted-foreground mb-1">
+                IP (opt)
+              </label>
+              <Input
+                value={ip}
+                onChange={(e) => setIp(e.target.value)}
+                placeholder="192.168.1.1"
+                className="w-36 font-mono"
+              />
             </div>
-            {source === 'ssh' && (
+            {source === "ssh" && (
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">Alert Type</label>
-                <select value={alertType} onChange={(e) => setAlertType(e.target.value)} className={selectClass}>
+                <label className="block text-xs text-muted-foreground mb-1">
+                  Alert Type
+                </label>
+                <select
+                  value={alertType}
+                  onChange={(e) => setAlertType(e.target.value)}
+                  className={selectClass}
+                >
                   <option value="">Any</option>
-                  {SSH_ALERT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  {SSH_ALERT_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             )}
-            {source === 'nse' && (
+            {source === "nse" && (
               <>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Alert Type</label>
-                  <select value={alertType} onChange={(e) => setAlertType(e.target.value)} className={selectClass}>
+                  <label className="block text-xs text-muted-foreground mb-1">
+                    Alert Type
+                  </label>
+                  <select
+                    value={alertType}
+                    onChange={(e) => setAlertType(e.target.value)}
+                    className={selectClass}
+                  >
                     <option value="">Any</option>
-                    {NSE_ALERT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    {NSE_ALERT_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Script</label>
-                  <Input value={scriptName} onChange={(e) => setScriptName(e.target.value)} placeholder="script-name" className="w-40 font-mono" />
+                  <label className="block text-xs text-muted-foreground mb-1">
+                    Script
+                  </label>
+                  <Input
+                    value={scriptName}
+                    onChange={(e) => setScriptName(e.target.value)}
+                    placeholder="script-name"
+                    className="w-40 font-mono"
+                  />
                 </div>
               </>
             )}
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">Type</label>
-              <select value={ruleType} onChange={(e) => setRuleType(e.target.value as 'accepted' | 'critical')} className={selectClass}>
+              <label className="block text-xs text-muted-foreground mb-1">
+                Type
+              </label>
+              <select
+                value={ruleType}
+                onChange={(e) =>
+                  setRuleType(e.target.value as "accepted" | "critical")
+                }
+                className={selectClass}
+              >
                 <option value="accepted">Accepted</option>
                 <option value="critical">Critical</option>
               </select>
             </div>
             <div className="flex-1 min-w-[120px]">
-              <label className="block text-xs text-muted-foreground mb-1">Description</label>
-              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Reason" />
+              <label className="block text-xs text-muted-foreground mb-1">
+                Description
+              </label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Reason"
+              />
             </div>
             <Button
               size="sm"
-              onClick={() => addRule.mutate({
-                port: port || undefined,
-                ip: ip || undefined,
-                rule_type: ruleType,
-                description: description || undefined,
-                source,
-                alert_type: alertType || undefined,
-                script_name: scriptName || undefined,
-              })}
+              onClick={() =>
+                addRule.mutate({
+                  port: port || undefined,
+                  ip: ip || undefined,
+                  rule_type: ruleType,
+                  description: description || undefined,
+                  source,
+                  alert_type: alertType || undefined,
+                  script_name: scriptName || undefined,
+                })
+              }
               disabled={!canSubmit || addRule.isPending}
             >
-              {addRule.isPending ? 'Adding...' : 'Add'}
+              {addRule.isPending ? "Adding..." : "Add"}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
+              Cancel
+            </Button>
           </div>
         </div>
       )}
 
       {rules.length === 0 && !showAdd ? (
-        <div className="p-5 text-sm text-muted-foreground">No alert rules configured.</div>
+        <div className="p-5 text-sm text-muted-foreground">
+          No alert rules configured.
+        </div>
       ) : (
         <div className="divide-y divide-border">
           {rules.map((rule) => {
-            const src = rule.source ?? 'port'
-            const badge = SOURCE_BADGES[src] ?? SOURCE_BADGES.port
-            const extras: string[] = []
+            const src = rule.source ?? "port";
+            const badge = RULE_SOURCE_BADGES[src] ?? RULE_SOURCE_BADGES.port;
+            const extras: string[] = [];
             if (rule.match_criteria.alert_type) {
-              const label =
-                SSH_ALERT_TYPES.find((t) => t.value === rule.match_criteria.alert_type)?.label ??
-                NSE_ALERT_TYPES.find((t) => t.value === rule.match_criteria.alert_type)?.label ??
-                rule.match_criteria.alert_type
-              extras.push(label)
+              const label = getAlertTypeLabel(rule.match_criteria.alert_type);
+              extras.push(label);
             }
-            if (rule.match_criteria.script_name) extras.push(rule.match_criteria.script_name)
+            if (rule.match_criteria.script_name)
+              extras.push(rule.match_criteria.script_name);
 
             return (
-              <div key={rule.id} className="flex items-center justify-between px-5 py-3 group">
+              <div
+                key={rule.id}
+                className="flex items-center justify-between px-5 py-3 group"
+              >
                 <div className="flex items-center gap-3">
-                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${badge.className}`}>
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${badge.className}`}
+                  >
                     {badge.label}
                   </span>
                   <span className="font-mono text-sm text-foreground">
-                    {rule.match_criteria.ip ? `${rule.match_criteria.ip}:` : ''}
-                    {rule.match_criteria.port ?? '*'}
+                    {rule.match_criteria.ip ? `${rule.match_criteria.ip}:` : ""}
+                    {rule.match_criteria.port ?? "*"}
                   </span>
                   {extras.length > 0 && (
-                    <span className="text-xs text-muted-foreground">{extras.join(' · ')}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {extras.join(" · ")}
+                    </span>
                   )}
                   <StatusBadge
                     label={rule.rule_type}
-                    variant={rule.rule_type === 'accepted' ? 'success' : 'danger'}
+                    variant={
+                      rule.rule_type === "accepted" ? "success" : "danger"
+                    }
                   />
                   {rule.description && (
-                    <span className="text-sm text-muted-foreground">— {rule.description}</span>
+                    <span className="text-sm text-muted-foreground">
+                      — {rule.description}
+                    </span>
                   )}
                 </div>
                 <button
@@ -225,10 +295,10 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
-            )
+            );
           })}
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import type { LatestScanEntry, Network } from "@/lib/types";
-import { formatRelativeTime, scanStatusVariant } from "@/lib/utils";
+import { getScanDisplayTime, scanStatusVariant } from "@/lib/utils";
 
 interface NetworkCardsProps {
   networks: Network[];
@@ -47,11 +47,7 @@ export function NetworkCards({ networks, latestScans }: NetworkCardsProps) {
                       dot
                     />
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {scan.completed_at
-                        ? formatRelativeTime(scan.completed_at)
-                        : scan.started_at
-                          ? formatRelativeTime(scan.started_at)
-                          : ""}
+                      {getScanDisplayTime(scan)}
                     </p>
                   </>
                 ) : (

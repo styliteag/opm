@@ -5,12 +5,78 @@ import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { EmptyState } from "@/components/data-display/EmptyState";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
+import {
+  DataTable,
+  type DataTableColumn,
+} from "@/components/data-display/DataTable";
 import { useScans } from "@/features/scans/hooks/useScans";
 import { formatRelativeTime, scanStatusVariant } from "@/lib/utils";
+import type { ScanSummary } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/scans/")({
   component: ScansPage,
 });
+
+const SCAN_COLUMNS: DataTableColumn<ScanSummary>[] = [
+  {
+    key: "id",
+    header: "ID",
+    render: (scan) => (
+      <Link
+        to="/scans/$scanId"
+        params={{ scanId: String(scan.id) }}
+        className="text-sm text-primary hover:text-primary/80 transition-colors"
+      >
+        #{scan.id}
+      </Link>
+    ),
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: (scan) => (
+      <StatusBadge
+        label={scan.status}
+        variant={scanStatusVariant(scan.status)}
+        dot
+      />
+    ),
+  },
+  {
+    key: "ports",
+    header: "Ports",
+    render: (scan) => (
+      <span className="text-sm text-foreground">{scan.port_count}</span>
+    ),
+  },
+  {
+    key: "trigger",
+    header: "Trigger",
+    render: (scan) => (
+      <span className="text-sm text-muted-foreground capitalize">
+        {scan.trigger_type}
+      </span>
+    ),
+  },
+  {
+    key: "started",
+    header: "Started",
+    render: (scan) => (
+      <span className="text-sm text-muted-foreground">
+        {scan.started_at ? formatRelativeTime(scan.started_at) : "-"}
+      </span>
+    ),
+  },
+  {
+    key: "completed",
+    header: "Completed",
+    render: (scan) => (
+      <span className="text-sm text-muted-foreground">
+        {scan.completed_at ? formatRelativeTime(scan.completed_at) : "-"}
+      </span>
+    ),
+  },
+];
 
 function ScansPage() {
   const [page, setPage] = useState(0);
@@ -38,73 +104,11 @@ function ScansPage() {
         <EmptyState title="No scans" message="No scans have been run yet." />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-card">
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                    ID
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                    Ports
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                    Trigger
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                    Started
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                    Completed
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {scanList.map((scan) => (
-                  <tr
-                    key={scan.id}
-                    className="border-b border-border hover:bg-accent/50 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <Link
-                        to="/scans/$scanId"
-                        params={{ scanId: String(scan.id) }}
-                        className="text-sm text-primary hover:text-primary/80 transition-colors"
-                      >
-                        #{scan.id}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge
-                        label={scan.status}
-                        variant={scanStatusVariant(scan.status)}
-                        dot
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-sm text-foreground">
-                      {scan.port_count}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground capitalize">
-                      {scan.trigger_type}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {scan.started_at
-                        ? formatRelativeTime(scan.started_at)
-                        : "-"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {scan.completed_at
-                        ? formatRelativeTime(scan.completed_at)
-                        : "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={SCAN_COLUMNS}
+            rows={scanList}
+            rowKey={(scan) => scan.id}
+          />
 
           <div className="flex items-center justify-end gap-2">
             <button
