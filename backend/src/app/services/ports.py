@@ -1,16 +1,14 @@
 """Service for querying open ports from latest scans."""
 
-from ipaddress import IPv4Address, IPv6Address
 from typing import Any, cast
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
+from app.lib.ip_utils import IPRange
 from app.models.open_port import OpenPort
 from app.models.scan import Scan, ScanStatus
-
-IPRange = tuple[int, IPv4Address | IPv6Address, IPv4Address | IPv6Address]
 
 
 async def get_latest_open_ports(

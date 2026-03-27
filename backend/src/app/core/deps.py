@@ -1,8 +1,9 @@
 """FastAPI dependencies for authentication and database access."""
 
+from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -143,3 +144,14 @@ async def get_current_scanner(
 
 # Type alias for scanner dependency injection
 CurrentScanner = Annotated[Scanner, Depends(get_current_scanner)]
+
+
+@dataclass
+class PaginationParams:
+    """Standard pagination dependency for list endpoints."""
+
+    offset: int = Query(0, ge=0, description="Number of items to skip")
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of items to return")
+
+
+Pagination = Annotated[PaginationParams, Depends(PaginationParams)]

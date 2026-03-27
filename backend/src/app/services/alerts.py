@@ -7,6 +7,7 @@ from sqlalchemy import Integer, and_, case, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.services.global_settings as global_settings_service
+from app.lib.ssh_utils import is_version_outdated, parse_ssh_version
 from app.models.alert import Alert, AlertType, ResolutionStatus
 from app.models.network import Network
 from app.models.open_port import OpenPort
@@ -202,9 +203,13 @@ async def auto_dismiss_alerts_for_accepted_rule(
     if network_id is not None:
         conditions.append(Alert.network_id == network_id)
 
-    stmt = update(Alert).where(and_(*conditions)).values(
-        dismissed=True,
-        dismiss_reason=reason,
+    stmt = (
+        update(Alert)
+        .where(and_(*conditions))
+        .values(
+            dismissed=True,
+            dismiss_reason=reason,
+        )
     )
     result = await db.execute(stmt)
     return result.rowcount or 0  # type: ignore[attr-defined]
@@ -240,9 +245,13 @@ async def auto_dismiss_alerts_for_ssh_rule(
     if network_id is not None:
         conditions.append(Alert.network_id == network_id)
 
-    stmt = update(Alert).where(and_(*conditions)).values(
-        dismissed=True,
-        dismiss_reason=reason,
+    stmt = (
+        update(Alert)
+        .where(and_(*conditions))
+        .values(
+            dismissed=True,
+            dismiss_reason=reason,
+        )
     )
     result = await db.execute(stmt)
     return result.rowcount or 0  # type: ignore[attr-defined]
@@ -284,27 +293,35 @@ async def auto_dismiss_alerts_for_nse_rule(
     if script_name is not None:
         conditions.append(Alert.message.contains(script_name))
 
-    stmt = update(Alert).where(and_(*conditions)).values(
-        dismissed=True,
-        dismiss_reason=reason,
+    stmt = (
+        update(Alert)
+        .where(and_(*conditions))
+        .values(
+            dismissed=True,
+            dismiss_reason=reason,
+        )
     )
     result = await db.execute(stmt)
     return result.rowcount or 0  # type: ignore[attr-defined]
 
 
-SSH_ALERT_TYPES = frozenset({
-    AlertType.SSH_INSECURE_AUTH,
-    AlertType.SSH_WEAK_CIPHER,
-    AlertType.SSH_WEAK_KEX,
-    AlertType.SSH_OUTDATED_VERSION,
-    AlertType.SSH_CONFIG_REGRESSION,
-})
+SSH_ALERT_TYPES = frozenset(
+    {
+        AlertType.SSH_INSECURE_AUTH,
+        AlertType.SSH_WEAK_CIPHER,
+        AlertType.SSH_WEAK_KEX,
+        AlertType.SSH_OUTDATED_VERSION,
+        AlertType.SSH_CONFIG_REGRESSION,
+    }
+)
 
-PORT_ALERT_TYPES = frozenset({
-    AlertType.NEW_PORT,
-    AlertType.NOT_ALLOWED,
-    AlertType.BLOCKED,
-})
+PORT_ALERT_TYPES = frozenset(
+    {
+        AlertType.NEW_PORT,
+        AlertType.NOT_ALLOWED,
+        AlertType.BLOCKED,
+    }
+)
 
 
 async def get_ssh_alert_summary_for_ips(
@@ -392,9 +409,7 @@ async def get_dismiss_reason_suggestions(
         filters.append(Alert.dismiss_reason.ilike(f"%{search}%"))
 
     same_port_expr = (
-        func.sum(case((Alert.port == port, 1), else_=0))
-        if port is not None
-        else literal(0)
+        func.sum(case((Alert.port == port, 1), else_=0)) if port is not None else literal(0)
     )
 
     query = (
@@ -580,14 +595,10 @@ def _should_create_alert(
     return True
 
 
-async def _get_severity_overrides(
-    db: AsyncSession, network_id: int
-) -> dict[AlertKey, str]:
+async def _get_severity_overrides(db: AsyncSession, network_id: int) -> dict[AlertKey, str]:
     """Get severity overrides from the most recent alert per (type, ip, port)."""
     result = await db.execute(
-        select(
-            Alert.alert_type, Alert.ip, Alert.port, Alert.severity_override
-        ).where(
+        select(Alert.alert_type, Alert.ip, Alert.port, Alert.severity_override).where(
             Alert.network_id == network_id,
             Alert.severity_override.isnot(None),
         )
@@ -845,9 +856,7 @@ async def generate_global_alerts_for_scan(
             continue
 
         # Check if port is accepted by network-level rules
-        net_allow_ranges = _combine_ranges(
-            net_allow_global_ranges, net_allow_ranges_by_ip.get(ip)
-        )
+        net_allow_ranges = _combine_ranges(net_allow_global_ranges, net_allow_ranges_by_ip.get(ip))
         if _port_in_ranges(port, net_allow_ranges):
             continue
 
@@ -883,69 +892,12 @@ SSHAlertKey = tuple[AlertType, str, int]  # (alert_type, ip, port)
 # Default minimum SSH version threshold for outdated version alerts
 DEFAULT_SSH_VERSION_THRESHOLD = "8.0.0"
 
-
-def _parse_ssh_version(version_str: str | None) -> tuple[int, int, int] | None:
-    """Parse SSH version string into a tuple of (major, minor, patch).
-
-    Handles various SSH version formats:
-    - "OpenSSH_8.2p1" -> (8, 2, 0)
-    - "OpenSSH_7.9" -> (7, 9, 0)
-    - "8.2p1" -> (8, 2, 0)
-    - "8.2" -> (8, 2, 0)
-    - "8" -> (8, 0, 0)
-
-    Returns None if version cannot be parsed.
-    """
-    import re
-
-    if not version_str:
-        return None
-
-    # Strip common prefixes like "OpenSSH_" or "SSH-"
-    cleaned = version_str
-    for prefix in ["OpenSSH_", "SSH-", "openssh_", "ssh-"]:
-        if cleaned.startswith(prefix):
-            cleaned = cleaned[len(prefix):]
-            break
-
-    # Match version pattern: major.minor.patch or major.minor
-    # Also handles suffixes like "p1", "p2", etc.
-    match = re.match(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:p\d+)?", cleaned)
-    if not match:
-        return None
-
-    major = int(match.group(1))
-    minor = int(match.group(2)) if match.group(2) else 0
-    patch = int(match.group(3)) if match.group(3) else 0
-
-    return (major, minor, patch)
+# Aliases for backward compatibility with routers that import these names
+_parse_ssh_version = parse_ssh_version
+_is_version_outdated = is_version_outdated
 
 
-def _is_version_outdated(
-    version_str: str | None, threshold_str: str
-) -> bool:
-    """Check if an SSH version is below the threshold.
-
-    Args:
-        version_str: The detected SSH version string
-        threshold_str: The minimum acceptable version (e.g., "8.0.0")
-
-    Returns:
-        True if version is outdated (below threshold), False otherwise.
-        Returns False if version cannot be parsed.
-    """
-    parsed_version = _parse_ssh_version(version_str)
-    threshold_version = _parse_ssh_version(threshold_str)
-
-    if parsed_version is None or threshold_version is None:
-        return False
-
-    return parsed_version < threshold_version
-
-
-async def _get_pending_ssh_alerts(
-    db: AsyncSession, network_id: int
-) -> set[SSHAlertKey]:
+async def _get_pending_ssh_alerts(db: AsyncSession, network_id: int) -> set[SSHAlertKey]:
     """Get all pending SSH alerts for a network as a set of (alert_type, ip, port) tuples."""
     result = await db.execute(
         select(Alert.alert_type, Alert.ip, Alert.port).where(
@@ -957,9 +909,7 @@ async def _get_pending_ssh_alerts(
     return {(row[0], row[1], int(row[2])) for row in result.all()}
 
 
-def _extract_weak_algorithms(
-    algorithms: list[dict[str, Any]] | None
-) -> list[str]:
+def _extract_weak_algorithms(algorithms: list[dict[str, Any]] | None) -> list[str]:
     """Extract names of weak algorithms from a list of algorithm dicts.
 
     Each algorithm dict should have 'name' and 'is_weak' fields.
@@ -999,9 +949,7 @@ async def generate_ssh_alerts_for_scan(
         return 0
 
     # Fetch SSH scan results for this scan
-    result = await db.execute(
-        select(SSHScanResult).where(SSHScanResult.scan_id == scan.id)
-    )
+    result = await db.execute(select(SSHScanResult).where(SSHScanResult.scan_id == scan.id))
     ssh_results = list(result.scalars().all())
 
     if not ssh_results:
@@ -1231,9 +1179,7 @@ def _get_weak_algorithm_names(algorithms: list[dict[str, Any]] | None) -> set[st
     }
 
 
-def _detect_ssh_regressions(
-    current: SSHScanResult, previous: SSHScanResult
-) -> list[str]:
+def _detect_ssh_regressions(current: SSHScanResult, previous: SSHScanResult) -> list[str]:
     """Detect security regressions between current and previous SSH scan results.
 
     Returns a list of regression descriptions. Empty list means no regressions.
@@ -1270,9 +1216,7 @@ def _detect_ssh_regressions(
     return regressions
 
 
-def _detect_ssh_improvements(
-    current: SSHScanResult, previous: SSHScanResult
-) -> list[str]:
+def _detect_ssh_improvements(current: SSHScanResult, previous: SSHScanResult) -> list[str]:
     """Detect security improvements between current and previous SSH scan results.
 
     Returns a list of improvement descriptions. Empty list means no improvements.
@@ -1337,9 +1281,7 @@ async def generate_ssh_regression_alerts_for_scan(
         return 0
 
     # Fetch SSH scan results for this scan
-    result = await db.execute(
-        select(SSHScanResult).where(SSHScanResult.scan_id == scan.id)
-    )
+    result = await db.execute(select(SSHScanResult).where(SSHScanResult.scan_id == scan.id))
     current_results = list(result.scalars().all())
 
     if not current_results:
@@ -1385,7 +1327,9 @@ async def generate_ssh_regression_alerts_for_scan(
         regressions = _detect_ssh_regressions(current, previous)
         if regressions:
             alert_key: SSHAlertKey = (
-                AlertType.SSH_CONFIG_REGRESSION, current.host_ip, current.port
+                AlertType.SSH_CONFIG_REGRESSION,
+                current.host_ip,
+                current.port,
             )
             if alert_key not in existing_alerts and alert_key not in created_alert_keys:
                 regression_details = "; ".join(regressions)

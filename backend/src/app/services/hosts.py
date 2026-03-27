@@ -2,17 +2,15 @@
 
 from collections.abc import Mapping
 from datetime import datetime
-from ipaddress import IPv4Address, IPv6Address
 from typing import Any, cast
 
 from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
+from app.lib.ip_utils import IPRange
 from app.models.global_open_port import GlobalOpenPort
 from app.models.host import Host
-
-IPRange = tuple[int, IPv4Address | IPv6Address, IPv4Address | IPv6Address]
 
 
 async def get_host_by_ip(db: AsyncSession, ip: str) -> Host | None:
@@ -209,9 +207,7 @@ async def get_host_open_ports(
 
 async def get_open_port_count_for_host(db: AsyncSession, host_id: int) -> int:
     """Get the count of open ports for a host."""
-    result = await db.execute(
-        select(func.count()).where(GlobalOpenPort.host_id == host_id)
-    )
+    result = await db.execute(select(func.count()).where(GlobalOpenPort.host_id == host_id))
     return result.scalar_one()
 
 
@@ -283,9 +279,7 @@ async def delete_host(db: AsyncSession, host_id: int) -> bool:
 
     # Unlink any associated open ports (set host_id to NULL)
     await db.execute(
-        update(GlobalOpenPort)
-        .where(GlobalOpenPort.host_id == host_id)
-        .values(host_id=None)
+        update(GlobalOpenPort).where(GlobalOpenPort.host_id == host_id).values(host_id=None)
     )
 
     await db.delete(host)
@@ -300,9 +294,7 @@ async def delete_hosts_bulk(db: AsyncSession, host_ids: list[int]) -> list[int]:
 
     # Unlink open ports from these hosts
     await db.execute(
-        update(GlobalOpenPort)
-        .where(GlobalOpenPort.host_id.in_(host_ids))
-        .values(host_id=None)
+        update(GlobalOpenPort).where(GlobalOpenPort.host_id.in_(host_ids)).values(host_id=None)
     )
 
     # Delete the hosts
