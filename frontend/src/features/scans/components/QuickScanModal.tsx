@@ -1,13 +1,22 @@
 import { useMemo, useState } from "react";
-import { X, Zap, Clock, Search } from "lucide-react";
+import { Zap, Clock, Search } from "lucide-react";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useUiStore } from "@/stores/ui.store";
 import { useNetworks } from "@/features/dashboard/hooks/useDashboardData";
 import { useNseProfiles } from "@/features/nse/hooks/useNse";
 import { useNetworkMutations } from "@/features/networks/hooks/useNetworkDetail";
 import { computeScanEstimate } from "@/lib/scan-estimate";
-import { Select } from "@/components/ui/select";
 
 type ScanType = "port" | "nse" | "discovery";
 
@@ -32,8 +41,6 @@ export function QuickScanModal() {
     const pps = selectedNet.scan_rate ?? 1000;
     return computeScanEstimate(selectedNet.cidr, selectedNet.port_spec, pps);
   }, [selectedNet]);
-
-  if (!isOpen) return null;
 
   const handleScan = () => {
     if (!selectedNetwork) return;
@@ -66,27 +73,15 @@ export function QuickScanModal() {
   const isPending = triggerScan.isPending || triggerDiscovery.isPending;
 
   return (
-    <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={close} />
-      <div className="relative w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-lg font-semibold text-foreground">
-            Quick Scan
-          </h2>
-          <button
-            onClick={close}
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close quick scan dialog"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && close()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Quick Scan</DialogTitle>
+        </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 py-2">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Select Network
-            </label>
+            <Label>Select Network</Label>
             <Select
               value={selectedNetwork}
               onChange={(e) =>
@@ -123,51 +118,34 @@ export function QuickScanModal() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Scan Type
-            </label>
+            <Label>Scan Type</Label>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setScanType("port")}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  scanType === "port"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-accent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Port Scan
-              </button>
-              <button
-                type="button"
-                onClick={() => setScanType("discovery")}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  scanType === "discovery"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-accent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Host Discovery
-              </button>
-              <button
-                type="button"
-                onClick={() => setScanType("nse")}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  scanType === "nse"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-accent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                NSE Vulnerability
-              </button>
+              {(
+                [
+                  { value: "port", label: "Port Scan" },
+                  { value: "discovery", label: "Host Discovery" },
+                  { value: "nse", label: "NSE Vulnerability" },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setScanType(opt.value)}
+                  className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    scanType === opt.value
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-accent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
 
           {scanType === "nse" && (
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                NSE Profile
-              </label>
+              <Label>NSE Profile</Label>
               <Select
                 value={selectedProfile}
                 onChange={(e) =>
@@ -185,15 +163,19 @@ export function QuickScanModal() {
               </Select>
             </div>
           )}
+        </div>
 
-          <button
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>
+            Cancel
+          </Button>
+          <Button
             onClick={handleScan}
             disabled={
               !selectedNetwork ||
               (scanType === "nse" && !selectedProfile) ||
               isPending
             }
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {scanType === "discovery" ? (
               <Search className="h-4 w-4" />
@@ -207,9 +189,9 @@ export function QuickScanModal() {
                 : scanType === "discovery"
                   ? "Start Host Discovery"
                   : "Start Port Scan"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

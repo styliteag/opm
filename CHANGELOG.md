@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Replace all inline-styled `<select>` elements (15 files) with shared `Select` component, eliminating duplicated `selectClass` / `SELECT_CLASS` constants
+- Migrate QuickScanModal from custom overlay to shared `Dialog` component for consistent modal behavior (backdrop blur, animations, close button, focus trap)
+- Replace inline magic number in HostsTable status check with `isOnline()` utility from `utils.ts`
 
 ### Fixed
 

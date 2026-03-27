@@ -1,20 +1,20 @@
-import { Link } from '@tanstack/react-router'
+import { Link } from "@tanstack/react-router";
 import {
   useReactTable,
   getCoreRowModel,
   type ColumnDef,
   flexRender,
-} from '@tanstack/react-table'
+} from "@tanstack/react-table";
 
-import { Checkbox } from '@/components/ui/checkbox'
-import { StatusBadge } from '@/components/data-display/StatusBadge'
-import type { Host } from '@/lib/types'
-import { formatRelativeTime, parseUTC } from '@/lib/utils'
+import { Checkbox } from "@/components/ui/checkbox";
+import { StatusBadge } from "@/components/data-display/StatusBadge";
+import type { Host } from "@/lib/types";
+import { formatRelativeTime, isOnline } from "@/lib/utils";
 
 const columns: ColumnDef<Host>[] = [
   {
-    accessorKey: 'ip',
-    header: 'IP Address',
+    accessorKey: "ip",
+    header: "IP Address",
     cell: ({ row }) => (
       <Link
         to="/hosts/$hostId"
@@ -26,46 +26,45 @@ const columns: ColumnDef<Host>[] = [
     ),
   },
   {
-    accessorKey: 'hostname',
-    header: 'Hostname',
+    accessorKey: "hostname",
+    header: "Hostname",
     cell: ({ getValue }) => (
       <span className="text-sm text-foreground">
-        {getValue<string | null>() ?? '-'}
+        {getValue<string | null>() ?? "-"}
       </span>
     ),
   },
   {
-    id: 'status',
-    header: 'Status',
+    id: "status",
+    header: "Status",
     cell: ({ row }) => {
-      const diff = Date.now() - parseUTC(row.original.last_seen_at).getTime()
-      const isRecent = diff < 24 * 60 * 60 * 1000
+      const recent = isOnline(row.original.last_seen_at, 24 * 60 * 60 * 1000);
       return (
         <StatusBadge
-          label={isRecent ? 'Online' : 'Offline'}
-          variant={isRecent ? 'success' : 'neutral'}
+          label={recent ? "Online" : "Offline"}
+          variant={recent ? "success" : "neutral"}
           dot
         />
-      )
+      );
     },
     size: 100,
   },
   {
-    accessorKey: 'open_port_count',
-    header: 'Open Ports',
+    accessorKey: "open_port_count",
+    header: "Open Ports",
     cell: ({ getValue }) => {
-      const count = getValue<number | null>()
+      const count = getValue<number | null>();
       return (
         <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
           {count ?? 0}
         </span>
-      )
+      );
     },
     size: 100,
   },
   {
-    accessorKey: 'last_seen_at',
-    header: 'Last Seen',
+    accessorKey: "last_seen_at",
+    header: "Last Seen",
     cell: ({ getValue }) => (
       <span className="text-sm text-muted-foreground">
         {formatRelativeTime(getValue<string>())}
@@ -73,37 +72,41 @@ const columns: ColumnDef<Host>[] = [
     ),
     size: 120,
   },
-]
+];
 
 interface HostsTableProps {
-  hosts: Host[]
-  selectedIds?: number[]
-  onSelectChange?: (ids: number[]) => void
+  hosts: Host[];
+  selectedIds?: number[];
+  onSelectChange?: (ids: number[]) => void;
 }
 
-export function HostsTable({ hosts, selectedIds, onSelectChange }: HostsTableProps) {
-  const selectable = Boolean(onSelectChange)
+export function HostsTable({
+  hosts,
+  selectedIds,
+  onSelectChange,
+}: HostsTableProps) {
+  const selectable = Boolean(onSelectChange);
   const table = useReactTable({
     data: hosts,
     columns,
     getCoreRowModel: getCoreRowModel(),
-  })
+  });
 
   const toggleId = (id: number) => {
-    if (!onSelectChange || !selectedIds) return
+    if (!onSelectChange || !selectedIds) return;
     onSelectChange(
       selectedIds.includes(id)
         ? selectedIds.filter((x) => x !== id)
         : [...selectedIds, id],
-    )
-  }
+    );
+  };
 
   const toggleAll = () => {
-    if (!onSelectChange || !selectedIds) return
-    const allIds = hosts.map((h) => h.id)
-    const allSelected = allIds.every((id) => selectedIds.includes(id))
-    onSelectChange(allSelected ? [] : allIds)
-  }
+    if (!onSelectChange || !selectedIds) return;
+    const allIds = hosts.map((h) => h.id);
+    const allSelected = allIds.every((id) => selectedIds.includes(id));
+    onSelectChange(allSelected ? [] : allIds);
+  };
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
@@ -115,7 +118,10 @@ export function HostsTable({ hosts, selectedIds, onSelectChange }: HostsTablePro
                 <th className="w-10 px-3 py-3">
                   <Checkbox
                     aria-label="Select all hosts"
-                    checked={hosts.length > 0 && hosts.every((h) => selectedIds?.includes(h.id))}
+                    checked={
+                      hosts.length > 0 &&
+                      hosts.every((h) => selectedIds?.includes(h.id))
+                    }
                     onCheckedChange={toggleAll}
                   />
                 </th>
@@ -126,7 +132,10 @@ export function HostsTable({ hosts, selectedIds, onSelectChange }: HostsTablePro
                   className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
                   style={{ width: header.getSize() }}
                 >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
+                  {flexRender(
+                    header.column.columnDef.header,
+                    header.getContext(),
+                  )}
                 </th>
               ))}
             </tr>
@@ -157,5 +166,5 @@ export function HostsTable({ hosts, selectedIds, onSelectChange }: HostsTablePro
         </tbody>
       </table>
     </div>
-  )
+  );
 }
