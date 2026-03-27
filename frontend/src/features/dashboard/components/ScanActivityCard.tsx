@@ -1,23 +1,23 @@
-import { Link } from '@tanstack/react-router'
+import { Link } from "@tanstack/react-router";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { StatusBadge } from '@/components/data-display/StatusBadge'
-import type { LatestScanEntry } from '@/lib/types'
-import { formatRelativeTime } from '@/lib/utils'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/data-display/StatusBadge";
+import type { LatestScanEntry } from "@/lib/types";
+import { formatRelativeTime, scanStatusVariant } from "@/lib/utils";
 
 interface ScanActivityCardProps {
-  latestScans: LatestScanEntry[]
+  latestScans: LatestScanEntry[];
 }
 
 export function ScanActivityCard({ latestScans }: ScanActivityCardProps) {
   const recentScans = latestScans
     .filter((s) => s.scan !== null)
     .sort((a, b) => {
-      const aTime = a.scan?.completed_at ?? a.scan?.started_at ?? ''
-      const bTime = b.scan?.completed_at ?? b.scan?.started_at ?? ''
-      return bTime.localeCompare(aTime)
+      const aTime = a.scan?.completed_at ?? a.scan?.started_at ?? "";
+      const bTime = b.scan?.completed_at ?? b.scan?.started_at ?? "";
+      return bTime.localeCompare(aTime);
     })
-    .slice(0, 5)
+    .slice(0, 5);
 
   return (
     <Card className="backdrop-blur-sm">
@@ -35,16 +35,7 @@ export function ScanActivityCard({ latestScans }: ScanActivityCardProps) {
           <p className="text-sm text-muted-foreground">No recent scans</p>
         )}
         {recentScans.map((entry) => {
-          const scan = entry.scan!
-          const statusVariant =
-            scan.status === 'completed'
-              ? 'success'
-              : scan.status === 'running'
-                ? 'warning'
-                : scan.status === 'error'
-                  ? 'danger'
-                  : 'neutral'
-
+          const scan = entry.scan!;
           return (
             <Link
               key={scan.id}
@@ -61,14 +52,18 @@ export function ScanActivityCard({ latestScans }: ScanActivityCardProps) {
                     ? formatRelativeTime(scan.completed_at)
                     : scan.started_at
                       ? formatRelativeTime(scan.started_at)
-                      : ''}
+                      : ""}
                 </p>
               </div>
-              <StatusBadge label={scan.status} variant={statusVariant} dot />
+              <StatusBadge
+                label={scan.status}
+                variant={scanStatusVariant(scan.status)}
+                dot
+              />
             </Link>
-          )
+          );
         })}
       </CardContent>
     </Card>
-  )
+  );
 }

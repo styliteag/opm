@@ -1,17 +1,17 @@
-import { Link } from '@tanstack/react-router'
+import { Link } from "@tanstack/react-router";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { StatusBadge } from '@/components/data-display/StatusBadge'
-import type { LatestScanEntry, Network } from '@/lib/types'
-import { formatRelativeTime } from '@/lib/utils'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/data-display/StatusBadge";
+import type { LatestScanEntry, Network } from "@/lib/types";
+import { formatRelativeTime, scanStatusVariant } from "@/lib/utils";
 
 interface NetworkCardsProps {
-  networks: Network[]
-  latestScans: LatestScanEntry[]
+  networks: Network[];
+  latestScans: LatestScanEntry[];
 }
 
 export function NetworkCards({ networks, latestScans }: NetworkCardsProps) {
-  const scanMap = new Map(latestScans.map((s) => [s.network_id, s.scan]))
+  const scanMap = new Map(latestScans.map((s) => [s.network_id, s.scan]));
 
   return (
     <Card className="backdrop-blur-sm">
@@ -26,16 +26,7 @@ export function NetworkCards({ networks, latestScans }: NetworkCardsProps) {
       </CardHeader>
       <CardContent className="space-y-3">
         {networks.map((network) => {
-          const scan = scanMap.get(network.id)
-          const statusVariant =
-            scan?.status === 'completed'
-              ? 'success'
-              : scan?.status === 'running'
-                ? 'warning'
-                : scan?.status === 'error'
-                  ? 'danger'
-                  : 'neutral'
-
+          const scan = scanMap.get(network.id);
           return (
             <Link
               key={network.id}
@@ -52,7 +43,7 @@ export function NetworkCards({ networks, latestScans }: NetworkCardsProps) {
                   <>
                     <StatusBadge
                       label={scan.status}
-                      variant={statusVariant as 'success' | 'warning' | 'danger' | 'neutral'}
+                      variant={scanStatusVariant(scan.status)}
                       dot
                     />
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -60,20 +51,24 @@ export function NetworkCards({ networks, latestScans }: NetworkCardsProps) {
                         ? formatRelativeTime(scan.completed_at)
                         : scan.started_at
                           ? formatRelativeTime(scan.started_at)
-                          : ''}
+                          : ""}
                     </p>
                   </>
                 ) : (
-                  <span className="text-xs text-muted-foreground">No scans</span>
+                  <span className="text-xs text-muted-foreground">
+                    No scans
+                  </span>
                 )}
               </div>
             </Link>
-          )
+          );
         })}
         {networks.length === 0 && (
-          <p className="text-sm text-muted-foreground">No networks configured</p>
+          <p className="text-sm text-muted-foreground">
+            No networks configured
+          </p>
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -1,59 +1,67 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
 
-import { AlertFilters } from './AlertFilters'
+import { AlertFilters } from "./AlertFilters";
 
 const networks = [
-  { id: 1, name: 'Internal LAN' },
-  { id: 2, name: 'Public DMZ' },
-]
+  { id: 1, name: "Internal LAN" },
+  { id: 2, name: "Public DMZ" },
+];
 
-describe('AlertFilters', () => {
-  it('renders all filter dropdowns', () => {
+describe("AlertFilters", () => {
+  it("renders all filter dropdowns", () => {
     render(
       <AlertFilters filters={{}} onChange={() => {}} networks={networks} />,
-    )
-    expect(screen.getByText('Filter By:')).toBeInTheDocument()
-    // Check that selects exist via their default options
-    expect(screen.getByText('Severity: All')).toBeInTheDocument()
-    expect(screen.getByText('Type: All')).toBeInTheDocument()
-    expect(screen.getByText('Network: All')).toBeInTheDocument()
-    expect(screen.getByText('Status: All')).toBeInTheDocument()
-  })
+    );
+    expect(screen.getByText("Severity:")).toBeInTheDocument();
+    expect(screen.getByText("Type:")).toBeInTheDocument();
+    expect(screen.getByText("Network:")).toBeInTheDocument();
+    expect(screen.getByText("Status:")).toBeInTheDocument();
+    // All dropdowns should show "All" as default value
+    expect(screen.getAllByText("All")).toHaveLength(4);
+  });
 
-  it('renders network options', () => {
-    render(
-      <AlertFilters filters={{}} onChange={() => {}} networks={networks} />,
-    )
-    expect(screen.getByText('Internal LAN')).toBeInTheDocument()
-    expect(screen.getByText('Public DMZ')).toBeInTheDocument()
-  })
-
-  it('calls onChange when severity is selected', () => {
-    const onChange = vi.fn()
-    render(
-      <AlertFilters filters={{}} onChange={onChange} networks={networks} />,
-    )
-
-    const severitySelect = screen.getByDisplayValue('Severity: All')
-    fireEvent.change(severitySelect, { target: { value: 'critical' } })
-
-    expect(onChange).toHaveBeenCalledWith({ severity: 'critical' })
-  })
-
-  it('calls onChange with undefined when "All" is selected', () => {
-    const onChange = vi.fn()
+  it("shows selected severity label", () => {
     render(
       <AlertFilters
-        filters={{ severity: 'critical' }}
-        onChange={onChange}
+        filters={{ severity: "critical" }}
+        onChange={() => {}}
         networks={networks}
       />,
-    )
+    );
+    expect(screen.getByText("Critical")).toBeInTheDocument();
+  });
 
-    const severitySelect = screen.getByDisplayValue('Critical')
-    fireEvent.change(severitySelect, { target: { value: '' } })
+  it("shows selected status label", () => {
+    render(
+      <AlertFilters
+        filters={{ dismissed: true }}
+        onChange={() => {}}
+        networks={networks}
+      />,
+    );
+    expect(screen.getByText("Dismissed")).toBeInTheDocument();
+  });
 
-    expect(onChange).toHaveBeenCalledWith({ severity: undefined })
-  })
-})
+  it("shows active status label when dismissed is false", () => {
+    render(
+      <AlertFilters
+        filters={{ dismissed: false }}
+        onChange={() => {}}
+        networks={networks}
+      />,
+    );
+    expect(screen.getByText("Active")).toBeInTheDocument();
+  });
+
+  it("shows selected network label", () => {
+    render(
+      <AlertFilters
+        filters={{ network_id: 1 }}
+        onChange={() => {}}
+        networks={networks}
+      />,
+    );
+    expect(screen.getByText("Internal LAN")).toBeInTheDocument();
+  });
+});

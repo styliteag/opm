@@ -31,10 +31,10 @@ const SEVERITIES: { value: Severity; label: string }[] = [
   { value: "info", label: "Info" },
 ];
 
-const STATUS_OPTIONS = [
-  { value: "", label: "All" },
-  { value: "false", label: "Active" },
-  { value: "true", label: "Dismissed" },
+const STATUS_OPTIONS: { value: boolean | undefined; label: string }[] = [
+  { value: undefined, label: "All" },
+  { value: false, label: "Active" },
+  { value: true, label: "Dismissed" },
 ];
 
 interface AlertFilterValues {
@@ -169,7 +169,7 @@ export function AlertFilters({
             onClick={() =>
               onChange({
                 ...filters,
-                dismissed: opt.value === "" ? undefined : opt.value === "true",
+                dismissed: opt.value,
               })
             }
           >

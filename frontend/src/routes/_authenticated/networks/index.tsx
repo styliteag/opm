@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Plus, Play } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +27,21 @@ function NetworksPage() {
   const latestScans = useLatestScans();
   const { triggerScan } = useNetworkMutations();
 
+  const scannerMap = useMemo(
+    () => new Map((scanners.data?.scanners ?? []).map((s) => [s.id, s])),
+    [scanners.data],
+  );
+  const scanMap = useMemo(
+    () =>
+      new Map(
+        (latestScans.data?.latest_scans ?? []).map((s) => [
+          s.network_id,
+          s.scan,
+        ]),
+      ),
+    [latestScans.data],
+  );
+
   if (networks.isLoading) return <LoadingState rows={6} />;
   if (networks.error)
     return (
@@ -37,12 +52,6 @@ function NetworksPage() {
     );
 
   const networkList = networks.data?.networks ?? [];
-  const scannerMap = new Map(
-    (scanners.data?.scanners ?? []).map((s) => [s.id, s]),
-  );
-  const scanMap = new Map(
-    (latestScans.data?.latest_scans ?? []).map((s) => [s.network_id, s.scan]),
-  );
 
   const totalCoverage =
     networkList.length > 0

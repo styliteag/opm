@@ -1,23 +1,23 @@
-import { useState } from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
-import { LoadingState } from '@/components/data-display/LoadingState'
-import { ErrorState } from '@/components/data-display/ErrorState'
-import { EmptyState } from '@/components/data-display/EmptyState'
-import { StatusBadge } from '@/components/data-display/StatusBadge'
-import { useScans } from '@/features/scans/hooks/useScans'
-import { formatRelativeTime } from '@/lib/utils'
+import { LoadingState } from "@/components/data-display/LoadingState";
+import { ErrorState } from "@/components/data-display/ErrorState";
+import { EmptyState } from "@/components/data-display/EmptyState";
+import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { useScans } from "@/features/scans/hooks/useScans";
+import { formatRelativeTime, scanStatusVariant } from "@/lib/utils";
 
-export const Route = createFileRoute('/_authenticated/scans/')({
+export const Route = createFileRoute("/_authenticated/scans/")({
   component: ScansPage,
-})
+});
 
 function ScansPage() {
-  const [page, setPage] = useState(0)
-  const limit = 50
-  const { data, isLoading, error, refetch } = useScans(page * limit, limit)
+  const [page, setPage] = useState(0);
+  const limit = 50;
+  const { data, isLoading, error, refetch } = useScans(page * limit, limit);
 
-  const scanList = data?.scans ?? []
+  const scanList = data?.scans ?? [];
 
   return (
     <div className="space-y-6">
@@ -42,17 +42,32 @@ function ScansPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-card">
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Ports</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Trigger</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Started</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Completed</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                    ID
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                    Ports
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                    Trigger
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                    Started
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                    Completed
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {scanList.map((scan) => (
-                  <tr key={scan.id} className="border-b border-border hover:bg-accent/50 transition-colors">
+                  <tr
+                    key={scan.id}
+                    className="border-b border-border hover:bg-accent/50 transition-colors"
+                  >
                     <td className="px-4 py-3">
                       <Link
                         to="/scans/$scanId"
@@ -65,17 +80,25 @@ function ScansPage() {
                     <td className="px-4 py-3">
                       <StatusBadge
                         label={scan.status}
-                        variant={scan.status === 'completed' ? 'success' : scan.status === 'running' ? 'warning' : scan.status === 'error' ? 'danger' : 'neutral'}
+                        variant={scanStatusVariant(scan.status)}
                         dot
                       />
                     </td>
-                    <td className="px-4 py-3 text-sm text-foreground">{scan.port_count}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground capitalize">{scan.trigger_type}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {scan.started_at ? formatRelativeTime(scan.started_at) : '-'}
+                    <td className="px-4 py-3 text-sm text-foreground">
+                      {scan.port_count}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground capitalize">
+                      {scan.trigger_type}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {scan.completed_at ? formatRelativeTime(scan.completed_at) : '-'}
+                      {scan.started_at
+                        ? formatRelativeTime(scan.started_at)
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {scan.completed_at
+                        ? formatRelativeTime(scan.completed_at)
+                        : "-"}
                     </td>
                   </tr>
                 ))}
@@ -102,5 +125,5 @@ function ScansPage() {
         </>
       )}
     </div>
-  )
+  );
 }

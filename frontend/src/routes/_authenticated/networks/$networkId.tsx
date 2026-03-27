@@ -17,7 +17,7 @@ import {
   useNetworkMutations,
 } from "@/features/networks/hooks/useNetworkDetail";
 import { fetchApi } from "@/lib/api";
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, scanStatusVariant } from "@/lib/utils";
 
 interface HostDiscoveryScan {
   id: number;
@@ -201,15 +201,7 @@ function NetworkDetailPage() {
                 <div className="text-right">
                   <StatusBadge
                     label={ds.status}
-                    variant={
-                      ds.status === "completed"
-                        ? "success"
-                        : ds.status === "running"
-                          ? "warning"
-                          : ds.status === "failed"
-                            ? "danger"
-                            : "neutral"
-                    }
+                    variant={scanStatusVariant(ds.status)}
                     dot
                   />
                   {ds.completed_at && (
@@ -253,15 +245,7 @@ function NetworkDetailPage() {
                 <div className="text-right">
                   <StatusBadge
                     label={scan.status}
-                    variant={
-                      scan.status === "completed"
-                        ? "success"
-                        : scan.status === "running"
-                          ? "warning"
-                          : scan.status === "error"
-                            ? "danger"
-                            : "neutral"
-                    }
+                    variant={scanStatusVariant(scan.status)}
                     dot
                   />
                   {scan.completed_at && (

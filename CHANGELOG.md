@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Disable `react-refresh/only-export-components` lint rule for TanStack Router route files
+- Fix `react-hooks/purity` lint error for `Date.now()` in scanners page online status check
+
+### Changed
+
+- Apply consistent code formatting (double quotes, semicolons) across frontend route and feature files
+- Use `scanStatusVariant` utility for scan status badge styling
+
 ## [1.8.1] - 2026-03-25
 
 ## [1.8.0] - 2026-03-25

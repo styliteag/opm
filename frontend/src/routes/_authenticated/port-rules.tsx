@@ -489,19 +489,7 @@ function PortRulesPage() {
     }
   };
 
-  const toggleSelect = (id: number, selected: boolean) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (selected) {
-        next.add(id);
-      } else {
-        next.delete(id);
-      }
-      return next;
-    });
-  };
-
-  const toggleAll = (ids: number[], selected: boolean) => {
+  const toggleIds = (ids: number[], selected: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       for (const id of ids) {
@@ -592,8 +580,8 @@ function PortRulesPage() {
           rules={globalRules}
           scope="global"
           selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
-          onToggleAll={toggleAll}
+          onToggleSelect={(id, sel) => toggleIds([id], sel)}
+          onToggleAll={toggleIds}
           onDelete={handleDeleteConfirm}
           isDeleting={deleteRule.isPending}
           headerRight={
@@ -639,8 +627,8 @@ function PortRulesPage() {
               rules={rules}
               scope="network"
               selectedIds={selectedIds}
-              onToggleSelect={toggleSelect}
-              onToggleAll={toggleAll}
+              onToggleSelect={(id, sel) => toggleIds([id], sel)}
+              onToggleAll={toggleIds}
               onDelete={handleDeleteConfirm}
               isDeleting={deleteRule.isPending}
             />
