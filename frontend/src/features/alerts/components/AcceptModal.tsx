@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -145,12 +146,11 @@ export function AcceptModal({
               <label className="block text-sm font-medium text-foreground mb-1">
                 Network <span className="text-destructive">*</span>
               </label>
-              <select
+              <Select
                 value={networkId}
                 onChange={(e) =>
                   setNetworkId(e.target.value ? Number(e.target.value) : "")
                 }
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="">Choose a network...</option>
                 {networks.map((n) => (
@@ -158,7 +158,7 @@ export function AcceptModal({
                     {n.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           )}
 

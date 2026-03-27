@@ -1,12 +1,12 @@
-import { useState, useMemo } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { Search, ExternalLink, FileSearch } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useMemo } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Search, ExternalLink, FileSearch } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
-import { LoadingState } from '@/components/data-display/LoadingState'
-import { ErrorState } from '@/components/data-display/ErrorState'
-import { EmptyState } from '@/components/data-display/EmptyState'
-import { SeverityBadge } from '@/components/data-display/SeverityBadge'
+import { LoadingState } from "@/components/data-display/LoadingState";
+import { ErrorState } from "@/components/data-display/ErrorState";
+import { EmptyState } from "@/components/data-display/EmptyState";
+import { SeverityBadge } from "@/components/data-display/SeverityBadge";
 import {
   Table,
   TableBody,
@@ -14,45 +14,46 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { fetchApi } from '@/lib/api'
-import { useDebounce } from '@/hooks/useDebounce'
-import type { NseResultListResponse, Severity } from '@/lib/types'
+} from "@/components/ui/table";
+import { Select } from "@/components/ui/select";
+import { fetchApi } from "@/lib/api";
+import { useDebounce } from "@/hooks/useDebounce";
+import type { NseResultListResponse, Severity } from "@/lib/types";
 
-export const Route = createFileRoute('/_authenticated/nse/results')({
+export const Route = createFileRoute("/_authenticated/nse/results")({
   component: NseResultsPage,
-})
+});
 
 function NseResultsPage() {
-  const [severityFilter, setSeverityFilter] = useState<string>('')
-  const [ipSearch, setIpSearch] = useState('')
-  const [cveSearch, setCveSearch] = useState('')
+  const [severityFilter, setSeverityFilter] = useState<string>("");
+  const [ipSearch, setIpSearch] = useState("");
+  const [cveSearch, setCveSearch] = useState("");
 
-  const debouncedIp = useDebounce(ipSearch, 300)
-  const debouncedCve = useDebounce(cveSearch, 300)
+  const debouncedIp = useDebounce(ipSearch, 300);
+  const debouncedCve = useDebounce(cveSearch, 300);
 
   const queryParams = useMemo(() => {
-    const params = new URLSearchParams()
-    if (severityFilter) params.set('severity', severityFilter)
-    if (debouncedIp) params.set('ip', debouncedIp)
-    if (debouncedCve) params.set('cve', debouncedCve)
-    return params.toString()
-  }, [severityFilter, debouncedIp, debouncedCve])
+    const params = new URLSearchParams();
+    if (severityFilter) params.set("severity", severityFilter);
+    if (debouncedIp) params.set("ip", debouncedIp);
+    if (debouncedCve) params.set("cve", debouncedCve);
+    return params.toString();
+  }, [severityFilter, debouncedIp, debouncedCve]);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['nse', 'results', queryParams],
+    queryKey: ["nse", "results", queryParams],
     queryFn: () => {
       const path = queryParams
         ? `/api/nse/results?${queryParams}`
-        : '/api/nse/results'
-      return fetchApi<NseResultListResponse>(path)
+        : "/api/nse/results";
+      return fetchApi<NseResultListResponse>(path);
     },
-  })
+  });
 
-  if (isLoading) return <LoadingState rows={8} />
-  if (error) return <ErrorState message={error.message} onRetry={refetch} />
+  if (isLoading) return <LoadingState rows={8} />;
+  if (error) return <ErrorState message={error.message} onRetry={refetch} />;
 
-  const results = data?.results ?? []
+  const results = data?.results ?? [];
 
   return (
     <div className="space-y-6">
@@ -67,17 +68,16 @@ function NseResultsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <select
+        <Select
           value={severityFilter}
           onChange={(e) => setSeverityFilter(e.target.value)}
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">All Severities</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="info">Info</option>
-        </select>
+        </Select>
 
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -163,5 +163,5 @@ function NseResultsPage() {
         </div>
       )}
     </div>
-  )
+  );
 }

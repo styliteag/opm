@@ -82,12 +82,14 @@ function createColumns(props: {
       id: "select",
       header: ({ table }) => (
         <Checkbox
+          aria-label="Select all alerts"
           checked={table.getIsAllRowsSelected()}
           onCheckedChange={(v) => table.toggleAllRowsSelected(!!v)}
         />
       ),
       cell: ({ row }) => (
         <Checkbox
+          aria-label={`Select alert: ${row.original.message}`}
           checked={row.getIsSelected()}
           onCheckedChange={(v) => row.toggleSelected(!!v)}
         />
@@ -185,6 +187,7 @@ function createColumns(props: {
         <button
           onClick={column.getToggleSortingHandler()}
           className="flex items-center gap-1 text-xs cursor-pointer"
+          aria-label={`Sort by detected date${column.getIsSorted() === "asc" ? ", currently ascending" : column.getIsSorted() === "desc" ? ", currently descending" : ""}`}
         >
           Detected <ArrowUpDown className="h-3 w-3" />
         </button>
@@ -203,7 +206,7 @@ function createColumns(props: {
         const alert = row.original;
         return (
           <DropdownMenu>
-            <DropdownMenuTrigger className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+            <DropdownMenuTrigger className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label="Alert actions">
               <MoreHorizontal className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="bottom">

@@ -8,6 +8,7 @@ import cronstrue from "cronstrue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -127,8 +128,9 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
   const watchedSchedule = useWatch({ control, name: "scan_schedule" }) ?? "";
   const watchedNseProfileId = useWatch({ control, name: "nse_profile_id" });
 
-  const vulnEnabled =
-    (phases ?? []).some((p) => p.name === "vulnerability" && p.enabled);
+  const vulnEnabled = (phases ?? []).some(
+    (p) => p.name === "vulnerability" && p.enabled,
+  );
   const nseProfileMissing = vulnEnabled && !watchedNseProfileId;
 
   const estimate = computeScanEstimate(
@@ -145,9 +147,6 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
   } catch {
     cronHuman = "";
   }
-
-  const selectClass =
-    "w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
 
   const onSubmit = (data: FormData) => {
     const { email_recipients, ...rest } = data;
@@ -262,18 +261,14 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label htmlFor="scanner_id">Scanner</Label>
-                <select
-                  id="scanner_id"
-                  {...register("scanner_id")}
-                  className={selectClass}
-                >
+                <Select id="scanner_id" {...register("scanner_id")}>
                   <option value="">Select scanner...</option>
                   {(scanners.data?.scanners ?? []).map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
                     </option>
                   ))}
-                </select>
+                </Select>
                 {errors.scanner_id && (
                   <p className="mt-1 text-xs text-destructive">
                     {errors.scanner_id.message}
@@ -282,26 +277,18 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
               </div>
               <div>
                 <Label htmlFor="scanner_type">Type</Label>
-                <select
-                  id="scanner_type"
-                  {...register("scanner_type")}
-                  className={selectClass}
-                >
+                <Select id="scanner_type" {...register("scanner_type")}>
                   <option value="masscan">Masscan</option>
                   <option value="nmap">Nmap</option>
-                </select>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="scan_protocol">Protocol</Label>
-                <select
-                  id="scan_protocol"
-                  {...register("scan_protocol")}
-                  className={selectClass}
-                >
+                <Select id="scan_protocol" {...register("scan_protocol")}>
                   <option value="tcp">TCP</option>
                   <option value="udp">UDP</option>
                   <option value="both">Both</option>
-                </select>
+                </Select>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -403,18 +390,14 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
               <Label htmlFor="nse_profile_id">
                 NSE Profile{vulnEnabled ? "" : " (optional)"}
               </Label>
-              <select
-                id="nse_profile_id"
-                {...register("nse_profile_id")}
-                className={selectClass}
-              >
+              <Select id="nse_profile_id" {...register("nse_profile_id")}>
                 <option value="">None</option>
                 {(profiles.data?.profiles ?? []).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </Select>
               {nseProfileMissing && (
                 <p className="mt-1.5 text-xs text-yellow-500">
                   Vulnerability phase is enabled — without a profile, only the

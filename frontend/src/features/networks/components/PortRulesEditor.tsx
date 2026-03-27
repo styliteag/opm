@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { postApi, deleteApi } from "@/lib/api";
 import {
@@ -74,9 +75,6 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
     onError: (e) => toast.error(e.message),
   });
 
-  const selectClass =
-    "rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
-
   const canSubmit = source === "port" ? Boolean(port) : true;
 
   return (
@@ -102,19 +100,18 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
               <label className="block text-xs text-muted-foreground mb-1">
                 Source
               </label>
-              <select
+              <Select
                 value={source}
                 onChange={(e) => {
                   setSource(e.target.value as RuleSource);
                   setAlertType("");
                   setScriptName("");
                 }}
-                className={selectClass}
               >
                 <option value="port">Port</option>
                 <option value="ssh">SSH</option>
                 <option value="nse">NSE</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">
@@ -143,10 +140,9 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                 <label className="block text-xs text-muted-foreground mb-1">
                   Alert Type
                 </label>
-                <select
+                <Select
                   value={alertType}
                   onChange={(e) => setAlertType(e.target.value)}
-                  className={selectClass}
                 >
                   <option value="">Any</option>
                   {SSH_ALERT_TYPES.map((t) => (
@@ -154,7 +150,7 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                       {t.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             )}
             {source === "nse" && (
@@ -163,10 +159,9 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                   <label className="block text-xs text-muted-foreground mb-1">
                     Alert Type
                   </label>
-                  <select
+                  <Select
                     value={alertType}
                     onChange={(e) => setAlertType(e.target.value)}
-                    className={selectClass}
                   >
                     <option value="">Any</option>
                     {NSE_ALERT_TYPES.map((t) => (
@@ -174,7 +169,7 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                         {t.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">
@@ -193,16 +188,15 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
               <label className="block text-xs text-muted-foreground mb-1">
                 Type
               </label>
-              <select
+              <Select
                 value={ruleType}
                 onChange={(e) =>
                   setRuleType(e.target.value as "accepted" | "critical")
                 }
-                className={selectClass}
               >
                 <option value="accepted">Accepted</option>
                 <option value="critical">Critical</option>
-              </select>
+              </Select>
             </div>
             <div className="flex-1 min-w-[120px]">
               <label className="block text-xs text-muted-foreground mb-1">

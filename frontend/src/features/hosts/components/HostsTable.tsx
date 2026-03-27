@@ -6,6 +6,7 @@ import {
   flexRender,
 } from '@tanstack/react-table'
 
+import { Checkbox } from '@/components/ui/checkbox'
 import { StatusBadge } from '@/components/data-display/StatusBadge'
 import type { Host } from '@/lib/types'
 import { formatRelativeTime, parseUTC } from '@/lib/utils'
@@ -112,11 +113,10 @@ export function HostsTable({ hosts, selectedIds, onSelectChange }: HostsTablePro
             <tr key={hg.id} className="border-b border-border bg-card">
               {selectable && (
                 <th className="w-10 px-3 py-3">
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    aria-label="Select all hosts"
                     checked={hosts.length > 0 && hosts.every((h) => selectedIds?.includes(h.id))}
-                    onChange={toggleAll}
-                    className="rounded border-border"
+                    onCheckedChange={toggleAll}
                   />
                 </th>
               )}
@@ -140,11 +140,10 @@ export function HostsTable({ hosts, selectedIds, onSelectChange }: HostsTablePro
             >
               {selectable && (
                 <td className="w-10 px-3 py-3">
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    aria-label={`Select host ${row.original.ip}`}
                     checked={selectedIds?.includes(row.original.id) ?? false}
-                    onChange={() => toggleId(row.original.id)}
-                    className="rounded border-border"
+                    onCheckedChange={() => toggleId(row.original.id)}
                   />
                 </td>
               )}

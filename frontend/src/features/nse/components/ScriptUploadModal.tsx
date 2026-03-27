@@ -1,88 +1,87 @@
-import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import { toast } from 'sonner'
+import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog'
-import { useNseMutations } from '@/features/nse/hooks/useNse'
+} from "@/components/ui/dialog";
+import { useNseMutations } from "@/features/nse/hooks/useNse";
 
 interface ScriptUploadModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSuccess?: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
 interface FormState {
-  name: string
-  description: string
-  categories: string
-  severity: string
-  content: string
+  name: string;
+  description: string;
+  categories: string;
+  severity: string;
+  content: string;
 }
 
 const INITIAL_FORM: FormState = {
-  name: '',
-  description: '',
-  categories: '',
-  severity: 'medium',
-  content: '',
-}
+  name: "",
+  description: "",
+  categories: "",
+  severity: "medium",
+  content: "",
+};
 
 export function ScriptUploadModal({
   open,
   onOpenChange,
   onSuccess,
 }: ScriptUploadModalProps) {
-  const [form, setForm] = useState<FormState>(INITIAL_FORM)
-  const { createScript } = useNseMutations()
-  const navigate = useNavigate()
-
-  const selectClass =
-    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const { createScript } = useNseMutations();
+  const navigate = useNavigate();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    const reader = new FileReader()
+    const reader = new FileReader();
     reader.onload = (ev) => {
-      const fileContent = ev.target?.result
-      if (typeof fileContent === 'string') {
+      const fileContent = ev.target?.result;
+      if (typeof fileContent === "string") {
         setForm((prev) => ({
           ...prev,
           content: fileContent,
-          name: prev.name || file.name.replace(/\.nse$/, '').replace(/\.lua$/, ''),
-        }))
+          name:
+            prev.name || file.name.replace(/\.nse$/, "").replace(/\.lua$/, ""),
+        }));
       }
-    }
-    reader.readAsText(file)
-  }
+    };
+    reader.readAsText(file);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!form.name.trim()) {
-      toast.error('Name is required')
-      return
+      toast.error("Name is required");
+      return;
     }
     if (!form.content.trim()) {
-      toast.error('Script source code is required')
-      return
+      toast.error("Script source code is required");
+      return;
     }
 
     // Auto-prefix custom_ if not present
-    const scriptName = form.name.trim().startsWith('custom_')
+    const scriptName = form.name.trim().startsWith("custom_")
       ? form.name.trim()
-      : `custom_${form.name.trim()}`
+      : `custom_${form.name.trim()}`;
 
     createScript.mutate(
       {
@@ -90,28 +89,28 @@ export function ScriptUploadModal({
         content: form.content,
         description: form.description.trim() || undefined,
         categories: form.categories
-          .split(',')
+          .split(",")
           .map((c) => c.trim())
           .filter(Boolean),
         severity: form.severity || undefined,
       },
       {
         onSuccess: () => {
-          toast.success('Script uploaded')
-          setForm(INITIAL_FORM)
-          onOpenChange(false)
-          onSuccess?.()
+          toast.success("Script uploaded");
+          setForm(INITIAL_FORM);
+          onOpenChange(false);
+          onSuccess?.();
           navigate({
-            to: '/nse/editor/$scriptName',
+            to: "/nse/editor/$scriptName",
             params: { scriptName },
-          })
+          });
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Upload failed')
+          toast.error(err instanceof Error ? err.message : "Upload failed");
         },
       },
-    )
-  }
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -146,7 +145,9 @@ export function ScriptUploadModal({
             />
           </div>
           <div>
-            <Label htmlFor="script-categories">Categories (comma-separated)</Label>
+            <Label htmlFor="script-categories">
+              Categories (comma-separated)
+            </Label>
             <Input
               id="script-categories"
               value={form.categories}
@@ -158,19 +159,18 @@ export function ScriptUploadModal({
           </div>
           <div>
             <Label htmlFor="script-severity">Severity</Label>
-            <select
+            <Select
               id="script-severity"
               value={form.severity}
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, severity: e.target.value }))
               }
-              className={selectClass}
             >
               <option value="critical">Critical</option>
               <option value="high">High</option>
               <option value="medium">Medium</option>
               <option value="info">Info</option>
-            </select>
+            </Select>
           </div>
           <div>
             <Label htmlFor="script-file">Upload .nse file</Label>
@@ -204,11 +204,11 @@ export function ScriptUploadModal({
               Cancel
             </Button>
             <Button type="submit" disabled={createScript.isPending}>
-              {createScript.isPending ? 'Uploading...' : 'Upload Script'}
+              {createScript.isPending ? "Uploading..." : "Upload Script"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

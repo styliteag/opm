@@ -4,12 +4,10 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { postApi } from "@/lib/api";
 import { SSH_ALERT_TYPES, NSE_ALERT_TYPES } from "@/lib/alert-types";
 import type { RuleSource } from "../types";
-
-const SELECT_CLASS =
-  "rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
 
 interface GlobalRuleAddFormProps {
   onAdded: () => void;
@@ -48,19 +46,18 @@ export function GlobalRuleAddForm({ onAdded }: GlobalRuleAddFormProps) {
           <label className="block text-xs text-muted-foreground mb-1">
             Source
           </label>
-          <select
+          <Select
             value={source}
             onChange={(e) => {
               setSource(e.target.value as RuleSource);
               setAlertType("");
               setScriptName("");
             }}
-            className={SELECT_CLASS}
           >
             <option value="port">Port</option>
             <option value="ssh">SSH</option>
             <option value="nse">NSE</option>
-          </select>
+          </Select>
         </div>
         <div>
           <label className="block text-xs text-muted-foreground mb-1">
@@ -90,10 +87,9 @@ export function GlobalRuleAddForm({ onAdded }: GlobalRuleAddFormProps) {
             <label className="block text-xs text-muted-foreground mb-1">
               Alert Type (optional)
             </label>
-            <select
+            <Select
               value={alertType}
               onChange={(e) => setAlertType(e.target.value)}
-              className={SELECT_CLASS}
             >
               <option value="">Any SSH alert</option>
               {SSH_ALERT_TYPES.map((t) => (
@@ -101,7 +97,7 @@ export function GlobalRuleAddForm({ onAdded }: GlobalRuleAddFormProps) {
                   {t.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
 
@@ -111,10 +107,9 @@ export function GlobalRuleAddForm({ onAdded }: GlobalRuleAddFormProps) {
               <label className="block text-xs text-muted-foreground mb-1">
                 Alert Type (optional)
               </label>
-              <select
+              <Select
                 value={alertType}
                 onChange={(e) => setAlertType(e.target.value)}
-                className={SELECT_CLASS}
               >
                 <option value="">Any NSE alert</option>
                 {NSE_ALERT_TYPES.map((t) => (
@@ -122,7 +117,7 @@ export function GlobalRuleAddForm({ onAdded }: GlobalRuleAddFormProps) {
                     {t.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">
@@ -142,16 +137,15 @@ export function GlobalRuleAddForm({ onAdded }: GlobalRuleAddFormProps) {
           <label className="block text-xs text-muted-foreground mb-1">
             Type
           </label>
-          <select
+          <Select
             value={ruleType}
             onChange={(e) =>
               setRuleType(e.target.value as "accepted" | "critical")
             }
-            className={SELECT_CLASS}
           >
             <option value="accepted">Accepted</option>
             <option value="critical">Critical</option>
-          </select>
+          </Select>
         </div>
         <div className="flex-1 min-w-[160px]">
           <label className="block text-xs text-muted-foreground mb-1">

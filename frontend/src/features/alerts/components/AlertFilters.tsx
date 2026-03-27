@@ -64,7 +64,7 @@ function FilterDropdown({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={triggerClass}>
+      <DropdownMenuTrigger className={triggerClass} aria-label={`Filter by ${label}: ${value}`}>
         <span className="text-muted-foreground">{label}:</span>
         <span className="font-medium">{value}</span>
         <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -103,8 +103,8 @@ export function AlertFilters({
   const groups = ["Port", "SSH", "NSE"] as const;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Filter className="h-4 w-4 text-muted-foreground" />
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Alert filters">
+      <Filter className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
 
       <FilterDropdown label="Severity" value={severityLabel}>
         <DropdownMenuItem

@@ -22,7 +22,7 @@ function Breadcrumbs() {
   if (segments.length === 0) segments.push('Dashboard')
 
   return (
-    <nav className="flex items-center gap-1.5 text-sm">
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm">
       {segments.map((segment, i) => (
         <span key={i} className="flex items-center gap-1.5">
           {i > 0 && <span className="text-muted-foreground">/</span>}
@@ -54,6 +54,7 @@ function ThemeSwitcher() {
       size="icon"
       onClick={() => setMode(nextMode)}
       title={`Theme: ${mode}`}
+      aria-label={`Switch theme, currently ${mode}`}
     >
       <Icon className="h-4 w-4" />
     </Button>

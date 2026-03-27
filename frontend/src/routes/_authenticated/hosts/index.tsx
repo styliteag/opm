@@ -1,55 +1,56 @@
-import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { Download, Search, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Download, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
-import { LoadingState } from '@/components/data-display/LoadingState'
-import { ErrorState } from '@/components/data-display/ErrorState'
-import { EmptyState } from '@/components/data-display/EmptyState'
-import { HostsTable } from '@/features/hosts/components/HostsTable'
-import { GlobalPortsTable } from '@/features/hosts/components/GlobalPortsTable'
-import { useHosts, useHostMutations } from '@/features/hosts/hooks/useHosts'
-import { useGlobalPorts } from '@/features/hosts/hooks/useGlobalPorts'
-import { useNetworks } from '@/features/dashboard/hooks/useDashboardData'
+import { Select } from "@/components/ui/select";
+import { LoadingState } from "@/components/data-display/LoadingState";
+import { ErrorState } from "@/components/data-display/ErrorState";
+import { EmptyState } from "@/components/data-display/EmptyState";
+import { HostsTable } from "@/features/hosts/components/HostsTable";
+import { GlobalPortsTable } from "@/features/hosts/components/GlobalPortsTable";
+import { useHosts, useHostMutations } from "@/features/hosts/hooks/useHosts";
+import { useGlobalPorts } from "@/features/hosts/hooks/useGlobalPorts";
+import { useNetworks } from "@/features/dashboard/hooks/useDashboardData";
 
-export const Route = createFileRoute('/_authenticated/hosts/')({
+export const Route = createFileRoute("/_authenticated/hosts/")({
   component: HostsPage,
-})
+});
 
-type ViewMode = 'hosts' | 'global-ports'
+type ViewMode = "hosts" | "global-ports";
 
 function HostsPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>('hosts')
-  const [search, setSearch] = useState('')
-  const [networkId, setNetworkId] = useState<number | undefined>()
-  const [staleness, setStaleness] = useState<'all' | 'active' | 'stale'>('all')
-  const [selectedHostIds, setSelectedHostIds] = useState<number[]>([])
-  const [page, setPage] = useState(0)
-  const limit = 50
+  const [viewMode, setViewMode] = useState<ViewMode>("hosts");
+  const [search, setSearch] = useState("");
+  const [networkId, setNetworkId] = useState<number | undefined>();
+  const [staleness, setStaleness] = useState<"all" | "active" | "stale">("all");
+  const [selectedHostIds, setSelectedHostIds] = useState<number[]>([]);
+  const [page, setPage] = useState(0);
+  const limit = 50;
 
   const hosts = useHosts({
     ip_search: search || undefined,
     network_id: networkId,
     offset: page * limit,
     limit,
-  })
+  });
   const globalPorts = useGlobalPorts({
     network_id: networkId,
     service: search || undefined,
     staleness,
     offset: page * limit,
     limit,
-  })
-  const networks = useNetworks()
-  const { bulkDelete } = useHostMutations()
+  });
+  const networks = useNetworks();
+  const { bulkDelete } = useHostMutations();
 
-  const hostList = hosts.data?.hosts ?? []
-  const totalCount = hosts.data?.total_count ?? 0
-  const portList = globalPorts.data?.ports ?? []
+  const hostList = hosts.data?.hosts ?? [];
+  const totalCount = hosts.data?.total_count ?? 0;
+  const portList = globalPorts.data?.ports ?? [];
 
-  const activeData = viewMode === 'hosts' ? hosts : globalPorts
-  const isLoading = activeData.isLoading
-  const error = activeData.error
+  const activeData = viewMode === "hosts" ? hosts : globalPorts;
+  const isLoading = activeData.isLoading;
+  const error = activeData.error;
 
   return (
     <div className="space-y-6">
@@ -81,17 +82,27 @@ function HostsPage() {
       {/* View Toggle */}
       <div className="flex items-center gap-1 rounded-lg border border-border p-1 w-fit">
         <button
-          onClick={() => { setViewMode('hosts'); setPage(0) }}
+          onClick={() => {
+            setViewMode("hosts");
+            setPage(0);
+          }}
           className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-            viewMode === 'hosts' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'
+            viewMode === "hosts"
+              ? "bg-primary text-white"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Hosts
         </button>
         <button
-          onClick={() => { setViewMode('global-ports'); setPage(0) }}
+          onClick={() => {
+            setViewMode("global-ports");
+            setPage(0);
+          }}
           className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-            viewMode === 'global-ports' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'
+            viewMode === "global-ports"
+              ? "bg-primary text-white"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Global Ports
@@ -107,19 +118,18 @@ function HostsPage() {
             placeholder="Search hosts, IPs, or services..."
             value={search}
             onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(0)
+              setSearch(e.target.value);
+              setPage(0);
             }}
             className="rounded-md border border-border bg-background py-1.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring w-72"
           />
         </div>
-        <select
-          value={networkId ?? ''}
+        <Select
+          value={networkId ?? ""}
           onChange={(e) => {
-            setNetworkId(e.target.value ? Number(e.target.value) : undefined)
-            setPage(0)
+            setNetworkId(e.target.value ? Number(e.target.value) : undefined);
+            setPage(0);
           }}
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">All Networks</option>
           {(networks.data?.networks ?? []).map((n) => (
@@ -127,8 +137,8 @@ function HostsPage() {
               {n.name}
             </option>
           ))}
-        </select>
-        {viewMode === 'hosts' && (
+        </Select>
+        {viewMode === "hosts" && (
           <>
             <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
               <button
@@ -155,20 +165,22 @@ function HostsPage() {
             </div>
           </>
         )}
-        {viewMode === 'global-ports' && (
+        {viewMode === "global-ports" && (
           <>
             <div className="flex gap-1">
-              {['HTTP', 'SSH', 'DNS', 'FTP', 'SMB'].map((svc) => (
+              {["HTTP", "SSH", "DNS", "FTP", "SMB"].map((svc) => (
                 <button
                   key={svc}
                   onClick={() => {
-                    setSearch(search === svc.toLowerCase() ? '' : svc.toLowerCase())
-                    setPage(0)
+                    setSearch(
+                      search === svc.toLowerCase() ? "" : svc.toLowerCase(),
+                    );
+                    setPage(0);
                   }}
                   className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                     search === svc.toLowerCase()
-                      ? 'bg-primary text-white'
-                      : 'bg-accent text-muted-foreground hover:text-foreground'
+                      ? "bg-primary text-white"
+                      : "bg-accent text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {svc}
@@ -176,14 +188,17 @@ function HostsPage() {
               ))}
             </div>
             <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-              {(['all', 'active', 'stale'] as const).map((s) => (
+              {(["all", "active", "stale"] as const).map((s) => (
                 <button
                   key={s}
-                  onClick={() => { setStaleness(s); setPage(0) }}
+                  onClick={() => {
+                    setStaleness(s);
+                    setPage(0);
+                  }}
                   className={`rounded px-2 py-1 text-xs font-medium capitalize transition-colors ${
                     staleness === s
-                      ? 'bg-primary text-white'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? "bg-primary text-white"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {s}
@@ -194,31 +209,35 @@ function HostsPage() {
         )}
       </div>
 
-      {viewMode === 'hosts' && selectedHostIds.length > 0 && (
+      {viewMode === "hosts" && selectedHostIds.length > 0 && (
         <div className="flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2">
           <span className="text-sm text-destructive">
             {selectedHostIds.length} selected
           </span>
           <button
             onClick={() => {
-              if (confirm(`Delete ${selectedHostIds.length} host(s) permanently?`)) {
+              if (
+                confirm(`Delete ${selectedHostIds.length} host(s) permanently?`)
+              ) {
                 bulkDelete.mutate(
                   { host_ids: selectedHostIds },
                   {
                     onSuccess: () => {
-                      toast.success(`Deleted ${selectedHostIds.length} host(s)`)
-                      setSelectedHostIds([])
+                      toast.success(
+                        `Deleted ${selectedHostIds.length} host(s)`,
+                      );
+                      setSelectedHostIds([]);
                     },
                     onError: (e) => toast.error(e.message),
                   },
-                )
+                );
               }
             }}
             disabled={bulkDelete.isPending}
             className="flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1 text-xs text-white hover:bg-destructive/90 transition-colors disabled:opacity-50"
           >
             <Trash2 className="h-3 w-3" />
-            {bulkDelete.isPending ? 'Deleting...' : 'Delete'}
+            {bulkDelete.isPending ? "Deleting..." : "Delete"}
           </button>
           <button
             onClick={() => setSelectedHostIds([])}
@@ -232,14 +251,23 @@ function HostsPage() {
       {isLoading ? (
         <LoadingState rows={8} />
       ) : error ? (
-        <ErrorState message={error.message} onRetry={() => activeData.refetch()} />
-      ) : viewMode === 'hosts' && hostList.length === 0 ? (
-        <EmptyState title="No hosts found" message="No hosts match the current filters." />
-      ) : viewMode === 'global-ports' && portList.length === 0 ? (
-        <EmptyState title="No open ports" message="No global ports match the current filters." />
+        <ErrorState
+          message={error.message}
+          onRetry={() => activeData.refetch()}
+        />
+      ) : viewMode === "hosts" && hostList.length === 0 ? (
+        <EmptyState
+          title="No hosts found"
+          message="No hosts match the current filters."
+        />
+      ) : viewMode === "global-ports" && portList.length === 0 ? (
+        <EmptyState
+          title="No open ports"
+          message="No global ports match the current filters."
+        />
       ) : (
         <>
-          {viewMode === 'hosts' ? (
+          {viewMode === "hosts" ? (
             <HostsTable
               hosts={hostList}
               selectedIds={selectedHostIds}
@@ -250,7 +278,7 @@ function HostsPage() {
           )}
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {viewMode === 'hosts'
+              {viewMode === "hosts"
                 ? `Showing ${page * limit + 1}-${page * limit + hostList.length} of ${totalCount.toLocaleString()} hosts`
                 : `Showing ${page * limit + 1}-${page * limit + portList.length} ports`}
             </p>
@@ -264,9 +292,11 @@ function HostsPage() {
               </button>
               <button
                 onClick={() => setPage((p) => p + 1)}
-                disabled={viewMode === 'hosts'
-                  ? page * limit + hostList.length >= totalCount
-                  : portList.length < limit}
+                disabled={
+                  viewMode === "hosts"
+                    ? page * limit + hostList.length >= totalCount
+                    : portList.length < limit
+                }
                 className="rounded-md border border-border px-3 py-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
               >
                 Next
@@ -276,5 +306,5 @@ function HostsPage() {
         </>
       )}
     </div>
-  )
+  );
 }

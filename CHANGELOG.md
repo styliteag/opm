@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Create shared `Select` UI component (`components/ui/select.tsx`) with consistent styling matching Input component patterns (CVA, `data-slot`, focus-visible rings, dark mode, disabled/invalid states)
+- Add skip-to-main-content link in AppShell for keyboard navigation
+- Add `aria-label` attributes to AlertsTable checkboxes, sort buttons, and action menus
+- Add `aria-label` to AlertFilters dropdown triggers and filter group container
+- Add `aria-label` to Header theme switcher and breadcrumb nav
+- Add `aria-label` to QuickScanModal close button
+- Add `role="img"` with descriptive `aria-label` to ThreatPulseChart
+- Replace raw `<input type="checkbox">` in HostsTable with shared `Checkbox` component and `aria-label`
+- Add tests for `Select` and `SelectOption` components
+
+### Changed
+
+- Replace all inline-styled `<select>` elements (15 files) with shared `Select` component, eliminating duplicated `selectClass` / `SELECT_CLASS` constants
+
 ### Fixed
 
 - Disable `react-refresh/only-export-components` lint rule for TanStack Router route files

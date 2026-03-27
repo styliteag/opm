@@ -1,40 +1,53 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
-import { toast } from 'sonner'
-import { Search, ChevronRight, ChevronDown, CheckSquare, Square } from 'lucide-react'
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { toast } from "sonner";
+import {
+  Search,
+  ChevronRight,
+  ChevronDown,
+  CheckSquare,
+  Square,
+} from "lucide-react";
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { useNseMutations, useNseScripts } from '@/features/nse/hooks/useNse'
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useNseMutations, useNseScripts } from "@/features/nse/hooks/useNse";
 
 interface ProfileEditModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   profile?: {
-    id: number
-    name: string
-    description: string | null
-    severity: string | null
-    nse_scripts: string[]
-  }
+    id: number;
+    name: string;
+    description: string | null;
+    severity: string | null;
+    nse_scripts: string[];
+  };
 }
 
-type FilterMode = 'all' | 'selected' | 'unselected'
+type FilterMode = "all" | "selected" | "unselected";
 
 interface ScriptItem {
-  name: string
-  author: string
-  protocol: string
-  tags: string[]
+  name: string;
+  author: string;
+  protocol: string;
+  tags: string[];
 }
 
 /** Extract protocol prefix from a script name (e.g. "smb" from "smb-vuln-ms17-010"). */
 function getProtocol(name: string): string {
-  const idx = name.indexOf('-')
-  return idx > 0 ? name.slice(0, idx) : '*'
+  const idx = name.indexOf("-");
+  return idx > 0 ? name.slice(0, idx) : "*";
 }
 
 /** Build ScriptItem list from API data. */
@@ -43,164 +56,173 @@ function buildScriptItems(
 ): ScriptItem[] {
   return scripts.map((s) => ({
     name: s.name,
-    author: s.author || 'System',
+    author: s.author || "System",
     protocol: getProtocol(s.name),
     tags: s.categories ?? [],
-  }))
+  }));
 }
 
 /** Group scripts by protocol, sorted by protocol name. */
 function groupByProtocol(
   items: ScriptItem[],
 ): { protocol: string; scripts: ScriptItem[] }[] {
-  const map = new Map<string, ScriptItem[]>()
+  const map = new Map<string, ScriptItem[]>();
   for (const item of items) {
-    const list = map.get(item.protocol) ?? []
-    list.push(item)
-    map.set(item.protocol, list)
+    const list = map.get(item.protocol) ?? [];
+    list.push(item);
+    map.set(item.protocol, list);
   }
   // Sort: '*' first, then alphabetical
   return Array.from(map.entries())
     .sort(([a], [b]) => {
-      if (a === '*') return -1
-      if (b === '*') return 1
-      return a.localeCompare(b)
+      if (a === "*") return -1;
+      if (b === "*") return 1;
+      return a.localeCompare(b);
     })
     .map(([protocol, scripts]) => ({
       protocol,
       scripts: scripts.sort((a, b) => a.name.localeCompare(b.name)),
-    }))
+    }));
 }
 
-export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditModalProps) {
-  const { createProfile, updateProfile } = useNseMutations()
-  const { data: scriptsData } = useNseScripts()
-  const isEdit = Boolean(profile)
+export function ProfileEditModal({
+  open,
+  onOpenChange,
+  profile,
+}: ProfileEditModalProps) {
+  const { createProfile, updateProfile } = useNseMutations();
+  const { data: scriptsData } = useNseScripts();
+  const isEdit = Boolean(profile);
 
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [severity, setSeverity] = useState('')
-  const [selectedScripts, setSelectedScripts] = useState<Set<string>>(new Set())
-  const [search, setSearch] = useState('')
-  const [filterMode, setFilterMode] = useState<FilterMode>('all')
-  const [groupByProto, setGroupByProto] = useState(true)
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [severity, setSeverity] = useState("");
+  const [selectedScripts, setSelectedScripts] = useState<Set<string>>(
+    new Set(),
+  );
+  const [search, setSearch] = useState("");
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [groupByProto, setGroupByProto] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Reset form when modal opens/profile changes
   useEffect(() => {
     if (open) {
       if (profile) {
-        setName(profile.name)
-        setDescription(profile.description ?? '')
-        setSeverity(profile.severity ?? '')
-        setSelectedScripts(new Set(profile.nse_scripts))
+        setName(profile.name);
+        setDescription(profile.description ?? "");
+        setSeverity(profile.severity ?? "");
+        setSelectedScripts(new Set(profile.nse_scripts));
       } else {
-        setName('')
-        setDescription('')
-        setSeverity('')
-        setSelectedScripts(new Set())
+        setName("");
+        setDescription("");
+        setSeverity("");
+        setSelectedScripts(new Set());
       }
-      setSearch('')
-      setFilterMode('all')
-      setExpandedGroups(new Set())
+      setSearch("");
+      setFilterMode("all");
+      setExpandedGroups(new Set());
     }
-  }, [open, profile])
+  }, [open, profile]);
 
   // Expand groups that have selected scripts when editing
   useEffect(() => {
     if (open && profile && profile.nse_scripts.length > 0) {
-      const prefixes = new Set(profile.nse_scripts.map(getProtocol))
-      setExpandedGroups(prefixes)
+      const prefixes = new Set(profile.nse_scripts.map(getProtocol));
+      setExpandedGroups(prefixes);
     }
-  }, [open, profile])
+  }, [open, profile]);
 
   const allItems = useMemo(
     () => buildScriptItems(scriptsData?.scripts ?? []),
     [scriptsData],
-  )
+  );
 
-  const totalCount = allItems.length
+  const totalCount = allItems.length;
 
   // Filter by search + filter mode
   const filteredItems = useMemo(() => {
-    let items = allItems
+    let items = allItems;
     if (search) {
-      const q = search.toLowerCase()
+      const q = search.toLowerCase();
       items = items.filter(
         (s) =>
           s.name.toLowerCase().includes(q) ||
           s.author.toLowerCase().includes(q) ||
           s.protocol.toLowerCase().includes(q) ||
           s.tags.some((t) => t.toLowerCase().includes(q)),
-      )
+      );
     }
-    if (filterMode === 'selected') {
-      items = items.filter((s) => selectedScripts.has(s.name))
-    } else if (filterMode === 'unselected') {
-      items = items.filter((s) => !selectedScripts.has(s.name))
+    if (filterMode === "selected") {
+      items = items.filter((s) => selectedScripts.has(s.name));
+    } else if (filterMode === "unselected") {
+      items = items.filter((s) => !selectedScripts.has(s.name));
     }
-    return items
-  }, [allItems, search, filterMode, selectedScripts])
+    return items;
+  }, [allItems, search, filterMode, selectedScripts]);
 
-  const grouped = useMemo(() => groupByProtocol(filteredItems), [filteredItems])
+  const grouped = useMemo(
+    () => groupByProtocol(filteredItems),
+    [filteredItems],
+  );
 
   const toggleScript = useCallback((scriptName: string) => {
     setSelectedScripts((prev) => {
-      const next = new Set(prev)
-      if (next.has(scriptName)) next.delete(scriptName)
-      else next.add(scriptName)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(scriptName)) next.delete(scriptName);
+      else next.add(scriptName);
+      return next;
+    });
+  }, []);
 
   const toggleGroup = useCallback((scripts: ScriptItem[]) => {
     setSelectedScripts((prev) => {
-      const next = new Set(prev)
-      const allSelected = scripts.every((s) => next.has(s.name))
+      const next = new Set(prev);
+      const allSelected = scripts.every((s) => next.has(s.name));
       if (allSelected) {
-        scripts.forEach((s) => next.delete(s.name))
+        scripts.forEach((s) => next.delete(s.name));
       } else {
-        scripts.forEach((s) => next.add(s.name))
+        scripts.forEach((s) => next.add(s.name));
       }
-      return next
-    })
-  }, [])
+      return next;
+    });
+  }, []);
 
   const toggleExpand = useCallback((protocol: string) => {
     setExpandedGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(protocol)) next.delete(protocol)
-      else next.add(protocol)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(protocol)) next.delete(protocol);
+      else next.add(protocol);
+      return next;
+    });
+  }, []);
 
   const expandAll = useCallback(() => {
-    setExpandedGroups(new Set(grouped.map((g) => g.protocol)))
-  }, [grouped])
+    setExpandedGroups(new Set(grouped.map((g) => g.protocol)));
+  }, [grouped]);
 
   const collapseAll = useCallback(() => {
-    setExpandedGroups(new Set())
-  }, [])
+    setExpandedGroups(new Set());
+  }, []);
 
   const selectAll = useCallback(() => {
-    setSelectedScripts(new Set(allItems.map((s) => s.name)))
-  }, [allItems])
+    setSelectedScripts(new Set(allItems.map((s) => s.name)));
+  }, [allItems]);
 
   const clearAll = useCallback(() => {
-    setSelectedScripts(new Set())
-  }, [])
+    setSelectedScripts(new Set());
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!name.trim()) {
-      toast.error('Name is required')
-      return
+      toast.error("Name is required");
+      return;
     }
     if (selectedScripts.size === 0) {
-      toast.error('Select at least one script')
-      return
+      toast.error("Select at least one script");
+      return;
     }
 
     const payload = {
@@ -208,40 +230,42 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
       description: description.trim() || undefined,
       severity: severity || undefined,
       nse_scripts: Array.from(selectedScripts).sort(),
-    }
+    };
 
     if (isEdit && profile) {
       updateProfile.mutate(
         { id: profile.id, ...payload },
         {
           onSuccess: () => {
-            toast.success('Profile updated')
-            onOpenChange(false)
+            toast.success("Profile updated");
+            onOpenChange(false);
           },
           onError: (err) => toast.error(err.message),
         },
-      )
+      );
     } else {
       createProfile.mutate(payload, {
         onSuccess: () => {
-          toast.success('Profile created')
-          onOpenChange(false)
+          toast.success("Profile created");
+          onOpenChange(false);
         },
         onError: (err) => toast.error(err.message),
-      })
+      });
     }
-  }
-
-  const selectClass =
-    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Profile' : 'Create Profile'}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? "Edit Profile" : "Create Profile"}
+          </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2 min-h-0">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-4 py-2 min-h-0"
+        >
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="profile-name">Name</Label>
@@ -254,18 +278,17 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
             </div>
             <div>
               <Label htmlFor="profile-severity">Default Severity</Label>
-              <select
+              <Select
                 id="profile-severity"
                 value={severity}
                 onChange={(e) => setSeverity(e.target.value)}
-                className={selectClass}
               >
                 <option value="">None</option>
                 <option value="critical">Critical</option>
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="info">Info</option>
-              </select>
+              </Select>
             </div>
           </div>
           <div>
@@ -328,24 +351,26 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
                 />
               </div>
               <div className="flex rounded-md border border-border overflow-hidden shrink-0">
-                {(['all', 'selected', 'unselected'] as FilterMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setFilterMode(mode)}
-                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                      filterMode === mode
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-background text-muted-foreground hover:text-foreground'
-                    } ${mode !== 'all' ? 'border-l border-border' : ''}`}
-                  >
-                    {mode === 'all'
-                      ? 'All'
-                      : mode === 'selected'
-                        ? `Selected (${selectedScripts.size})`
-                        : 'Unselected'}
-                  </button>
-                ))}
+                {(["all", "selected", "unselected"] as FilterMode[]).map(
+                  (mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setFilterMode(mode)}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                        filterMode === mode
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background text-muted-foreground hover:text-foreground"
+                      } ${mode !== "all" ? "border-l border-border" : ""}`}
+                    >
+                      {mode === "all"
+                        ? "All"
+                        : mode === "selected"
+                          ? `Selected (${selectedScripts.size})`
+                          : "Unselected"}
+                    </button>
+                  ),
+                )}
               </div>
             </div>
 
@@ -354,9 +379,13 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
                   checked={groupByProto}
-                  onCheckedChange={(checked) => setGroupByProto(checked === true)}
+                  onCheckedChange={(checked) =>
+                    setGroupByProto(checked === true)
+                  }
                 />
-                <span className="text-sm text-foreground">Group by protocol</span>
+                <span className="text-sm text-foreground">
+                  Group by protocol
+                </span>
               </label>
               {groupByProto && (
                 <div className="flex items-center gap-3 text-xs">
@@ -387,12 +416,12 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
               ) : groupByProto ? (
                 // ── Grouped view ──
                 grouped.map(({ protocol, scripts }) => {
-                  const isExpanded = expandedGroups.has(protocol)
+                  const isExpanded = expandedGroups.has(protocol);
                   const selectedInGroup = scripts.filter((s) =>
                     selectedScripts.has(s.name),
-                  ).length
-                  const allSelected = selectedInGroup === scripts.length
-                  const someSelected = selectedInGroup > 0 && !allSelected
+                  ).length;
+                  const allSelected = selectedInGroup === scripts.length;
+                  const someSelected = selectedInGroup > 0 && !allSelected;
 
                   return (
                     <div
@@ -413,7 +442,13 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
                           )}
                         </button>
                         <Checkbox
-                          checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                          checked={
+                            allSelected
+                              ? true
+                              : someSelected
+                                ? "indeterminate"
+                                : false
+                          }
                           onCheckedChange={() => toggleGroup(scripts)}
                         />
                         <button
@@ -425,7 +460,8 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
                             {protocol}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {scripts.length} script{scripts.length !== 1 ? 's' : ''}
+                            {scripts.length} script
+                            {scripts.length !== 1 ? "s" : ""}
                           </span>
                           {selectedInGroup > 0 && (
                             <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
@@ -434,7 +470,7 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
                           )}
                         </button>
                         <span className="text-[10px] text-muted-foreground">
-                          {isExpanded ? 'Click to collapse' : 'Click to expand'}
+                          {isExpanded ? "Click to collapse" : "Click to expand"}
                         </span>
                       </div>
 
@@ -503,7 +539,7 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
                         </div>
                       )}
                     </div>
-                  )
+                  );
                 })
               ) : (
                 // ── Flat view ──
@@ -576,19 +612,26 @@ export function ProfileEditModal({ open, onOpenChange, profile }: ProfileEditMod
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={createProfile.isPending || updateProfile.isPending}>
-              {(createProfile.isPending || updateProfile.isPending)
-                ? 'Saving...'
+            <Button
+              type="submit"
+              disabled={createProfile.isPending || updateProfile.isPending}
+            >
+              {createProfile.isPending || updateProfile.isPending
+                ? "Saving..."
                 : isEdit
-                  ? 'Update'
-                  : 'Create'}
+                  ? "Update"
+                  : "Create"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

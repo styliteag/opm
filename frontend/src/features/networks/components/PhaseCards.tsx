@@ -1,108 +1,112 @@
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useState, useCallback } from 'react'
-import { toast } from 'sonner'
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useState, useCallback } from "react";
+import { toast } from "sonner";
 
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import type { ScanPhase } from '@/lib/types'
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import type { ScanPhase } from "@/lib/types";
 
 const DEFAULT_PHASES: ScanPhase[] = [
   {
-    name: 'host_discovery',
+    name: "host_discovery",
     enabled: true,
-    tool: 'nmap',
+    tool: "nmap",
     config: { aggressive: false, max_retries: 2 },
   },
   {
-    name: 'port_scan',
+    name: "port_scan",
     enabled: true,
-    tool: 'masscan',
-    config: { port_range: '', exclude_ports: '', aggressive: false, max_retries: 3 },
+    tool: "masscan",
+    config: {
+      port_range: "",
+      exclude_ports: "",
+      aggressive: false,
+      max_retries: 3,
+    },
   },
   {
-    name: 'vulnerability',
+    name: "vulnerability",
     enabled: true,
-    tool: 'nmap_nse',
+    tool: "nmap_nse",
     config: { aggressive: false, parallel: true, max_retries: 3 },
   },
-]
+];
 
 const PHASE_META: Record<
   string,
   {
-    label: string
-    description: string
-    tools: { value: string; label: string }[]
+    label: string;
+    description: string;
+    tools: { value: string; label: string }[];
   }
 > = {
   host_discovery: {
-    label: 'Host Discovery',
-    description: 'Find live hosts via ping sweep & ARP',
-    tools: [{ value: 'nmap', label: 'Nmap' }],
+    label: "Host Discovery",
+    description: "Find live hosts via ping sweep & ARP",
+    tools: [{ value: "nmap", label: "Nmap" }],
   },
   port_scan: {
-    label: 'Port Scan',
-    description: 'Discover open ports on live hosts',
+    label: "Port Scan",
+    description: "Discover open ports on live hosts",
     tools: [
-      { value: 'masscan', label: 'Masscan (fast)' },
-      { value: 'nmap', label: 'Nmap (accurate)' },
+      { value: "masscan", label: "Masscan (fast)" },
+      { value: "nmap", label: "Nmap (accurate)" },
     ],
   },
   vulnerability: {
-    label: 'Vulnerability Scan',
-    description: 'Run NSE scripts against discovered ports',
-    tools: [{ value: 'nmap_nse', label: 'Nmap NSE' }],
+    label: "Vulnerability Scan",
+    description: "Run NSE scripts against discovered ports",
+    tools: [{ value: "nmap_nse", label: "Nmap NSE" }],
   },
-}
+};
 
-const PHASE_ORDER = ['host_discovery', 'port_scan', 'vulnerability']
+const PHASE_ORDER = ["host_discovery", "port_scan", "vulnerability"];
 
 interface PhaseCardsProps {
-  phases: ScanPhase[] | null
-  onChange: (phases: ScanPhase[]) => void
+  phases: ScanPhase[] | null;
+  onChange: (phases: ScanPhase[]) => void;
 }
 
 export function PhaseCards({ phases, onChange }: PhaseCardsProps) {
-  const current = phases && phases.length > 0 ? phases : DEFAULT_PHASES
+  const current = phases && phases.length > 0 ? phases : DEFAULT_PHASES;
 
   const updatePhase = useCallback(
     (name: string, updates: Partial<ScanPhase>) => {
       onChange(
         current.map((p) => (p.name === name ? { ...p, ...updates } : p)),
-      )
+      );
     },
     [current, onChange],
-  )
+  );
 
   const handleToggle = useCallback(
     (name: string, enabled: boolean) => {
-      const idx = PHASE_ORDER.indexOf(name)
+      const idx = PHASE_ORDER.indexOf(name);
       if (enabled) {
         // Auto-enable upstream phases
         onChange(
           current.map((p) => {
-            const pIdx = PHASE_ORDER.indexOf(p.name)
-            return pIdx <= idx && pIdx >= 0
-              ? { ...p, enabled: true }
-              : p
+            const pIdx = PHASE_ORDER.indexOf(p.name);
+            return pIdx <= idx && pIdx >= 0 ? { ...p, enabled: true } : p;
           }),
-        )
+        );
       } else {
         if (idx < PHASE_ORDER.length - 1) {
           toast.warning(
             `Downstream phases may scan the entire CIDR without ${PHASE_META[name]?.label ?? name}`,
-          )
+          );
         }
         onChange(
           current.map((p) => (p.name === name ? { ...p, enabled: false } : p)),
-        )
+        );
       }
     },
     [current, onChange],
-  )
+  );
 
-  const enabledCount = current.filter((p) => p.enabled).length
+  const enabledCount = current.filter((p) => p.enabled).length;
 
   return (
     <div className="space-y-2">
@@ -114,8 +118,8 @@ export function PhaseCards({ phases, onChange }: PhaseCardsProps) {
       </div>
       <div className="space-y-2">
         {current.map((phase) => {
-          const meta = PHASE_META[phase.name]
-          if (!meta) return null
+          const meta = PHASE_META[phase.name];
+          if (!meta) return null;
           return (
             <PhaseCard
               key={phase.name}
@@ -124,30 +128,34 @@ export function PhaseCards({ phases, onChange }: PhaseCardsProps) {
               onToggle={(e) => handleToggle(phase.name, e)}
               onUpdate={(u) => updatePhase(phase.name, u)}
             />
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
 
 interface PhaseCardProps {
-  phase: ScanPhase
-  meta: { label: string; description: string; tools: { value: string; label: string }[] }
-  onToggle: (enabled: boolean) => void
-  onUpdate: (updates: Partial<ScanPhase>) => void
+  phase: ScanPhase;
+  meta: {
+    label: string;
+    description: string;
+    tools: { value: string; label: string }[];
+  };
+  onToggle: (enabled: boolean) => void;
+  onUpdate: (updates: Partial<ScanPhase>) => void;
 }
 
 function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
-  const [expanded, setExpanded] = useState(false)
-  const config = phase.config
+  const [expanded, setExpanded] = useState(false);
+  const config = phase.config;
 
   return (
     <div
       className={`rounded-lg border px-3 py-2.5 transition-colors ${
         phase.enabled
-          ? 'border-primary/40 bg-primary/5'
-          : 'border-muted bg-muted/30 opacity-60'
+          ? "border-primary/40 bg-primary/5"
+          : "border-muted bg-muted/30 opacity-60"
       }`}
     >
       <div className="flex items-center gap-2.5">
@@ -167,7 +175,11 @@ function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
             onClick={() => setExpanded(!expanded)}
             className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5"
           >
-            {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            {expanded ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
           </button>
         )}
       </div>
@@ -178,27 +190,31 @@ function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
           {meta.tools.length > 1 && (
             <div className="flex items-center gap-2">
               <Label className="text-[10px] w-10">Tool</Label>
-              <select
+              <Select
                 value={phase.tool}
                 onChange={(e) => onUpdate({ tool: e.target.value })}
-                className="flex-1 rounded border bg-background px-2 py-1 text-xs"
+                className="flex-1"
               >
                 {meta.tools.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
                 ))}
-              </select>
+              </Select>
             </div>
           )}
 
           {/* Port Scan specific */}
-          {phase.name === 'port_scan' && (
+          {phase.name === "port_scan" && (
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-[10px]">Port Range Override</Label>
                 <Input
-                  value={(config.port_range as string) || ''}
+                  value={(config.port_range as string) || ""}
                   onChange={(e) =>
-                    onUpdate({ config: { ...config, port_range: e.target.value } })
+                    onUpdate({
+                      config: { ...config, port_range: e.target.value },
+                    })
                   }
                   placeholder="Use network default"
                   className="h-6 text-xs"
@@ -207,9 +223,11 @@ function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
               <div>
                 <Label className="text-[10px]">Exclude Ports</Label>
                 <Input
-                  value={(config.exclude_ports as string) || ''}
+                  value={(config.exclude_ports as string) || ""}
                   onChange={(e) =>
-                    onUpdate({ config: { ...config, exclude_ports: e.target.value } })
+                    onUpdate({
+                      config: { ...config, exclude_ports: e.target.value },
+                    })
                   }
                   placeholder="22,3389"
                   className="h-6 text-xs"
@@ -219,7 +237,7 @@ function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
           )}
 
           {/* Vulnerability specific */}
-          {phase.name === 'vulnerability' && (
+          {phase.name === "vulnerability" && (
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={(config.parallel as boolean) ?? true}
@@ -251,7 +269,10 @@ function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
                 value={(config.max_retries as number) ?? 3}
                 onChange={(e) =>
                   onUpdate({
-                    config: { ...config, max_retries: parseInt(e.target.value) || 0 },
+                    config: {
+                      ...config,
+                      max_retries: parseInt(e.target.value) || 0,
+                    },
                   })
                 }
                 className="h-6 w-14 text-xs"
@@ -261,5 +282,5 @@ function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
         </div>
       )}
     </div>
-  )
+  );
 }

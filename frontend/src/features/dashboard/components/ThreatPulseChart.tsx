@@ -31,7 +31,7 @@ export function ThreatPulseChart({ data }: ThreatPulseChartProps) {
         <CardTitle className="text-sm">Threat Pulse (30d)</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
+        <div className="h-64" role="img" aria-label="Alert trend chart showing new alerts and resolved alerts over the past 30 days">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={formatted}>
               <defs>

@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
@@ -184,7 +185,7 @@ function AlertDetailPage() {
                   Severity Override
                 </dt>
                 <dd className="mt-0.5">
-                  <select
+                  <Select
                     value={alert.severity_override ?? ""}
                     onChange={(e) => {
                       const val = e.target.value || null;
@@ -210,14 +211,13 @@ function AlertDetailPage() {
                       );
                     }}
                     disabled={overrideSeverity.isPending}
-                    className="rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
                   >
                     <option value="">Auto (computed)</option>
                     <option value="critical">Critical</option>
                     <option value="high">High</option>
                     <option value="medium">Medium</option>
                     <option value="info">Info</option>
-                  </select>
+                  </Select>
                 </dd>
               </div>
               {alert.dismiss_reason && (
