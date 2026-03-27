@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"selectinload\\\\|joinedload\" /Users/bonis/work/src/open-port-monitor/backend/src/app/services/*.py)"
+    ]
+  }
+}
