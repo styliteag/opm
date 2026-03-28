@@ -2,6 +2,7 @@
 
 from app.models.alert import Alert
 from app.models.alert_comment import AlertComment
+from app.models.alert_event import AlertEvent, AlertEventType
 from app.models.alert_rule import AlertRule
 from app.models.base import Base
 from app.models.global_open_port import GlobalOpenPort
@@ -33,6 +34,8 @@ __all__ = [
     "OpenPort",
     "Alert",
     "AlertComment",
+    "AlertEvent",
+    "AlertEventType",
     "AlertRule",
     "GlobalOpenPort",
     "GlobalPortRule",
