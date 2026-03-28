@@ -132,9 +132,10 @@ async def dismiss_alerts(db: AsyncSession, alerts: list[Alert]) -> list[Alert]:
 
 
 async def reopen_alert(db: AsyncSession, alert: Alert) -> Alert:
-    """Reopen a dismissed alert."""
+    """Reopen a dismissed alert, resetting resolution status to OPEN."""
     alert.dismissed = False
     alert.dismiss_reason = None
+    alert.resolution_status = ResolutionStatus.OPEN
     await db.flush()
     await db.refresh(alert)
     return alert

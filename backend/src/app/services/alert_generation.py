@@ -6,11 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.services.global_settings as global_settings_service
-from app.models.alert import Alert, AlertType
+from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert_event import AlertEventType
 from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.port_rule import PortRule, RuleType
 from app.models.scan import Scan, ScanStatus
+from app.services.alert_events import emit_event
 from app.services.alert_rules import is_port_accepted
 from app.services.email_alerts import queue_alert_emails, queue_global_alert_emails
 from app.services.global_open_ports import upsert_global_open_port
@@ -252,9 +254,63 @@ async def generate_alerts_for_scan(
                 created_count += 1
 
     if created_alerts:
+        await db.flush()
+        for alert in created_alerts:
+            await emit_event(
+                db,
+                alert_id=alert.id,
+                event_type=AlertEventType.CREATED,
+                scan_id=scan.id,
+                description=alert.message,
+            )
         await queue_alert_emails(created_alerts, network_name, alert_config, scan.id)
 
-    return created_count
+    # Recurrence detection: reopen resolved alerts when ports reappear
+    reopened_count = await _reopen_resolved_alerts(db, scan, current_ports)
+
+    return created_count + reopened_count
+
+
+async def _reopen_resolved_alerts(
+    db: AsyncSession,
+    scan: Scan,
+    current_ports: set[PortKey],
+) -> int:
+    """Reopen resolved alerts when the same port reappears in a scan.
+
+    Skips accepted ports and alerts with port=None.
+    Returns the number of alerts reopened.
+    """
+    result = await db.execute(
+        select(Alert).where(
+            Alert.network_id == scan.network_id,
+            Alert.resolution_status == ResolutionStatus.RESOLVED,
+        )
+    )
+    resolved_alerts = list(result.scalars().all())
+
+    reopened_count = 0
+    for alert in resolved_alerts:
+        if alert.port is None:
+            continue
+        if (alert.ip, alert.port) not in current_ports:
+            continue
+        if await is_port_accepted(db, alert.ip, alert.port):
+            continue
+
+        alert.dismissed = False
+        alert.resolution_status = ResolutionStatus.OPEN
+        alert.dismiss_reason = None
+        await emit_event(
+            db,
+            alert_id=alert.id,
+            event_type=AlertEventType.RECURRENCE,
+            scan_id=scan.id,
+            description=f"Port {alert.ip}:{alert.port} reappeared in scan #{scan.id}",
+        )
+        reopened_count += 1
+
+    return reopened_count
 
 
 async def _get_pending_global_alerts(
@@ -396,6 +452,19 @@ async def generate_global_alerts_for_scan(
         created_count += 1
 
     if created_alerts:
+        await db.flush()
+        for alert in created_alerts:
+            await emit_event(
+                db,
+                alert_id=alert.id,
+                event_type=AlertEventType.CREATED,
+                scan_id=scan.id,
+                description=alert.message,
+            )
         await queue_global_alert_emails(created_alerts, network_name, alert_config, scan.id)
 
-    return created_count
+    # Recurrence detection for global alerts
+    global_ports: set[PortKey] = {(ip, port) for ip, port, *_ in open_ports_data}
+    reopened_count = await _reopen_resolved_alerts(db, scan, global_ports)
+
+    return created_count + reopened_count

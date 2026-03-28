@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Recurrence detection: resolved alerts automatically reopen when the same port reappears in a scan
+- CREATED events emitted for every new alert during scan alert generation
+
+### Changed
+
+- `reopen_alert()` now resets `resolution_status` to OPEN in addition to clearing dismissed state
+
+### Added
+
 - Create shared `Select` UI component (`components/ui/select.tsx`) with consistent styling matching Input component patterns (CVA, `data-slot`, focus-visible rings, dark mode, disabled/invalid states)
 - Add skip-to-main-content link in AppShell for keyboard navigation
 - Add `aria-label` attributes to AlertsTable checkboxes, sort buttons, and action menus
