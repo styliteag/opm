@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Body, HTTPException, status
 
 from app.core.deps import AnalystUser, CurrentUser, DbSession
+from app.models.alert_event import AlertEventType
 from app.models.user import UserRole
 from app.schemas.alert_comment import (
     AlertCommentCreate,
@@ -11,6 +12,7 @@ from app.schemas.alert_comment import (
     AlertCommentUpdate,
 )
 from app.services import alert_comments as alert_comments_service
+from app.services.alert_events import emit_event
 
 router = APIRouter()
 
@@ -36,6 +38,13 @@ async def create_comment(
 
     comment = await alert_comments_service.create_comment(
         db=db, alert_id=alert_id, user_id=user.id, comment=body.comment
+    )
+    await emit_event(
+        db,
+        alert_id=alert_id,
+        event_type=AlertEventType.COMMENTED,
+        user_id=user.id,
+        description=body.comment,
     )
     await db.commit()
     await db.refresh(comment)

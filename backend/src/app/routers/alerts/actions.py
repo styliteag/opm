@@ -8,6 +8,7 @@ from sqlalchemy import update as sa_update
 
 from app.core.deps import AnalystUser, DbSession, OperatorUser
 from app.models.alert import Alert, AlertType
+from app.models.alert_event import AlertEventType
 from app.models.alert_rule import RuleType as AlertRuleType
 from app.schemas.alert import (
     AlertBulkAcceptRequest,
@@ -26,6 +27,7 @@ from app.services import alert_rules as alert_rules_service
 from app.services import alerts as alerts_service
 from app.services import networks as networks_service
 from app.services import ssh_results as ssh_service
+from app.services.alert_events import emit_event
 from app.services.alerts import (
     DEFAULT_SSH_VERSION_THRESHOLD,
     _extract_weak_algorithms,
@@ -183,7 +185,22 @@ async def dismiss_alert(
                 )
                 ssh_alert_count = len(ssh_alert_ids)
                 ssh_all_acked = True
+                for ssh_id in ssh_alert_ids:
+                    await emit_event(
+                        db,
+                        alert_id=ssh_id,
+                        event_type=AlertEventType.DISMISSED,
+                        user_id=admin.id,
+                        description=reason,
+                    )
 
+    await emit_event(
+        db,
+        alert_id=alert.id,
+        event_type=AlertEventType.DISMISSED,
+        user_id=admin.id,
+        description=reason,
+    )
     await db.commit()
 
     severity = await compute_alert_severity(
@@ -246,6 +263,15 @@ async def dismiss_alerts_bulk(
             )
             await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
 
+    for alert in alerts:
+        await emit_event(
+            db,
+            alert_id=alert.id,
+            event_type=AlertEventType.DISMISSED,
+            user_id=admin.id,
+            description=reason,
+        )
+
     await db.commit()
 
     dismissed_ids = sorted(alert.id for alert in alerts)
@@ -299,6 +325,12 @@ async def reopen_alert(
 
     alert, network_name = alert_with_network
     alert = await alerts_service.reopen_alert(db, alert)
+    await emit_event(
+        db,
+        alert_id=alert.id,
+        event_type=AlertEventType.REOPENED,
+        user_id=admin.id,
+    )
     await db.commit()
 
     severity = await compute_alert_severity(
@@ -350,6 +382,12 @@ async def bulk_reopen_alerts(
             missing_ids.append(alert_id)
             continue
         await alerts_service.reopen_alert(db, alert)
+        await emit_event(
+            db,
+            alert_id=alert_id,
+            event_type=AlertEventType.REOPENED,
+            user_id=admin.id,
+        )
         reopened_ids.append(alert_id)
 
     await db.commit()
@@ -431,6 +469,14 @@ async def bulk_accept_global(
             db, alert_id=alert.id, user_id=admin.id, comment=reason
         )
         await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
+    for alert in alerts:
+        await emit_event(
+            db,
+            alert_id=alert.id,
+            event_type=AlertEventType.DISMISSED,
+            user_id=admin.id,
+            description=reason,
+        )
     await db.commit()
 
     dismissed_ids = sorted(alert.id for alert in alerts)
@@ -535,6 +581,14 @@ async def bulk_accept_network(
             db, alert_id=alert.id, user_id=admin.id, comment=reason
         )
         await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
+    for alert in alerts:
+        await emit_event(
+            db,
+            alert_id=alert.id,
+            event_type=AlertEventType.DISMISSED,
+            user_id=admin.id,
+            description=reason,
+        )
     await db.commit()
 
     dismissed_ids = sorted(alert.id for alert in alerts)

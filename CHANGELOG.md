@@ -11,10 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Recurrence detection: resolved alerts automatically reopen when the same port reappears in a scan
 - CREATED events emitted for every new alert during scan alert generation
+- Event emission on all alert state changes: dismiss, reopen, assign, status change, severity override, comment, and auto-dismiss from rules
 
 ### Changed
 
 - `reopen_alert()` now resets `resolution_status` to OPEN in addition to clearing dismissed state
+- Auto-dismiss functions refactored from bulk UPDATE to load-then-iterate for per-alert event emission
 
 ### Added
 

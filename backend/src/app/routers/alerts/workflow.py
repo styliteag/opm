@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Body, HTTPException, status
 
 from app.core.deps import AnalystUser, DbSession
+from app.models.alert_event import AlertEventType
 from app.schemas.alert import (
     AlertAssignRequest,
     AlertResponse,
@@ -11,6 +12,7 @@ from app.schemas.alert import (
 )
 from app.services import alerts as alerts_service
 from app.services import users as users_service
+from app.services.alert_events import emit_event
 
 from .detail import _severity_override_value, compute_alert_severity
 
@@ -48,6 +50,13 @@ async def assign_alert(
 
     # Update the alert assignment
     alert.assigned_to_user_id = request.user_id
+    await emit_event(
+        db,
+        alert_id=alert.id,
+        event_type=AlertEventType.ASSIGNED,
+        user_id=user.id,
+        metadata={"assigned_to_user_id": request.user_id},
+    )
     await db.commit()
     await db.refresh(alert)
 
@@ -95,8 +104,17 @@ async def update_alert_status(
     alert, network_name = alert_with_network
 
     # Validate status is a valid enum value (Pydantic already does this via the schema)
+    # Capture old status before mutation
+    old_status = alert.resolution_status.value
     # Update the resolution status
     alert.resolution_status = request.resolution_status
+    await emit_event(
+        db,
+        alert_id=alert.id,
+        event_type=AlertEventType.STATUS_CHANGED,
+        user_id=user.id,
+        metadata={"old_status": old_status, "new_status": request.resolution_status.value},
+    )
     await db.commit()
     await db.refresh(alert)
 
@@ -148,7 +166,15 @@ async def update_alert_severity(
         )
 
     alert, network_name = alert_with_network
+    old_severity = alert.severity_override
     alert.severity_override = request.severity.value if request.severity is not None else None
+    await emit_event(
+        db,
+        alert_id=alert.id,
+        event_type=AlertEventType.SEVERITY_OVERRIDDEN,
+        user_id=user.id,
+        metadata={"old_severity": old_severity, "new_severity": alert.severity_override},
+    )
     await db.commit()
     await db.refresh(alert)
 

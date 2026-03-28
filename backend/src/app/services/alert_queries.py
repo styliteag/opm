@@ -3,11 +3,13 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Integer, and_, case, func, literal, select, update
+from sqlalchemy import Integer, and_, case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert_event import AlertEventType
 from app.models.network import Network
+from app.services.alert_events import emit_event
 from app.services.global_open_ports import get_global_open_port, get_global_open_port_by_id
 from app.services.hosts import get_host_by_ip
 
@@ -206,16 +208,20 @@ async def auto_dismiss_alerts_for_accepted_rule(
     if network_id is not None:
         conditions.append(Alert.network_id == network_id)
 
-    stmt = (
-        update(Alert)
-        .where(and_(*conditions))
-        .values(
-            dismissed=True,
-            dismiss_reason=reason,
+    result = await db.execute(select(Alert).where(and_(*conditions)))
+    alerts = list(result.scalars().all())
+
+    for alert in alerts:
+        alert.dismissed = True
+        alert.dismiss_reason = reason
+        await emit_event(
+            db,
+            alert_id=alert.id,
+            event_type=AlertEventType.DISMISSED,
+            description=reason,
         )
-    )
-    result = await db.execute(stmt)
-    return result.rowcount or 0  # type: ignore[attr-defined]
+
+    return len(alerts)
 
 
 async def auto_dismiss_alerts_for_ssh_rule(
@@ -248,16 +254,20 @@ async def auto_dismiss_alerts_for_ssh_rule(
     if network_id is not None:
         conditions.append(Alert.network_id == network_id)
 
-    stmt = (
-        update(Alert)
-        .where(and_(*conditions))
-        .values(
-            dismissed=True,
-            dismiss_reason=reason,
+    result = await db.execute(select(Alert).where(and_(*conditions)))
+    alerts = list(result.scalars().all())
+
+    for alert in alerts:
+        alert.dismissed = True
+        alert.dismiss_reason = reason
+        await emit_event(
+            db,
+            alert_id=alert.id,
+            event_type=AlertEventType.DISMISSED,
+            description=reason,
         )
-    )
-    result = await db.execute(stmt)
-    return result.rowcount or 0  # type: ignore[attr-defined]
+
+    return len(alerts)
 
 
 async def auto_dismiss_alerts_for_nse_rule(
@@ -296,16 +306,20 @@ async def auto_dismiss_alerts_for_nse_rule(
     if script_name is not None:
         conditions.append(Alert.message.contains(script_name))
 
-    stmt = (
-        update(Alert)
-        .where(and_(*conditions))
-        .values(
-            dismissed=True,
-            dismiss_reason=reason,
+    result = await db.execute(select(Alert).where(and_(*conditions)))
+    alerts = list(result.scalars().all())
+
+    for alert in alerts:
+        alert.dismissed = True
+        alert.dismiss_reason = reason
+        await emit_event(
+            db,
+            alert_id=alert.id,
+            event_type=AlertEventType.DISMISSED,
+            description=reason,
         )
-    )
-    result = await db.execute(stmt)
-    return result.rowcount or 0  # type: ignore[attr-defined]
+
+    return len(alerts)
 
 
 async def get_ssh_alert_summary_for_ips(
