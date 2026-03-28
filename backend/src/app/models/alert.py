@@ -12,6 +12,7 @@ from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.alert_comment import AlertComment
+    from app.models.alert_event import AlertEvent
     from app.models.global_open_port import GlobalOpenPort
     from app.models.network import Network
     from app.models.scan import Scan
@@ -74,9 +75,7 @@ class Alert(Base):
         nullable=False,
         default=ResolutionStatus.OPEN,
     )
-    severity_override: Mapped[str | None] = mapped_column(
-        String(20), nullable=True, default=None
-    )
+    severity_override: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
@@ -89,3 +88,6 @@ class Alert(Base):
         "AlertComment", back_populates="alert", cascade="all, delete-orphan"
     )
     assigned_to: Mapped["User | None"] = relationship("User", back_populates="assigned_alerts")
+    events: Mapped[list["AlertEvent"]] = relationship(
+        "AlertEvent", back_populates="alert", cascade="all, delete-orphan"
+    )

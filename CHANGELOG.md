@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Alert event log: append-only `alert_events` table with Alembic migration, `AlertEvent` model, `emit_event()` service, and Pydantic schema
+
 ## [1.8.1] - 2026-03-25
 
 ## [1.8.0] - 2026-03-25
