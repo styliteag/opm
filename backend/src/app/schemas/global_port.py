@@ -29,3 +29,9 @@ class GlobalOpenPortListResponse(BaseModel):
     """Response schema for list of global open ports."""
 
     ports: list[GlobalOpenPortResponse]
+
+
+class PortCommentUpdateRequest(BaseModel):
+    """Request schema for updating a port comment."""
+
+    user_comment: str | None = None

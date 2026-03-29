@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `GET /api/alerts/{id}/timeline` endpoint with scan-anchored grouping and port_seen tracking
+- `PATCH /api/global-ports/{id}/comment` endpoint for updating port comments (EDIT-01)
 - Recurrence detection: resolved alerts automatically reopen when the same port reappears in a scan
 - CREATED events emitted for every new alert during scan alert generation
 - Event emission on all alert state changes: dismiss, reopen, assign, status change, severity override, comment, and auto-dismiss from rules

@@ -176,6 +176,20 @@ async def get_global_open_port_by_id(db: AsyncSession, port_id: int) -> GlobalOp
     return result.scalar_one_or_none()
 
 
+async def update_port_comment(
+    db: AsyncSession, port_id: int, user_comment: str | None
+) -> GlobalOpenPort | None:
+    """Update the user_comment on a GlobalOpenPort. Returns None if not found."""
+    result = await db.execute(select(GlobalOpenPort).where(GlobalOpenPort.id == port_id))
+    port = result.scalar_one_or_none()
+    if port is None:
+        return None
+    port.user_comment = user_comment
+    await db.flush()
+    await db.refresh(port)
+    return port
+
+
 async def get_latest_scan_times_by_network(
     db: AsyncSession,
 ) -> dict[int, datetime]:

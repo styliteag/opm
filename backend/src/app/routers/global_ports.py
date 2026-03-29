@@ -5,7 +5,11 @@ from ipaddress import ip_address, ip_network
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import CurrentUser, DbSession
-from app.schemas.global_port import GlobalOpenPortListResponse, GlobalOpenPortResponse
+from app.schemas.global_port import (
+    GlobalOpenPortListResponse,
+    GlobalOpenPortResponse,
+    PortCommentUpdateRequest,
+)
 from app.services import global_open_ports as global_ports_service
 
 router = APIRouter(prefix="/api/global-ports", tags=["global-ports"])
@@ -126,4 +130,22 @@ async def get_global_open_port(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Global open port not found",
         )
+    return GlobalOpenPortResponse.model_validate(port)
+
+
+@router.patch("/{port_id}/comment", response_model=GlobalOpenPortResponse)
+async def update_port_comment(
+    user: CurrentUser,
+    db: DbSession,
+    port_id: int,
+    body: PortCommentUpdateRequest,
+) -> GlobalOpenPortResponse:
+    """Update the user_comment on a global open port (per EDIT-01)."""
+    port = await global_ports_service.update_port_comment(db, port_id, body.user_comment)
+    if port is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Global open port not found",
+        )
+    await db.commit()
     return GlobalOpenPortResponse.model_validate(port)
