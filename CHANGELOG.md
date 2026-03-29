@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-03-29
+
 ### Security
 
 - Fix 5 npm dependency vulnerabilities (path-to-regexp, picomatch, brace-expansion) via overrides and dependency updates
