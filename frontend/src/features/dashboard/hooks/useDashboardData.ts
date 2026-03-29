@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchApi } from "@/lib/api";
@@ -69,10 +70,14 @@ export function useLatestScans() {
 }
 
 export function useAlertTrend() {
-  const end = new Date().toISOString().slice(0, 10);
-  const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const [start, end] = useMemo(() => {
+    const now = new Date();
+    const e = now.toISOString().slice(0, 10);
+    const s = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    return [s, e];
+  }, []);
 
   return useQuery({
     queryKey: ["trends", "alerts", start, end],

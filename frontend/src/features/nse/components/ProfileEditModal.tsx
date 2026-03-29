@@ -105,7 +105,8 @@ export function ProfileEditModal({
   const [groupByProto, setGroupByProto] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  // Reset form when modal opens/profile changes
+  // Reset form when modal opens/profile changes — intentional synchronization
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (open) {
       if (profile) {
@@ -113,25 +114,19 @@ export function ProfileEditModal({
         setDescription(profile.description ?? "");
         setSeverity(profile.severity ?? "");
         setSelectedScripts(new Set(profile.nse_scripts));
+        setExpandedGroups(new Set(profile.nse_scripts.map(getProtocol)));
       } else {
         setName("");
         setDescription("");
         setSeverity("");
         setSelectedScripts(new Set());
+        setExpandedGroups(new Set());
       }
       setSearch("");
       setFilterMode("all");
-      setExpandedGroups(new Set());
     }
   }, [open, profile]);
-
-  // Expand groups that have selected scripts when editing
-  useEffect(() => {
-    if (open && profile && profile.nse_scripts.length > 0) {
-      const prefixes = new Set(profile.nse_scripts.map(getProtocol));
-      setExpandedGroups(prefixes);
-    }
-  }, [open, profile]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const allItems = useMemo(
     () => buildScriptItems(scriptsData?.scripts ?? []),

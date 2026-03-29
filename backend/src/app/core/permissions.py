@@ -111,8 +111,16 @@ def get_role_info() -> list[dict[str, Any]]:
 
 
 _ROLE_DESCRIPTIONS: dict[UserRole, str] = {
-    UserRole.ADMIN: "Full access to all system features including user and organization management.",
-    UserRole.OPERATOR: "Manage networks, scanners, port rules, and NSE profiles. Triage alerts. Cannot manage users or organization settings.",
-    UserRole.ANALYST: "Triage and manage alerts. Read-only access to infrastructure. Cannot modify networks, scanners, or rules.",
+    UserRole.ADMIN: (
+        "Full access to all system features including user and organization management."
+    ),
+    UserRole.OPERATOR: (
+        "Manage networks, scanners, port rules, and NSE profiles."
+        " Triage alerts. Cannot manage users or organization settings."
+    ),
+    UserRole.ANALYST: (
+        "Triage and manage alerts. Read-only access to infrastructure."
+        " Cannot modify networks, scanners, or rules."
+    ),
     UserRole.VIEWER: "Read-only access to all dashboards, alerts, and scan results.",
 }

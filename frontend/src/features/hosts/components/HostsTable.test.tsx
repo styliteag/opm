@@ -10,7 +10,6 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({
     children,
     to,
-    params,
     ...props
   }: {
     children: React.ReactNode;

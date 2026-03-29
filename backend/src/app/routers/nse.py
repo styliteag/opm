@@ -5,9 +5,6 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import AdminUser, CurrentScanner, CurrentUser, DbSession, OperatorUser
-
-# Path to nmap's built-in NSE scripts
-NSE_SCRIPTS_DIR = Path("/usr/share/nmap/scripts")
 from app.schemas.nse import (
     NseProfileCreate,
     NseProfileListResponse,
@@ -28,6 +25,9 @@ from app.services import nse_results as results_service
 from app.services import nse_scripts as scripts_service
 from app.services import nse_sync as sync_service
 from app.services import nse_templates as profile_service
+
+# Path to nmap's built-in NSE scripts
+NSE_SCRIPTS_DIR = Path("/usr/share/nmap/scripts")
 
 router = APIRouter(prefix="/api/nse", tags=["nse"])
 
@@ -67,9 +67,7 @@ async def get_profile(
     return NseProfileResponse.model_validate(profile)
 
 
-@router.post(
-    "/profiles", response_model=NseProfileResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/profiles", response_model=NseProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_profile(
     _user: OperatorUser,
     db: DbSession,
@@ -186,9 +184,7 @@ async def get_script(
                 detail="Invalid script name",
             )
     except (OSError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid script name"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid script name")
 
     if not script_path.is_file():
         raise HTTPException(
@@ -204,8 +200,8 @@ async def get_script(
             detail="Failed to read script file",
         )
 
-    from datetime import datetime, timezone
     import hashlib
+    from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc)
     return NseScriptResponse(
@@ -255,9 +251,7 @@ async def update_script(
     """Update a custom NSE script. Built-in scripts cannot be edited."""
     script = await scripts_service.get_script_by_name(db, script_name)
     if script is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Script not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Script not found")
 
     try:
         updated = await scripts_service.update_script(db, script, request)
@@ -278,9 +272,7 @@ async def delete_script(
     """Delete a custom NSE script. Auto-removes from referencing profiles."""
     script = await scripts_service.get_script_by_name(db, script_name)
     if script is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Script not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Script not found")
 
     try:
         await scripts_service.delete_script(db, script)
@@ -320,9 +312,7 @@ async def restore_script(
     """Restore a cloned script to the original built-in content."""
     script = await scripts_service.get_script_by_name(db, script_name)
     if script is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Script not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Script not found")
 
     try:
         restored = await scripts_service.restore_to_original(db, script)
@@ -346,9 +336,7 @@ async def download_script(
     """Download a custom script (for scanner agents)."""
     script = await scripts_service.get_script_by_name(db, script_name)
     if script is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Script not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Script not found")
 
     return NseScriptDownloadResponse(
         name=script.name,
@@ -372,9 +360,7 @@ async def trigger_nse_scan(
 
     network = await networks_service.get_network_by_id(db, request.network_id)
     if network is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Network not found"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Network not found")
 
     template_id = request.template_id
     if template_id is None:
@@ -384,9 +370,7 @@ async def trigger_nse_scan(
         )
     profile = await profile_service.get_profile_by_id(db, template_id)
     if profile is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Profile not found"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Profile not found")
 
     scan = Scan(
         network_id=request.network_id,
@@ -454,7 +438,7 @@ async def submit_scanner_nse_results(
     scanner: CurrentScanner,
     db: DbSession,
     submission: NseResultsSubmission,
-) -> dict:
+) -> dict[str, object]:
     """Submit NSE scan results from the scanner agent."""
     results_recorded = await results_service.submit_nse_results(db, scanner, submission)
     await db.commit()

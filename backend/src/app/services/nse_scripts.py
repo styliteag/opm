@@ -77,7 +77,7 @@ async def get_all_scripts(
     if type_filter == "custom":
         pass  # already filtered to DB
     elif type_filter == "builtin":
-        stmt = stmt.where(False)  # skip DB for builtin-only filter
+        stmt = stmt.where(NseScript.id < 0)  # skip DB for builtin-only filter
     result = await db.execute(stmt)
     custom_scripts = list(result.scalars().all())
     custom_names = set()
@@ -151,9 +151,7 @@ async def create_script(db: AsyncSession, data: NseScriptCreate) -> NseScript:
     return script
 
 
-async def update_script(
-    db: AsyncSession, script: NseScript, data: NseScriptUpdate
-) -> NseScript:
+async def update_script(db: AsyncSession, script: NseScript, data: NseScriptUpdate) -> NseScript:
     """Update a custom NSE script.
 
     Validates Lua syntax if content changed.
@@ -202,9 +200,7 @@ async def _remove_script_from_profiles(db: AsyncSession, script_name: str) -> in
     updated_count = 0
     for template in templates:
         if template.nse_scripts and script_name in template.nse_scripts:
-            template.nse_scripts = [
-                s for s in template.nse_scripts if s != script_name
-            ]
+            template.nse_scripts = [s for s in template.nse_scripts if s != script_name]
             updated_count += 1
 
     return updated_count
@@ -260,9 +256,7 @@ async def restore_to_original(db: AsyncSession, script: NseScript) -> NseScript:
 
     script_path = NSE_SCRIPTS_DIR / f"{script.cloned_from}.nse"
     if not script_path.is_file():
-        raise ValueError(
-            f"Original script '{script.cloned_from}' not found on filesystem"
-        )
+        raise ValueError(f"Original script '{script.cloned_from}' not found on filesystem")
 
     content = script_path.read_text(encoding="utf-8", errors="replace")
     script.content = content
@@ -273,9 +267,7 @@ async def restore_to_original(db: AsyncSession, script: NseScript) -> NseScript:
 # ── Distribution ──────────────────────────────────────────────────────────
 
 
-async def get_custom_script_hashes(
-    db: AsyncSession, script_names: list[str]
-) -> dict[str, str]:
+async def get_custom_script_hashes(db: AsyncSession, script_names: list[str]) -> dict[str, str]:
     """Get content hashes for custom scripts in the given name list.
 
     Returns {name: content_hash} for names that exist in the nse_scripts table.
@@ -288,8 +280,6 @@ async def get_custom_script_hashes(
         return {}
 
     result = await db.execute(
-        select(NseScript.name, NseScript.content_hash).where(
-            NseScript.name.in_(custom_names)
-        )
+        select(NseScript.name, NseScript.content_hash).where(NseScript.name.in_(custom_names))
     )
     return {row.name: row.content_hash for row in result.all()}

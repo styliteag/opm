@@ -39,7 +39,7 @@ function NseLibraryPage() {
   const userRole = useAuthStore((s) => s.user?.role);
   const isAdmin = userRole === "admin";
 
-  const scripts = data?.scripts ?? [];
+  const scripts = useMemo(() => data?.scripts ?? [], [data?.scripts]);
 
   const categories = useMemo(() => {
     const cats = new Set<string>();

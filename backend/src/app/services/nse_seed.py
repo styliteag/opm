@@ -7,6 +7,7 @@ The scanner just calls `nmap --script <name>` and nmap finds the script locally.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,11 +18,14 @@ from app.services.nse_all_scripts import ALL_NSE_SCRIPTS
 logger = logging.getLogger(__name__)
 
 # Built-in profiles — ship with the product, read-only
-BUILTIN_PROFILES: list[dict] = [
+BUILTIN_PROFILES: list[dict[str, Any]] = [
     # ── Scan Profiles (tiered bundles) ──────────────────────────────────
     {
         "name": "Quick Scan",
-        "description": "Fast scan with essential vulnerability detection. Best for rapid assessment and initial reconnaissance.",
+        "description": (
+            "Fast scan with essential vulnerability detection."
+            " Best for rapid assessment and initial reconnaissance."
+        ),
         "nse_scripts": [
             "vulners",
             "banner",
@@ -36,7 +40,10 @@ BUILTIN_PROFILES: list[dict] = [
     },
     {
         "name": "High Risk Scan",
-        "description": "Focused scan with critical vulnerability detection scripts. Targets high-impact vulnerabilities and common attack vectors.",
+        "description": (
+            "Focused scan with critical vulnerability detection scripts."
+            " Targets high-impact vulnerabilities and common attack vectors."
+        ),
         "nse_scripts": [
             # * (any protocol) — 6
             "banner",
@@ -73,7 +80,10 @@ BUILTIN_PROFILES: list[dict] = [
     },
     {
         "name": "All Scripts Scan",
-        "description": "Comprehensive scan using all available scripts. This is the most thorough but slowest scan option.",
+        "description": (
+            "Comprehensive scan using all available scripts."
+            " This is the most thorough but slowest scan option."
+        ),
         "nse_scripts": ALL_NSE_SCRIPTS,
         "category": "scan_profiles",
         "platform": "any",
@@ -82,7 +92,10 @@ BUILTIN_PROFILES: list[dict] = [
     # ── SMB ─────────────────────────────────────────────────────────────
     {
         "name": "EternalBlue SMB (MS17-010)",
-        "description": "Detects Microsoft SMB servers vulnerable to MS17-010 (EternalBlue), a critical RCE used by WannaCry ransomware.",
+        "description": (
+            "Detects Microsoft SMB servers vulnerable to MS17-010"
+            " (EternalBlue), a critical RCE used by WannaCry ransomware."
+        ),
         "nse_scripts": ["smb-vuln-ms17-010"],
         "severity": "critical",
         "category": "smb",
@@ -91,7 +104,10 @@ BUILTIN_PROFILES: list[dict] = [
     },
     {
         "name": "Conficker SMB (MS08-067)",
-        "description": "Detects Microsoft SMB servers vulnerable to MS08-067 (Conficker), a critical RCE in the Server service.",
+        "description": (
+            "Detects Microsoft SMB servers vulnerable to MS08-067"
+            " (Conficker), a critical RCE in the Server service."
+        ),
         "nse_scripts": ["smb-vuln-ms08-067"],
         "severity": "critical",
         "category": "smb",
@@ -109,7 +125,9 @@ BUILTIN_PROFILES: list[dict] = [
     },
     {
         "name": "SMB OS Discovery",
-        "description": "Discovers OS, computer name, domain, and workgroup over SMB for asset inventory.",
+        "description": (
+            "Discovers OS, computer name, domain, and workgroup over SMB for asset inventory."
+        ),
         "nse_scripts": ["smb-os-discovery"],
         "severity": "info",
         "category": "smb",
@@ -119,7 +137,10 @@ BUILTIN_PROFILES: list[dict] = [
     # ── Web ─────────────────────────────────────────────────────────────
     {
         "name": "Shellshock (CVE-2014-6271)",
-        "description": "Detects web servers vulnerable to Shellshock, a critical Bash RCE exploitable via CGI scripts.",
+        "description": (
+            "Detects web servers vulnerable to Shellshock,"
+            " a critical Bash RCE exploitable via CGI scripts."
+        ),
         "nse_scripts": ["http-shellshock"],
         "severity": "critical",
         "category": "web",
@@ -128,7 +149,10 @@ BUILTIN_PROFILES: list[dict] = [
     },
     {
         "name": "Apache Struts RCE (CVE-2017-5638)",
-        "description": "Detects Apache Struts servers vulnerable to CVE-2017-5638, a critical RCE in the Jakarta Multipart parser.",
+        "description": (
+            "Detects Apache Struts servers vulnerable to CVE-2017-5638,"
+            " a critical RCE in the Jakarta Multipart parser."
+        ),
         "nse_scripts": ["http-vuln-cve2017-5638"],
         "severity": "critical",
         "category": "web",
@@ -137,7 +161,9 @@ BUILTIN_PROFILES: list[dict] = [
     },
     {
         "name": "HTTP SQL Injection",
-        "description": "Crawls a web application and tests parameters for SQL injection vulnerabilities.",
+        "description": (
+            "Crawls a web application and tests parameters for SQL injection vulnerabilities."
+        ),
         "nse_scripts": ["http-sql-injection"],
         "severity": "critical",
         "category": "web",
@@ -155,7 +181,10 @@ BUILTIN_PROFILES: list[dict] = [
     },
     {
         "name": "HTTP Enumeration",
-        "description": "Enumerates common web directories, admin panels, backup files, and exposed configuration.",
+        "description": (
+            "Enumerates common web directories, admin panels,"
+            " backup files, and exposed configuration."
+        ),
         "nse_scripts": ["http-enum"],
         "severity": "medium",
         "category": "web",
@@ -164,7 +193,10 @@ BUILTIN_PROFILES: list[dict] = [
     },
     {
         "name": "HTTP Security Headers",
-        "description": "Checks for missing HTTP security headers: CSP, X-Frame-Options, HSTS, X-Content-Type-Options.",
+        "description": (
+            "Checks for missing HTTP security headers:"
+            " CSP, X-Frame-Options, HSTS, X-Content-Type-Options."
+        ),
         "nse_scripts": ["http-security-headers", "http-headers"],
         "severity": "medium",
         "category": "web",
@@ -174,7 +206,10 @@ BUILTIN_PROFILES: list[dict] = [
     # ── SSL/TLS ─────────────────────────────────────────────────────────
     {
         "name": "Heartbleed (CVE-2014-0160)",
-        "description": "Detects OpenSSL servers vulnerable to Heartbleed, which allows reading memory contents including private keys.",
+        "description": (
+            "Detects OpenSSL servers vulnerable to Heartbleed,"
+            " which allows reading memory contents including private keys."
+        ),
         "nse_scripts": ["ssl-heartbleed"],
         "severity": "critical",
         "category": "ssl",
@@ -184,7 +219,10 @@ BUILTIN_PROFILES: list[dict] = [
     # ── Credentials ─────────────────────────────────────────────────────
     {
         "name": "Default Credentials Check",
-        "description": "Tests common services for default or factory credentials including FTP anonymous access and SNMP community strings.",
+        "description": (
+            "Tests common services for default or factory credentials"
+            " including FTP anonymous access and SNMP community strings."
+        ),
         "nse_scripts": ["ftp-anon", "http-default-accounts", "snmp-brute"],
         "severity": "critical",
         "category": "credentials",
@@ -212,7 +250,10 @@ BUILTIN_PROFILES: list[dict] = [
     },
     {
         "name": "SSH Algorithms Audit",
-        "description": "Enumerates SSH ciphers, KEX, MACs, and host key types for identifying weak cryptographic configurations.",
+        "description": (
+            "Enumerates SSH ciphers, KEX, MACs, and host key types"
+            " for identifying weak cryptographic configurations."
+        ),
         "nse_scripts": ["ssh2-enum-algos", "ssh-hostkey", "ssh-auth-methods"],
         "severity": "medium",
         "category": "network",
@@ -222,7 +263,10 @@ BUILTIN_PROFILES: list[dict] = [
     # ── Reconnaissance ──────────────────────────────────────────────────
     {
         "name": "Vulners CVE Lookup",
-        "description": "Queries the Vulners CVE database to find known vulnerabilities for detected service versions.",
+        "description": (
+            "Queries the Vulners CVE database to find known"
+            " vulnerabilities for detected service versions."
+        ),
         "nse_scripts": ["vulners"],
         "severity": "high",
         "category": "reconnaissance",

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.models.base import Base
-from app.models.nse_template import NseTemplateSeverity, NseTemplateType
+from app.models.nse_template import NseTemplateType
 
 
 class NseScript(Base):

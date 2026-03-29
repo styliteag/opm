@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix 5 npm dependency vulnerabilities (path-to-regexp, picomatch, brace-expansion) via overrides and dependency updates
 
+### Changed
+
+- Fix all backend lint errors (ruff E501, E402, F401, I001) and frontend lint errors (unused vars, impure render calls, react-refresh exports, React Compiler warnings)
+
 ### Fixed
 
 - EnrichedHostPort schema now includes `id` field so port comment inline editing can PATCH by port ID
