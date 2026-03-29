@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recurrence detection: resolved alerts automatically reopen when the same port reappears in a scan
 - CREATED events emitted for every new alert during scan alert generation
 - Event emission on all alert state changes: dismiss, reopen, assign, status change, severity override, comment, and auto-dismiss from rules
+- Host timeline now includes alert lifecycle events (dismissed, reopened, assigned, etc.)
+- Frontend typed API client functions for alert timeline, host timeline, and port comment endpoints
 
 ### Changed
 
