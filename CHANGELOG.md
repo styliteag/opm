@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- InlineTextCell reusable click-to-edit component for table cells with keyboard and accessibility support
+- ScanPresenceChart dot chart component showing port presence across scans with color-coded dots and legend
+- Timeline types (TimelineEvent, ScanGroup, AlertTimelineResponse, HostTimelineEvent, HostTimelineResponse) in frontend types
+- API client helpers for alert timeline, host timeline, and port comment endpoints
+
 ## [1.8.1] - 2026-03-25
 
 ## [1.8.0] - 2026-03-25
