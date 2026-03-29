@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- EnrichedHostPort schema now includes `id` field so port comment inline editing can PATCH by port ID
+- Alert detail page fetches single alert by ID instead of scanning full list (works for any alert, not just first 200)
+- HostActivityFeed displays MessageSquare icon for `alert_action` events instead of falling back to default
+
 ### Added
 
 - `GET /api/alerts/{id}/timeline` endpoint with scan-anchored grouping and port_seen tracking

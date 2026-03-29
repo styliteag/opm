@@ -70,6 +70,7 @@ class PortRuleMatch(BaseModel):
 class EnrichedHostPort(BaseModel):
     """Open port with alert, rule, and SSH context for the host overview."""
 
+    id: int
     ip: str
     port: int
     protocol: str

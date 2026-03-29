@@ -424,6 +424,7 @@ async def get_host_overview(
 
         enriched_ports.append(
             EnrichedHostPort(
+                id=p.id,
                 ip=p.ip,
                 port=p.port,
                 protocol=p.protocol,
