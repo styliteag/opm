@@ -50,7 +50,6 @@ npm run test         # vitest run
 
 Module-specific CLAUDE.md files can be added in `backend/`, `frontend/`, or `scanner/` for component-specific guidance. They load automatically when working in those directories.
 
-<!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
 **Alert-to-Resolution Workflow**
@@ -65,9 +64,7 @@ Optimizing the daily operations workflow in Onyx Port Monitor — from receiving
 - **Performance**: Timeline queries must not degrade alert list performance — likely needs dedicated endpoint
 - **Backward compatible**: Existing alert workflows (dismiss, accept, bulk ops) must continue working unchanged
 - **Migration**: Schema changes need Alembic migrations (auto-applied on startup)
-<!-- GSD:project-end -->
 
-<!-- GSD:stack-start source:codebase/STACK.md -->
 ## Technology Stack
 
 ## Languages
@@ -174,9 +171,7 @@ Optimizing the daily operations workflow in Onyx Port Monitor — from receiving
 - GitHub Actions CI/CD (tag-triggered Docker builds)
 - Docker Hub and GitHub Container Registry (image hosting)
 - NSE script sync from upstream nmap GitHub repository (automated during release)
-<!-- GSD:stack-end -->
 
-<!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
 ## Naming Patterns
@@ -344,9 +339,7 @@ Optimizing the daily operations workflow in Onyx Port Monitor — from receiving
 - Mutation hooks for modifying: `useMutation()`
 - Query client configured in `src/lib/query-client.ts`
 - Default options: `retry: false`, `gcTime: 0` for tests
-<!-- GSD:conventions-end -->
 
-<!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
 ## Pattern Overview
@@ -534,24 +527,3 @@ Optimizing the daily operations workflow in Onyx Port Monitor — from receiving
 - Frontend: Routes check `current_user.role` to show/hide features
 - Backend: In-memory sliding window rate limiter (configurable per endpoint)
 - Uses `threading.Lock` for thread safety
-<!-- GSD:architecture-end -->
-
-<!-- GSD:workflow-start source:GSD defaults -->
-## GSD Workflow Enforcement
-
-Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
-
-Use these entry points:
-- `/gsd:quick` for small fixes, doc updates, and ad-hoc tasks
-- `/gsd:debug` for investigation and bug fixing
-- `/gsd:execute-phase` for planned phase work
-
-Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
-<!-- GSD:workflow-end -->
-
-<!-- GSD:profile-start -->
-## Developer Profile
-
-> Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
-> This section is managed by `generate-claude-profile` -- do not edit manually.
-<!-- GSD:profile-end -->
