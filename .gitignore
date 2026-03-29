@@ -27,9 +27,16 @@ data/
 prod-app.env
 prod-mysql.env
 
-# IDE
-#.claude/
+# IDE / AI tooling
 .claude/settings.json
+.claude/agents/gsd-*
+.claude/commands/gsd/
+.claude/get-shit-done/
+.claude/gsd-file-manifest.json
+.claude/hooks/gsd-*
+.claude/package.json
+.claude/worktrees/
+.planning/
 .vscode/
 .cursor/
 .ralph/
