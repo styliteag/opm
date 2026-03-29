@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Fix 5 npm dependency vulnerabilities (path-to-regexp, picomatch, brace-expansion) via overrides and dependency updates
+
 ### Fixed
 
 - EnrichedHostPort schema now includes `id` field so port comment inline editing can PATCH by port ID
