@@ -1,5 +1,9 @@
 import { fetchApi, patchApi } from "@/lib/api";
-import type { AlertTimelineResponse, HostTimelineResponse } from "@/lib/types";
+import type {
+  Alert,
+  AlertTimelineResponse,
+  HostTimelineResponse,
+} from "@/lib/types";
 
 export interface PortCommentUpdateRequest {
   user_comment: string | null;
@@ -16,6 +20,10 @@ export interface GlobalOpenPort {
   first_seen_at: string;
   last_seen_at: string;
   is_stale: boolean;
+}
+
+export function fetchAlert(alertId: number): Promise<Alert> {
+  return fetchApi<Alert>(`/api/alerts/${alertId}`);
 }
 
 export function fetchAlertTimeline(

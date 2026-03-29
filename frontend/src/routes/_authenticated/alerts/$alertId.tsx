@@ -27,11 +27,10 @@ import { CommentInput } from "@/features/alerts/components/CommentInput";
 import { ScanPresenceChart } from "@/features/alerts/components/ScanPresenceChart";
 import { AlertActivityFeed } from "@/features/alerts/components/AlertActivityFeed";
 import {
-  useAlerts,
   useAlertComments,
   useAlertMutations,
 } from "@/features/alerts/hooks/useAlerts";
-import { fetchAlertTimeline } from "@/lib/api-client-helpers";
+import { fetchAlert, fetchAlertTimeline } from "@/lib/api-client-helpers";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/alerts/$alertId")({
@@ -47,15 +46,17 @@ function AlertDetailPage() {
   const comments = useAlertComments(id);
   const { reopen, overrideSeverity } = useAlertMutations();
 
-  // Fetch the single alert by querying and finding it
-  // (the backend GET /api/alerts/:id returns the full alert)
-  const alertQuery = useAlerts({ limit: 200 });
-  const alert = alertQuery.data?.alerts.find((a) => a.id === id);
+  // Fetch the single alert directly by ID
+  const alertQuery = useQuery({
+    queryKey: ["alerts", id],
+    queryFn: () => fetchAlert(id),
+  });
+  const alert = alertQuery.data;
 
   const timelineQuery = useQuery({
     queryKey: ["alerts", id, "timeline"],
     queryFn: () => fetchAlertTimeline(id),
-    enabled: !!alert,
+    enabled: !alertQuery.isLoading,
   });
 
   if (alertQuery.isLoading) return <LoadingState rows={6} />;
