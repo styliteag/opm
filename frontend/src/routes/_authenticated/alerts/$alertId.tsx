@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CheckCircle,
@@ -23,11 +24,14 @@ import { DismissModal } from "@/features/alerts/components/DismissModal";
 import { AcceptModal } from "@/features/alerts/components/AcceptModal";
 import { AssignAlertDropdown } from "@/features/alerts/components/AssignAlertDropdown";
 import { CommentInput } from "@/features/alerts/components/CommentInput";
+import { ScanPresenceChart } from "@/features/alerts/components/ScanPresenceChart";
+import { AlertActivityFeed } from "@/features/alerts/components/AlertActivityFeed";
 import {
   useAlerts,
   useAlertComments,
   useAlertMutations,
 } from "@/features/alerts/hooks/useAlerts";
+import { fetchAlertTimeline } from "@/lib/api-client-helpers";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/alerts/$alertId")({
@@ -47,6 +51,12 @@ function AlertDetailPage() {
   // (the backend GET /api/alerts/:id returns the full alert)
   const alertQuery = useAlerts({ limit: 200 });
   const alert = alertQuery.data?.alerts.find((a) => a.id === id);
+
+  const timelineQuery = useQuery({
+    queryKey: ["alerts", id, "timeline"],
+    queryFn: () => fetchAlertTimeline(id),
+    enabled: !!alert,
+  });
 
   if (alertQuery.isLoading) return <LoadingState rows={6} />;
   if (alertQuery.error)
@@ -132,6 +142,11 @@ function AlertDetailPage() {
       </div>
 
       <Separator />
+
+      {/* Scan Presence */}
+      {timelineQuery.data && (
+        <ScanPresenceChart scanGroups={timelineQuery.data.scan_groups} />
+      )}
 
       {/* Details Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -350,6 +365,14 @@ function AlertDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Activity Feed */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h3 className="font-display text-sm font-semibold text-foreground mb-3">
+              Activity
+            </h3>
+            <AlertActivityFeed alertId={id} />
+          </div>
         </div>
 
         {/* Comments Sidebar */}

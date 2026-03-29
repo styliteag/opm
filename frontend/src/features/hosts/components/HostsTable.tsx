@@ -1,78 +1,18 @@
 import { Link } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useReactTable,
   getCoreRowModel,
   type ColumnDef,
   flexRender,
 } from "@tanstack/react-table";
+import { toast } from "sonner";
 
-import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { InlineTextCell } from "@/components/ui/inline-text-cell";
+import { patchApi } from "@/lib/api";
 import type { Host } from "@/lib/types";
-import { formatRelativeTime, isOnline } from "@/lib/utils";
-
-const columns: ColumnDef<Host>[] = [
-  {
-    accessorKey: "ip",
-    header: "IP Address",
-    cell: ({ row }) => (
-      <Link
-        to="/hosts/$hostId"
-        params={{ hostId: String(row.original.id) }}
-        className="font-mono text-sm text-primary hover:text-primary/80 transition-colors"
-      >
-        {row.original.ip}
-      </Link>
-    ),
-  },
-  {
-    accessorKey: "hostname",
-    header: "Hostname",
-    cell: ({ getValue }) => (
-      <span className="text-sm text-foreground">
-        {getValue<string | null>() ?? "-"}
-      </span>
-    ),
-  },
-  {
-    id: "status",
-    header: "Status",
-    cell: ({ row }) => {
-      const recent = isOnline(row.original.last_seen_at, 24 * 60 * 60 * 1000);
-      return (
-        <StatusBadge
-          label={recent ? "Online" : "Offline"}
-          variant={recent ? "success" : "neutral"}
-          dot
-        />
-      );
-    },
-    size: 100,
-  },
-  {
-    accessorKey: "open_port_count",
-    header: "Open Ports",
-    cell: ({ getValue }) => {
-      const count = getValue<number | null>();
-      return (
-        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-          {count ?? 0}
-        </span>
-      );
-    },
-    size: 100,
-  },
-  {
-    accessorKey: "last_seen_at",
-    header: "Last Seen",
-    cell: ({ getValue }) => (
-      <span className="text-sm text-muted-foreground">
-        {formatRelativeTime(getValue<string>())}
-      </span>
-    ),
-    size: 120,
-  },
-];
+import { formatRelativeTime, parseUTC } from "@/lib/utils";
 
 interface HostsTableProps {
   hosts: Host[];
@@ -86,6 +26,122 @@ export function HostsTable({
   onSelectChange,
 }: HostsTableProps) {
   const selectable = Boolean(onSelectChange);
+  const qc = useQueryClient();
+
+  const hostnameMutation = useMutation({
+    mutationFn: ({ hostId, hostname }: { hostId: number; hostname: string }) =>
+      patchApi(`/api/hosts/${hostId}`, { hostname }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hosts"] });
+      toast.success("Hostname updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: ({
+      hostId,
+      user_comment,
+    }: {
+      hostId: number;
+      user_comment: string;
+    }) => patchApi(`/api/hosts/${hostId}`, { user_comment }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hosts"] });
+      toast.success("Comment saved");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const columns: ColumnDef<Host>[] = [
+    {
+      accessorKey: "ip",
+      header: "IP Address",
+      cell: ({ row }) => (
+        <Link
+          to="/hosts/$hostId"
+          params={{ hostId: String(row.original.id) }}
+          className="font-mono text-sm text-primary hover:text-primary/80 transition-colors"
+        >
+          {row.original.ip}
+        </Link>
+      ),
+    },
+    {
+      accessorKey: "hostname",
+      header: "Hostname",
+      cell: ({ row }) => (
+        <InlineTextCell
+          value={row.original.hostname}
+          onSave={(val) =>
+            hostnameMutation.mutate({ hostId: row.original.id, hostname: val })
+          }
+          saveLabel="Save hostname"
+          placeholder="-"
+          isPending={hostnameMutation.isPending}
+        />
+      ),
+    },
+    {
+      accessorKey: "user_comment",
+      header: "Comment",
+      cell: ({ row }) => (
+        <InlineTextCell
+          value={row.original.user_comment}
+          onSave={(val) =>
+            commentMutation.mutate({
+              hostId: row.original.id,
+              user_comment: val,
+            })
+          }
+          saveLabel="Save comment"
+          placeholder="Add comment..."
+          isPending={commentMutation.isPending}
+        />
+      ),
+      size: 200,
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const diff = Date.now() - parseUTC(row.original.last_seen_at).getTime();
+        const isRecent = diff < 24 * 60 * 60 * 1000;
+        return (
+          <StatusBadge
+            label={isRecent ? "Online" : "Offline"}
+            variant={isRecent ? "success" : "neutral"}
+            dot
+          />
+        );
+      },
+      size: 100,
+    },
+    {
+      accessorKey: "open_port_count",
+      header: "Open Ports",
+      cell: ({ getValue }) => {
+        const count = getValue<number | null>();
+        return (
+          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            {count ?? 0}
+          </span>
+        );
+      },
+      size: 100,
+    },
+    {
+      accessorKey: "last_seen_at",
+      header: "Last Seen",
+      cell: ({ getValue }) => (
+        <span className="text-sm text-muted-foreground">
+          {formatRelativeTime(getValue<string>())}
+        </span>
+      ),
+      size: 120,
+    },
+  ];
+
   const table = useReactTable({
     data: hosts,
     columns,
@@ -116,13 +172,14 @@ export function HostsTable({
             <tr key={hg.id} className="border-b border-border bg-card">
               {selectable && (
                 <th className="w-10 px-3 py-3">
-                  <Checkbox
-                    aria-label="Select all hosts"
+                  <input
+                    type="checkbox"
                     checked={
                       hosts.length > 0 &&
                       hosts.every((h) => selectedIds?.includes(h.id))
                     }
-                    onCheckedChange={toggleAll}
+                    onChange={toggleAll}
+                    className="rounded border-border"
                   />
                 </th>
               )}
@@ -149,10 +206,11 @@ export function HostsTable({
             >
               {selectable && (
                 <td className="w-10 px-3 py-3">
-                  <Checkbox
-                    aria-label={`Select host ${row.original.ip}`}
+                  <input
+                    type="checkbox"
                     checked={selectedIds?.includes(row.original.id) ?? false}
-                    onCheckedChange={() => toggleId(row.original.id)}
+                    onChange={() => toggleId(row.original.id)}
+                    className="rounded border-border"
                   />
                 </td>
               )}

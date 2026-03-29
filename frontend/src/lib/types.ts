@@ -293,16 +293,9 @@ export interface NseResultListResponse {
   total: number;
 }
 
-// Alert timeline types (Phase 2)
-export type AlertEventType =
-  | "created"
-  | "dismissed"
-  | "reopened"
-  | "assigned"
-  | "status_changed"
-  | "commented"
-  | "severity_overridden"
-  | "recurrence";
+/* ------------------------------------------------------------------ */
+/*  Alert Timeline                                                     */
+/* ------------------------------------------------------------------ */
 
 export interface TimelineEvent {
   id: number;
@@ -329,7 +322,10 @@ export interface AlertTimelineResponse {
   scan_groups: ScanGroup[];
 }
 
-// Host timeline types
+/* ------------------------------------------------------------------ */
+/*  Host Timeline                                                      */
+/* ------------------------------------------------------------------ */
+
 export interface HostTimelineEvent {
   id: number;
   event_type: string;
@@ -340,26 +336,4 @@ export interface HostTimelineEvent {
 
 export interface HostTimelineResponse {
   events: HostTimelineEvent[];
-}
-
-// Port comment types (EDIT-01)
-export interface PortCommentUpdateRequest {
-  user_comment: string | null;
-}
-
-// Global open port type
-export interface GlobalOpenPort {
-  id: number;
-  ip: string;
-  port: number;
-  protocol: string;
-  banner: string | null;
-  service_guess: string | null;
-  mac_address: string | null;
-  mac_vendor: string | null;
-  first_seen_at: string;
-  last_seen_at: string;
-  seen_by_networks: number[];
-  user_comment: string | null;
-  is_stale: boolean;
 }
