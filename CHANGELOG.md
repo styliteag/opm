@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API client helpers for alert timeline, host timeline, and port comment endpoints
 - AlertActivityFeed component with vertical timeline of alert events, icons per event type, and relative timestamps
 - HostActivityFeed component with paginated vertical timeline using infinite query and Load more button
+- Alert detail page: scan presence dot chart showing port presence across scans
+- Alert detail page: chronological activity feed of all alert lifecycle events
+- Host detail page: consolidated activity feed replacing basic timeline tab
+- Host detail port table: inline click-to-edit port comments
+- Hosts list table: user_comment column with inline editing
+- Hosts list table: inline-editable hostname column
 
 ## [1.8.1] - 2026-03-25
 
