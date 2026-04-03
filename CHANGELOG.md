@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.3] - 2026-04-03
+
 ### Added
 
 - Server-side column sorting on alerts table — all columns (severity, alert, target, network, status, detected) are sortable
