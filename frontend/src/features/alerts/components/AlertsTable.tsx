@@ -1,14 +1,14 @@
-import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   useReactTable,
   getCoreRowModel,
-  getSortedRowModel,
   type ColumnDef,
   type SortingState,
   flexRender,
 } from "@tanstack/react-table";
 import {
+  ArrowDown,
+  ArrowUp,
   ArrowUpDown,
   MoreHorizontal,
   Eye,
@@ -46,6 +46,8 @@ interface AlertsTableProps {
   onDelete?: (alertId: number) => void;
   selectedIds: number[];
   onSelectChange: (ids: number[]) => void;
+  sorting: SortingState;
+  onSortingChange: (sorting: SortingState) => void;
 }
 
 const sourceBadgeColors: Record<string, string> = {
@@ -70,6 +72,29 @@ const resolutionLabel: Record<ResolutionStatus, string> = {
   resolved: "Resolved",
   fix_planned: "Fix Planned",
 };
+
+function SortableHeader({
+  label,
+  column,
+}: {
+  label: string;
+  column: {
+    getIsSorted: () => false | "asc" | "desc";
+    getToggleSortingHandler: () => ((event: unknown) => void) | undefined;
+  };
+}) {
+  const sorted = column.getIsSorted();
+  const Icon =
+    sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;
+  return (
+    <button
+      onClick={column.getToggleSortingHandler()}
+      className="flex items-center gap-1 text-xs cursor-pointer"
+    >
+      {label} <Icon className="h-3 w-3" />
+    </button>
+  );
+}
 
 function createColumns(props: {
   onDismiss?: (alert: Alert) => void;
@@ -98,7 +123,9 @@ function createColumns(props: {
     },
     {
       accessorKey: "severity",
-      header: "Severity",
+      header: ({ column }) => (
+        <SortableHeader label="Severity" column={column} />
+      ),
       cell: ({ getValue }) => (
         <SeverityBadge severity={getValue<Alert["severity"]>()} />
       ),
@@ -106,7 +133,7 @@ function createColumns(props: {
     },
     {
       accessorKey: "message",
-      header: "Alert",
+      header: ({ column }) => <SortableHeader label="Alert" column={column} />,
       cell: ({ row }) => {
         const src = row.original.source ?? "port";
         return (
@@ -128,8 +155,9 @@ function createColumns(props: {
       },
     },
     {
-      id: "target",
-      header: "Target",
+      id: "ip",
+      accessorKey: "ip",
+      header: ({ column }) => <SortableHeader label="Target" column={column} />,
       cell: ({ row }) => {
         const { ip, port, hostname } = row.original;
         return (
@@ -150,7 +178,9 @@ function createColumns(props: {
     },
     {
       accessorKey: "network_name",
-      header: "Network",
+      header: ({ column }) => (
+        <SortableHeader label="Network" column={column} />
+      ),
       cell: ({ getValue }) => (
         <span className="text-sm text-muted-foreground">
           {getValue<string | null>() ?? "-"}
@@ -160,7 +190,7 @@ function createColumns(props: {
     },
     {
       accessorKey: "resolution_status",
-      header: "Status",
+      header: ({ column }) => <SortableHeader label="Status" column={column} />,
       cell: ({ row }) => {
         const status = row.original.resolution_status;
         const assignee = row.original.assigned_to_email;
@@ -184,13 +214,7 @@ function createColumns(props: {
     {
       accessorKey: "created_at",
       header: ({ column }) => (
-        <button
-          onClick={column.getToggleSortingHandler()}
-          className="flex items-center gap-1 text-xs cursor-pointer"
-          aria-label={`Sort by detected date${column.getIsSorted() === "asc" ? ", currently ascending" : column.getIsSorted() === "desc" ? ", currently descending" : ""}`}
-        >
-          Detected <ArrowUpDown className="h-3 w-3" />
-        </button>
+        <SortableHeader label="Detected" column={column} />
       ),
       cell: ({ getValue }) => (
         <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -206,7 +230,10 @@ function createColumns(props: {
         const alert = row.original;
         return (
           <DropdownMenu>
-            <DropdownMenuTrigger className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label="Alert actions">
+            <DropdownMenuTrigger
+              className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              aria-label="Alert actions"
+            >
               <MoreHorizontal className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="bottom">
@@ -264,11 +291,9 @@ export function AlertsTable({
   onDelete,
   selectedIds,
   onSelectChange,
+  sorting,
+  onSortingChange,
 }: AlertsTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "created_at", desc: true },
-  ]);
-
   const columns = createColumns({
     onDismiss,
     onReopen,
@@ -284,7 +309,11 @@ export function AlertsTable({
     data: alerts,
     columns,
     state: { sorting, rowSelection },
-    onSortingChange: setSorting,
+    manualSorting: true,
+    onSortingChange: (updater) => {
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      onSortingChange(next);
+    },
     onRowSelectionChange: (updater) => {
       const next =
         typeof updater === "function" ? updater(rowSelection) : updater;
@@ -294,7 +323,6 @@ export function AlertsTable({
       onSelectChange(ids);
     },
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
   return (

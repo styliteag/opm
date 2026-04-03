@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import type { SortingState } from "@tanstack/react-table";
 import { Download, ChevronDown, FileText } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,6 +41,9 @@ function AlertsPage() {
   const [filters, setFilters] = useState<FilterState>({ dismissed: false });
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [page, setPage] = useState(0);
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "created_at", desc: true },
+  ]);
   const limit = 50;
 
   const [dismissTarget, setDismissTarget] = useState<{
@@ -50,7 +54,16 @@ function AlertsPage() {
     ids: number[];
   } | null>(null);
 
-  const alerts = useAlerts({ ...filters, offset: page * limit, limit });
+  const sortBy = sorting[0]?.id;
+  const sortDir = sorting[0]?.desc ? ("desc" as const) : ("asc" as const);
+
+  const alerts = useAlerts({
+    ...filters,
+    sort_by: sortBy,
+    sort_dir: sortDir,
+    offset: page * limit,
+    limit,
+  });
   const networks = useNetworks();
   const { bulkDelete, reopen } = useAlertMutations();
 
@@ -206,6 +219,11 @@ function AlertsPage() {
             alerts={alertList}
             selectedIds={selectedIds}
             onSelectChange={setSelectedIds}
+            sorting={sorting}
+            onSortingChange={(s) => {
+              setSorting(s);
+              setPage(0);
+            }}
             onDismiss={(alert) =>
               setDismissTarget({
                 ids: [alert.id],

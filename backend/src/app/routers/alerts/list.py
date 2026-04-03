@@ -49,6 +49,8 @@ async def list_alerts(
     dismissed: bool | None = Query(None),
     ip: str | None = Query(None),
     search: str | None = Query(None, max_length=200),
+    sort_by: str | None = Query(None, max_length=50),
+    sort_dir: str | None = Query(None, pattern="^(asc|desc)$"),
     start_date: datetime | None = Query(None),
     end_date: datetime | None = Query(None),
 ) -> AlertListResponse:
@@ -66,6 +68,8 @@ async def list_alerts(
         dismissed=dismissed,
         ip=ip,
         search=search,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
         start_date=start_date,
         end_date=end_date,
         offset=pagination.offset,

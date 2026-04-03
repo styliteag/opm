@@ -71,6 +71,17 @@ async def delete_alerts_by_ids(
     return sorted(found_ids), missing_ids
 
 
+SORTABLE_COLUMNS: dict[str, Any] = {
+    "severity": Alert.alert_type,
+    "message": Alert.message,
+    "ip": Alert.ip,
+    "port": Alert.port,
+    "network_name": Network.name,
+    "resolution_status": Alert.resolution_status,
+    "created_at": Alert.created_at,
+}
+
+
 async def get_alerts(
     db: AsyncSession,
     *,
@@ -79,6 +90,8 @@ async def get_alerts(
     dismissed: bool | None = None,
     ip: str | None = None,
     search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
     offset: int = 0,
@@ -119,7 +132,14 @@ async def get_alerts(
     if filters:
         query = query.where(and_(*filters))
 
-    query = query.order_by(Alert.created_at.desc(), Alert.id.desc()).offset(offset).limit(limit)
+    col = SORTABLE_COLUMNS.get(sort_by or "")
+    if col is not None:
+        order = col.asc() if sort_dir == "asc" else col.desc()
+        query = query.order_by(order, Alert.id.desc())
+    else:
+        query = query.order_by(Alert.created_at.desc(), Alert.id.desc())
+
+    query = query.offset(offset).limit(limit)
     result = await db.execute(query)
     return [(row[0], str(row[1]) if row[1] is not None else None) for row in result.all()]
 

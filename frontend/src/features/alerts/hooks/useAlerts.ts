@@ -16,6 +16,8 @@ interface AlertFilters {
   ip?: string;
   search?: string;
   severity?: Severity;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
   offset?: number;
   limit?: number;
 }
@@ -28,6 +30,8 @@ function buildAlertParams(filters: AlertFilters): string {
     params.set("dismissed", String(filters.dismissed));
   if (filters.ip) params.set("ip", filters.ip);
   if (filters.search) params.set("search", filters.search);
+  if (filters.sort_by) params.set("sort_by", filters.sort_by);
+  if (filters.sort_dir) params.set("sort_dir", filters.sort_dir);
   if (filters.offset) params.set("offset", String(filters.offset));
   params.set("limit", String(filters.limit ?? 50));
   return params.toString();
