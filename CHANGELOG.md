@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-04-03
+
 ### Added
 
 - System info card on dashboard showing backend version, frontend version, and DB migration status
