@@ -1,4 +1,5 @@
-import { ChevronDown, Filter } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ChevronDown, Filter, Search, X } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -42,6 +43,7 @@ interface AlertFilterValues {
   type?: AlertType;
   network_id?: number;
   dismissed?: boolean;
+  search?: string;
 }
 
 interface AlertFiltersProps {
@@ -64,7 +66,10 @@ function FilterDropdown({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={triggerClass} aria-label={`Filter by ${label}: ${value}`}>
+      <DropdownMenuTrigger
+        className={triggerClass}
+        aria-label={`Filter by ${label}: ${value}`}
+      >
         <span className="text-muted-foreground">{label}:</span>
         <span className="font-medium">{value}</span>
         <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -81,6 +86,22 @@ export function AlertFilters({
   onChange,
   networks,
 }: AlertFiltersProps) {
+  const [searchInput, setSearchInput] = useState(filters.search ?? "");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const trimmed = searchInput.trim() || undefined;
+      if (trimmed !== filters.search) {
+        onChange({ ...filters, search: trimmed });
+      }
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchInput]);
+
   const severityLabel = filters.severity
     ? (SEVERITIES.find((s) => s.value === filters.severity)?.label ?? "All")
     : "All";
@@ -103,7 +124,30 @@ export function AlertFilters({
   const groups = ["Port", "SSH", "NSE"] as const;
 
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Alert filters">
+    <div
+      className="flex flex-wrap items-center gap-2"
+      role="group"
+      aria-label="Alert filters"
+    >
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search alerts..."
+          className="h-8 w-52 rounded-md border border-border bg-background pl-8 pr-8 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        {searchInput && (
+          <button
+            onClick={() => setSearchInput("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
       <Filter className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
 
       <FilterDropdown label="Severity" value={severityLabel}>

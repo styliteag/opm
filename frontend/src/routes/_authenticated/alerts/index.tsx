@@ -33,6 +33,7 @@ interface FilterState {
   type?: AlertType;
   network_id?: number;
   dismissed?: boolean;
+  search?: string;
 }
 
 function AlertsPage() {

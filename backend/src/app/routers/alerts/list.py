@@ -48,6 +48,7 @@ async def list_alerts(
     network_id: int | None = Query(None, ge=1),
     dismissed: bool | None = Query(None),
     ip: str | None = Query(None),
+    search: str | None = Query(None, max_length=200),
     start_date: datetime | None = Query(None),
     end_date: datetime | None = Query(None),
 ) -> AlertListResponse:
@@ -64,6 +65,7 @@ async def list_alerts(
         network_id=network_id,
         dismissed=dismissed,
         ip=ip,
+        search=search,
         start_date=start_date,
         end_date=end_date,
         offset=pagination.offset,

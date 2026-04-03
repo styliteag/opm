@@ -3,11 +3,12 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Integer, and_, case, func, literal, select
+from sqlalchemy import Integer, String, and_, case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert, AlertType, ResolutionStatus
 from app.models.alert_event import AlertEventType
+from app.models.host import Host
 from app.models.network import Network
 from app.services.alert_events import emit_event
 from app.services.global_open_ports import get_global_open_port, get_global_open_port_by_id
@@ -77,6 +78,7 @@ async def get_alerts(
     network_id: int | None = None,
     dismissed: bool | None = None,
     ip: str | None = None,
+    search: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
     offset: int = 0,
@@ -84,6 +86,10 @@ async def get_alerts(
 ) -> list[tuple[Alert, str | None]]:
     """List alerts with optional filters and pagination."""
     query = select(Alert, Network.name).outerjoin(Network, Alert.network_id == Network.id)
+
+    if search:
+        query = query.outerjoin(Host, Alert.ip == Host.ip)
+
     filters = []
 
     if alert_type is not None:
@@ -94,6 +100,17 @@ async def get_alerts(
         filters.append(Alert.dismissed.is_(dismissed))
     if ip is not None:
         filters.append(Alert.ip == ip)
+    if search:
+        term = f"%{search}%"
+        filters.append(
+            or_(
+                Alert.ip.ilike(term),
+                Alert.message.ilike(term),
+                Network.name.ilike(term),
+                Host.hostname.ilike(term),
+                Alert.port.cast(String).ilike(term),
+            )
+        )
     if start_date is not None:
         filters.append(Alert.created_at >= start_date)
     if end_date is not None:

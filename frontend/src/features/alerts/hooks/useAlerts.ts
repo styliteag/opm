@@ -14,6 +14,7 @@ interface AlertFilters {
   network_id?: number;
   dismissed?: boolean;
   ip?: string;
+  search?: string;
   severity?: Severity;
   offset?: number;
   limit?: number;
@@ -26,6 +27,7 @@ function buildAlertParams(filters: AlertFilters): string {
   if (filters.dismissed !== undefined)
     params.set("dismissed", String(filters.dismissed));
   if (filters.ip) params.set("ip", filters.ip);
+  if (filters.search) params.set("search", filters.search);
   if (filters.offset) params.set("offset", String(filters.offset));
   params.set("limit", String(filters.limit ?? 50));
   return params.toString();
