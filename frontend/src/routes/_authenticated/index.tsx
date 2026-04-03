@@ -10,6 +10,7 @@ import { ScannerStatus } from "@/features/dashboard/components/ScannerStatus";
 import { ScanActivityCard } from "@/features/dashboard/components/ScanActivityCard";
 import { UpcomingScans } from "@/features/dashboard/components/UpcomingScans";
 import { NetworkCards } from "@/features/dashboard/components/NetworkCards";
+import { SystemInfo } from "@/features/dashboard/components/SystemInfo";
 import { parseUTC } from "@/lib/utils";
 import {
   useNetworks,
@@ -109,6 +110,7 @@ function DashboardPage() {
             networks={networks.data?.networks ?? []}
             latestScans={latestScans.data?.latest_scans ?? []}
           />
+          <SystemInfo />
         </div>
       </div>
     </div>

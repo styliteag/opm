@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- System info card on dashboard showing backend version, frontend version, and DB migration status
+- Backend `/api/version` endpoint now includes migration state (current revision, head revision, status)
+- Frontend version injected at build time from VERSION file via Vite define
+
 ## [1.9.0] - 2026-03-29
 
 ### Security
