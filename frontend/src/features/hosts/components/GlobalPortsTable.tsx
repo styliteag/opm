@@ -2,8 +2,10 @@ import {
   useReactTable,
   getCoreRowModel,
   type ColumnDef,
+  type SortingState,
   flexRender,
 } from "@tanstack/react-table";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import {
   Table,
@@ -16,10 +18,35 @@ import {
 import type { GlobalPort } from "@/features/hosts/hooks/useGlobalPorts";
 import { formatRelativeTime } from "@/lib/utils";
 
+function SortableHeader({
+  label,
+  column,
+}: {
+  label: string;
+  column: {
+    getIsSorted: () => false | "asc" | "desc";
+    getToggleSortingHandler: () => ((event: unknown) => void) | undefined;
+  };
+}) {
+  const sorted = column.getIsSorted();
+  const Icon =
+    sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;
+  return (
+    <button
+      onClick={column.getToggleSortingHandler()}
+      className="flex items-center gap-1 text-xs cursor-pointer"
+    >
+      {label} <Icon className="h-3 w-3" />
+    </button>
+  );
+}
+
 const columns: ColumnDef<GlobalPort>[] = [
   {
     accessorKey: "ip",
-    header: "IP Address",
+    header: ({ column }) => (
+      <SortableHeader label="IP Address" column={column} />
+    ),
     cell: ({ getValue }) => (
       <span className="font-mono text-sm text-primary">
         {getValue<string>()}
@@ -28,7 +55,7 @@ const columns: ColumnDef<GlobalPort>[] = [
   },
   {
     accessorKey: "port",
-    header: "Port",
+    header: ({ column }) => <SortableHeader label="Port" column={column} />,
     cell: ({ row, getValue }) => (
       <span className="font-mono text-sm text-foreground">
         {getValue<number>()}
@@ -71,7 +98,9 @@ const columns: ColumnDef<GlobalPort>[] = [
   },
   {
     accessorKey: "last_seen_at",
-    header: "Last Seen",
+    header: ({ column }) => (
+      <SortableHeader label="Last Seen" column={column} />
+    ),
     cell: ({ getValue }) => (
       <span className="text-sm text-muted-foreground">
         {formatRelativeTime(getValue<string>())}
@@ -83,12 +112,24 @@ const columns: ColumnDef<GlobalPort>[] = [
 
 interface GlobalPortsTableProps {
   ports: GlobalPort[];
+  sorting: SortingState;
+  onSortingChange: (sorting: SortingState) => void;
 }
 
-export function GlobalPortsTable({ ports }: GlobalPortsTableProps) {
+export function GlobalPortsTable({
+  ports,
+  sorting,
+  onSortingChange,
+}: GlobalPortsTableProps) {
   const table = useReactTable({
     data: ports,
     columns,
+    state: { sorting },
+    manualSorting: true,
+    onSortingChange: (updater) => {
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      onSortingChange(next);
+    },
     getCoreRowModel: getCoreRowModel(),
   });
 

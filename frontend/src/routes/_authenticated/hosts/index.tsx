@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import type { SortingState } from "@tanstack/react-table";
 import { Download, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,11 +27,28 @@ function HostsPage() {
   const [staleness, setStaleness] = useState<"all" | "active" | "stale">("all");
   const [selectedHostIds, setSelectedHostIds] = useState<number[]>([]);
   const [page, setPage] = useState(0);
+  const [hostsSorting, setHostsSorting] = useState<SortingState>([
+    { id: "last_seen_at", desc: true },
+  ]);
+  const [portsSorting, setPortsSorting] = useState<SortingState>([
+    { id: "ip", desc: false },
+  ]);
   const limit = 50;
+
+  const hostSortBy = hostsSorting[0]?.id;
+  const hostSortDir = hostsSorting[0]?.desc
+    ? ("desc" as const)
+    : ("asc" as const);
+  const portSortBy = portsSorting[0]?.id;
+  const portSortDir = portsSorting[0]?.desc
+    ? ("desc" as const)
+    : ("asc" as const);
 
   const hosts = useHosts({
     ip_search: search || undefined,
     network_id: networkId,
+    sort_by: hostSortBy,
+    sort_dir: hostSortDir,
     offset: page * limit,
     limit,
   });
@@ -38,6 +56,8 @@ function HostsPage() {
     network_id: networkId,
     service: search || undefined,
     staleness,
+    sort_by: portSortBy,
+    sort_dir: portSortDir,
     offset: page * limit,
     limit,
   });
@@ -272,9 +292,21 @@ function HostsPage() {
               hosts={hostList}
               selectedIds={selectedHostIds}
               onSelectChange={setSelectedHostIds}
+              sorting={hostsSorting}
+              onSortingChange={(s) => {
+                setHostsSorting(s);
+                setPage(0);
+              }}
             />
           ) : (
-            <GlobalPortsTable ports={portList} />
+            <GlobalPortsTable
+              ports={portList}
+              sorting={portsSorting}
+              onSortingChange={(s) => {
+                setPortsSorting(s);
+                setPage(0);
+              }}
+            />
           )}
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">

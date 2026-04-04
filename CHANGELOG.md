@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Server-side column sorting to hosts table (IP, Hostname, Last Seen)
+- Server-side column sorting to global ports table (IP, Port, Last Seen)
+
 ### Changed
 
 - Rebrand from "Onyx Port Monitor" to "STYLiTE Orbit Monitor" across all files
