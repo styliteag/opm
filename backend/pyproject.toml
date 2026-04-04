@@ -1,7 +1,7 @@
 [project]
 name = "opm-backend"
 version = "0.1.0"
-description = "Backend API for Onyx Port Monitor"
+description = "Backend API for STYLiTE Orbit Monitor"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",

@@ -1,6 +1,6 @@
-# Contributing to Onyx Port Monitor
+# Contributing to STYLiTE Orbit Monitor
 
-This guide covers code standards, commit conventions, and the pull request process for contributing to Onyx Port Monitor.
+This guide covers code standards, commit conventions, and the pull request process for contributing to STYLiTE Orbit Monitor.
 
 ## Code Style
 

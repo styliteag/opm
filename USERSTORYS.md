@@ -1,4 +1,4 @@
-# Onyx Port Monitor - User & Admin Stories
+# STYLiTE Orbit Monitor - User & Admin Stories
 
 > **Legend**: Stories without a status marker are implemented. Stories marked with `> **Status: Planned**` are documented but not yet built.
 

@@ -25,7 +25,7 @@ function LoginPage() {
             <ShieldAlert className="h-8 w-8 text-primary" />
           </div>
           <h1 className="text-2xl font-strong text-foreground">
-            Onyx Port Monitor
+            STYLiTE Orbit Monitor
           </h1>
           <p className="text-sm text-muted-foreground">
             Secure access to your attack surface monitor

@@ -1,7 +1,7 @@
 [project]
 name = "opm-scanner"
 version = "0.1.0"
-description = "Scanner agent for Onyx Port Monitor"
+description = "Scanner agent for STYLiTE Orbit Monitor"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.0",

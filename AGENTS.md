@@ -1,10 +1,10 @@
-# AGENTS.md - Onyx Port Monitor
+# AGENTS.md - STYLiTE Orbit Monitor
 
 Guidelines for AI assistants working on this codebase. Read this file in full before making any changes.
 
 ## Project Overview
 
-Onyx Port Monitor is a distributed network port scanning and monitoring system. It consists of three components running in Docker containers:
+STYLiTE Orbit Monitor is a distributed network port scanning and monitoring system. It consists of three components running in Docker containers:
 
 - **Backend** (`backend/`) — FastAPI REST API (Python 3.12, async)
 - **Frontend** (`frontend/`) — React + Vite web dashboard (TypeScript)

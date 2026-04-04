@@ -1,12 +1,12 @@
 # Architecture Overview
 
-This document summarizes the current architecture of Onyx Port Monitor across frontend, backend, database, and scanner components.
+This document summarizes the current architecture of STYLiTE Orbit Monitor across frontend, backend, database, and scanner components.
 
 It is intended as a practical orientation document for contributors. It focuses on the architecture that is actually implemented now, rather than older design intent.
 
 ## System Shape
 
-Onyx Port Monitor is split into three main runtime parts plus the database:
+STYLiTE Orbit Monitor is split into three main runtime parts plus the database:
 
 1. frontend
 2. backend API

@@ -1,4 +1,4 @@
-# Onyx Port Monitor
+# STYLiTE Orbit Monitor
 
 Distributed network port scanning and monitoring system for security purposes with multi-site scanner support, alerting, and web dashboard.
 
@@ -141,7 +141,7 @@ Key variables:
 
 ## Running a Scanner Agent
 
-The scanner agent can be deployed on a different host to connect to your main Onyx Port Monitor server. This enables distributed scanning from multiple locations.
+The scanner agent can be deployed on a different host to connect to your main STYLiTE Orbit Monitor server. This enables distributed scanning from multiple locations.
 
 ### Prerequisites
 

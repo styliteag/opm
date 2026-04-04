@@ -120,7 +120,7 @@ def _build_email_body(
     alerts_url = f"{base_url}/alerts"
 
     lines = [
-        "Onyx Port Monitor alert summary",
+        "STYLiTE Orbit Monitor alert summary",
         f"Total alerts: {len(items)}",
     ]
 
@@ -191,7 +191,7 @@ async def _flush_queue() -> None:
     base_url = settings.web_ui_url
 
     for recipients, group_items in groups.items():
-        subject = f"Onyx Port Monitor Alerts ({len(group_items)})"
+        subject = f"STYLiTE Orbit Monitor Alerts ({len(group_items)})"
         body = _build_email_body(group_items, base_url)
         await _send_email(list(recipients), subject, body)
 

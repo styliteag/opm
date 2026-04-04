@@ -65,7 +65,7 @@ Module-specific CLAUDE.md files can be added in `backend/`, `frontend/`, or `sca
 
 **Alert-to-Resolution Workflow**
 
-Optimizing the daily operations workflow in Onyx Port Monitor — from receiving alerts to resolving them over days/weeks of recurring scans. The focus is on making the multi-day alert lifecycle visible, enabling direct editing of hosts and ports, and automatically reopening resolved alerts when the underlying issue recurs.
+Optimizing the daily operations workflow in STYLiTE Orbit Monitor — from receiving alerts to resolving them over days/weeks of recurring scans. The focus is on making the multi-day alert lifecycle visible, enabling direct editing of hosts and ports, and automatically reopening resolved alerts when the underlying issue recurs.
 
 **Core Value:** A user can wake up, see what changed since yesterday's scan, and track every alert from discovery to resolution without losing context across days.
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rebrand from "Onyx Port Monitor" to "STYLiTE Orbit Monitor" across all files
+
 ## [1.9.4] - 2026-04-04
 
 ### Changed
@@ -179,7 +183,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - NSE result submission no longer prematurely marks scan as completed, which was preventing port results from being saved
 
 ### Changed
-- Rebrand project from "Open Port Monitor" to "Onyx Port Monitor" (OPM); update display name, Docker images (`styliteag/opm`, `styliteag/opm-scanner`), package names, DB defaults, and all documentation
+- Rebrand project from "Open Port Monitor" to "STYLiTE Orbit Monitor" (OPM); update display name, Docker images (`styliteag/opm`, `styliteag/opm-scanner`), package names, DB defaults, and all documentation
 - Redesign Add/Edit Network modal with sectioned layout (Network, Scanner, Phases, Schedule & Alerts)
 - Widen network form dialog from `sm:max-w-sm` to `sm:max-w-3xl` for better field density
 - NSE Profile field now highlights with warning when vulnerability phase is enabled but no profile is selected
@@ -483,7 +487,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.9.0] - 2026-01-25
 
 ### Added
-- Initial release of Onyx Port Monitor
+- Initial release of STYLiTE Orbit Monitor
 - **Web Dashboard**: React + Vite frontend with responsive design
 - **REST API**: FastAPI backend with automatic OpenAPI documentation
 - **Distributed Scanning**: Multi-site scanner support with site authentication

@@ -45,7 +45,7 @@ describe("Sidebar", () => {
 
   it("renders the app name", () => {
     render(<Sidebar />);
-    expect(screen.getByText("Onyx Port Monitor")).toBeInTheDocument();
+    expect(screen.getByText("STYLiTE Orbit Monitor")).toBeInTheDocument();
   });
 
   it("renders main navigation items", () => {
@@ -95,7 +95,7 @@ describe("Sidebar", () => {
   it("hides labels when collapsed", () => {
     useUiStore.setState({ sidebarCollapsed: true, quickScanModalOpen: false });
     render(<Sidebar />);
-    expect(screen.queryByText("Onyx Port Monitor")).not.toBeInTheDocument();
+    expect(screen.queryByText("STYLiTE Orbit Monitor")).not.toBeInTheDocument();
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
   });
 

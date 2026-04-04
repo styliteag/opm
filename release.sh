@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Release script for Onyx Port Monitor
+# Release script for STYLiTE Orbit Monitor
 # Usage: ./release.sh [major|minor|patch]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

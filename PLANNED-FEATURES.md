@@ -115,7 +115,7 @@
 ---
 
 ## 15. API Access Tokens for External Automation
-**As a** DevOps engineer, **I want to** generate long-lived API tokens scoped to read-only or specific actions, **so that** I can integrate Onyx Port Monitor data into my CI/CD pipelines, scripts, or monitoring dashboards without using my personal credentials.
+**As a** DevOps engineer, **I want to** generate long-lived API tokens scoped to read-only or specific actions, **so that** I can integrate STYLiTE Orbit Monitor data into my CI/CD pipelines, scripts, or monitoring dashboards without using my personal credentials.
 
 **Implementing:** no
 **Current state:** Authentication is JWT-based with user login sessions only. There are no personal access tokens, service accounts, or API keys for external consumers (scanner API keys exist but are internal).
@@ -287,7 +287,7 @@ detection:
 ---
 
 ## 35. Agent Registration & Management
-**As an** administrator, **I want to** register, monitor, and manage host agents from the Onyx Port Monitor dashboard, **so that** I can see which hosts have agents installed, their last check-in time, agent version, and health status.
+**As an** administrator, **I want to** register, monitor, and manage host agents from the STYLiTE Orbit Monitor dashboard, **so that** I can see which hosts have agents installed, their last check-in time, agent version, and health status.
 
 **Implementing:** no
 **Current state:** The scanner agent model exists for network scanners but not for host-level agents. A host agent system would need: agent registration with API keys, heartbeat/check-in tracking, template distribution, result collection, and agent version management.

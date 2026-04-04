@@ -11,7 +11,7 @@ else
 fi
 
 # Log version at startup
-echo "Starting Onyx Port Monitor Backend version: ${VERSION}"
+echo "Starting STYLiTE Orbit Monitor Backend version: ${VERSION}"
 
 # Wait for database to be ready
 echo "Waiting for database to be ready..."

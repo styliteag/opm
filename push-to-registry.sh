@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Onyx Port Monitor Docker Registry Push Script with Multi-Architecture Support
+# STYLiTE Orbit Monitor Docker Registry Push Script with Multi-Architecture Support
 
 set -e
 
@@ -52,7 +52,7 @@ else
     VERSION_TAG="latest"
 fi
 
-echo "🚀 Building and pushing Onyx Port Monitor images to registry..."
+echo "🚀 Building and pushing STYLiTE Orbit Monitor images to registry..."
 echo "Registry: ${REGISTRY_URL}"
 echo "Namespace: ${NAMESPACE}"
 echo "Version Tag: ${VERSION_TAG}"
