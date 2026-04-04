@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Total alert count shown in alerts list pagination
 - Page size selector (50/100/All) on alerts list
 - Sortable Port column in alerts table
+- Exact port filter input on alerts page for precise port matching
 - Backend `total` field in alert list API response
 
 ### Changed

@@ -44,6 +44,7 @@ interface AlertFilterValues {
   network_id?: number;
   dismissed?: boolean;
   search?: string;
+  port?: number;
 }
 
 interface AlertFiltersProps {
@@ -87,7 +88,11 @@ export function AlertFilters({
   networks,
 }: AlertFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.search ?? "");
+  const [portInput, setPortInput] = useState(
+    filters.port ? String(filters.port) : "",
+  );
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const portDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -101,6 +106,24 @@ export function AlertFilters({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [searchInput]);
+
+  useEffect(() => {
+    if (portDebounceRef.current) clearTimeout(portDebounceRef.current);
+    portDebounceRef.current = setTimeout(() => {
+      const parsed = portInput.trim() ? Number(portInput.trim()) : undefined;
+      const valid =
+        parsed === undefined ||
+        (Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535)
+          ? parsed
+          : undefined;
+      if (valid !== filters.port) {
+        onChange({ ...filters, port: valid });
+      }
+    }, 400);
+    return () => {
+      if (portDebounceRef.current) clearTimeout(portDebounceRef.current);
+    };
+  }, [portInput]);
 
   const severityLabel = filters.severity
     ? (SEVERITIES.find((s) => s.value === filters.severity)?.label ?? "All")
@@ -144,6 +167,25 @@ export function AlertFilters({
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      <div className="relative">
+        <input
+          type="text"
+          inputMode="numeric"
+          value={portInput}
+          onChange={(e) => setPortInput(e.target.value.replace(/\D/g, ""))}
+          placeholder="Port"
+          className="h-8 w-20 rounded-md border border-border bg-background px-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        {portInput && (
+          <button
+            onClick={() => setPortInput("")}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
           </button>
         )}
       </div>

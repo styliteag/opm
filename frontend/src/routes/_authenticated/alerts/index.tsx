@@ -36,6 +36,7 @@ interface FilterState {
   network_id?: number;
   dismissed?: boolean;
   search?: string;
+  port?: number;
 }
 
 function AlertsPage() {

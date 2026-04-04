@@ -88,6 +88,7 @@ def _build_alert_filters(
     network_id: int | None = None,
     dismissed: bool | None = None,
     ip: str | None = None,
+    port: int | None = None,
     search: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
@@ -102,6 +103,8 @@ def _build_alert_filters(
         filters.append(Alert.dismissed.is_(dismissed))
     if ip is not None:
         filters.append(Alert.ip == ip)
+    if port is not None:
+        filters.append(Alert.port == port)
     if search:
         term = f"%{search}%"
         filters.append(
@@ -127,6 +130,7 @@ async def count_alerts(
     network_id: int | None = None,
     dismissed: bool | None = None,
     ip: str | None = None,
+    port: int | None = None,
     search: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
@@ -142,6 +146,7 @@ async def count_alerts(
         network_id=network_id,
         dismissed=dismissed,
         ip=ip,
+        port=port,
         search=search,
         start_date=start_date,
         end_date=end_date,
@@ -160,6 +165,7 @@ async def get_alerts(
     network_id: int | None = None,
     dismissed: bool | None = None,
     ip: str | None = None,
+    port: int | None = None,
     search: str | None = None,
     sort_by: str | None = None,
     sort_dir: str | None = None,
@@ -179,6 +185,7 @@ async def get_alerts(
         network_id=network_id,
         dismissed=dismissed,
         ip=ip,
+        port=port,
         search=search,
         start_date=start_date,
         end_date=end_date,
