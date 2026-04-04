@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Convert "Add Rule" form on port-rules page from inline row to dialog popup
+
 ## [1.9.5] - 2026-04-04
 
 ### Added

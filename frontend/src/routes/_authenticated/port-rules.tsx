@@ -32,7 +32,7 @@ export const Route = createFileRoute("/_authenticated/port-rules")({
 });
 
 function PortRulesPage() {
-  const [showAdd, setShowAdd] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const { data, isLoading, error, refetch } = usePortRules();
   const qc = useQueryClient();
@@ -201,21 +201,21 @@ function PortRulesPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowAdd(!showAdd)}
+              onClick={() => setAddOpen(true)}
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               Add Rule
             </Button>
           }
         />
-        {showAdd && (
-          <GlobalRuleAddForm
-            onAdded={() => {
-              setShowAdd(false);
-              invalidate();
-            }}
-          />
-        )}
+        <GlobalRuleAddForm
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          onAdded={() => {
+            setAddOpen(false);
+            invalidate();
+          }}
+        />
       </div>
 
       {/* Per-Network Rules */}
