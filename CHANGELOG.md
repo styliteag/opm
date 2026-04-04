@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.5] - 2026-04-04
+
 ### Added
 
 - Server-side column sorting to hosts table (IP, Hostname, Last Seen)
