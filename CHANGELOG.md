@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Page size selector (50/100/All) on alerts list
 - Sortable Port column in alerts table
 - Exact port filter input on alerts page for precise port matching
+- Source filter dropdown on alerts page to filter by alert origin (Port, SSH, NSE)
 - Backend `total` field in alert list API response
 
 ### Changed

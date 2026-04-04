@@ -38,9 +38,18 @@ const STATUS_OPTIONS: { value: boolean | undefined; label: string }[] = [
   { value: true, label: "Dismissed" },
 ];
 
+type AlertSource = "port" | "ssh" | "nse";
+
+const ALERT_SOURCES: { value: AlertSource; label: string }[] = [
+  { value: "port", label: "Port" },
+  { value: "ssh", label: "SSH" },
+  { value: "nse", label: "NSE" },
+];
+
 interface AlertFilterValues {
   severity?: Severity;
   type?: AlertType;
+  source?: AlertSource;
   network_id?: number;
   dismissed?: boolean;
   search?: string;
@@ -129,6 +138,10 @@ export function AlertFilters({
     ? (SEVERITIES.find((s) => s.value === filters.severity)?.label ?? "All")
     : "All";
 
+  const sourceLabel = filters.source
+    ? (ALERT_SOURCES.find((s) => s.value === filters.source)?.label ?? "All")
+    : "All";
+
   const typeLabel = filters.type
     ? (ALERT_TYPES.find((t) => t.value === filters.type)?.label ?? "All")
     : "All";
@@ -203,6 +216,23 @@ export function AlertFilters({
           <DropdownMenuItem
             key={s.value}
             onClick={() => onChange({ ...filters, severity: s.value })}
+          >
+            {s.label}
+          </DropdownMenuItem>
+        ))}
+      </FilterDropdown>
+
+      <FilterDropdown label="Source" value={sourceLabel}>
+        <DropdownMenuItem
+          onClick={() => onChange({ ...filters, source: undefined })}
+        >
+          All
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {ALERT_SOURCES.map((s) => (
+          <DropdownMenuItem
+            key={s.value}
+            onClick={() => onChange({ ...filters, source: s.value })}
           >
             {s.label}
           </DropdownMenuItem>

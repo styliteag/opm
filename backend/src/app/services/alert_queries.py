@@ -85,6 +85,7 @@ SORTABLE_COLUMNS: dict[str, Any] = {
 def _build_alert_filters(
     *,
     alert_type: AlertType | None = None,
+    source: str | None = None,
     network_id: int | None = None,
     dismissed: bool | None = None,
     ip: str | None = None,
@@ -97,6 +98,8 @@ def _build_alert_filters(
     filters: list[Any] = []
     if alert_type is not None:
         filters.append(Alert.alert_type == alert_type)
+    if source is not None:
+        filters.append(Alert.source == source)
     if network_id is not None:
         filters.append(Alert.network_id == network_id)
     if dismissed is not None:
@@ -127,6 +130,7 @@ async def count_alerts(
     db: AsyncSession,
     *,
     alert_type: AlertType | None = None,
+    source: str | None = None,
     network_id: int | None = None,
     dismissed: bool | None = None,
     ip: str | None = None,
@@ -143,6 +147,7 @@ async def count_alerts(
 
     filters = _build_alert_filters(
         alert_type=alert_type,
+        source=source,
         network_id=network_id,
         dismissed=dismissed,
         ip=ip,
@@ -162,6 +167,7 @@ async def get_alerts(
     db: AsyncSession,
     *,
     alert_type: AlertType | None = None,
+    source: str | None = None,
     network_id: int | None = None,
     dismissed: bool | None = None,
     ip: str | None = None,
@@ -182,6 +188,7 @@ async def get_alerts(
 
     filters = _build_alert_filters(
         alert_type=alert_type,
+        source=source,
         network_id=network_id,
         dismissed=dismissed,
         ip=ip,

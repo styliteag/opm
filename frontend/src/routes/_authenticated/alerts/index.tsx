@@ -33,6 +33,7 @@ export const Route = createFileRoute("/_authenticated/alerts/")({
 interface FilterState {
   severity?: Severity;
   type?: AlertType;
+  source?: "port" | "ssh" | "nse";
   network_id?: number;
   dismissed?: boolean;
   search?: string;

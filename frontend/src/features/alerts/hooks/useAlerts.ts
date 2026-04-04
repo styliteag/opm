@@ -11,6 +11,7 @@ import type {
 
 interface AlertFilters {
   type?: AlertType;
+  source?: string;
   network_id?: number;
   dismissed?: boolean;
   ip?: string;
@@ -26,6 +27,7 @@ interface AlertFilters {
 function buildAlertParams(filters: AlertFilters): string {
   const params = new URLSearchParams();
   if (filters.type) params.set("type", filters.type);
+  if (filters.source) params.set("source", filters.source);
   if (filters.network_id) params.set("network_id", String(filters.network_id));
   if (filters.dismissed !== undefined)
     params.set("dismissed", String(filters.dismissed));

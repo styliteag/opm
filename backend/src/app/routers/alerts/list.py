@@ -46,6 +46,7 @@ async def list_alerts(
     db: DbSession,
     pagination: Pagination,
     alert_type: AlertType | None = Query(None, alias="type"),
+    source: str | None = Query(None, max_length=10),
     network_id: int | None = Query(None, ge=1),
     dismissed: bool | None = Query(None),
     ip: str | None = Query(None),
@@ -66,6 +67,7 @@ async def list_alerts(
     total = await count_alerts(
         db,
         alert_type=alert_type,
+        source=source,
         network_id=network_id,
         dismissed=dismissed,
         ip=ip,
@@ -78,6 +80,7 @@ async def list_alerts(
     alerts = await alerts_service.get_alerts(
         db,
         alert_type=alert_type,
+        source=source,
         network_id=network_id,
         dismissed=dismissed,
         ip=ip,
