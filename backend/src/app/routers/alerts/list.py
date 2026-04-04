@@ -32,6 +32,7 @@ from app.services import hosts as hosts_service
 from app.services import networks as networks_service
 from app.services import ssh_results as ssh_service
 from app.services import users as users_service
+from app.services.alert_queries import count_alerts
 from app.services.alert_rules import port_rule_matches_alert, ssh_rule_matches_alert
 
 from .detail import _severity_override_value, compute_alert_severity
@@ -60,6 +61,17 @@ async def list_alerts(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="start_date cannot be after end_date",
         )
+
+    total = await count_alerts(
+        db,
+        alert_type=alert_type,
+        network_id=network_id,
+        dismissed=dismissed,
+        ip=ip,
+        search=search,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     alerts = await alerts_service.get_alerts(
         db,
@@ -227,7 +239,7 @@ async def list_alerts(
                 )
         resp.matching_rules = matches
 
-    return AlertListResponse(alerts=alert_responses)
+    return AlertListResponse(alerts=alert_responses, total=total)
 
 
 @router.get("/export/csv")

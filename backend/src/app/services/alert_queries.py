@@ -82,29 +82,18 @@ SORTABLE_COLUMNS: dict[str, Any] = {
 }
 
 
-async def get_alerts(
-    db: AsyncSession,
+def _build_alert_filters(
     *,
     alert_type: AlertType | None = None,
     network_id: int | None = None,
     dismissed: bool | None = None,
     ip: str | None = None,
     search: str | None = None,
-    sort_by: str | None = None,
-    sort_dir: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
-    offset: int = 0,
-    limit: int = 50,
-) -> list[tuple[Alert, str | None]]:
-    """List alerts with optional filters and pagination."""
-    query = select(Alert, Network.name).outerjoin(Network, Alert.network_id == Network.id)
-
-    if search:
-        query = query.outerjoin(Host, Alert.ip == Host.ip)
-
-    filters = []
-
+) -> list[Any]:
+    """Build reusable filter conditions for alert queries."""
+    filters: list[Any] = []
     if alert_type is not None:
         filters.append(Alert.alert_type == alert_type)
     if network_id is not None:
@@ -128,6 +117,72 @@ async def get_alerts(
         filters.append(Alert.created_at >= start_date)
     if end_date is not None:
         filters.append(Alert.created_at <= end_date)
+    return filters
+
+
+async def count_alerts(
+    db: AsyncSession,
+    *,
+    alert_type: AlertType | None = None,
+    network_id: int | None = None,
+    dismissed: bool | None = None,
+    ip: str | None = None,
+    search: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+) -> int:
+    """Count alerts matching filters (no pagination)."""
+    query = select(func.count(Alert.id)).outerjoin(Network, Alert.network_id == Network.id)
+
+    if search:
+        query = query.outerjoin(Host, Alert.ip == Host.ip)
+
+    filters = _build_alert_filters(
+        alert_type=alert_type,
+        network_id=network_id,
+        dismissed=dismissed,
+        ip=ip,
+        search=search,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    if filters:
+        query = query.where(and_(*filters))
+
+    result = await db.execute(query)
+    return result.scalar_one()
+
+
+async def get_alerts(
+    db: AsyncSession,
+    *,
+    alert_type: AlertType | None = None,
+    network_id: int | None = None,
+    dismissed: bool | None = None,
+    ip: str | None = None,
+    search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    offset: int = 0,
+    limit: int = 50,
+) -> list[tuple[Alert, str | None]]:
+    """List alerts with optional filters and pagination."""
+    query = select(Alert, Network.name).outerjoin(Network, Alert.network_id == Network.id)
+
+    if search:
+        query = query.outerjoin(Host, Alert.ip == Host.ip)
+
+    filters = _build_alert_filters(
+        alert_type=alert_type,
+        network_id=network_id,
+        dismissed=dismissed,
+        ip=ip,
+        search=search,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     if filters:
         query = query.where(and_(*filters))

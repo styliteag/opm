@@ -80,6 +80,7 @@ export interface Alert {
 
 export interface AlertListResponse {
   alerts: Alert[];
+  total: number;
 }
 
 export interface DismissSuggestion {

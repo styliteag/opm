@@ -8,6 +8,7 @@ import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { EmptyState } from "@/components/data-display/EmptyState";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
+import { Select } from "@/components/ui/select";
 import { AlertsTable } from "@/features/alerts/components/AlertsTable";
 import { AlertFilters } from "@/features/alerts/components/AlertFilters";
 import { DismissModal } from "@/features/alerts/components/DismissModal";
@@ -41,10 +42,10 @@ function AlertsPage() {
   const [filters, setFilters] = useState<FilterState>({ dismissed: false });
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "created_at", desc: true },
   ]);
-  const limit = 50;
 
   const [dismissTarget, setDismissTarget] = useState<{
     ids: number[];
@@ -57,6 +58,7 @@ function AlertsPage() {
   const sortBy = sorting[0]?.id;
   const sortDir = sorting[0]?.desc ? ("desc" as const) : ("asc" as const);
 
+  const limit = pageSize === 0 ? 10000 : pageSize;
   const alerts = useAlerts({
     ...filters,
     sort_by: sortBy,
@@ -68,6 +70,7 @@ function AlertsPage() {
   const { bulkDelete, reopen } = useAlertMutations();
 
   const alertList = alerts.data?.alerts ?? [];
+  const totalAlerts = alerts.data?.total ?? 0;
   const criticalCount = alertList.filter(
     (a) => a.severity === "critical",
   ).length;
@@ -235,25 +238,43 @@ function AlertsPage() {
             onDelete={handleDelete}
           />
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Showing {page * limit + 1}-{page * limit + alertList.length}
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="rounded-md border border-border px-3 py-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                Showing {page * limit + 1}-
+                {Math.min(page * limit + alertList.length, totalAlerts)} of{" "}
+                {totalAlerts}
+              </p>
+              <Select
+                value={String(pageSize)}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(0);
+                }}
+                className="w-auto text-xs"
               >
-                Previous
-              </button>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={alertList.length < limit}
-                className="rounded-md border border-border px-3 py-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-              >
-                Next
-              </button>
+                <option value="50">50 per page</option>
+                <option value="100">100 per page</option>
+                <option value="0">All</option>
+              </Select>
             </div>
+            {pageSize !== 0 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="rounded-md border border-border px-3 py-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page * limit + alertList.length >= totalAlerts}
+                  className="rounded-md border border-border px-3 py-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}

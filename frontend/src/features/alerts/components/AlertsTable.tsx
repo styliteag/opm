@@ -159,13 +159,10 @@ function createColumns(props: {
       accessorKey: "ip",
       header: ({ column }) => <SortableHeader label="Target" column={column} />,
       cell: ({ row }) => {
-        const { ip, port, hostname } = row.original;
+        const { ip, hostname } = row.original;
         return (
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-mono text-foreground">
-              {ip}
-              {port ? `:${port}` : ""}
-            </span>
+            <span className="text-sm font-mono text-foreground">{ip}</span>
             {hostname && (
               <span className="text-xs text-muted-foreground truncate max-w-[180px]">
                 {hostname}
@@ -174,7 +171,20 @@ function createColumns(props: {
           </div>
         );
       },
-      size: 200,
+      size: 160,
+    },
+    {
+      accessorKey: "port",
+      header: ({ column }) => <SortableHeader label="Port" column={column} />,
+      cell: ({ getValue }) => {
+        const port = getValue<number | null>();
+        return (
+          <span className="text-sm font-mono text-foreground">
+            {port ?? "-"}
+          </span>
+        );
+      },
+      size: 80,
     },
     {
       accessorKey: "network_name",

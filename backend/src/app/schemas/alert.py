@@ -70,6 +70,7 @@ class AlertListResponse(BaseModel):
     """Response schema for list of alerts."""
 
     alerts: list[AlertResponse]
+    total: int = 0
 
 
 class AlertBulkDismissResponse(BaseModel):

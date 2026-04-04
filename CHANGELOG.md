@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Total alert count shown in alerts list pagination
+- Page size selector (50/100/All) on alerts list
+- Sortable Port column in alerts table
+- Backend `total` field in alert list API response
+
 ### Changed
 
 - Convert "Add Rule" form on port-rules page from inline row to dialog popup
