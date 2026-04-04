@@ -1,17 +1,17 @@
-import { Link } from '@tanstack/react-router'
+import { Link } from "@tanstack/react-router";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { SeverityBadge } from '@/components/data-display/SeverityBadge'
-import type { Alert } from '@/lib/types'
-import { formatRelativeTime } from '@/lib/utils'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SeverityBadge } from "@/components/data-display/SeverityBadge";
+import type { Alert } from "@/lib/types";
+import { formatRelativeTime } from "@/lib/utils";
 
 interface RecentAlertsProps {
-  alerts: Alert[]
+  alerts: Alert[];
 }
 
 export function RecentAlerts({ alerts }: RecentAlertsProps) {
   return (
-    <Card className="backdrop-blur-sm">
+    <Card>
       <CardHeader className="flex-row items-center justify-between pb-3">
         <CardTitle className="text-sm">Recent Alerts</CardTitle>
         <Link
@@ -39,7 +39,7 @@ export function RecentAlerts({ alerts }: RecentAlertsProps) {
               </p>
               <p className="text-xs text-muted-foreground">
                 {alert.ip}
-                {alert.port ? `:${alert.port}` : ''}{' '}
+                {alert.port ? `:${alert.port}` : ""}{" "}
                 {alert.network_name && `· ${alert.network_name}`}
               </p>
             </div>
@@ -50,5 +50,5 @@ export function RecentAlerts({ alerts }: RecentAlertsProps) {
         ))}
       </CardContent>
     </Card>
-  )
+  );
 }

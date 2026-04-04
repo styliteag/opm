@@ -80,7 +80,7 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
   return (
     <div className="rounded-lg border border-border">
       <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
-        <h3 className="font-display text-sm font-semibold text-foreground">
+        <h3 className="text-sm font-strong text-foreground">
           Alert Rules ({rules.length})
         </h3>
         <Button
@@ -256,7 +256,7 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
               >
                 <div className="flex items-center gap-3">
                   <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${badge.className}`}
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-strong uppercase ${badge.className}`}
                   >
                     {badge.label}
                   </span>

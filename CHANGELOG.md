@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Frontend design system migrated to Linear-inspired aesthetic (DESIGN.md)
+- Color system: cyan accent replaced with indigo-violet (#5e6ad2 / #7170ff / #828fff)
+- Dark mode surfaces now use pure dark palette (#0f1011, #191a1b) instead of blue-slate
+- Borders now use semi-transparent white (rgba(255,255,255,0.05-0.08)) instead of solid dark
+- Typography: Inter Variable with OpenType features cv01, ss03 globally; removed Space Grotesk display font
+- Font weight system: 400 (read), 510 (emphasis), 590 (strong) — no more weight 700
+- Chart tooltip styles updated from hsl(var()) to var() for hex/rgba token compatibility
+- Dashboard cards: removed backdrop-blur-sm in favor of luminance-based elevation
+- Replaced hardcoded cyan-* classes with primary token references
+
+### Removed
+
+- Space Grotesk font dependency (display headings now use Inter Variable)
+- @fontsource-variable/geist dependency (replaced by @fontsource-variable/inter)
+
+### Added
+
+- @fontsource-variable/inter for Inter Variable font (supports weight 510, 590)
+- @fontsource/jetbrains-mono for code/technical content
+- Custom Tailwind utilities: font-emphasis (weight 510), font-strong (weight 590)
+- Linear surface tokens (surface-0 through surface-3), text hierarchy tokens, brand tokens
+- Severity colors preserved as functional status indicators alongside achromatic system
+
 ## [1.9.3] - 2026-04-03
 
 ### Added

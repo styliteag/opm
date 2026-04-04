@@ -50,7 +50,7 @@ export function RuleRow({
           variant={rule.rule_type === "accepted" ? "success" : "danger"}
         />
         {!rule.enabled && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-emphasis text-muted-foreground">
             disabled
           </span>
         )}

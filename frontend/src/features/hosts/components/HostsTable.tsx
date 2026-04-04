@@ -123,7 +123,7 @@ export function HostsTable({
       cell: ({ getValue }) => {
         const count = getValue<number | null>();
         return (
-          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-emphasis text-primary">
             {count ?? 0}
           </span>
         );
@@ -186,7 +186,7 @@ export function HostsTable({
               {hg.headers.map((header) => (
                 <th
                   key={header.id}
-                  className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                  className="px-4 py-3 text-left text-xs font-emphasis uppercase tracking-wider text-muted-foreground"
                   style={{ width: header.getSize() }}
                 >
                   {flexRender(

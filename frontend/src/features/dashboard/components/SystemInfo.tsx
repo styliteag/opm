@@ -10,7 +10,7 @@ export function SystemInfo() {
   const migrationOk = data.migration_status === "up to date";
 
   return (
-    <Card className="backdrop-blur-sm" size="sm">
+    <Card size="sm">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">System</CardTitle>
       </CardHeader>

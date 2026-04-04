@@ -99,7 +99,7 @@ function AlertsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-strong text-foreground">
             Alert Triage Center
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -109,13 +109,13 @@ function AlertsPage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <SeverityBadge severity="critical" />
-            <span className="text-sm font-medium text-foreground">
+            <span className="text-sm font-emphasis text-foreground">
               {criticalCount}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <SeverityBadge severity="high" />
-            <span className="text-sm font-medium text-foreground">
+            <span className="text-sm font-emphasis text-foreground">
               {highCount}
             </span>
           </div>

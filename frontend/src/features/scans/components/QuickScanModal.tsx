@@ -105,7 +105,7 @@ export function QuickScanModal() {
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-muted-foreground">Est. Runtime:</span>
-                <span className={`font-medium ${estimate.color}`}>
+                <span className={`font-emphasis ${estimate.color}`}>
                   {estimate.display}
                 </span>
               </div>
@@ -131,7 +131,7 @@ export function QuickScanModal() {
                   key={opt.value}
                   type="button"
                   onClick={() => setScanType(opt.value)}
-                  className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`flex-1 rounded-md px-3 py-2 text-sm font-emphasis transition-colors ${
                     scanType === opt.value
                       ? "bg-primary text-primary-foreground"
                       : "bg-accent text-muted-foreground hover:text-foreground"

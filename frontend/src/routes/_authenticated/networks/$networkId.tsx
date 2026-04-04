@@ -74,9 +74,7 @@ function NetworkDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
-          <h1 className="font-display text-2xl font-bold text-foreground">
-            {n.name}
-          </h1>
+          <h1 className="text-2xl font-strong text-foreground">{n.name}</h1>
           <p className="mt-0.5 font-mono text-sm text-primary">{n.cidr}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -125,7 +123,7 @@ function NetworkDetailPage() {
 
       {/* Alert Settings */}
       <div className="rounded-lg border border-border bg-card p-5">
-        <h3 className="font-display text-sm font-semibold text-foreground mb-3">
+        <h3 className="text-sm font-strong text-foreground mb-3">
           Alert Settings
         </h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -161,7 +159,7 @@ function NetworkDetailPage() {
       {/* Host Discovery */}
       <div className="rounded-lg border border-border">
         <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
-          <h3 className="font-display text-sm font-semibold text-foreground">
+          <h3 className="text-sm font-strong text-foreground">
             Host Discovery
           </h3>
           <Button
@@ -219,7 +217,7 @@ function NetworkDetailPage() {
       {/* Recent Scans */}
       <div className="rounded-lg border border-border">
         <div className="border-b border-border bg-card px-5 py-3">
-          <h3 className="font-display text-sm font-semibold text-foreground">
+          <h3 className="text-sm font-strong text-foreground">
             Scan History ({scanList.length})
           </h3>
         </div>

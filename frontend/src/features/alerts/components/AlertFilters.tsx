@@ -71,7 +71,7 @@ function FilterDropdown({
         aria-label={`Filter by ${label}: ${value}`}
       >
         <span className="text-muted-foreground">{label}:</span>
-        <span className="font-medium">{value}</span>
+        <span className="font-emphasis">{value}</span>
         <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" sideOffset={4}>

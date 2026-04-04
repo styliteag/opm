@@ -97,18 +97,20 @@ export function AcceptModal({
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
             Accepting creates a{" "}
-            <span className="font-medium text-foreground">permanent rule</span>{" "}
+            <span className="font-emphasis text-foreground">
+              permanent rule
+            </span>{" "}
             that suppresses future alerts for the same port/condition.
             {isBulk ? " This applies to all selected alerts." : ""} Unlike
             dismiss, accepted ports{" "}
-            <span className="font-medium text-foreground">
+            <span className="font-emphasis text-foreground">
               will not trigger alerts on future scans
             </span>
             .
           </p>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
+            <label className="block text-sm font-emphasis text-foreground mb-1">
               Scope
             </label>
             <div className="flex gap-2">
@@ -120,7 +122,7 @@ export function AcceptModal({
                     : "border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <div className="font-medium">Global</div>
+                <div className="font-emphasis">Global</div>
                 <div className="text-xs mt-0.5 opacity-80">
                   Suppresses across all networks
                 </div>
@@ -133,7 +135,7 @@ export function AcceptModal({
                     : "border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <div className="font-medium">Network</div>
+                <div className="font-emphasis">Network</div>
                 <div className="text-xs mt-0.5 opacity-80">
                   Suppresses only in one network
                 </div>
@@ -143,7 +145,7 @@ export function AcceptModal({
 
           {scope === "network" && (
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
+              <label className="block text-sm font-emphasis text-foreground mb-1">
                 Network <span className="text-destructive">*</span>
               </label>
               <Select
@@ -163,7 +165,7 @@ export function AcceptModal({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
+            <label className="block text-sm font-emphasis text-foreground mb-1">
               Reason <span className="text-destructive">*</span>
             </label>
             <Textarea

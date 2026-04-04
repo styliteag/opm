@@ -142,7 +142,7 @@ function NseLibraryPage() {
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">
+            <h1 className="text-2xl font-strong text-foreground">
               NSE Script Library
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">

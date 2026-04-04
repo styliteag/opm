@@ -48,7 +48,7 @@ export function RuleSection({
           />
           <div className="flex items-center gap-2">
             {icon}
-            <h3 className="font-display text-sm font-semibold text-foreground">
+            <h3 className="text-sm font-strong text-foreground">
               {title} ({rules.length})
             </h3>
           </div>

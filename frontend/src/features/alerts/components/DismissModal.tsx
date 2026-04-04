@@ -84,14 +84,15 @@ export function DismissModal({
           <p className="text-sm text-muted-foreground">
             Dismissing hides {isBulk ? "these alerts" : "this alert"} from the
             active list. Future scans that detect the same issue{" "}
-            <span className="font-medium text-foreground">
+            <span className="font-emphasis text-foreground">
               will still generate new alerts
             </span>
             . To permanently suppress alerts for a port, use{" "}
-            <span className="font-medium text-foreground">Accept</span> instead.
+            <span className="font-emphasis text-foreground">Accept</span>{" "}
+            instead.
           </p>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
+            <label className="block text-sm font-emphasis text-foreground mb-1">
               Reason <span className="text-destructive">*</span>
             </label>
             <Textarea

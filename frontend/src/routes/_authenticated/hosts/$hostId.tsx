@@ -91,10 +91,7 @@ function HostDetailPage() {
         <div className="flex items-center gap-4">
           <div className="text-right">
             <p
-              className={cn(
-                "font-display text-3xl font-bold",
-                riskScoreColor(riskScore),
-              )}
+              className={cn("text-3xl font-strong", riskScoreColor(riskScore))}
             >
               {riskScore}
             </p>
@@ -135,19 +132,19 @@ function HostDetailPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Open Ports</p>
-          <p className="mt-1 font-display text-2xl font-bold text-foreground">
+          <p className="mt-1 text-2xl font-strong text-foreground">
             {ports.length}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Active Alerts</p>
-          <p className="mt-1 font-display text-2xl font-bold text-foreground">
+          <p className="mt-1 text-2xl font-strong text-foreground">
             {alerts.length}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Coverage</p>
-          <p className="mt-1 font-display text-2xl font-bold text-foreground">
+          <p className="mt-1 text-2xl font-strong text-foreground">
             {ports.length > 0
               ? Math.round(
                   (ports.filter((p) => p.rule_status).length / ports.length) *
@@ -159,7 +156,7 @@ function HostDetailPage() {
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Last Seen</p>
-          <p className="mt-1 text-sm font-medium text-foreground">
+          <p className="mt-1 text-sm font-emphasis text-foreground">
             {formatRelativeTime(host.last_seen_at)}
           </p>
         </div>
@@ -271,7 +268,7 @@ function InlineHostname({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={() => setEditing(false)}
-          className="font-display text-2xl font-bold text-foreground bg-transparent border-b-2 border-primary outline-none"
+          className="text-2xl font-strong text-foreground bg-transparent border-b-2 border-primary outline-none"
           disabled={save.isPending}
         />
         <Button
@@ -302,7 +299,7 @@ function InlineHostname({
 
   return (
     <h1
-      className="group flex items-center gap-2 font-display text-2xl font-bold text-foreground cursor-pointer"
+      className="group flex items-center gap-2 text-2xl font-strong text-foreground cursor-pointer"
       onClick={startEditing}
     >
       {hostname ?? ip}
@@ -340,7 +337,7 @@ function HostComment({
   if (editing) {
     return (
       <div className="rounded-lg border border-border bg-card p-4">
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+        <label className="block text-xs font-emphasis text-muted-foreground mb-1.5">
           Host Comment
         </label>
         <textarea
@@ -384,7 +381,7 @@ function HostComment({
       }}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium text-muted-foreground">
+        <span className="text-xs font-emphasis text-muted-foreground">
           Host Comment
         </span>
         <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -427,25 +424,25 @@ function PortsTab({
       <table className="w-full">
         <thead>
           <tr className="border-b border-border bg-card">
-            <th className="px-4 py-2 text-left text-xs font-medium uppercase text-muted-foreground">
+            <th className="px-4 py-2 text-left text-xs font-emphasis uppercase text-muted-foreground">
               Port
             </th>
-            <th className="px-4 py-2 text-left text-xs font-medium uppercase text-muted-foreground">
+            <th className="px-4 py-2 text-left text-xs font-emphasis uppercase text-muted-foreground">
               Protocol
             </th>
-            <th className="px-4 py-2 text-left text-xs font-medium uppercase text-muted-foreground">
+            <th className="px-4 py-2 text-left text-xs font-emphasis uppercase text-muted-foreground">
               Service
             </th>
-            <th className="px-4 py-2 text-left text-xs font-medium uppercase text-muted-foreground">
+            <th className="px-4 py-2 text-left text-xs font-emphasis uppercase text-muted-foreground">
               Banner
             </th>
-            <th className="px-4 py-2 text-left text-xs font-medium uppercase text-muted-foreground">
+            <th className="px-4 py-2 text-left text-xs font-emphasis uppercase text-muted-foreground">
               Status
             </th>
-            <th className="px-4 py-2 text-left text-xs font-medium uppercase text-muted-foreground">
+            <th className="px-4 py-2 text-left text-xs font-emphasis uppercase text-muted-foreground">
               Comment
             </th>
-            <th className="px-4 py-2 text-left text-xs font-medium uppercase text-muted-foreground">
+            <th className="px-4 py-2 text-left text-xs font-emphasis uppercase text-muted-foreground">
               Last Seen
             </th>
           </tr>
@@ -658,7 +655,7 @@ function SshTab({ ssh }: { ssh: AlertSSHSummary | null }) {
         </Button>
       </div>
       <div className="rounded-lg border border-border bg-card p-5">
-        <h3 className="font-display text-sm font-semibold text-foreground mb-4">
+        <h3 className="text-sm font-strong text-foreground mb-4">
           SSH Security Assessment
         </h3>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -765,7 +762,7 @@ function VulnerabilitiesTab({
               <div className="flex items-center gap-3">
                 <SeverityBadge severity={vuln.severity} />
                 <div>
-                  <p className="text-sm font-medium text-foreground">
+                  <p className="text-sm font-emphasis text-foreground">
                     {vuln.script_name}
                   </p>
                   <p className="text-xs text-muted-foreground">

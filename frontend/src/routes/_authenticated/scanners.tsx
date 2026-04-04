@@ -40,7 +40,7 @@ function ScannersPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-strong text-foreground">
             Scanner Fleet Management
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -60,25 +60,25 @@ function ScannersPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Total Scanners</p>
-          <p className="mt-1 font-display text-2xl font-bold text-foreground">
+          <p className="mt-1 text-2xl font-strong text-foreground">
             {scannerList.length}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Online</p>
-          <p className="mt-1 font-display text-2xl font-bold text-emerald-400">
+          <p className="mt-1 text-2xl font-strong text-emerald-400">
             {onlineCount}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Offline</p>
-          <p className="mt-1 font-display text-2xl font-bold text-red-400">
+          <p className="mt-1 text-2xl font-strong text-red-400">
             {scannerList.length - onlineCount}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Uptime</p>
-          <p className="mt-1 font-display text-2xl font-bold text-foreground">
+          <p className="mt-1 text-2xl font-strong text-foreground">
             {scannerList.length > 0
               ? `${Math.round((onlineCount / scannerList.length) * 100)}%`
               : "-"}

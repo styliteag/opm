@@ -56,7 +56,7 @@ function HostsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-strong text-foreground">
             Host Inventory
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -86,7 +86,7 @@ function HostsPage() {
             setViewMode("hosts");
             setPage(0);
           }}
-          className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+          className={`rounded-md px-3 py-1 text-sm font-emphasis transition-colors ${
             viewMode === "hosts"
               ? "bg-primary text-white"
               : "text-muted-foreground hover:text-foreground"
@@ -99,7 +99,7 @@ function HostsPage() {
             setViewMode("global-ports");
             setPage(0);
           }}
-          className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+          className={`rounded-md px-3 py-1 text-sm font-emphasis transition-colors ${
             viewMode === "global-ports"
               ? "bg-primary text-white"
               : "text-muted-foreground hover:text-foreground"
@@ -143,21 +143,21 @@ function HostsPage() {
             <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
               <button
                 onClick={() => setPage(0)}
-                className="rounded px-2 py-1 text-xs font-medium text-muted-foreground"
+                className="rounded px-2 py-1 text-xs font-emphasis text-muted-foreground"
                 title="IPv4 + IPv6"
               >
                 All
               </button>
               <button
                 onClick={() => setPage(0)}
-                className="rounded px-2 py-1 text-xs font-medium text-muted-foreground"
+                className="rounded px-2 py-1 text-xs font-emphasis text-muted-foreground"
                 title="IPv4 only"
               >
                 IPv4
               </button>
               <button
                 onClick={() => setPage(0)}
-                className="rounded px-2 py-1 text-xs font-medium text-muted-foreground"
+                className="rounded px-2 py-1 text-xs font-emphasis text-muted-foreground"
                 title="IPv6 only"
               >
                 IPv6
@@ -177,7 +177,7 @@ function HostsPage() {
                     );
                     setPage(0);
                   }}
-                  className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-md px-2 py-1 text-xs font-emphasis transition-colors ${
                     search === svc.toLowerCase()
                       ? "bg-primary text-white"
                       : "bg-accent text-muted-foreground hover:text-foreground"
@@ -195,7 +195,7 @@ function HostsPage() {
                     setStaleness(s);
                     setPage(0);
                   }}
-                  className={`rounded px-2 py-1 text-xs font-medium capitalize transition-colors ${
+                  className={`rounded px-2 py-1 text-xs font-emphasis capitalize transition-colors ${
                     staleness === s
                       ? "bg-primary text-white"
                       : "text-muted-foreground hover:text-foreground"

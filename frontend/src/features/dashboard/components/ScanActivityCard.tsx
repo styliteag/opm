@@ -20,7 +20,7 @@ export function ScanActivityCard({ latestScans }: ScanActivityCardProps) {
     .slice(0, 5);
 
   return (
-    <Card className="backdrop-blur-sm">
+    <Card>
       <CardHeader className="flex-row items-center justify-between pb-3">
         <CardTitle className="text-sm">Scan Activity</CardTitle>
         <Link

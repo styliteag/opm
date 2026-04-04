@@ -70,7 +70,7 @@ function NetworksPage() {
           <p className="text-xs font-medium uppercase tracking-wider text-primary">
             System Configuration
           </p>
-          <h1 className="font-display text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-strong text-foreground">
             Network Definitions
           </h1>
         </div>
@@ -86,7 +86,7 @@ function NetworksPage() {
       {/* Scanner Status + Coverage */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-card p-5">
-          <h3 className="font-display text-sm font-semibold text-foreground">
+          <h3 className="text-sm font-strong text-foreground">
             Scanner Status
           </h3>
           <div className="mt-3 space-y-2">
@@ -114,10 +114,10 @@ function NetworksPage() {
           </div>
         </div>
         <div className="rounded-lg border border-border bg-card p-5">
-          <h3 className="font-display text-sm font-semibold text-foreground">
+          <h3 className="text-sm font-strong text-foreground">
             Network Coverage
           </h3>
-          <p className="mt-2 font-display text-4xl font-bold text-foreground">
+          <p className="mt-2 text-4xl font-strong text-foreground">
             {totalCoverage}%
           </p>
           <p className="text-sm text-muted-foreground">Total Visibility</p>
@@ -145,7 +145,7 @@ function NetworksPage() {
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-display text-lg font-semibold text-foreground">
+                    <h3 className="text-lg font-strong text-foreground">
                       {network.name}
                     </h3>
                     <p className="mt-0.5 font-mono text-sm text-primary">

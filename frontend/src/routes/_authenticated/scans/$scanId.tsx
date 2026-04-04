@@ -45,7 +45,7 @@ function ScanDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
-          <h1 className="font-display text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-strong text-foreground">
             Scan #{data.id}
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -143,7 +143,7 @@ function ScanDetailPage() {
       {data.open_ports && data.open_ports.length > 0 && (
         <div className="rounded-lg border border-border">
           <div className="border-b border-border bg-card px-5 py-3">
-            <h3 className="font-display text-sm font-semibold text-foreground">
+            <h3 className="text-sm font-strong text-foreground">
               Port Discovery ({data.open_ports.length})
             </h3>
           </div>
@@ -200,9 +200,7 @@ function ScanDetailPage() {
       {/* Engine Logs */}
       <div className="rounded-lg border border-border">
         <div className="border-b border-border bg-card px-5 py-3">
-          <h3 className="font-display text-sm font-semibold text-foreground">
-            Engine Logs
-          </h3>
+          <h3 className="text-sm font-strong text-foreground">Engine Logs</h3>
         </div>
         <div className="max-h-96 overflow-y-auto p-4 font-mono text-xs">
           {(logs.data?.logs ?? []).length === 0 ? (

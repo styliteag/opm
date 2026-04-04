@@ -126,9 +126,7 @@ function PortRulesPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
-            Alert Rules
-          </h1>
+          <h1 className="text-2xl font-strong text-foreground">Alert Rules</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage global and per-network alert acceptance and criticality rules
             for port, SSH, and NSE alerts.
@@ -224,7 +222,7 @@ function PortRulesPage() {
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Network className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-display text-lg font-semibold text-foreground">
+          <h2 className="text-lg font-strong text-foreground">
             Per-Network Rules
           </h2>
         </div>

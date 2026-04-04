@@ -81,7 +81,7 @@ function NavGroup({
   return (
     <div className="space-y-1">
       {label && !collapsed && (
-        <p className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <p className="px-3 py-1 text-xs font-emphasis uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
       )}
@@ -98,7 +98,7 @@ function NavGroup({
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
               isActive
-                ? "bg-primary/10 text-primary font-medium"
+                ? "bg-accent text-accent-foreground font-emphasis"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent",
               collapsed && "justify-center px-2",
             )}
@@ -129,7 +129,7 @@ export function Sidebar() {
       <div className="flex h-14 items-center gap-2 border-b border-border px-4">
         <ShieldAlert className="h-6 w-6 text-primary shrink-0" />
         {!collapsed && (
-          <span className="font-display text-sm font-semibold tracking-tight text-foreground">
+          <span className="text-sm font-strong tracking-tight text-foreground">
             Onyx Port Monitor
           </span>
         )}

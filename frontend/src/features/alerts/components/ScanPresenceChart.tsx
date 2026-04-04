@@ -27,7 +27,7 @@ export function ScanPresenceChart({ scanGroups }: ScanPresenceChartProps) {
 
   return (
     <div className="rounded-lg border border-border bg-card p-5">
-      <h3 className="font-display text-sm font-semibold text-foreground mb-3">
+      <h3 className="text-sm font-strong text-foreground mb-3">
         Scan Presence
       </h3>
 

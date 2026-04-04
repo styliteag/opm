@@ -143,7 +143,7 @@ function createColumns(props: {
             className="group/link flex items-center gap-2 min-w-0"
           >
             <span
-              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase shrink-0 ${sourceBadgeColors[src] ?? sourceBadgeColors.port}`}
+              className={`rounded px-1.5 py-0.5 text-[10px] font-strong uppercase shrink-0 ${sourceBadgeColors[src] ?? sourceBadgeColors.port}`}
             >
               {src}
             </span>

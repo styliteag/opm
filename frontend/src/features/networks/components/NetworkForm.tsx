@@ -203,7 +203,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 py-2">
           {/* ── Network Identity ── */}
           <fieldset className="space-y-3">
-            <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
               Network
             </legend>
             <div className="grid grid-cols-[1fr_1fr] gap-3">
@@ -255,7 +255,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
 
           {/* ── Scanner Configuration ── */}
           <fieldset className="space-y-3">
-            <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
               Scanner
             </legend>
             <div className="grid grid-cols-3 gap-3">
@@ -360,7 +360,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
               >
                 <p className="text-xs text-muted-foreground">
                   Est. Runtime:{" "}
-                  <span className={`font-medium ${estimate.color}`}>
+                  <span className={`font-emphasis ${estimate.color}`}>
                     {estimate.display}
                   </span>
                   <span className="ml-2 text-[10px]">
@@ -376,7 +376,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
 
           {/* ── Scan Phases & NSE ── */}
           <fieldset className="space-y-3">
-            <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
               Phases
             </legend>
             <PhaseCards phases={phases} onChange={setPhases} />
@@ -412,7 +412,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
 
           {/* ── Schedule & Alerts ── */}
           <fieldset className="space-y-3">
-            <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
               Schedule &amp; Alerts
             </legend>
             <div className="grid grid-cols-2 gap-3">

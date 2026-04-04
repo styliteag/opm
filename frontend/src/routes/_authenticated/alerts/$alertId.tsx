@@ -96,7 +96,7 @@ function AlertDetailPage() {
             />
             {alert.dismissed && <Badge variant="outline">Dismissed</Badge>}
           </div>
-          <h1 className="mt-2 font-display text-xl font-bold text-foreground">
+          <h1 className="mt-2 text-xl font-strong text-foreground">
             {alert.message}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -154,7 +154,7 @@ function AlertDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Alert Info */}
           <div className="rounded-lg border border-border bg-card p-5">
-            <h3 className="font-display text-sm font-semibold text-foreground mb-3">
+            <h3 className="text-sm font-strong text-foreground mb-3">
               Details
             </h3>
             <dl className="grid grid-cols-2 gap-3">
@@ -252,7 +252,7 @@ function AlertDetailPage() {
           {/* SSH Context */}
           {alert.ssh_summary && (
             <div className="rounded-lg border border-border bg-card p-5">
-              <h3 className="font-display text-sm font-semibold text-foreground mb-3">
+              <h3 className="text-sm font-strong text-foreground mb-3">
                 SSH Context
               </h3>
               <dl className="grid grid-cols-2 gap-3">
@@ -316,7 +316,7 @@ function AlertDetailPage() {
           {/* NSE Context */}
           {alert.source === "nse" && (
             <div className="rounded-lg border border-border bg-card p-5">
-              <h3 className="font-display text-sm font-semibold text-foreground mb-3">
+              <h3 className="text-sm font-strong text-foreground mb-3">
                 Vulnerability Context
               </h3>
               <p className="text-sm text-muted-foreground mb-3">
@@ -338,7 +338,7 @@ function AlertDetailPage() {
           {/* Matching Rules */}
           {alert.matching_rules.length > 0 && (
             <div className="rounded-lg border border-border bg-card p-5">
-              <h3 className="font-display text-sm font-semibold text-foreground mb-3">
+              <h3 className="text-sm font-strong text-foreground mb-3">
                 Matching Rules ({alert.matching_rules.length})
               </h3>
               <div className="space-y-2">
@@ -369,7 +369,7 @@ function AlertDetailPage() {
 
           {/* Activity Feed */}
           <div className="rounded-lg border border-border bg-card p-5">
-            <h3 className="font-display text-sm font-semibold text-foreground mb-3">
+            <h3 className="text-sm font-strong text-foreground mb-3">
               Activity
             </h3>
             <AlertActivityFeed alertId={id} />
@@ -380,7 +380,7 @@ function AlertDetailPage() {
         <div className="rounded-lg border border-border bg-card p-5">
           <div className="flex items-center gap-2 mb-4">
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            <h3 className="font-display text-sm font-semibold text-foreground">
+            <h3 className="text-sm font-strong text-foreground">
               Comments ({commentList.length})
             </h3>
           </div>
@@ -393,7 +393,7 @@ function AlertDetailPage() {
               {commentList.map((comment) => (
                 <div key={comment.id}>
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-foreground">
+                    <p className="text-xs font-emphasis text-foreground">
                       {comment.user_email}
                     </p>
                     <p className="text-xs text-muted-foreground">

@@ -84,7 +84,7 @@ export function AlertActivityFeed({ alertId }: AlertActivityFeedProps) {
             </div>
             <div className="pb-6 pt-1">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">
+                <span className="text-sm font-emphasis text-foreground">
                   {eventTypeLabel(event.event_type)}
                 </span>
                 <span className="text-xs text-muted-foreground ml-3">

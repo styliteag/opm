@@ -14,7 +14,7 @@ export function NetworkCards({ networks, latestScans }: NetworkCardsProps) {
   const scanMap = new Map(latestScans.map((s) => [s.network_id, s.scan]));
 
   return (
-    <Card className="backdrop-blur-sm">
+    <Card>
       <CardHeader className="flex-row items-center justify-between pb-3">
         <CardTitle className="text-sm">Networks</CardTitle>
         <Link

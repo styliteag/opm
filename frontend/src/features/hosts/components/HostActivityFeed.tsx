@@ -120,7 +120,7 @@ export function HostActivityFeed({ hostId }: HostActivityFeedProps) {
                 {!isLast && <div className="w-px flex-1 bg-border" />}
               </div>
               <div className="pb-6 pt-1">
-                <p className="text-sm font-medium text-foreground">
+                <p className="text-sm font-emphasis text-foreground">
                   {event.title}
                 </p>
                 <p className="text-xs text-muted-foreground">

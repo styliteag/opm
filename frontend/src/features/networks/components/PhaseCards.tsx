@@ -111,7 +111,7 @@ export function PhaseCards({ phases, onChange }: PhaseCardsProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-semibold">Scan Phases</Label>
+        <Label className="text-sm font-strong">Scan Phases</Label>
         <span className="text-[10px] text-muted-foreground">
           {enabledCount} of {current.length} enabled
         </span>
@@ -164,7 +164,7 @@ function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
           onCheckedChange={(c) => onToggle(c === true)}
         />
         <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium">{meta.label}</span>
+          <span className="text-sm font-emphasis">{meta.label}</span>
           <span className="ml-2 text-[10px] text-muted-foreground">
             {meta.description}
           </span>

@@ -6,32 +6,36 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-} from 'recharts'
+} from "recharts";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { AlertTrendDataPoint } from '@/lib/types'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { AlertTrendDataPoint } from "@/lib/types";
 
 interface ThreatPulseChartProps {
-  data: AlertTrendDataPoint[]
+  data: AlertTrendDataPoint[];
 }
 
 export function ThreatPulseChart({ data }: ThreatPulseChartProps) {
   const formatted = data.map((d) => ({
     ...d,
-    date: new Date(d.date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
+    date: new Date(d.date).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
     }),
     active: d.count - d.dismissed_count,
-  }))
+  }));
 
   return (
-    <Card className="backdrop-blur-sm">
+    <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm">Threat Pulse (30d)</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-64" role="img" aria-label="Alert trend chart showing new alerts and resolved alerts over the past 30 days">
+        <div
+          className="h-64"
+          role="img"
+          aria-label="Alert trend chart showing new alerts and resolved alerts over the past 30 days"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={formatted}>
               <defs>
@@ -47,22 +51,22 @@ export function ThreatPulseChart({ data }: ThreatPulseChartProps) {
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis
                 dataKey="date"
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
               />
               <YAxis
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 width={30}
               />
               <Tooltip
                 contentStyle={{
-                  background: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '6px',
-                  color: 'hsl(var(--foreground))',
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "6px",
+                  color: "var(--foreground)",
                   fontSize: 12,
                 }}
               />
@@ -87,5 +91,5 @@ export function ThreatPulseChart({ data }: ThreatPulseChartProps) {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
