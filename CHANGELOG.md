@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.4] - 2026-04-04
+
 ### Changed
 
 - Frontend design system migrated to Linear-inspired aesthetic (DESIGN.md)
