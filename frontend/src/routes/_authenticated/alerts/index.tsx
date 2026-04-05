@@ -60,7 +60,7 @@ function AlertsPage() {
   const sortBy = sorting[0]?.id;
   const sortDir = sorting[0]?.desc ? ("desc" as const) : ("asc" as const);
 
-  const limit = pageSize === 0 ? 10000 : pageSize;
+  const limit = pageSize === 0 ? 200 : pageSize;
   const alerts = useAlerts({
     ...filters,
     sort_by: sortBy,
@@ -148,14 +148,29 @@ function AlertsPage() {
         </div>
       </div>
 
-      <AlertFilters
-        filters={filters}
-        onChange={(f) => {
-          setFilters(f);
-          setPage(0);
-        }}
-        networks={networkList}
-      />
+      <div className="flex items-center justify-between gap-4">
+        <AlertFilters
+          filters={filters}
+          onChange={(f) => {
+            setFilters(f);
+            setPage(0);
+          }}
+          networks={networkList}
+        />
+        <Select
+          value={String(pageSize)}
+          onChange={(e) => {
+            setPageSize(Number(e.target.value));
+            setPage(0);
+          }}
+          className="w-auto shrink-0 text-xs"
+        >
+          <option value="50">50 per page</option>
+          <option value="100">100 per page</option>
+          <option value="200">200 per page</option>
+          <option value="0">All</option>
+        </Select>
+      </div>
 
       {selectedIds.length > 0 && (
         <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-2">
@@ -240,25 +255,11 @@ function AlertsPage() {
             onDelete={handleDelete}
           />
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-muted-foreground">
-                Showing {page * limit + 1}-
-                {Math.min(page * limit + alertList.length, totalAlerts)} of{" "}
-                {totalAlerts}
-              </p>
-              <Select
-                value={String(pageSize)}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(0);
-                }}
-                className="w-auto text-xs"
-              >
-                <option value="50">50 per page</option>
-                <option value="100">100 per page</option>
-                <option value="0">All</option>
-              </Select>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Showing {page * limit + 1}-
+              {Math.min(page * limit + alertList.length, totalAlerts)} of{" "}
+              {totalAlerts}
+            </p>
             {pageSize !== 0 && (
               <div className="flex gap-2">
                 <button
