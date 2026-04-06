@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Page size "All" option no longer exceeds API max limit of 200
 - Moved page size selector above alerts table next to filters
+- Host timeline 500 error on MariaDB caused by SQLite-only `||` concatenation syntax
 
 ## [1.9.7] - 2026-04-06
 

@@ -27,15 +27,15 @@ async def get_host_timeline(
         params["before"] = before
 
     # Each sub-select produces (id, event_type, ts, title, description)
-    # Uses || for concatenation (portable across SQLite and MariaDB)
+    # Uses CONCAT() for MariaDB compatibility
     alerts_q = f"""
         SELECT
             id,
             'alert_created' AS event_type,
             created_at AS ts,
-            'Alert: ' || SUBSTR(message, 1, 120) AS title,
-            'Type: ' || alert_type
-                || ' | Port: ' || COALESCE(CAST(port AS TEXT), '0') AS description
+            CONCAT('Alert: ', SUBSTRING(message, 1, 120)) AS title,
+            CONCAT('Type: ', alert_type,
+                ' | Port: ', COALESCE(CAST(port AS CHAR), '0')) AS description
         FROM alerts
         WHERE ip = :host_ip {before_clause}
     """
@@ -45,9 +45,9 @@ async def get_host_timeline(
             op.id,
             'port_discovered' AS event_type,
             op.first_seen_at AS ts,
-            'Port ' || op.port || '/' || op.protocol || ' discovered' AS title,
+            CONCAT('Port ', op.port, '/', op.protocol, ' discovered') AS title,
             COALESCE(
-                'Service: ' || op.service_guess,
+                CONCAT('Service: ', op.service_guess),
                 'No service info'
             ) AS description
         FROM open_ports op
@@ -60,9 +60,9 @@ async def get_host_timeline(
             id,
             'ssh_scanned' AS event_type,
             timestamp AS ts,
-            'SSH scan on port ' || port AS title,
-            'Version: ' || COALESCE(ssh_version, 'unknown')
-                || ' | Password: ' || CASE WHEN password_enabled THEN 'yes' ELSE 'no' END
+            CONCAT('SSH scan on port ', port) AS title,
+            CONCAT('Version: ', COALESCE(ssh_version, 'unknown'),
+                ' | Password: ', CASE WHEN password_enabled THEN 'yes' ELSE 'no' END)
                 AS description
         FROM ssh_scan_results
         WHERE host_ip = :host_ip {before_clause.replace("ts", "timestamp")}
@@ -73,9 +73,9 @@ async def get_host_timeline(
             id,
             'vulnerability_found' AS event_type,
             created_at AS ts,
-            'Vulnerability: ' || script_name AS title,
-            'Severity: ' || severity
-                || ' | Port: ' || port || '/' || protocol
+            CONCAT('Vulnerability: ', script_name) AS title,
+            CONCAT('Severity: ', severity,
+                ' | Port: ', port, '/', protocol)
                 AS description
         FROM nse_results
         WHERE ip = :host_ip {before_clause}
@@ -86,8 +86,9 @@ async def get_host_timeline(
             ac.id,
             'alert_action' AS event_type,
             ac.created_at AS ts,
-            COALESCE(u.email, 'system') || ': ' || SUBSTR(ac.comment, 1, 120) AS title,
-            'Alert #' || a.id || ' | ' || a.alert_type AS description
+            CONCAT(COALESCE(u.email, 'system'), ': ',
+                SUBSTRING(ac.comment, 1, 120)) AS title,
+            CONCAT('Alert #', a.id, ' | ', a.alert_type) AS description
         FROM alert_comments ac
         JOIN alerts a ON a.id = ac.alert_id
         LEFT JOIN users u ON u.id = ac.user_id
@@ -97,12 +98,12 @@ async def get_host_timeline(
     alert_events_q = f"""
         SELECT
             ae.id,
-            'alert_event:' || ae.event_type AS event_type,
+            CONCAT('alert_event:', ae.event_type) AS event_type,
             ae.occurred_at AS ts,
-            COALESCE(u.email, 'system') || ': '
-                || COALESCE(ae.description, ae.event_type) AS title,
-            'Alert #' || a.id || ' | ' || a.alert_type
-                || ' | Port: ' || COALESCE(CAST(a.port AS TEXT), '0') AS description
+            CONCAT(COALESCE(u.email, 'system'), ': ',
+                COALESCE(ae.description, ae.event_type)) AS title,
+            CONCAT('Alert #', a.id, ' | ', a.alert_type,
+                ' | Port: ', COALESCE(CAST(a.port AS CHAR), '0')) AS description
         FROM alert_events ae
         JOIN alerts a ON a.id = ae.alert_id
         LEFT JOIN users u ON u.id = ae.user_id
