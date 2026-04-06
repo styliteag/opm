@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Bulk delete alerts endpoint now uses POST method (was DELETE, causing 405 errors from frontend)
+- Bulk dismiss alerts endpoint path changed from `/dismiss-bulk` (PUT) to `/bulk-dismiss` (POST) to match frontend expectations
+
 ## [1.9.10] - 2026-04-06
 
 ## [1.9.9] - 2026-04-06

@@ -227,8 +227,8 @@ async def dismiss_alert(
     )
 
 
-@router.put(
-    "/dismiss-bulk",
+@router.post(
+    "/bulk-dismiss",
     response_model=AlertBulkDismissResponse,
 )
 async def dismiss_alerts_bulk(
@@ -283,7 +283,7 @@ async def dismiss_alerts_bulk(
     )
 
 
-@router.delete(
+@router.post(
     "/bulk-delete",
     response_model=BulkDeleteResponse,
 )
