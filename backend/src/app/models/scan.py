@@ -2,9 +2,9 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -85,6 +85,11 @@ class Scan(Base):
         nullable=True,
         index=True,
         comment="NSE template used for this scan; NULL for non-NSE scans",
+    )
+    scan_overrides: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Per-scan overrides for port_spec, scanner_type, rate, protocol, timeouts",
     )
 
     # Relationships

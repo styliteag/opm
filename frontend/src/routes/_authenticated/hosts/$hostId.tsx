@@ -7,6 +7,7 @@ import {
   Download,
   Pencil,
   RefreshCw,
+  Settings2,
   Check,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { HostActivityFeed } from "@/features/hosts/components/HostActivityFeed";
+import { HostScanDialog } from "@/features/hosts/components/HostScanDialog";
 import { useHostDetail, useRescanHost } from "@/features/hosts/hooks/useHosts";
 import { useHostVulnerabilities } from "@/features/hosts/hooks/useHostVulnerabilities";
 import {
@@ -59,6 +61,7 @@ function HostDetailPage() {
   const hostIp = data?.host.ip ?? "";
   const vulns = useHostVulnerabilities(hostIp);
   const rescan = useRescanHost();
+  const [scanDialogOpen, setScanDialogOpen] = useState(false);
 
   if (isLoading) return <LoadingState rows={8} />;
   if (error) return <ErrorState message={error.message} onRetry={refetch} />;
@@ -141,6 +144,14 @@ function HostDetailPage() {
             />
             {rescan.isPending ? "Scanning…" : "Rescan"}
           </button>
+
+          <button
+            className="flex items-center gap-1.5 rounded-md border border-border bg-accent px-3 py-1.5 text-sm text-foreground hover:bg-accent/80 transition-colors"
+            onClick={() => setScanDialogOpen(true)}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Custom Scan
+          </button>
         </div>
       </div>
 
@@ -221,6 +232,14 @@ function HostDetailPage() {
           <HostActivityFeed hostId={id} />
         </TabsContent>
       </Tabs>
+
+      <HostScanDialog
+        open={scanDialogOpen}
+        onOpenChange={setScanDialogOpen}
+        hostIp={host.ip}
+        networkId={networks[0]?.id ?? 0}
+        onSuccess={refetch}
+      />
     </div>
   );
 }

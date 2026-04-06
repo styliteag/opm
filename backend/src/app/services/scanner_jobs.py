@@ -41,9 +41,15 @@ async def get_pending_jobs_for_scanner(
 
     jobs: list[ScannerJobResponse] = []
     for scan in planned_scans:
+        overrides = scan.scan_overrides or {}
+
         # Determine scanner type — NSE scans have nse_template_id set
         is_nse = scan.nse_template_id is not None
-        scanner_type = "nse" if is_nse else (scan.network.scanner_type or "masscan")
+        scanner_type = (
+            "nse"
+            if is_nse
+            else overrides.get("scanner_type", scan.network.scanner_type or "masscan")
+        )
 
         # Build NSE-specific fields from template
         nse_scripts = None
@@ -58,30 +64,29 @@ async def get_pending_jobs_for_scanner(
                     await nse_scripts_service.get_custom_script_hashes(db, nse_scripts)
                 ) or None
 
+        net = scan.network
         jobs.append(
             ScannerJobResponse(
-                network_id=scan.network.id,
-                cidr=scan.network.cidr,
-                port_spec=scan.network.port_spec,
-                rate=scan.network.scan_rate,
+                network_id=net.id,
+                cidr=net.cidr,
+                port_spec=overrides.get("port_spec", net.port_spec),
+                rate=overrides.get("scan_rate", net.scan_rate),
                 scanner_type=scanner_type,
-                scan_timeout=(
-                    scan.network.scan_timeout
-                    if scan.network.scan_timeout is not None
-                    else 3600
+                scan_timeout=overrides.get(
+                    "scan_timeout",
+                    net.scan_timeout if net.scan_timeout is not None else 3600,
                 ),
-                port_timeout=(
-                    scan.network.port_timeout
-                    if scan.network.port_timeout is not None
-                    else 1500
+                port_timeout=overrides.get(
+                    "port_timeout",
+                    net.port_timeout if net.port_timeout is not None else 1500,
                 ),
-                scan_protocol=scan.network.scan_protocol or "tcp",
-                is_ipv6=scan.network.is_ipv6,
+                scan_protocol=overrides.get("scan_protocol", net.scan_protocol or "tcp"),
+                is_ipv6=net.is_ipv6,
                 target_ip=scan.target_ip,
                 nse_scripts=nse_scripts,
                 nse_script_args=nse_script_args,
                 custom_script_hashes=custom_script_hashes,
-                phases=scan.network.phases,
+                phases=net.phases,
             )
         )
 

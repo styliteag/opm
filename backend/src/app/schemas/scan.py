@@ -44,6 +44,18 @@ class OpenPortResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class HostRescanRequest(BaseModel):
+    """Optional overrides for a single-host rescan."""
+
+    port_spec: str | None = None
+    scanner_type: str | None = None
+    scan_protocol: str | None = None
+    scan_rate: int | None = None
+    scan_timeout: int | None = None
+    port_timeout: int | None = None
+    nse_profile_id: int | None = None
+
+
 class ScanTriggerResponse(BaseModel):
     """Response when triggering a manual scan."""
 

@@ -34,7 +34,7 @@ from app.schemas.host import (
     HostUpdateRequest,
     PortRuleMatch,
 )
-from app.schemas.scan import ScanTriggerResponse
+from app.schemas.scan import HostRescanRequest, ScanTriggerResponse
 from app.services import global_open_ports as global_ports_service
 from app.services import hosts as hosts_service
 
@@ -653,6 +653,7 @@ async def trigger_host_rescan(
     admin: OperatorUser,
     db: DbSession,
     host_ip: str,
+    body: HostRescanRequest | None = None,
 ) -> ScanTriggerResponse:
     """Trigger a single-host rescan for a specific IP address.
 
@@ -712,8 +713,16 @@ async def trigger_host_rescan(
     candidate_networks.sort(key=lambda x: x[0], reverse=True)
     network = candidate_networks[0][1]
 
+    # Build per-scan overrides from request body (only non-None fields)
+    overrides_raw = {k: v for k, v in body.model_dump().items() if v is not None} if body else {}
+    # nse_profile_id is a real column, not a JSON override
+    nse_template_id = overrides_raw.pop("nse_profile_id", None)
+    overrides = overrides_raw or None
+
     # Create a single-host scan
-    scan = await scans_service.create_single_host_scan(db, network, host_ip)
+    scan = await scans_service.create_single_host_scan(
+        db, network, host_ip, scan_overrides=overrides, nse_template_id=nse_template_id
+    )
     await db.commit()
 
     return ScanTriggerResponse(

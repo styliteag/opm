@@ -1,6 +1,7 @@
 """Scan management service for triggering and querying scans."""
 
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,13 +31,18 @@ async def create_manual_scan(db: AsyncSession, network: Network) -> Scan:
 
 
 async def create_single_host_scan(
-    db: AsyncSession, network: Network, target_ip: str
+    db: AsyncSession,
+    network: Network,
+    target_ip: str,
+    scan_overrides: dict[str, Any] | None = None,
+    nse_template_id: int | None = None,
 ) -> Scan:
     """
     Create a new manual scan for a single host/IP within a network.
 
     Creates a scan record with status 'planned', trigger_type 'manual',
     and target_ip set to the specific IP address to scan.
+    Optional scan_overrides dict stores per-scan parameter overrides.
     """
     scan = Scan(
         network_id=network.id,
@@ -44,6 +50,8 @@ async def create_single_host_scan(
         status=ScanStatus.PLANNED,
         trigger_type=TriggerType.MANUAL,
         target_ip=target_ip,
+        scan_overrides=scan_overrides,
+        nse_template_id=nse_template_id,
     )
     db.add(scan)
     await db.flush()

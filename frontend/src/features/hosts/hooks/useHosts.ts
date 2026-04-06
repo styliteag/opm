@@ -49,8 +49,40 @@ export function useRescanHost() {
         `/api/hosts/${encodeURIComponent(hostIp)}/rescan`,
         {},
       ),
-    onSuccess: (_data, _hostIp) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hosts"] });
+    },
+  });
+}
+
+interface ScanOverrides {
+  port_spec: string;
+  scanner_type: string;
+  scan_protocol: string;
+  scan_rate?: number;
+  scan_timeout?: number;
+  port_timeout?: number;
+  nse_profile_id?: number;
+}
+
+export function useCustomScanHost() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      hostIp,
+      overrides,
+    }: {
+      hostIp: string;
+      overrides: ScanOverrides;
+    }) =>
+      postApi<{ scan_id: number; message: string }>(
+        `/api/hosts/${encodeURIComponent(hostIp)}/rescan`,
+        overrides,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hosts"] });
+      qc.invalidateQueries({ queryKey: ["scans"] });
     },
   });
 }
