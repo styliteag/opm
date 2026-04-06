@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.9] - 2026-04-06
+
 ### Added
 
 - Custom Scan dialog on host detail page with scan mode selector (Port Scan / NSE Vulnerability)
