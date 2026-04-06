@@ -13,7 +13,6 @@ import pty
 import re
 import select
 import signal
-import subprocess
 import sys
 import tempfile
 import time
@@ -45,26 +44,11 @@ def _get_available_scripts(logger: logging.Logger) -> set[str]:
 
     scripts: set[str] = set()
 
-    # Method 1: parse nmap --script-help output
-    try:
-        result = subprocess.run(
-            ["nmap", "--script-help", "all"],
-            capture_output=True, text=True, timeout=30,
-        )
-        for line in result.stdout.splitlines():
-            # Lines like "  script-name:" or "script-name"
-            match = re.match(r"^\s*([a-z][a-z0-9_-]+)(?:\s|:)", line)
-            if match:
-                scripts.add(match.group(1))
-    except Exception as exc:
-        logger.warning("Failed to list scripts via --script-help: %s", exc)
-
-    # Method 2: scan nmap script directories for .nse files
-    if not scripts:
-        for search_dir in ["/usr/share/nmap/scripts", "/usr/local/share/nmap/scripts"]:
-            for path in glob.glob(os.path.join(search_dir, "*.nse")):
-                name = os.path.splitext(os.path.basename(path))[0]
-                scripts.add(name)
+    # Scan nmap script directories for .nse files
+    for search_dir in ["/usr/share/nmap/scripts", "/usr/local/share/nmap/scripts"]:
+        for path in glob.glob(os.path.join(search_dir, "*.nse")):
+            name = os.path.splitext(os.path.basename(path))[0]
+            scripts.add(name)
 
     if scripts:
         logger.info("Discovered %d available NSE scripts on this system", len(scripts))
