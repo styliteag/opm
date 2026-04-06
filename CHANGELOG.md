@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.8] - 2026-04-06
+
 ### Fixed
 
 - Page size "All" option no longer exceeds API max limit of 200
