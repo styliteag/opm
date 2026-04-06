@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Rescan button on host detail page now triggers a rescan instead of being a no-op
+
 ## [1.9.8] - 2026-04-06
 
 ### Fixed

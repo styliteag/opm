@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { HostActivityFeed } from "@/features/hosts/components/HostActivityFeed";
-import { useHostDetail } from "@/features/hosts/hooks/useHosts";
+import { useHostDetail, useRescanHost } from "@/features/hosts/hooks/useHosts";
 import { useHostVulnerabilities } from "@/features/hosts/hooks/useHostVulnerabilities";
 import {
   computeRiskScore,
@@ -58,6 +58,7 @@ function HostDetailPage() {
   const { data, isLoading, error, refetch } = useHostDetail(id);
   const hostIp = data?.host.ip ?? "";
   const vulns = useHostVulnerabilities(hostIp);
+  const rescan = useRescanHost();
 
   if (isLoading) return <LoadingState rows={8} />;
   if (error) return <ErrorState message={error.message} onRetry={refetch} />;
@@ -121,9 +122,24 @@ function HostDetailPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <button className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 transition-colors">
-            <RefreshCw className="h-3.5 w-3.5" />
-            Rescan
+          <button
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            disabled={rescan.isPending}
+            onClick={() =>
+              rescan.mutate(host.ip, {
+                onSuccess: (resp) => {
+                  toast.success(resp.message ?? "Rescan triggered");
+                  refetch();
+                },
+                onError: (err) =>
+                  toast.error(err.message ?? "Failed to trigger rescan"),
+              })
+            }
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", rescan.isPending && "animate-spin")}
+            />
+            {rescan.isPending ? "Scanning…" : "Rescan"}
           </button>
         </div>
       </div>
