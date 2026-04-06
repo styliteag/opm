@@ -6,12 +6,14 @@ vulnerabilities and extract CVE identifiers from script output.
 
 from __future__ import annotations
 
+import glob
 import logging
 import os
 import pty
 import re
 import select
 import signal
+import subprocess
 import sys
 import tempfile
 import time
@@ -30,6 +32,79 @@ CVE_PATTERN = re.compile(r"CVE-\d{4}-\d{4,}", re.IGNORECASE)
 
 # Fallback scripts — only used if profile somehow has no scripts
 _FALLBACK_SCRIPTS = ["vulners"]
+
+# Cached set of script names available on this nmap installation
+_available_scripts: set[str] | None = None
+
+
+def _get_available_scripts(logger: logging.Logger) -> set[str]:
+    """Discover which NSE scripts are installed on this system."""
+    global _available_scripts  # noqa: PLW0603
+    if _available_scripts is not None:
+        return _available_scripts
+
+    scripts: set[str] = set()
+
+    # Method 1: parse nmap --script-help output
+    try:
+        result = subprocess.run(
+            ["nmap", "--script-help", "all"],
+            capture_output=True, text=True, timeout=30,
+        )
+        for line in result.stdout.splitlines():
+            # Lines like "  script-name:" or "script-name"
+            match = re.match(r"^\s*([a-z][a-z0-9_-]+)(?:\s|:)", line)
+            if match:
+                scripts.add(match.group(1))
+    except Exception as exc:
+        logger.warning("Failed to list scripts via --script-help: %s", exc)
+
+    # Method 2: scan nmap script directories for .nse files
+    if not scripts:
+        for search_dir in ["/usr/share/nmap/scripts", "/usr/local/share/nmap/scripts"]:
+            for path in glob.glob(os.path.join(search_dir, "*.nse")):
+                name = os.path.splitext(os.path.basename(path))[0]
+                scripts.add(name)
+
+    if scripts:
+        logger.info("Discovered %d available NSE scripts on this system", len(scripts))
+    else:
+        logger.warning("Could not discover available NSE scripts; passing all names to nmap")
+
+    _available_scripts = scripts
+    return scripts
+
+
+def _filter_scripts(
+    requested: list[str], logger: logging.Logger
+) -> list[str]:
+    """Filter script list to only those available on the system.
+
+    Scripts that are file paths (custom scripts) are passed through unchanged.
+    """
+    available = _get_available_scripts(logger)
+    if not available:
+        return requested
+
+    kept: list[str] = []
+    skipped: list[str] = []
+    for script in requested:
+        # Custom script paths are always passed through
+        if "/" in script or script.endswith(".nse"):
+            kept.append(script)
+        elif script in available:
+            kept.append(script)
+        else:
+            skipped.append(script)
+
+    if skipped:
+        logger.warning(
+            "Filtered out %d scripts not available on this system: %s",
+            len(skipped),
+            ", ".join(skipped[:20]) + ("..." if len(skipped) > 20 else ""),
+        )
+
+    return kept
 
 
 class NseScanner:
@@ -62,6 +137,12 @@ class NseScanner:
         # Get NSE scripts from job metadata (set by client when fetching jobs)
         nse_scripts = getattr(client, "_current_nse_scripts", None) or _FALLBACK_SCRIPTS
         nse_script_args = getattr(client, "_current_nse_script_args", None)
+
+        # Filter to only scripts that exist on this nmap installation
+        nse_scripts = _filter_scripts(nse_scripts, logger)
+        if not nse_scripts:
+            logger.error("No valid NSE scripts available after filtering; aborting scan")
+            return ScanRunResult(open_ports=[], cancelled=False)
 
         scripts_str = ",".join(nse_scripts)
         logger.info(

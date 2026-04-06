@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Custom Scan dialog on host detail page with scan mode selector (Port Scan / NSE Vulnerability)
+- NSE profile picker in custom scan dialog when NSE mode is selected
+- Per-scan parameter overrides stored on scan record (scan_overrides JSON column)
+
 ### Fixed
 
 - Rescan button on host detail page now triggers a rescan instead of being a no-op
+- NSE scanner now filters scripts to only those available on the system, preventing "failed to initialize the script engine" errors when the profile contains scripts not shipped with the installed nmap version
 
 ## [1.9.8] - 2026-04-06
 
