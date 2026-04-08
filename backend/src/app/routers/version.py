@@ -1,9 +1,8 @@
 """Version router for exposing backend version and migration state via API."""
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter
 
-from app.core.database import get_db
+from app.core.deps import CurrentUser, DbSession
 from app.core.version import get_version
 from app.services.migration_info import get_current_revision, get_head_revision
 
@@ -12,12 +11,10 @@ router = APIRouter(prefix="/api", tags=["version"])
 
 @router.get("/version")
 async def get_backend_version(
-    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser,
+    db: DbSession,
 ) -> dict[str, str | None]:
-    """Get the backend version and database migration state.
-
-    This endpoint is public and requires no authentication.
-    """
+    """Get the backend version and database migration state."""
     current_rev = await get_current_revision(db)
     head_rev = get_head_revision()
 

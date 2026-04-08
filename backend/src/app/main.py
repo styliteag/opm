@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .core.config import settings
 from .core.version import get_version
 from .routers import (
     alerts,
@@ -35,9 +36,19 @@ from .services.scheduler import shutdown_scheduler, start_scheduler
 logger = logging.getLogger(__name__)
 
 
+_INSECURE_JWT_SECRETS = {"changeme-in-production", "dev-secret-change-in-production"}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan handler for startup and shutdown events."""
+    # Refuse to start with default JWT secret in non-debug mode
+    if not settings.debug and settings.jwt_secret in _INSECURE_JWT_SECRETS:
+        raise RuntimeError(
+            "SECURITY: JWT_SECRET is set to an insecure default. "
+            "Set a strong JWT_SECRET environment variable before running in production."
+        )
+
     # Log version at startup
     version_str = get_version()
     logger.info(f"STYLiTE Orbit Monitor Backend v{version_str} starting...")
@@ -63,15 +74,14 @@ app = FastAPI(
     description="Distributed network port scanning and monitoring system",
     version=get_version(),
     lifespan=lifespan,
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
 )
 
-# Configure CORS for frontend
-# WARNING: allow_origins=["*"] with allow_credentials=True is a security risk
-# and should only be used in development environments. For production, use
-# specific origins via settings.cors_origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

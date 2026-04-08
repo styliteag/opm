@@ -1,8 +1,11 @@
 """Authentication router for login, logout, and user info endpoints."""
 
+import time
+from collections import defaultdict
+from threading import Lock
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.core.deps import CurrentUser, DbSession
 from app.core.permissions import ROLE_PERMISSIONS
@@ -11,14 +14,50 @@ from app.services.auth import authenticate_user, create_user_token
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+# Rate limiting for login endpoint
+_LOGIN_RATE_LIMIT_MAX = 10
+_LOGIN_RATE_LIMIT_WINDOW = 60
+_login_rate_store: dict[str, list[float]] = defaultdict(list)
+_login_rate_lock = Lock()
+
+
+def _check_login_rate_limit(request: Request) -> None:
+    """Enforce sliding-window rate limit on login attempts."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    client_ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (
+            request.headers.get("X-Real-IP")
+            or (request.client.host if request.client else "unknown")
+        )
+    )
+
+    now = time.time()
+    window_start = now - _LOGIN_RATE_LIMIT_WINDOW
+
+    with _login_rate_lock:
+        _login_rate_store[client_ip] = [
+            ts for ts in _login_rate_store[client_ip] if ts > window_start
+        ]
+        if len(_login_rate_store[client_ip]) >= _LOGIN_RATE_LIMIT_MAX:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many login attempts. Try again later.",
+            )
+        _login_rate_store[client_ip].append(now)
+
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
-    request: LoginRequest,
+    login_request: LoginRequest,
     db: DbSession,
+    request: Request,
 ) -> TokenResponse:
     """Authenticate user and return JWT token."""
-    user = await authenticate_user(db, request.email, request.password)
+    _check_login_rate_limit(request)
+
+    user = await authenticate_user(db, login_request.email, login_request.password)
 
     if user is None:
         raise HTTPException(

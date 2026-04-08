@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Fix CORS wildcard: use configured `cors_origins` instead of hardcoded `["*"]`
+- Reject scanner-scoped JWT tokens in user authentication (`get_current_user`)
+- Add rate limiting (10 req/min/IP) to `/api/auth/login` endpoint
+- Require authentication on `/api/version` and `/api/metadata/*` endpoints
+- Refuse backend startup with default JWT secret in non-debug mode
+- Disable Swagger/ReDoc/OpenAPI endpoints in production (non-debug) mode
+- Add security headers to nginx (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
+- Remove hardcoded fallback credentials from DevLoginButton — require env vars
+
 ## [1.10.0] - 2026-04-09
 
 ### Added
