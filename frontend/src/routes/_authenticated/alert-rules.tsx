@@ -113,6 +113,17 @@ function AlertRulesPage() {
             Manage global and per-network alert acceptance and criticality rules
             for port, SSH, and NSE alerts.
           </p>
+          {allRules.length > 0 && (
+            <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+              <span>{allRules.length} rules</span>
+              <span>·</span>
+              <span>{allRules.filter((r) => r.enabled).length} active</span>
+              <span>·</span>
+              <span>
+                {allRules.reduce((sum, r) => sum + r.hit_count, 0)} total hits
+              </span>
+            </div>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" />

@@ -24,6 +24,7 @@ class PortRuleUnifiedResponse(BaseModel):
     enabled: bool = True
     created_at: datetime | None = None
     created_by: int | None = None
+    hit_count: int = 0
 
     model_config = {"from_attributes": True}
 

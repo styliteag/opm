@@ -1,7 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { fetchApi, postApi } from "@/lib/api";
-import type { HostListResponse, HostOverviewResponse } from "@/lib/types";
+import type {
+  HostListResponse,
+  HostOverviewResponse,
+  HostRiskTrendResponse,
+} from "@/lib/types";
 
 interface HostFilters {
   network_id?: number;
@@ -36,6 +40,15 @@ export function useHostDetail(hostId: number) {
     queryKey: ["hosts", hostId, "overview"],
     queryFn: () =>
       fetchApi<HostOverviewResponse>(`/api/hosts/${hostId}/overview`),
+    enabled: hostId > 0,
+  });
+}
+
+export function useHostRiskTrend(hostId: number) {
+  return useQuery({
+    queryKey: ["hosts", hostId, "risk-trend"],
+    queryFn: () =>
+      fetchApi<HostRiskTrendResponse>(`/api/hosts/${hostId}/risk-trend`),
     enabled: hostId > 0,
   });
 }

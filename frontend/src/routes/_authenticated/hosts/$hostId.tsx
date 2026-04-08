@@ -28,7 +28,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { HostActivityFeed } from "@/features/hosts/components/HostActivityFeed";
 import { HostScanDialog } from "@/features/hosts/components/HostScanDialog";
-import { useHostDetail, useRescanHost } from "@/features/hosts/hooks/useHosts";
+import { RiskSparkline } from "@/features/hosts/components/RiskSparkline";
+import {
+  useHostDetail,
+  useHostRiskTrend,
+  useRescanHost,
+} from "@/features/hosts/hooks/useHosts";
 import { useHostVulnerabilities } from "@/features/hosts/hooks/useHostVulnerabilities";
 import {
   computeRiskScore,
@@ -61,6 +66,7 @@ function HostDetailPage() {
   const hostIp = data?.host.ip ?? "";
   const vulns = useHostVulnerabilities(hostIp);
   const rescan = useRescanHost();
+  const riskTrend = useHostRiskTrend(id);
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
 
   if (isLoading) return <LoadingState rows={8} />;
@@ -108,15 +114,21 @@ function HostDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="text-right">
-            <p
-              className={cn("text-3xl font-strong", riskScoreColor(riskScore))}
-            >
-              {riskScore}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {riskScoreLabel(riskScore)} Risk
-            </p>
+          <div className="flex items-center gap-3">
+            {riskTrend.data && <RiskSparkline points={riskTrend.data.points} />}
+            <div className="text-right">
+              <p
+                className={cn(
+                  "text-3xl font-strong",
+                  riskScoreColor(riskScore),
+                )}
+              >
+                {riskScore}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {riskScoreLabel(riskScore)} Risk
+              </p>
+            </div>
           </div>
 
           {/* Export dropdown */}
@@ -451,6 +463,11 @@ function HostComment({
 /*  Ports tab                                                          */
 /* ------------------------------------------------------------------ */
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+function isRecentPort(firstSeenAt: string): boolean {
+  return Date.now() - new Date(firstSeenAt).getTime() < SEVEN_DAYS_MS;
+}
+
 function PortsTab({
   ports,
   hostId,
@@ -504,7 +521,14 @@ function PortsTab({
               className="border-b border-border hover:bg-accent/50 transition-colors"
             >
               <td className="px-4 py-2 font-mono text-sm text-primary">
-                {port.port}
+                <span className="flex items-center gap-1.5">
+                  {port.port}
+                  {isRecentPort(port.first_seen_at) && (
+                    <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-emphasis text-primary">
+                      New
+                    </span>
+                  )}
+                </span>
               </td>
               <td className="px-4 py-2 text-sm text-muted-foreground uppercase">
                 {port.protocol}

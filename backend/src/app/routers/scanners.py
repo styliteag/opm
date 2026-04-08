@@ -7,6 +7,7 @@ from app.schemas.scanner import (
     ScannerCreateRequest,
     ScannerCreateResponse,
     ScannerListResponse,
+    ScannerOverviewResponse,
     ScannerRegenerateKeyResponse,
     ScannerResponse,
     ScannerUpdateRequest,
@@ -76,6 +77,32 @@ async def get_scanner(
             detail="Scanner not found",
         )
     return ScannerResponse.model_validate(scanner)
+
+
+@router.get("/{scanner_id}/overview", response_model=ScannerOverviewResponse)
+async def get_scanner_overview(
+    user: CurrentUser,
+    db: DbSession,
+    scanner_id: int,
+) -> ScannerOverviewResponse:
+    """Get aggregated scanner overview with networks, scans, and stats."""
+    overview = await scanners_service.get_scanner_overview(db, scanner_id)
+    if overview is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scanner not found",
+        )
+    return ScannerOverviewResponse(
+        scanner=ScannerResponse.model_validate(overview["scanner"]),
+        networks=overview["networks"],
+        recent_scans=overview["recent_scans"],
+        total_scans=overview["total_scans"],
+        completed_scans=overview["completed_scans"],
+        failed_scans=overview["failed_scans"],
+        avg_scan_duration_seconds=overview["avg_scan_duration_seconds"],
+        scans_last_24h=overview["scans_last_24h"],
+        scans_last_7d=overview["scans_last_7d"],
+    )
 
 
 @router.put("/{scanner_id}", response_model=ScannerResponse)

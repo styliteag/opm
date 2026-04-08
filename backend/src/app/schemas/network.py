@@ -285,3 +285,30 @@ class NetworkListResponse(BaseModel):
     """Response schema for list of networks."""
 
     networks: list[NetworkResponse]
+
+
+class LastScanSummary(BaseModel):
+    """Minimal scan info for network overview."""
+
+    id: int
+    status: str
+    started_at: datetime | None
+    completed_at: datetime | None
+    trigger_type: str
+    port_count: int
+
+
+class NetworkOverviewResponse(BaseModel):
+    """Aggregated network health and status overview."""
+
+    network: NetworkResponse
+    host_count: int
+    active_alert_count: int
+    alert_severity_distribution: dict[str, int]
+    open_port_count: int
+    scan_success_rate: float
+    total_scans_30d: int
+    completed_scans_30d: int
+    last_scan: LastScanSummary | None
+    scanner_name: str
+    scanner_online: bool

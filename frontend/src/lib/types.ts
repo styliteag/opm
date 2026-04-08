@@ -133,6 +133,29 @@ export interface NetworkListResponse {
   networks: Network[];
 }
 
+export interface LastScanSummary {
+  id: number;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  trigger_type: string;
+  port_count: number;
+}
+
+export interface NetworkOverviewResponse {
+  network: Network;
+  host_count: number;
+  active_alert_count: number;
+  alert_severity_distribution: Record<string, number>;
+  open_port_count: number;
+  scan_success_rate: number;
+  total_scans_30d: number;
+  completed_scans_30d: number;
+  last_scan: LastScanSummary | null;
+  scanner_name: string;
+  scanner_online: boolean;
+}
+
 export interface ScanSummary {
   id: number;
   network_id: number;
@@ -172,6 +195,37 @@ export interface Scanner {
 
 export interface ScannerListResponse {
   scanners: Scanner[];
+}
+
+export interface ScannerNetworkInfo {
+  id: number;
+  name: string;
+  cidr: string;
+  scan_schedule: string | null;
+}
+
+export interface ScannerScanSummary {
+  id: number;
+  network_id: number;
+  network_name: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  trigger_type: string;
+  port_count: number;
+  duration_seconds: number | null;
+}
+
+export interface ScannerOverviewResponse {
+  scanner: Scanner;
+  networks: ScannerNetworkInfo[];
+  recent_scans: ScannerScanSummary[];
+  total_scans: number;
+  completed_scans: number;
+  failed_scans: number;
+  avg_scan_duration_seconds: number | null;
+  scans_last_24h: number;
+  scans_last_7d: number;
 }
 
 export interface Host {
@@ -256,6 +310,15 @@ export interface HostOverviewResponse {
   ssh: AlertSSHSummary | null;
   recent_scans: HostScanEntry[];
   matching_rules: PortRuleMatch[];
+}
+
+export interface HostRiskTrendPoint {
+  date: string;
+  score: number;
+}
+
+export interface HostRiskTrendResponse {
+  points: HostRiskTrendPoint[];
 }
 
 export interface TrendDataPoint {

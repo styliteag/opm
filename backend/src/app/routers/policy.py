@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/port-rules", tags=["port-rules"])
 def _build_response(
     rule: AlertRule,
     network_name: str | None,
+    hit_count: int = 0,
 ) -> PortRuleUnifiedResponse:
     """Build a unified response from an AlertRule model."""
     criteria = rule.match_criteria
@@ -41,6 +42,7 @@ def _build_response(
         enabled=rule.enabled,
         created_at=rule.created_at,
         created_by=rule.created_by,
+        hit_count=hit_count,
     )
 
 
@@ -52,34 +54,45 @@ async def list_port_rules(
 ) -> PortRuleUnifiedListResponse:
     """List all alert rules (global and optionally filtered by network)."""
 
-    rules = []
+    # Collect all AlertRule models first for hit count computation
+    all_rule_models: list[AlertRule] = []
 
-    # Fetch global rules
     global_rules = await alert_rules_service.get_global_rules(db)
-    for rule in global_rules:
-        rules.append(_build_response(rule, "Global"))
+    all_rule_models.extend(global_rules)
 
-    # Fetch network rules
+    network_rules_list: list[AlertRule] = []
+    net_names: dict[int, str] = {}
+
     if network_id:
-        network_rules = await alert_rules_service.get_rules_by_network_id(db, network_id)
+        network_rules_list = await alert_rules_service.get_rules_by_network_id(db, network_id)
         network = await networks_service.get_network_by_id(db, network_id)
-        network_name = network.name if network else f"Network {network_id}"
-        for rule in network_rules:
-            rules.append(_build_response(rule, network_name))
+        net_names[network_id] = network.name if network else f"Network {network_id}"
     else:
-        all_network_rules = await alert_rules_service.get_all_rules(db)
-        net_ids = {r.network_id for r in all_network_rules if r.network_id is not None}
-        net_names: dict[int, str] = {}
+        network_rules_list = [
+            r for r in await alert_rules_service.get_all_rules(db) if r.network_id is not None
+        ]
+        net_ids = {r.network_id for r in network_rules_list if r.network_id is not None}
         for nid in net_ids:
             net = await networks_service.get_network_by_id(db, nid)
             if net:
                 net_names[nid] = net.name
-        for rule in all_network_rules:
-            if rule.network_id is None:
-                continue
-            rules.append(
-                _build_response(rule, net_names.get(rule.network_id, f"Network {rule.network_id}"))
-            )
+
+    all_rule_models.extend(network_rules_list)
+
+    # Compute hit counts for all rules in one pass
+    hit_counts = await alert_rules_service.compute_rule_hit_counts(db, all_rule_models)
+
+    # Build responses
+    rules = []
+    for rule in global_rules:
+        rules.append(_build_response(rule, "Global", hit_counts.get(rule.id, 0)))
+    for rule in network_rules_list:
+        name = (
+            net_names.get(rule.network_id, f"Network {rule.network_id}")
+            if rule.network_id
+            else "Global"
+        )
+        rules.append(_build_response(rule, name, hit_counts.get(rule.id, 0)))
 
     # Sort: Global first, then by network name, then by port
     rules.sort(key=lambda x: (x.network_id is not None, x.network_name or "", x.port))

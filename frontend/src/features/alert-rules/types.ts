@@ -11,6 +11,7 @@ export interface PortRule {
   description: string | null;
   enabled: boolean;
   created_at: string;
+  hit_count: number;
 }
 
 export interface PolicyResponse {

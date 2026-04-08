@@ -29,6 +29,7 @@ from app.schemas.host import (
     HostOpenPortResponse,
     HostOverviewResponse,
     HostResponse,
+    HostRiskTrendResponse,
     HostScanEntry,
     HostSSHSummary,
     HostUpdateRequest,
@@ -464,6 +465,23 @@ async def get_host_overview(
         recent_scans=scan_entries,
         matching_rules=deduped_rules,
     )
+
+
+@router.get("/{host_id}/risk-trend", response_model=HostRiskTrendResponse)
+async def get_host_risk_trend(
+    user: CurrentUser,
+    db: DbSession,
+    host_id: int,
+) -> HostRiskTrendResponse:
+    """Get historical risk score trend for a host over the last 14 days."""
+    host = await hosts_service.get_host_by_id(db, host_id)
+    if host is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Host not found",
+        )
+    points = await hosts_service.get_host_risk_trend(db, host.ip)
+    return HostRiskTrendResponse(points=points)
 
 
 @router.patch("/{host_id}", response_model=HostResponse)

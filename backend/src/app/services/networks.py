@@ -1,11 +1,16 @@
 """Network management service for CRUD operations."""
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.alert import Alert
 from app.models.network import Network
+from app.models.open_port import OpenPort
+from app.models.scan import Scan, ScanStatus
+from app.models.scanner import Scanner
 
 
 async def get_all_networks(db: AsyncSession) -> list[Network]:
@@ -152,6 +157,134 @@ async def update_network(
     await db.flush()
     await db.refresh(network)
     return network
+
+
+async def get_network_overview(db: AsyncSession, network_id: int) -> dict[str, Any] | None:
+    """Get aggregated overview stats for a network."""
+    network = await get_network_by_id(db, network_id)
+    if network is None:
+        return None
+
+    # Scanner info
+    scanner_result = await db.execute(select(Scanner).where(Scanner.id == network.scanner_id))
+    scanner = scanner_result.scalar_one_or_none()
+    scanner_name = scanner.name if scanner else "Unknown"
+    scanner_online = False
+    if scanner and scanner.last_seen_at:
+        scanner_online = (
+            datetime.now(timezone.utc) - scanner.last_seen_at.replace(tzinfo=timezone.utc)
+        ) < timedelta(minutes=5)
+
+    # Active alerts (not dismissed) for this network
+    alert_count_result = await db.execute(
+        select(func.count(Alert.id)).where(
+            and_(Alert.network_id == network_id, Alert.dismissed == False)  # noqa: E712
+        )
+    )
+    active_alert_count = alert_count_result.scalar() or 0
+
+    # Alert severity distribution — compute from alert_type
+    # Group by alert_type for active alerts, then map to severity
+    severity_dist_result = await db.execute(
+        select(Alert.alert_type, func.count(Alert.id))
+        .where(
+            and_(Alert.network_id == network_id, Alert.dismissed == False)  # noqa: E712
+        )
+        .group_by(Alert.alert_type)
+    )
+    severity_map = {
+        "blocked": "critical",
+        "ssh_weak_cipher": "high",
+        "ssh_weak_kex": "high",
+        "ssh_insecure_auth": "high",
+        "ssh_outdated_version": "medium",
+        "ssh_config_regression": "medium",
+        "nse_cve_detected": "critical",
+        "nse_vulnerability": "high",
+        "not_allowed": "high",
+        "new_port": "medium",
+    }
+    alert_severity_distribution: dict[str, int] = {}
+    for alert_type, count in severity_dist_result.all():
+        severity = severity_map.get(
+            alert_type.value if hasattr(alert_type, "value") else str(alert_type), "info"
+        )
+        alert_severity_distribution[severity] = alert_severity_distribution.get(severity, 0) + count
+
+    # Scan stats for last 30 days
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    scan_stats_result = await db.execute(
+        select(Scan.status, func.count(Scan.id))
+        .where(
+            and_(
+                Scan.network_id == network_id,
+                Scan.started_at >= thirty_days_ago,
+            )
+        )
+        .group_by(Scan.status)
+    )
+    total_scans_30d = 0
+    completed_scans_30d = 0
+    for scan_status, count in scan_stats_result.all():
+        total_scans_30d += count
+        if scan_status == ScanStatus.COMPLETED:
+            completed_scans_30d = count
+
+    scan_success_rate = completed_scans_30d / total_scans_30d if total_scans_30d > 0 else 0.0
+
+    # Open port count from latest completed scan
+    latest_scan_result = await db.execute(
+        select(Scan)
+        .where(
+            and_(
+                Scan.network_id == network_id,
+                Scan.status == ScanStatus.COMPLETED,
+            )
+        )
+        .order_by(Scan.id.desc())
+        .limit(1)
+    )
+    latest_scan = latest_scan_result.scalar_one_or_none()
+
+    open_port_count = 0
+    last_scan_summary = None
+    if latest_scan:
+        port_count_result = await db.execute(
+            select(func.count(OpenPort.id)).where(OpenPort.scan_id == latest_scan.id)
+        )
+        open_port_count = port_count_result.scalar() or 0
+        last_scan_summary = {
+            "id": latest_scan.id,
+            "status": latest_scan.status.value,
+            "started_at": latest_scan.started_at,
+            "completed_at": latest_scan.completed_at,
+            "trigger_type": latest_scan.trigger_type.value,
+            "port_count": open_port_count,
+        }
+
+    # Host count — distinct IPs from latest scan (SQLite-compatible)
+    host_count_result = (
+        await db.execute(
+            select(func.count(func.distinct(OpenPort.ip))).where(OpenPort.scan_id == latest_scan.id)
+        )
+        if latest_scan
+        else None
+    )
+    host_count = host_count_result.scalar() or 0 if host_count_result else 0
+
+    return {
+        "network": network,
+        "host_count": host_count,
+        "active_alert_count": active_alert_count,
+        "alert_severity_distribution": alert_severity_distribution,
+        "open_port_count": open_port_count,
+        "scan_success_rate": round(scan_success_rate, 4),
+        "total_scans_30d": total_scans_30d,
+        "completed_scans_30d": completed_scans_30d,
+        "last_scan": last_scan_summary,
+        "scanner_name": scanner_name,
+        "scanner_online": scanner_online,
+    }
 
 
 async def delete_network(db: AsyncSession, network: Network) -> None:

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Server, Plus, Key, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,7 +18,7 @@ import { ApiKeyDisplay } from "@/components/feedback/ApiKeyDisplay";
 import { formatRelativeTime, isOnline } from "@/lib/utils";
 import type { Scanner } from "@/lib/types";
 
-export const Route = createFileRoute("/_authenticated/scanners")({
+export const Route = createFileRoute("/_authenticated/scanners/")({
   component: ScannersPage,
 });
 
@@ -110,9 +110,13 @@ function ScannersPage() {
                 header: "Name",
                 render: (scanner) => (
                   <div>
-                    <p className="text-sm font-medium text-foreground">
+                    <Link
+                      to="/scanners/$scannerId"
+                      params={{ scannerId: String(scanner.id) }}
+                      className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                    >
                       {scanner.name}
-                    </p>
+                    </Link>
                     {scanner.description && (
                       <p className="text-xs text-muted-foreground">
                         {scanner.description}

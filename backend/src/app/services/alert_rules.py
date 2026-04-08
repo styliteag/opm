@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.alert import Alert
 from app.models.alert_rule import AlertRule, RuleType
 
 
@@ -433,3 +434,48 @@ async def get_blocklist_rules(
         stmt = stmt.where(AlertRule.source == source)
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def compute_rule_hit_counts(
+    db: AsyncSession,
+    rules: list[AlertRule],
+) -> dict[int, int]:
+    """Compute how many dismissed alerts each rule has matched.
+
+    Fetches all dismissed alerts once, then matches in Python.
+    """
+    if not rules:
+        return {}
+
+    stmt = select(Alert).where(Alert.dismissed.is_(True))
+    result = await db.execute(stmt)
+    dismissed_alerts = list(result.scalars().all())
+
+    counts: dict[int, int] = {r.id: 0 for r in rules}
+
+    for alert in dismissed_alerts:
+        for rule in rules:
+            if not rule.enabled:
+                continue
+            if rule.network_id is not None and rule.network_id != alert.network_id:
+                continue
+            if rule.source != alert.source:
+                continue
+
+            matched = False
+            alert_type_str = (
+                alert.alert_type.value
+                if hasattr(alert.alert_type, "value")
+                else str(alert.alert_type)
+            )
+            if rule.source == "port" and alert.port is not None:
+                matched = port_rule_matches_alert(rule, alert.ip, alert.port)
+            elif rule.source == "ssh":
+                matched = ssh_rule_matches_alert(rule, alert.ip, alert.port, alert_type_str)
+            elif rule.source == "nse":
+                matched = nse_rule_matches_alert(rule, alert.ip, alert.port, alert_type_str)
+
+            if matched:
+                counts[rule.id] += 1
+
+    return counts

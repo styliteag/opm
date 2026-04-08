@@ -1,7 +1,7 @@
 """Service for managing hosts."""
 
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any, cast
 
 from sqlalchemy import and_, func, select, update
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
 from app.lib.ip_utils import IPRange
+from app.models.alert import Alert
 from app.models.global_open_port import GlobalOpenPort
 from app.models.host import Host
 
@@ -307,3 +308,58 @@ async def delete_hosts_bulk(db: AsyncSession, host_ids: list[int]) -> list[int]:
 
     await db.flush()
     return deleted_ids
+
+
+# Severity weights for risk score computation
+_SEVERITY_WEIGHTS: dict[str, int] = {
+    "blocked": 25,
+    "nse_cve_detected": 25,
+    "not_allowed": 15,
+    "ssh_weak_cipher": 10,
+    "ssh_weak_kex": 10,
+    "ssh_insecure_auth": 10,
+    "nse_vulnerability": 10,
+    "new_port": 5,
+    "ssh_outdated_version": 5,
+    "ssh_config_regression": 5,
+}
+
+
+async def get_host_risk_trend(
+    db: AsyncSession,
+    host_ip: str,
+    days: int = 14,
+) -> list[dict[str, Any]]:
+    """Compute daily risk score for a host over recent days.
+
+    Risk score = sum of severity weights for active (non-dismissed) alerts
+    that existed on each day.
+    """
+    end = date.today()
+    start = end - timedelta(days=days - 1)
+
+    # Get all alerts for this host with their created_at dates
+    result = await db.execute(
+        select(Alert.alert_type, Alert.created_at, Alert.dismissed).where(Alert.ip == host_ip)
+    )
+    alerts = result.all()
+
+    # Build daily scores
+    points: list[dict[str, Any]] = []
+    for day_offset in range(days):
+        current_date = start + timedelta(days=day_offset)
+        score = 0
+        for alert_type, created_at, dismissed in alerts:
+            # Alert existed on this day if created before end of day
+            created_date = created_at.date() if isinstance(created_at, datetime) else created_at
+            if created_date <= current_date:
+                type_str = alert_type.value if hasattr(alert_type, "value") else str(alert_type)
+                weight = _SEVERITY_WEIGHTS.get(type_str, 3)
+                if not dismissed:
+                    score += weight
+                else:
+                    score += 1  # Dismissed alerts contribute minimal score
+
+        points.append({"date": current_date, "score": min(score, 100)})
+
+    return points

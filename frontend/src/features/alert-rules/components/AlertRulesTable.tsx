@@ -310,6 +310,16 @@ export function AlertRulesTable({
         size: 80,
       },
       {
+        accessorKey: "hit_count",
+        header: ({ column }) => <SortableHeader label="Hits" column={column} />,
+        cell: ({ row }) => (
+          <span className="text-sm font-mono text-muted-foreground">
+            {row.original.hit_count}
+          </span>
+        ),
+        size: 70,
+      },
+      {
         id: "actions",
         cell: ({ row }) => (
           <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-all">

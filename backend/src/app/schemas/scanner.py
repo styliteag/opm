@@ -66,6 +66,43 @@ class ScannerListResponse(BaseModel):
     scanners: list[ScannerResponse]
 
 
+class ScannerNetworkInfo(BaseModel):
+    """Network summary for scanner overview."""
+
+    id: int
+    name: str
+    cidr: str
+    scan_schedule: str | None
+
+
+class ScannerScanSummary(BaseModel):
+    """Scan summary for scanner overview."""
+
+    id: int
+    network_id: int
+    network_name: str
+    status: str
+    started_at: datetime | None
+    completed_at: datetime | None
+    trigger_type: str
+    port_count: int
+    duration_seconds: float | None
+
+
+class ScannerOverviewResponse(BaseModel):
+    """Aggregated scanner health and performance overview."""
+
+    scanner: ScannerResponse
+    networks: list[ScannerNetworkInfo]
+    recent_scans: list[ScannerScanSummary]
+    total_scans: int
+    completed_scans: int
+    failed_scans: int
+    avg_scan_duration_seconds: float | None
+    scans_last_24h: int
+    scans_last_7d: int
+
+
 # --- Scanner API Schemas ---
 
 

@@ -1,6 +1,6 @@
 """Schemas for host endpoints."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -193,6 +193,19 @@ class HostScanEntry(BaseModel):
     completed_at: datetime | None
     trigger_type: str
     port_count: int
+
+
+class HostRiskTrendPoint(BaseModel):
+    """Single point in a host risk score trend."""
+
+    date: date
+    score: int
+
+
+class HostRiskTrendResponse(BaseModel):
+    """Historical risk score trend for a host."""
+
+    points: list[HostRiskTrendPoint]
 
 
 class HostOverviewResponse(BaseModel):

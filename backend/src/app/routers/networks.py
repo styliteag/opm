@@ -12,6 +12,7 @@ from app.schemas.host import (
 from app.schemas.network import (
     NetworkCreateRequest,
     NetworkListResponse,
+    NetworkOverviewResponse,
     NetworkResponse,
     NetworkUpdateRequest,
 )
@@ -120,6 +121,34 @@ async def get_network(
             detail="Network not found",
         )
     return NetworkResponse.model_validate(network)
+
+
+@router.get("/{network_id}/overview", response_model=NetworkOverviewResponse)
+async def get_network_overview(
+    user: CurrentUser,
+    db: DbSession,
+    network_id: int,
+) -> NetworkOverviewResponse:
+    """Get aggregated network health overview with stats."""
+    overview = await networks_service.get_network_overview(db, network_id)
+    if overview is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Network not found",
+        )
+    return NetworkOverviewResponse(
+        network=NetworkResponse.model_validate(overview["network"]),
+        host_count=overview["host_count"],
+        active_alert_count=overview["active_alert_count"],
+        alert_severity_distribution=overview["alert_severity_distribution"],
+        open_port_count=overview["open_port_count"],
+        scan_success_rate=overview["scan_success_rate"],
+        total_scans_30d=overview["total_scans_30d"],
+        completed_scans_30d=overview["completed_scans_30d"],
+        last_scan=overview["last_scan"],
+        scanner_name=overview["scanner_name"],
+        scanner_online=overview["scanner_online"],
+    )
 
 
 @router.put("/{network_id}", response_model=NetworkResponse)
