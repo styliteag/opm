@@ -106,8 +106,9 @@ async def get_current_user_permissions(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     current_user: CurrentUser,
+    db: DbSession,
 ) -> None:
-    """Logout endpoint (no-op, token invalidation handled client-side)."""
-    # JWT tokens are stateless, so logout is handled by the client
-    # discarding the token. This endpoint exists for API completeness.
-    pass
+    """Logout by incrementing token_version, invalidating all existing tokens."""
+    current_user.token_version += 1
+    db.add(current_user)
+    await db.commit()

@@ -58,6 +58,11 @@ async def get_current_user(
             detail="Account is deactivated",
         )
 
+    # Check token version — rejects tokens issued before logout or password change
+    token_version = payload.get("tv", 0)
+    if token_version != user.token_version:
+        raise credentials_exception
+
     return user
 
 

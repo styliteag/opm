@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # JWT Authentication
     jwt_secret: str = "changeme-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expiration_minutes: int = 60
+    jwt_expiration_minutes: int = 480
 
     # Admin user (created on startup if not exists)
     admin_email: str = "admin@example.com"

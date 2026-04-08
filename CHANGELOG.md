@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Separate `DATABASE_ECHO` setting from `DEBUG` flag to prevent SQL query logging when debug mode is enabled
 - Add `is_active` field to User model — deactivated users are rejected at auth with 403
 - Admin can activate/deactivate users from the user management page (cannot deactivate self)
+- Add `token_version` to User model — logout and password change immediately invalidate all existing tokens
+- Increase default JWT TTL from 60min to 8h (configurable via `JWT_EXPIRATION_MINUTES`)
 
 ## [1.10.0] - 2026-04-09
 

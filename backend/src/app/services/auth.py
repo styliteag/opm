@@ -29,6 +29,7 @@ def create_user_token(user: User) -> TokenResponse:
         "sub": str(user.id),
         "email": user.email,
         "role": user.role.value,
+        "tv": user.token_version,
     }
     access_token = create_access_token(data=token_data)
     return TokenResponse(access_token=access_token)

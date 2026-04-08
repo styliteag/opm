@@ -60,6 +60,7 @@ async def update_user(
         user.email = email
     if password is not None:
         user.password_hash = hash_password(password)
+        user.token_version += 1
     if role is not None:
         user.role = role
     if is_active is not None:
