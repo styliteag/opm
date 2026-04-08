@@ -403,7 +403,7 @@ Optimizing the daily operations workflow in STYLiTE Orbit Monitor — from recei
 - Used by: TanStack Router to render components
 - Location: `frontend/src/features/`
 - Purpose: Domain-organized business logic and UI components
-- Contains: 9 feature modules (admin, alerts, auth, dashboard, hosts, networks, nse, port-rules, scanners, scans)
+- Contains: 9 feature modules (admin, alert-rules, alerts, auth, dashboard, hosts, networks, nse, scanners, scans)
 - Each Feature Contains:
 - Examples:
 - Depends on: Shared components, lib/API
@@ -465,7 +465,7 @@ Optimizing the daily operations workflow in STYLiTE Orbit Monitor — from recei
 - Purpose: Periodically creates `Scan` records for scheduled networks every minute
 - Depends on: Configuration for schedule persistence
 - Risk scores: Calculated per-request from open ports and SSH results
-- Alert severity: Computed from alert rules, dismissed status, port rules
+- Alert severity: Computed from alert rules, dismissed status, alert rules (port/SSH/NSE)
 - Deduplication: Alerts deduplicated by `(alert_type, ip, port)` while `dismissed=false`
 ### Frontend State
 - Stored in: `localStorage['opm-auth-token']` + Zustand store `auth.store.ts`

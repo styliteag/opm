@@ -51,7 +51,7 @@ opm/
 │   │   │       ├── alerts/                  # Alerts list + detail
 │   │   │       ├── scans/                   # Scans list + detail
 │   │   │       ├── scanners.tsx             # Scanner registration
-│   │   │       ├── port-rules.tsx           # Unified port rules
+│   │   │       ├── alert-rules.tsx           # Unified alert rules
 │   │   │       ├── trends.tsx               # Trend charts
 │   │   │       ├── nse/                     # NSE profiles, library, editor, results
 │   │   │       └── admin/                   # Users, roles, organization (admin-only)
@@ -61,7 +61,7 @@ opm/
 │   │   │   ├── auth/          # Login, current user, JWT storage
 │   │   │   ├── dashboard/     # Stats, scanner status, threat pulse, upcoming scans
 │   │   │   ├── hosts/         # Host table, global ports, enriched port table, SSH inline
-│   │   │   ├── networks/      # Network CRUD, port rules editor, NSE profile selection
+│   │   │   ├── networks/      # Network CRUD, alert rules editor, NSE profile selection
 │   │   │   ├── nse/           # NSE profile/script CRUD, results browsing
 │   │   │   ├── scanners/      # Scanner registration, API key management
 │   │   │   └── scans/         # Quick scan, diff view, logs, CSV/PDF export
