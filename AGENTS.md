@@ -1,16 +1,16 @@
 # AGENTS.md - STYLiTE Orbit Monitor
 
-Guidelines for AI assistants working on this codebase. Read this file in full before making any changes.
+Read this file fully before making changes.
 
 ## Project Overview
 
-STYLiTE Orbit Monitor is a distributed network port scanning and monitoring system. It consists of three components running in Docker containers:
+STYLiTE Orbit Monitor — distributed network port scanning + monitoring system. Three Docker components:
 
 - **Backend** (`backend/`) — FastAPI REST API (Python 3.12, async)
 - **Frontend** (`frontend/`) — React + Vite web dashboard (TypeScript)
 - **Scanner** (`scanner/`) — Masscan/Nmap/NSE-based network scanner agent (Python 3.12)
 
-Current version: see `VERSION` file (semver). Database: MariaDB 11.
+Version: see `VERSION` file (semver). Database: MariaDB 11.
 
 ## Repository Structure
 
@@ -114,13 +114,13 @@ opm/
 
 ### Starting Services
 
-All development runs through Docker Compose. **Never run frontend or backend directly outside Docker.**
+All dev runs through Docker Compose. **Never run frontend or backend directly outside Docker.**
 
 ```bash
 docker compose -f compose-dev.yml up --build
 ```
 
-The user has mostly already done this — **do not restart services** unless you have a specific reason. Source code changes are hot-reloaded via bind mounts.
+User mostly already done this — **do not restart services** unless specific reason. Source changes hot-reloaded via bind mounts.
 
 Use `docker exec -it <container-name> bash` to inspect/debug running containers.
 
@@ -146,7 +146,7 @@ Source bind mounts enable hot-reload:
 - `frontend/src` → `/app/src` (Vite HMR)
 - `scanner/src` → `/app/src` (Python auto-reload)
 
-You typically do **not** need to rebuild or restart containers after code changes.
+No need to rebuild/restart containers after code changes.
 
 ## Quality Checks (Required Before Every Commit)
 
@@ -191,7 +191,7 @@ npm run test                                        # runs: vitest run
 docker exec opm-scanner uv sync --all-extras && uv run mypy src/
 ```
 
-**All commits must pass typecheck, lint, and tests. Do not commit broken code.**
+**All commits must pass typecheck, lint, tests. No broken code commits.**
 
 ## Changelog Requirement
 
@@ -206,17 +206,17 @@ Add entries under `## [Unreleased]` using Keep a Changelog categories:
 - `### Security` — security fixes
 
 Keep entries concise but descriptive. Reference issue numbers when applicable.
-**Do NOT make a code change without updating CHANGELOG.md.**
+**No code change without updating CHANGELOG.md.**
 
 ## Backend Conventions
 
 ### Architecture Pattern
 
-Routes → Services → Models (with Pydantic schemas for validation)
+Routes → Services → Models (Pydantic schemas for validation)
 
 - **Routers** (`routers/`): 21 thin HTTP handlers, delegate to services, call `db.commit()` after service ops
   - `auth`, `alerts`, `global_ports`, `global_settings`, `host_timeline`, `hosts`, `metadata`, `networks`, `nse`, `organization`, `policy`, `ports`, `roles`, `scanner`, `scanners`, `scans`, `ssh`, `trends`, `users`, `version`
-  - Plus `/health` endpoint on the app directly
+  - Plus `/health` endpoint on app directly
 - **Services** (`services/`): 31 business logic modules, no HTTP concerns
 - **Models** (`models/`): 22 SQLAlchemy 2.0 models with `Mapped[]` + `mapped_column()`
 - **Schemas** (`schemas/`): 19 Pydantic v2 modules with `model_validate()` and `from_attributes=True`
@@ -224,144 +224,143 @@ Routes → Services → Models (with Pydantic schemas for validation)
 ### Database & ORM
 
 - Use `TYPE_CHECKING` for circular import prevention in relationship type hints
-- `mapped_column()` with `ForeignKey` requires `index=True` explicitly for indexed FK columns
-- Use `str | None` union syntax for nullable fields in `Mapped[]` annotations
-- Enum types should inherit from both `str` and `Enum` for proper serialization
-- Use `selectinload()` for relationships to avoid async lazy-load errors
+- `mapped_column()` with `ForeignKey` needs explicit `index=True` for indexed FK columns
+- Use `str | None` union syntax for nullable `Mapped[]` fields
+- Enum types inherit both `str` and `Enum` for proper serialization
+- Use `selectinload()` for relationships — avoid async lazy-load errors
 
 ### Database Schema Initialization
 
-- Database schema is initialized automatically on startup in `main.py` lifespan handler before the admin user is created.
-- **Migration-first approach**: If Alembic migration files exist in `backend/src/migrations/versions/`, they are applied automatically on startup.
-- **Fallback to models**: If no migrations exist, the schema is created from SQLAlchemy models using `Base.metadata.create_all()`.
-- **Creating migrations**: When schema changes are needed:
-  1. Create a migration: `docker exec opm-backend uv run alembic revision --autogenerate -m "description"`
-  2. Review the generated migration file in `backend/src/migrations/versions/`
-  3. The migration will be applied automatically on next startup
-- Note: `create_all()` only creates missing tables; it does not modify existing tables. Always use migrations for schema changes.
-- Files are numbered sequentially (001_, 002_, etc.).
+- Schema initialized on startup in `main.py` lifespan before admin user creation
+- **Migration-first**: If Alembic migrations exist in `backend/src/migrations/versions/`, applied on startup
+- **Fallback**: No migrations → schema created from SQLAlchemy models via `Base.metadata.create_all()`
+- **Creating migrations**:
+  1. Create: `docker exec opm-backend uv run alembic revision --autogenerate -m "description"`
+  2. Review generated file in `backend/src/migrations/versions/`
+  3. Applied on next startup
+- `create_all()` only creates missing tables, won't modify existing. Always use migrations for schema changes.
+- Files numbered sequentially (001_, 002_, etc.)
 
 ### Type Checking
 
-- For generic types in strict mypy mode, always specify type parameters (e.g., `dict[str, Any]` not `dict`)
-- Use `from jose.exceptions import JWTError` not `jwt.JWTError` for proper type stub compatibility
-- Add `types-python-jose` and `types-passlib` to dev dependencies for mypy support
-- Use `collections.abc.AsyncGenerator` for async generator type hints (not `typing.AsyncGenerator`)
+- Strict mypy: always specify type params (e.g., `dict[str, Any]` not `dict`)
+- Use `from jose.exceptions import JWTError` not `jwt.JWTError` for type stub compatibility
+- Add `types-python-jose` and `types-passlib` to dev deps for mypy
+- Use `collections.abc.AsyncGenerator` for async generator hints (not `typing.AsyncGenerator`)
 
 ### Authentication & Authorization
 
-- JWT-based auth with `HS256` algorithm
+- JWT auth with `HS256`
 - User tokens: `sub` = user ID, `email`, `role` in payload
 - Scanner tokens: `sub` = scanner ID, `scope` = "scanner" (short-lived, 15 min)
-- API keys: `X-API-Key` header, bcrypt-hashed, returned only at creation time
+- API keys: `X-API-Key` header, bcrypt-hashed, returned only at creation
 - Rate limiting: in-memory sliding window with `threading.Lock`
-- Use `CurrentUser`, `AdminUser`, `CurrentScanner`, `DbSession` type aliases from `core/deps.py`
-- `AdminUser` returns 403 Forbidden automatically for non-admin users
+- Use `CurrentUser`, `AdminUser`, `CurrentScanner`, `DbSession` from `core/deps.py`
+- `AdminUser` returns 403 for non-admin users
 - `CurrentScanner` validates scanner JWT scope
 
 ### Security
 
-- Use `secrets.token_hex(32)` for generating 64-character API keys (32 bytes = 64 hex chars)
+- Use `secrets.token_hex(32)` for 64-char API keys (32 bytes = 64 hex chars)
 - Reuse `hash_password/verify_password` from security module for API key hashing (bcrypt)
-- Return API key only once at creation time; store only the hash
+- Return API key only once at creation; store only hash
 
 ### API Patterns
 
-- Pattern for list responses: create a wrapper schema (e.g., `UserListResponse`) with a typed list field
-- Nested resources (e.g., rules under networks) can share the same router file for related endpoints
-- Use `db.commit()` in router after service operations to ensure transaction completes
-- For nullable optional fields in updates, use explicit flags (e.g., `clear_schedule=True`) to distinguish "not updating" vs "clearing"
-- `HTTPBearer` security scheme provides credentials via `HTTPAuthorizationCredentials`
-- CORS config uses `list[str]` for origins, parsed from comma-separated env var
-- FastAPI middleware must be added using `app.add_middleware()`
-- Pydantic-settings `SettingsConfigDict` handles `.env` file loading automatically
-- FastAPI lifespan contextmanager is preferred over deprecated `@app.on_event("startup")`
+- List responses: create wrapper schema (e.g., `UserListResponse`) with typed list field
+- Nested resources can share same router file
+- Call `db.commit()` in router after service ops — ensure transaction completes
+- Nullable optional update fields: use explicit flags (e.g., `clear_schedule=True`) to distinguish "not updating" vs "clearing"
+- `HTTPBearer` provides credentials via `HTTPAuthorizationCredentials`
+- CORS: `list[str]` origins, parsed from comma-separated env var
+- FastAPI middleware via `app.add_middleware()`
+- Pydantic-settings `SettingsConfigDict` handles `.env` loading
+- FastAPI lifespan contextmanager preferred over deprecated `@app.on_event("startup")`
 
 ### Validation
 
-- Use Python's `ipaddress` module to validate CIDR notation (`ipaddress.ip_network` with `strict=False`)
-- Port spec validation: parse comma-separated segments, handle ranges (80-443), handle exclusions (!88)
-- Cron schedule validation: check for 5-6 fields and basic pattern matching
-- Use Pydantic's `field_validator` decorator for custom validation logic
-- Use Pydantic `field_validator` for validating enum-like string fields before DB conversion
+- Use `ipaddress.ip_network` with `strict=False` for CIDR validation
+- Port spec: parse comma-separated segments, handle ranges (80-443), handle exclusions (!88)
+- Cron validation: check 5-6 fields + basic pattern matching
+- Use Pydantic `field_validator` for custom validation + enum-like string fields before DB conversion
 
 ### Service Layer Patterns
 
-- Always check for duplicate email when creating/updating users to return meaningful error messages
-- For tracking `first_seen_at` across scans, query previous scans of the same network for existing ip:port records
-- Excluded ports support network-wide entries with `ip=None`; scanner filtering checks both ip-specific tuples and port-only exclusions
-- Scanner results accept RUNNING or CANCELLED scans; cancelled submissions store partial results without changing status
-- For job claiming, check running status before checking planned scans to return correct 409 vs 404
-- Scheduled scans are created by an APScheduler job every minute; skip networks with planned/running scans
-- Bulk operations should delete existing records and create new ones in a single transaction
-- Always validate that nested resources belong to the parent (e.g., `rule.network_id == network_id`)
-- Port rules can include optional `ip`; alert evaluation merges global ranges with IP-specific ranges
-- Alerts should include `network_id` and be deduped by `(alert_type, ip, port)` while not dismissed
-- Alert email recipients resolve from network `alert_config.email_recipients` (or `recipients`) or `ALERT_EMAIL_RECIPIENTS`; UI links use `WEB_UI_URL`
+- Check duplicate email on user create/update — return meaningful errors
+- `first_seen_at` tracking: query previous scans of same network for existing ip:port records
+- Excluded ports: network-wide entries have `ip=None`; scanner checks both ip-specific + port-only exclusions
+- Scanner results accept RUNNING or CANCELLED scans; cancelled submissions store partial results without status change
+- Job claiming: check running status before planned scans — return correct 409 vs 404
+- Scheduled scans created by APScheduler job every minute; skip networks with planned/running scans
+- Bulk ops: delete existing + create new in single transaction
+- Validate nested resources belong to parent (e.g., `rule.network_id == network_id`)
+- Port rules can include optional `ip`; alert evaluation merges global + IP-specific ranges
+- Alerts include `network_id`, deduped by `(alert_type, ip, port)` while not dismissed
+- Alert email recipients: resolve from network `alert_config.email_recipients` (or `recipients`) or `ALERT_EMAIL_RECIPIENTS`; UI links use `WEB_UI_URL`
 
 ## Frontend Conventions
 
 ### Tech Stack
 
 - React 18, Vite, TypeScript (strict mode)
-- TanStack Router (file-based routing), TanStack Query (React Query) for server state
-- React Hook Form + Zod for form validation
-- Tailwind CSS for styling
-- Context API for auth (`AuthContext`) and theme (`ThemeContext`)
+- TanStack Router (file-based), TanStack Query for server state
+- React Hook Form + Zod for forms
+- Tailwind CSS
+- Context API for auth (`AuthContext`) + theme (`ThemeContext`)
 
 ### Architecture
 
 - **File-based routing** in `src/routes/` via TanStack Router (NOT `src/pages/`)
   - `__root.tsx` — HTML shell
-  - `_authenticated.tsx` — auth guard layout (replaces `ProtectedRoute` wrapper)
+  - `_authenticated.tsx` — auth guard layout (replaces `ProtectedRoute`)
   - `_authenticated/` — all protected routes nested under auth guard
 - **Feature modules** in `src/features/` — domain-organized (admin, alerts, auth, dashboard, hosts, networks, nse, scanners, scans)
-  - Each feature contains: `components/`, `hooks/`, and optionally `schemas/`
-- **Shared components** in `src/components/` — organized by category: `ui/`, `layout/`, `data-display/`, `feedback/`
+  - Each: `components/`, `hooks/`, optionally `schemas/`
+- **Shared components** in `src/components/` — `ui/`, `layout/`, `data-display/`, `feedback/`
 - **API layer** in `src/lib/`:
-  - `api.ts` — fetch wrapper with auth header injection and error handling
+  - `api.ts` — fetch wrapper with auth header injection + error handling
   - `api-client.ts` — typed API client functions
-  - `api-types.ts` — API response type definitions
-  - `types.ts` — domain type definitions
-  - `query-client.ts` — TanStack Query client config
-  - `risk-score.ts` — host risk score calculation
+  - `api-types.ts` — API response types
+  - `types.ts` — domain types
+  - `query-client.ts` — TanStack Query config
+  - `risk-score.ts` — host risk score calc
   - `scan-estimate.ts` — scan duration estimation
-  - `utils.ts` — formatting and date helpers
+  - `utils.ts` — formatting + date helpers
 - Main routes: Dashboard, Networks, Hosts, Alerts, Scans, Scanners, Port Rules, Trends, NSE (profiles/library/editor/results), Admin (users/roles/organization)
-- Auth token stored in `localStorage` under `opm-auth-token`
+- Auth token in `localStorage` under `opm-auth-token`
 - `VITE_API_BASE_URL` env var for API base URL (relative fallback)
 
 ### Code Style
 
-- ESLint + Prettier for formatting (auto-configured)
+- ESLint + Prettier (auto-configured)
 - `react-refresh/only-export-components` rule (disabled for `context/` files)
-- No unused locals or parameters (enforced by `tsconfig.json`)
+- No unused locals or params (enforced by `tsconfig.json`)
 
 ## Scanner Conventions
 
-- Uses `uv` package manager with hatchling build system
-- All Python projects need `[tool.hatch.build.targets.wheel]` config in `pyproject.toml`
-- Scanner types are extensible via a registry pattern (`scanners/registry.py`)
-- Three scanner implementations: **masscan** (port discovery), **nmap** (service detection + banners), **nse** (vulnerability scripts)
-- Masscan requires `NET_RAW` and `NET_ADMIN` Docker capabilities
-- Port spec exclusions prefixed with `!` convert to `--exclude-ports`; defaults to full range if only exclusions are provided
-- Logs batched locally via `threading_utils.py`, sent to `/api/scanner/logs` every ~5 seconds
+- Uses `uv` with hatchling build system
+- All Python projects need `[tool.hatch.build.targets.wheel]` in `pyproject.toml`
+- Scanner types extensible via registry pattern (`scanners/registry.py`)
+- Three implementations: **masscan** (port discovery), **nmap** (service detection + banners), **nse** (vulnerability scripts)
+- Masscan needs `NET_RAW` + `NET_ADMIN` Docker capabilities
+- Port spec exclusions prefixed `!` convert to `--exclude-ports`; defaults to full range if only exclusions
+- Logs batched via `threading_utils.py`, sent to `/api/scanner/logs` every ~5s
 - IPv6 scans check connectivity to public DNS IPv6 addresses, fail fast if unreachable
-- SSH probing detects auth methods, weak ciphers/KEX, version info
+- SSH probing: auth methods, weak ciphers/KEX, version info
 - Hostname enrichment via DNS reverse lookups (`hostname_enrichment.py`)
-- NSE script caching with content hash and ETag support (`script_cache.py`)
+- NSE script caching with content hash + ETag (`script_cache.py`)
 - Host discovery polls `/api/scanner/host-discovery-jobs` separately from scan jobs
 
 ## Release Process
 
-1. Run `./release.sh [major|minor|patch]` — bumps `VERSION`, updates `CHANGELOG.md`, syncs NSE scripts from upstream nmap, commits, tags, pushes
-2. Tag push triggers GitHub Actions (`release.yml`): runs frontend typecheck, builds multi-arch Docker images, pushes to Docker Hub and GHCR, creates GitHub Release with changelog notes
-3. Docker images: `styliteag/opm` (combined app) and `styliteag/opm-scanner`
-4. NSE scripts in `nse-templates/scripts/` are synced from the nmap GitHub repo during release; built-in profiles are seeded on first backend startup
+1. Run `./release.sh [major|minor|patch]` — bumps `VERSION`, updates `CHANGELOG.md`, syncs NSE scripts, commits, tags, pushes
+2. Tag push triggers GitHub Actions (`release.yml`): runs frontend typecheck, builds multi-arch Docker images, pushes to Docker Hub + GHCR, creates GitHub Release with changelog
+3. Docker images: `styliteag/opm` (combined) and `styliteag/opm-scanner`
+4. NSE scripts in `nse-templates/scripts/` synced from nmap GitHub repo during release; built-in profiles seeded on first backend startup
 
 ## Alert State Terminology
 
-Alert state is tracked across multiple orthogonal dimensions. The naming differs between layers:
+Alert state tracked across multiple orthogonal dimensions. Naming differs between layers:
 
 ### DB Columns (alerts table)
 
@@ -372,7 +371,7 @@ Alert state is tracked across multiple orthogonal dimensions. The naming differs
 | `resolution_status` | Enum | `open`, `in_progress`, `resolved` |
 | `assigned_to_user_id` | Integer FK | user ID or `NULL` |
 
-"Accepted" is **not** stored on the alert — it is computed by matching against `port_rules` / `global_port_rules` (where `rule_type = 'accepted'`).
+"Accepted" **not** stored on alert — computed by matching against `port_rules` / `global_port_rules` (where `rule_type = 'accepted'`).
 
 ### Backend (Python enums)
 
@@ -393,33 +392,33 @@ Alert state is tracked across multiple orthogonal dimensions. The naming differs
 
 ### Key distinction
 
-- **Dismiss** = sets `dismissed=true` (no rule created, future scans still alert)
-- **Accept** = sets `dismissed=true` AND creates a `port_rules`/`global_port_rules` row with `rule_type='accepted'` (future scans won't alert)
+- **Dismiss** = sets `dismissed=true` (no rule, future scans still alert)
+- **Accept** = sets `dismissed=true` AND creates `port_rules`/`global_port_rules` row with `rule_type='accepted'` (future scans won't alert)
 
 ## Important Gotchas
 
 - Imports inside functions cause mypy strict mode issues — keep at top level
-- When modifying models, also update related schemas and services to keep in sync
-- Field names must match exactly between models, schemas, and API responses
+- When modifying models, also update related schemas + services
+- Field names must match exactly between models, schemas, API responses
 - `uv run mypy src/` may panic in sandboxed environments (system-configuration NULL object)
-- For bulk operations, delete existing records and create new ones in a single transaction
-- Always validate nested resources belong to the parent (e.g., `rule.network_id == network_id`)
-- Alerts deduplicate by `(alert_type, ip, port)` while not dismissed
-- `hatchling` requires `[tool.hatch.build.targets.wheel]` in `pyproject.toml`
+- Bulk ops: delete existing + create new in single transaction
+- Validate nested resources belong to parent (e.g., `rule.network_id == network_id`)
+- Alerts dedup by `(alert_type, ip, port)` while not dismissed
+- `hatchling` needs `[tool.hatch.build.targets.wheel]` in `pyproject.toml`
 
 ## Browser Testing
 
-For any story that changes UI:
-1. Load the `dev-browser` skill
-2. Navigate to the relevant page
-3. Verify the UI changes work as expected
-4. Take a screenshot if helpful for the progress log
+For any story changing UI:
+1. Load `dev-browser` skill
+2. Navigate to relevant page
+3. Verify UI changes work
+4. Screenshot if helpful for progress log
 
-A frontend story is NOT complete until browser verification passes.
+Frontend story NOT complete until browser verification passes.
 
 ## Files to Read
 
-For deeper context on project conventions, also see:
-- `PLANNED-FEATURES.md` — upcoming feature plans and user stories
-- `CHANGELOG.md` — recent changes and release history
-- `docs/README.md` — API reference and guides
+For deeper context:
+- `PLANNED-FEATURES.md` — upcoming features + user stories
+- `CHANGELOG.md` — recent changes + release history
+- `docs/README.md` — API reference + guides
