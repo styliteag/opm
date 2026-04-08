@@ -39,6 +39,7 @@ import { SourceBadge } from "./SourceBadge";
 interface AlertRulesTableProps {
   rules: PortRule[];
   search: string;
+  portFilter: string;
   selectedIds: Set<number>;
   onSelectedIdsChange: (ids: Set<number>) => void;
   onDelete: (rule: PortRule) => void;
@@ -75,6 +76,7 @@ function scopeFor(rule: PortRule): "global" | "network" {
 export function AlertRulesTable({
   rules,
   search,
+  portFilter,
   selectedIds,
   onSelectedIdsChange,
   onDelete,
@@ -291,8 +293,14 @@ export function AlertRulesTable({
     [selectedIds, onSelectedIdsChange, onDelete, isDeleting, updateRule],
   );
 
+  const filteredByPort = useMemo(() => {
+    if (!portFilter.trim()) return rules;
+    const pf = portFilter.trim();
+    return rules.filter((r) => (r.port ?? "").includes(pf));
+  }, [rules, portFilter]);
+
   const table = useReactTable({
-    data: rules,
+    data: filteredByPort,
     columns,
     state: { sorting, globalFilter: search },
     onSortingChange: setSorting,

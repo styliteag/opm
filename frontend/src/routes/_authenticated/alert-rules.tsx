@@ -35,6 +35,7 @@ function AlertRulesPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
+  const [portFilter, setPortFilter] = useState("");
   const { data, isLoading, error, refetch } = useAlertRules();
   const qc = useQueryClient();
 
@@ -130,6 +131,12 @@ function AlertRulesPage() {
             className="pl-8 h-8 text-sm"
           />
         </div>
+        <Input
+          value={portFilter}
+          onChange={(e) => setPortFilter(e.target.value)}
+          placeholder="Port..."
+          className="h-8 w-24 text-sm font-mono"
+        />
 
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2">
@@ -185,6 +192,7 @@ function AlertRulesPage() {
       <AlertRulesTable
         rules={allRules}
         search={search}
+        portFilter={portFilter}
         selectedIds={selectedIds}
         onSelectedIdsChange={setSelectedIds}
         onDelete={handleDeleteConfirm}

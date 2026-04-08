@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Port-specific filter input on alert rules page for quick port number lookup
+
 ### Changed
 
 - Renamed "Port Rules" to "Alert Rules" throughout the frontend (route `/port-rules` → `/alert-rules`, feature directory, sidebar)
