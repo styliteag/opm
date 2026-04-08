@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.13] - 2026-04-08
+
 ### Added
 
 - Cross-entity navigation links throughout the UI:
