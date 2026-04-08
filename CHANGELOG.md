@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add security headers to nginx (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
 - Remove hardcoded fallback credentials from DevLoginButton — require env vars
 - Separate `DATABASE_ECHO` setting from `DEBUG` flag to prevent SQL query logging when debug mode is enabled
+- Add `is_active` field to User model — deactivated users are rejected at auth with 403
+- Admin can activate/deactivate users from the user management page (cannot deactivate self)
 
 ## [1.10.0] - 2026-04-09
 

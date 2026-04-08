@@ -21,6 +21,7 @@ class UserUpdateRequest(BaseModel):
     email: EmailStr | None = None
     password: str | None = None
     role: UserRole | None = None
+    is_active: bool | None = None
 
 
 class UserResponse(BaseModel):
@@ -29,6 +30,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     role: UserRole
+    is_active: bool
     theme_preference: ThemePreference
     created_at: datetime
     updated_at: datetime

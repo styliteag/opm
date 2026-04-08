@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -45,6 +45,7 @@ class User(Base):
         nullable=False,
         default=UserRole.VIEWER,
     )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     theme_preference: Mapped[ThemePreference] = mapped_column(
         SQLEnum(ThemePreference, values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
@@ -61,6 +62,4 @@ class User(Base):
     alert_comments: Mapped[list["AlertComment"]] = relationship(
         "AlertComment", back_populates="user"
     )
-    assigned_alerts: Mapped[list["Alert"]] = relationship(
-        "Alert", back_populates="assigned_to"
-    )
+    assigned_alerts: Mapped[list["Alert"]] = relationship("Alert", back_populates="assigned_to")

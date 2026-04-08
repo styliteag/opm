@@ -53,6 +53,7 @@ async def update_user(
     email: str | None = None,
     password: str | None = None,
     role: UserRole | None = None,
+    is_active: bool | None = None,
 ) -> User:
     """Update an existing user."""
     if email is not None:
@@ -61,6 +62,8 @@ async def update_user(
         user.password_hash = hash_password(password)
     if role is not None:
         user.role = role
+    if is_active is not None:
+        user.is_active = is_active
 
     await db.flush()
     await db.refresh(user)

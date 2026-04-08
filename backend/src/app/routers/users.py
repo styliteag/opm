@@ -89,12 +89,20 @@ async def update_user(
                 detail="A user with this email already exists",
             )
 
+    # Prevent admin from deactivating themselves
+    if request.is_active is False and user.id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot deactivate your own account",
+        )
+
     updated_user = await users_service.update_user(
         db=db,
         user=user,
         email=request.email,
         password=request.password,
         role=request.role,
+        is_active=request.is_active,
     )
     await db.commit()
     return UserResponse.model_validate(updated_user)

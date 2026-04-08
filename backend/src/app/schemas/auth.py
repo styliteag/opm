@@ -25,6 +25,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     role: UserRole
+    is_active: bool
     theme_preference: ThemePreference
 
     model_config = {"from_attributes": True}

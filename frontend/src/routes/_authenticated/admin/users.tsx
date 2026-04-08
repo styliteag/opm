@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
@@ -23,7 +23,7 @@ const roleVariant = {
 
 function UsersPage() {
   const { data, isLoading, error, refetch } = useUsers();
-  const { remove } = useUserMutations();
+  const { update, remove } = useUserMutations();
   const [createOpen, setCreateOpen] = useState(false);
 
   if (isLoading) return <LoadingState rows={6} />;
@@ -90,6 +90,9 @@ function UsersPage() {
                 Role
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                Status
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                 Created
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
@@ -103,7 +106,9 @@ function UsersPage() {
                 key={user.id}
                 className="border-b border-border hover:bg-accent/50 transition-colors"
               >
-                <td className="px-4 py-3 text-sm text-foreground">
+                <td
+                  className={`px-4 py-3 text-sm ${user.is_active ? "text-foreground" : "text-muted-foreground line-through"}`}
+                >
                   {user.email}
                 </td>
                 <td className="px-4 py-3">
@@ -112,10 +117,40 @@ function UsersPage() {
                     variant={roleVariant[user.role] ?? "neutral"}
                   />
                 </td>
+                <td className="px-4 py-3">
+                  <StatusBadge
+                    label={user.is_active ? "Active" : "Inactive"}
+                    variant={user.is_active ? "success" : "neutral"}
+                  />
+                </td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">
                   {formatRelativeTime(user.created_at)}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 flex items-center gap-1">
+                  <button
+                    onClick={() =>
+                      update.mutate(
+                        { id: user.id, is_active: !user.is_active },
+                        {
+                          onSuccess: () =>
+                            toast.success(
+                              user.is_active
+                                ? "User deactivated"
+                                : "User activated",
+                            ),
+                          onError: (e) => toast.error(e.message),
+                        },
+                      )
+                    }
+                    className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    title={user.is_active ? "Deactivate user" : "Activate user"}
+                  >
+                    {user.is_active ? (
+                      <ShieldOff className="h-4 w-4" />
+                    ) : (
+                      <ShieldCheck className="h-4 w-4" />
+                    )}
+                  </button>
                   <button
                     onClick={() =>
                       remove.mutate(user.id, {
