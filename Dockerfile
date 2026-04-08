@@ -69,7 +69,8 @@ RUN chmod +x start.sh
 COPY backend/scripts/wait-for-db.py ./scripts/wait-for-db.py
 COPY backend/scripts/init_admin.py ./scripts/init_admin.py
 COPY backend/scripts/seed_nse.py ./scripts/seed_nse.py
-RUN chmod +x ./scripts/wait-for-db.py ./scripts/init_admin.py ./scripts/seed_nse.py
+COPY backend/scripts/fix_migration_revision.py ./scripts/fix_migration_revision.py
+RUN chmod +x ./scripts/wait-for-db.py ./scripts/init_admin.py ./scripts/seed_nse.py ./scripts/fix_migration_revision.py
 
 # Copy frontend build
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
