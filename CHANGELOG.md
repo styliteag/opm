@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Migration status incorrectly showing "behind" for hash-style Alembic revision IDs (e.g. `3c597f90f9a7`)
+- Migration status incorrectly showing "behind" for non-sequential Alembic revision IDs
+- Renamed migration `3c597f90f9a7` to `003` to maintain sequential naming convention
 - Trends page weekly aggregation 500 error: replaced `DATE_SUB` with `SUBDATE` for MariaDB integer-days compatibility
 - Active Alerts stat card now shows active (non-dismissed) count matching the alerts list page
 - ThreatPulseChart ResponsiveContainer negative dimension warning on dashboard
