@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Port-specific filter input on alert rules page for quick port number lookup
+- Link from each alert rule to matching alerts list (filtered by source, port, network)
+- Alerts page now accepts URL search params for pre-filtering (source, port, network_id, severity, type, search)
 
 ### Fixed
 

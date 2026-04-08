@@ -26,11 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { AlertType, Severity } from "@/lib/types";
 
-export const Route = createFileRoute("/_authenticated/alerts/")({
-  component: AlertsPage,
-});
-
-interface FilterState {
+interface SearchParams {
   severity?: Severity;
   type?: AlertType;
   source?: "port" | "ssh" | "nse";
@@ -40,8 +36,33 @@ interface FilterState {
   port?: number;
 }
 
+export const Route = createFileRoute("/_authenticated/alerts/")({
+  component: AlertsPage,
+  validateSearch: (search: Record<string, unknown>): SearchParams => ({
+    severity: search.severity as Severity | undefined,
+    type: search.type as AlertType | undefined,
+    source: search.source as "port" | "ssh" | "nse" | undefined,
+    network_id: search.network_id ? Number(search.network_id) : undefined,
+    dismissed:
+      search.dismissed !== undefined
+        ? search.dismissed === "true" || search.dismissed === true
+        : undefined,
+    search: search.search as string | undefined,
+    port: search.port ? Number(search.port) : undefined,
+  }),
+});
+
+type FilterState = SearchParams;
+
 function AlertsPage() {
-  const [filters, setFilters] = useState<FilterState>({ dismissed: false });
+  const searchParams = Route.useSearch();
+  const initialFilters: FilterState = {
+    dismissed: false,
+    ...Object.fromEntries(
+      Object.entries(searchParams).filter(([, v]) => v !== undefined),
+    ),
+  };
+  const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
