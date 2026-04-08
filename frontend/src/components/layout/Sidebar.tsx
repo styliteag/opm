@@ -44,7 +44,7 @@ const toolsNav: NavItem[] = [
 ];
 
 const settingsNav: NavItem[] = [
-  { label: "Alert Rules", href: "/port-rules", icon: Shield },
+  { label: "Alert Rules", href: "/alert-rules", icon: Shield },
 ];
 
 const adminNav: NavItem[] = [

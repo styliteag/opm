@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed "Port Rules" to "Alert Rules" throughout the frontend (route `/port-rules` → `/alert-rules`, feature directory, sidebar)
+- Replaced section-based rule list with a TanStack Table featuring sortable columns, global search, inline editing (description, rule type, enabled toggle), and row selection
+
+### Removed
+
+- Removed legacy `RuleSection` and `RuleRow` components (replaced by `AlertRulesTable`)
+
 ## [1.9.11] - 2026-04-06
 
 ### Fixed

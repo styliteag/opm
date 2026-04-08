@@ -14,7 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedTrendsRouteImport } from './routes/_authenticated/trends'
 import { Route as AuthenticatedScannersRouteImport } from './routes/_authenticated/scanners'
-import { Route as AuthenticatedPortRulesRouteImport } from './routes/_authenticated/port-rules'
+import { Route as AuthenticatedAlertRulesRouteImport } from './routes/_authenticated/alert-rules'
 import { Route as AuthenticatedScansIndexRouteImport } from './routes/_authenticated/scans/index'
 import { Route as AuthenticatedNetworksIndexRouteImport } from './routes/_authenticated/networks/index'
 import { Route as AuthenticatedHostsIndexRouteImport } from './routes/_authenticated/hosts/index'
@@ -55,9 +55,9 @@ const AuthenticatedScannersRoute = AuthenticatedScannersRouteImport.update({
   path: '/scanners',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedPortRulesRoute = AuthenticatedPortRulesRouteImport.update({
-  id: '/port-rules',
-  path: '/port-rules',
+const AuthenticatedAlertRulesRoute = AuthenticatedAlertRulesRouteImport.update({
+  id: '/alert-rules',
+  path: '/alert-rules',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedScansIndexRoute = AuthenticatedScansIndexRouteImport.update({
@@ -148,7 +148,7 @@ const AuthenticatedNseEditorScriptNameRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
-  '/port-rules': typeof AuthenticatedPortRulesRoute
+  '/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/scanners': typeof AuthenticatedScannersRoute
   '/trends': typeof AuthenticatedTrendsRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
@@ -169,7 +169,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
-  '/port-rules': typeof AuthenticatedPortRulesRoute
+  '/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/scanners': typeof AuthenticatedScannersRoute
   '/trends': typeof AuthenticatedTrendsRoute
   '/': typeof AuthenticatedIndexRoute
@@ -193,7 +193,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
-  '/_authenticated/port-rules': typeof AuthenticatedPortRulesRoute
+  '/_authenticated/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/_authenticated/scanners': typeof AuthenticatedScannersRoute
   '/_authenticated/trends': typeof AuthenticatedTrendsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -218,7 +218,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
-    | '/port-rules'
+    | '/alert-rules'
     | '/scanners'
     | '/trends'
     | '/admin/organization'
@@ -239,7 +239,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
-    | '/port-rules'
+    | '/alert-rules'
     | '/scanners'
     | '/trends'
     | '/'
@@ -262,7 +262,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
-    | '/_authenticated/port-rules'
+    | '/_authenticated/alert-rules'
     | '/_authenticated/scanners'
     | '/_authenticated/trends'
     | '/_authenticated/'
@@ -325,11 +325,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedScannersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/port-rules': {
-      id: '/_authenticated/port-rules'
-      path: '/port-rules'
-      fullPath: '/port-rules'
-      preLoaderRoute: typeof AuthenticatedPortRulesRouteImport
+    '/_authenticated/alert-rules': {
+      id: '/_authenticated/alert-rules'
+      path: '/alert-rules'
+      fullPath: '/alert-rules'
+      preLoaderRoute: typeof AuthenticatedAlertRulesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/scans/': {
@@ -441,7 +441,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedPortRulesRoute: typeof AuthenticatedPortRulesRoute
+  AuthenticatedAlertRulesRoute: typeof AuthenticatedAlertRulesRoute
   AuthenticatedScannersRoute: typeof AuthenticatedScannersRoute
   AuthenticatedTrendsRoute: typeof AuthenticatedTrendsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -463,7 +463,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedPortRulesRoute: AuthenticatedPortRulesRoute,
+  AuthenticatedAlertRulesRoute: AuthenticatedAlertRulesRoute,
   AuthenticatedScannersRoute: AuthenticatedScannersRoute,
   AuthenticatedTrendsRoute: AuthenticatedTrendsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
