@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -85,8 +85,10 @@ export function AlertRulesTable({
   const [sorting, setSorting] = useState<SortingState>([]);
   const qc = useQueryClient();
 
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ["policy", "rules"] });
+  const invalidate = useCallback(
+    () => qc.invalidateQueries({ queryKey: ["policy", "rules"] }),
+    [qc],
+  );
 
   const updateRule = useMutation({
     mutationFn: ({
@@ -103,6 +105,16 @@ export function AlertRulesTable({
     onError: (e) => toast.error(e.message),
   });
 
+  // Stable refs so columns don't recompute on every selection/mutation change
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+  const onSelectedIdsChangeRef = useRef(onSelectedIdsChange);
+  onSelectedIdsChangeRef.current = onSelectedIdsChange;
+  const onDeleteRef = useRef(onDelete);
+  onDeleteRef.current = onDelete;
+  const updateRuleRef = useRef(updateRule);
+  updateRuleRef.current = updateRule;
+
   const columns = useMemo<ColumnDef<PortRule>[]>(
     () => [
       {
@@ -110,17 +122,20 @@ export function AlertRulesTable({
         header: ({ table }) => {
           const allIds = table.getRowModel().rows.map((r) => r.original.id);
           const allSelected =
-            allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
-          const someSelected = allIds.some((id) => selectedIds.has(id));
+            allIds.length > 0 &&
+            allIds.every((id) => selectedIdsRef.current.has(id));
+          const someSelected = allIds.some((id) =>
+            selectedIdsRef.current.has(id),
+          );
           return (
             <Checkbox
               checked={allSelected}
               indeterminate={someSelected && !allSelected}
               onCheckedChange={(v) => {
                 if (v) {
-                  onSelectedIdsChange(new Set(allIds));
+                  onSelectedIdsChangeRef.current(new Set(allIds));
                 } else {
-                  onSelectedIdsChange(new Set());
+                  onSelectedIdsChangeRef.current(new Set());
                 }
               }}
             />
@@ -128,12 +143,12 @@ export function AlertRulesTable({
         },
         cell: ({ row }) => (
           <Checkbox
-            checked={selectedIds.has(row.original.id)}
+            checked={selectedIdsRef.current.has(row.original.id)}
             onCheckedChange={(v) => {
-              const next = new Set(selectedIds);
+              const next = new Set(selectedIdsRef.current);
               if (v) next.add(row.original.id);
               else next.delete(row.original.id);
-              onSelectedIdsChange(next);
+              onSelectedIdsChangeRef.current(next);
             }}
           />
         ),
@@ -207,7 +222,7 @@ export function AlertRulesTable({
           <Select
             value={row.original.rule_type}
             onChange={(e) =>
-              updateRule.mutate({
+              updateRuleRef.current.mutate({
                 rule: row.original,
                 patch: { rule_type: e.target.value },
               })
@@ -230,12 +245,12 @@ export function AlertRulesTable({
             value={row.original.description}
             placeholder="Add description..."
             onSave={(v) =>
-              updateRule.mutate({
+              updateRuleRef.current.mutate({
                 rule: row.original,
                 patch: { description: v || null },
               })
             }
-            isPending={updateRule.isPending}
+            isPending={updateRuleRef.current.isPending}
           />
         ),
         size: 240,
@@ -250,7 +265,7 @@ export function AlertRulesTable({
           return (
             <button
               onClick={() =>
-                updateRule.mutate({
+                updateRuleRef.current.mutate({
                   rule: row.original,
                   patch: { enabled: !enabled },
                 })
@@ -278,7 +293,7 @@ export function AlertRulesTable({
         id: "actions",
         cell: ({ row }) => (
           <button
-            onClick={() => onDelete(row.original)}
+            onClick={() => onDeleteRef.current(row.original)}
             disabled={isDeleting}
             className="rounded p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-all disabled:opacity-50 cursor-pointer"
             title="Remove rule"
@@ -290,7 +305,7 @@ export function AlertRulesTable({
         enableSorting: false,
       },
     ],
-    [selectedIds, onSelectedIdsChange, onDelete, isDeleting, updateRule],
+    [isDeleting],
   );
 
   const filteredByPort = useMemo(() => {
@@ -349,7 +364,7 @@ export function AlertRulesTable({
                 colSpan={columns.length}
                 className="text-center py-8 text-muted-foreground"
               >
-                {search
+                {search || portFilter
                   ? "No rules match your search."
                   : "No rules configured."}
               </TableCell>
