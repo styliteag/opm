@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refactor CLAUDE.md and AGENTS.md for progressive disclosure (940 → 170 lines, 82% reduction)
+- Move design system tokens to `.claude/rules/design-system.md`
+- Add workflow orchestration rules in `.claude/rules/workflow.md`
+
 ## [1.11.0] - 2026-04-09
 
 ### Security
