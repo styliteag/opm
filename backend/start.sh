@@ -17,6 +17,9 @@ echo "Starting STYLiTE Orbit Monitor Backend version: ${VERSION}"
 echo "Waiting for database to be ready..."
 python3 /app/scripts/wait-for-db.py || exit 1
 
+# Fix renamed migration revision (3c597f90f9a7 → 003) for existing databases
+python3 /app/scripts/fix_migration_revision.py || true
+
 # Run migrations BEFORE starting workers (single process, no race condition)
 echo "Running database migrations..."
 alembic upgrade head

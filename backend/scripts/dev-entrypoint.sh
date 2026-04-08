@@ -15,6 +15,9 @@ echo "Starting STYLiTE Orbit Monitor Backend version: ${VERSION}"
 echo "Waiting for database to be ready..."
 uv run python /app/scripts/wait-for-db.py || exit 1
 
+# Fix renamed migration revision (3c597f90f9a7 → 003) for existing databases
+uv run python /app/scripts/fix_migration_revision.py || true
+
 # Run migrations BEFORE starting uvicorn (consistent with production)
 echo "Running database migrations..."
 uv run alembic upgrade head

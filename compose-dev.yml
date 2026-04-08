@@ -43,6 +43,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/src:/app/src
+      - ./backend/scripts:/app/scripts
       - ./VERSION:/app/VERSION:ro
     networks:
       - opm-network
