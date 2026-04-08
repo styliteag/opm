@@ -13,13 +13,14 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedTrendsRouteImport } from './routes/_authenticated/trends'
-import { Route as AuthenticatedScannersRouteImport } from './routes/_authenticated/scanners'
 import { Route as AuthenticatedAlertRulesRouteImport } from './routes/_authenticated/alert-rules'
 import { Route as AuthenticatedScansIndexRouteImport } from './routes/_authenticated/scans/index'
+import { Route as AuthenticatedScannersIndexRouteImport } from './routes/_authenticated/scanners/index'
 import { Route as AuthenticatedNetworksIndexRouteImport } from './routes/_authenticated/networks/index'
 import { Route as AuthenticatedHostsIndexRouteImport } from './routes/_authenticated/hosts/index'
 import { Route as AuthenticatedAlertsIndexRouteImport } from './routes/_authenticated/alerts/index'
 import { Route as AuthenticatedScansScanIdRouteImport } from './routes/_authenticated/scans/$scanId'
+import { Route as AuthenticatedScannersScannerIdRouteImport } from './routes/_authenticated/scanners/$scannerId'
 import { Route as AuthenticatedNseResultsRouteImport } from './routes/_authenticated/nse/results'
 import { Route as AuthenticatedNseProfilesRouteImport } from './routes/_authenticated/nse/profiles'
 import { Route as AuthenticatedNseLibraryRouteImport } from './routes/_authenticated/nse/library'
@@ -50,11 +51,6 @@ const AuthenticatedTrendsRoute = AuthenticatedTrendsRouteImport.update({
   path: '/trends',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedScannersRoute = AuthenticatedScannersRouteImport.update({
-  id: '/scanners',
-  path: '/scanners',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedAlertRulesRoute = AuthenticatedAlertRulesRouteImport.update({
   id: '/alert-rules',
   path: '/alert-rules',
@@ -65,6 +61,12 @@ const AuthenticatedScansIndexRoute = AuthenticatedScansIndexRouteImport.update({
   path: '/scans/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedScannersIndexRoute =
+  AuthenticatedScannersIndexRouteImport.update({
+    id: '/scanners/',
+    path: '/scanners/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedNetworksIndexRoute =
   AuthenticatedNetworksIndexRouteImport.update({
     id: '/networks/',
@@ -86,6 +88,12 @@ const AuthenticatedScansScanIdRoute =
   AuthenticatedScansScanIdRouteImport.update({
     id: '/scans/$scanId',
     path: '/scans/$scanId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedScannersScannerIdRoute =
+  AuthenticatedScannersScannerIdRouteImport.update({
+    id: '/scanners/$scannerId',
+    path: '/scanners/$scannerId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedNseResultsRoute = AuthenticatedNseResultsRouteImport.update({
@@ -149,7 +157,6 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/alert-rules': typeof AuthenticatedAlertRulesRoute
-  '/scanners': typeof AuthenticatedScannersRoute
   '/trends': typeof AuthenticatedTrendsRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
@@ -160,17 +167,18 @@ export interface FileRoutesByFullPath {
   '/nse/library': typeof AuthenticatedNseLibraryRoute
   '/nse/profiles': typeof AuthenticatedNseProfilesRoute
   '/nse/results': typeof AuthenticatedNseResultsRoute
+  '/scanners/$scannerId': typeof AuthenticatedScannersScannerIdRoute
   '/scans/$scanId': typeof AuthenticatedScansScanIdRoute
   '/alerts/': typeof AuthenticatedAlertsIndexRoute
   '/hosts/': typeof AuthenticatedHostsIndexRoute
   '/networks/': typeof AuthenticatedNetworksIndexRoute
+  '/scanners/': typeof AuthenticatedScannersIndexRoute
   '/scans/': typeof AuthenticatedScansIndexRoute
   '/nse/editor/$scriptName': typeof AuthenticatedNseEditorScriptNameRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/alert-rules': typeof AuthenticatedAlertRulesRoute
-  '/scanners': typeof AuthenticatedScannersRoute
   '/trends': typeof AuthenticatedTrendsRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
@@ -182,10 +190,12 @@ export interface FileRoutesByTo {
   '/nse/library': typeof AuthenticatedNseLibraryRoute
   '/nse/profiles': typeof AuthenticatedNseProfilesRoute
   '/nse/results': typeof AuthenticatedNseResultsRoute
+  '/scanners/$scannerId': typeof AuthenticatedScannersScannerIdRoute
   '/scans/$scanId': typeof AuthenticatedScansScanIdRoute
   '/alerts': typeof AuthenticatedAlertsIndexRoute
   '/hosts': typeof AuthenticatedHostsIndexRoute
   '/networks': typeof AuthenticatedNetworksIndexRoute
+  '/scanners': typeof AuthenticatedScannersIndexRoute
   '/scans': typeof AuthenticatedScansIndexRoute
   '/nse/editor/$scriptName': typeof AuthenticatedNseEditorScriptNameRoute
 }
@@ -194,7 +204,6 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/alert-rules': typeof AuthenticatedAlertRulesRoute
-  '/_authenticated/scanners': typeof AuthenticatedScannersRoute
   '/_authenticated/trends': typeof AuthenticatedTrendsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/organization': typeof AuthenticatedAdminOrganizationRoute
@@ -206,10 +215,12 @@ export interface FileRoutesById {
   '/_authenticated/nse/library': typeof AuthenticatedNseLibraryRoute
   '/_authenticated/nse/profiles': typeof AuthenticatedNseProfilesRoute
   '/_authenticated/nse/results': typeof AuthenticatedNseResultsRoute
+  '/_authenticated/scanners/$scannerId': typeof AuthenticatedScannersScannerIdRoute
   '/_authenticated/scans/$scanId': typeof AuthenticatedScansScanIdRoute
   '/_authenticated/alerts/': typeof AuthenticatedAlertsIndexRoute
   '/_authenticated/hosts/': typeof AuthenticatedHostsIndexRoute
   '/_authenticated/networks/': typeof AuthenticatedNetworksIndexRoute
+  '/_authenticated/scanners/': typeof AuthenticatedScannersIndexRoute
   '/_authenticated/scans/': typeof AuthenticatedScansIndexRoute
   '/_authenticated/nse/editor/$scriptName': typeof AuthenticatedNseEditorScriptNameRoute
 }
@@ -219,7 +230,6 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/alert-rules'
-    | '/scanners'
     | '/trends'
     | '/admin/organization'
     | '/admin/roles'
@@ -230,17 +240,18 @@ export interface FileRouteTypes {
     | '/nse/library'
     | '/nse/profiles'
     | '/nse/results'
+    | '/scanners/$scannerId'
     | '/scans/$scanId'
     | '/alerts/'
     | '/hosts/'
     | '/networks/'
+    | '/scanners/'
     | '/scans/'
     | '/nse/editor/$scriptName'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/alert-rules'
-    | '/scanners'
     | '/trends'
     | '/'
     | '/admin/organization'
@@ -252,10 +263,12 @@ export interface FileRouteTypes {
     | '/nse/library'
     | '/nse/profiles'
     | '/nse/results'
+    | '/scanners/$scannerId'
     | '/scans/$scanId'
     | '/alerts'
     | '/hosts'
     | '/networks'
+    | '/scanners'
     | '/scans'
     | '/nse/editor/$scriptName'
   id:
@@ -263,7 +276,6 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/alert-rules'
-    | '/_authenticated/scanners'
     | '/_authenticated/trends'
     | '/_authenticated/'
     | '/_authenticated/admin/organization'
@@ -275,10 +287,12 @@ export interface FileRouteTypes {
     | '/_authenticated/nse/library'
     | '/_authenticated/nse/profiles'
     | '/_authenticated/nse/results'
+    | '/_authenticated/scanners/$scannerId'
     | '/_authenticated/scans/$scanId'
     | '/_authenticated/alerts/'
     | '/_authenticated/hosts/'
     | '/_authenticated/networks/'
+    | '/_authenticated/scanners/'
     | '/_authenticated/scans/'
     | '/_authenticated/nse/editor/$scriptName'
   fileRoutesById: FileRoutesById
@@ -318,13 +332,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTrendsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/scanners': {
-      id: '/_authenticated/scanners'
-      path: '/scanners'
-      fullPath: '/scanners'
-      preLoaderRoute: typeof AuthenticatedScannersRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/alert-rules': {
       id: '/_authenticated/alert-rules'
       path: '/alert-rules'
@@ -337,6 +344,13 @@ declare module '@tanstack/react-router' {
       path: '/scans'
       fullPath: '/scans/'
       preLoaderRoute: typeof AuthenticatedScansIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/scanners/': {
+      id: '/_authenticated/scanners/'
+      path: '/scanners'
+      fullPath: '/scanners/'
+      preLoaderRoute: typeof AuthenticatedScannersIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/networks/': {
@@ -365,6 +379,13 @@ declare module '@tanstack/react-router' {
       path: '/scans/$scanId'
       fullPath: '/scans/$scanId'
       preLoaderRoute: typeof AuthenticatedScansScanIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/scanners/$scannerId': {
+      id: '/_authenticated/scanners/$scannerId'
+      path: '/scanners/$scannerId'
+      fullPath: '/scanners/$scannerId'
+      preLoaderRoute: typeof AuthenticatedScannersScannerIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/nse/results': {
@@ -442,7 +463,6 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAlertRulesRoute: typeof AuthenticatedAlertRulesRoute
-  AuthenticatedScannersRoute: typeof AuthenticatedScannersRoute
   AuthenticatedTrendsRoute: typeof AuthenticatedTrendsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminOrganizationRoute: typeof AuthenticatedAdminOrganizationRoute
@@ -454,17 +474,18 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNseLibraryRoute: typeof AuthenticatedNseLibraryRoute
   AuthenticatedNseProfilesRoute: typeof AuthenticatedNseProfilesRoute
   AuthenticatedNseResultsRoute: typeof AuthenticatedNseResultsRoute
+  AuthenticatedScannersScannerIdRoute: typeof AuthenticatedScannersScannerIdRoute
   AuthenticatedScansScanIdRoute: typeof AuthenticatedScansScanIdRoute
   AuthenticatedAlertsIndexRoute: typeof AuthenticatedAlertsIndexRoute
   AuthenticatedHostsIndexRoute: typeof AuthenticatedHostsIndexRoute
   AuthenticatedNetworksIndexRoute: typeof AuthenticatedNetworksIndexRoute
+  AuthenticatedScannersIndexRoute: typeof AuthenticatedScannersIndexRoute
   AuthenticatedScansIndexRoute: typeof AuthenticatedScansIndexRoute
   AuthenticatedNseEditorScriptNameRoute: typeof AuthenticatedNseEditorScriptNameRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAlertRulesRoute: AuthenticatedAlertRulesRoute,
-  AuthenticatedScannersRoute: AuthenticatedScannersRoute,
   AuthenticatedTrendsRoute: AuthenticatedTrendsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminOrganizationRoute: AuthenticatedAdminOrganizationRoute,
@@ -476,10 +497,12 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNseLibraryRoute: AuthenticatedNseLibraryRoute,
   AuthenticatedNseProfilesRoute: AuthenticatedNseProfilesRoute,
   AuthenticatedNseResultsRoute: AuthenticatedNseResultsRoute,
+  AuthenticatedScannersScannerIdRoute: AuthenticatedScannersScannerIdRoute,
   AuthenticatedScansScanIdRoute: AuthenticatedScansScanIdRoute,
   AuthenticatedAlertsIndexRoute: AuthenticatedAlertsIndexRoute,
   AuthenticatedHostsIndexRoute: AuthenticatedHostsIndexRoute,
   AuthenticatedNetworksIndexRoute: AuthenticatedNetworksIndexRoute,
+  AuthenticatedScannersIndexRoute: AuthenticatedScannersIndexRoute,
   AuthenticatedScansIndexRoute: AuthenticatedScansIndexRoute,
   AuthenticatedNseEditorScriptNameRoute: AuthenticatedNseEditorScriptNameRoute,
 }

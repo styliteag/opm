@@ -36,7 +36,7 @@ export function ThreatPulseChart({ data }: ThreatPulseChartProps) {
           role="img"
           aria-label="Alert trend chart showing new alerts and resolved alerts over the past 30 days"
         >
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <AreaChart data={formatted}>
               <defs>
                 <linearGradient id="alertGrad" x1="0" y1="0" x2="0" y2="1">

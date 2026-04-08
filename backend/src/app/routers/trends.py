@@ -54,7 +54,7 @@ async def get_open_ports_trend(
     elif period == PeriodType.WEEK:
         # Week starts on Monday (ISO week)
         date_trunc = func.date(
-            func.date_sub(OpenPort.first_seen_at, func.weekday(OpenPort.first_seen_at))
+            func.subdate(OpenPort.first_seen_at, func.weekday(OpenPort.first_seen_at))
         )
     else:  # MONTH
         date_trunc = func.date(
@@ -119,9 +119,7 @@ async def get_hosts_trend(
         date_trunc = func.date(Host.first_seen_at)
     elif period == PeriodType.WEEK:
         # Week starts on Monday (ISO week)
-        date_trunc = func.date(
-            func.date_sub(Host.first_seen_at, func.weekday(Host.first_seen_at))
-        )
+        date_trunc = func.date(func.subdate(Host.first_seen_at, func.weekday(Host.first_seen_at)))
     else:  # MONTH
         date_trunc = func.date(
             func.concat(
@@ -186,9 +184,7 @@ async def get_alerts_trend(
         date_trunc = func.date(Alert.created_at)
     elif period == PeriodType.WEEK:
         # Week starts on Monday (ISO week)
-        date_trunc = func.date(
-            func.date_sub(Alert.created_at, func.weekday(Alert.created_at))
-        )
+        date_trunc = func.date(func.subdate(Alert.created_at, func.weekday(Alert.created_at)))
     else:  # MONTH
         date_trunc = func.date(
             func.concat(

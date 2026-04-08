@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Trends page redesign: summary stat cards with delta indicators, area charts with gradients in 2x2 grid, resolution rate chart, clickable cards navigating to hosts/alerts
 - Network detail dashboard: health stat cards (hosts, alerts, ports, scan success rate), alert trend chart, scanner status badge, tabbed layout (overview/configuration/scans)
 - Scanner detail page: new route `/scanners/$scannerId` with stat cards (networks, scans, success rate, avg duration), assigned networks table, recent scans table
 - Scanner list: scanner names are now clickable links to detail page
@@ -16,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Host detail: risk score sparkline showing 14-day trend next to risk score number
 - Host detail: "New" badge on ports first discovered within the last 7 days
 - Backend endpoints: `GET /api/networks/{id}/overview`, `GET /api/scanners/{id}/overview`, `GET /api/hosts/{id}/risk-trend`
+
+### Fixed
+
+- Trends page weekly aggregation 500 error: replaced `DATE_SUB` with `SUBDATE` for MariaDB integer-days compatibility
+- Active Alerts stat card now shows active (non-dismissed) count matching the alerts list page
+- ThreatPulseChart ResponsiveContainer negative dimension warning on dashboard
 
 ## [1.9.13] - 2026-04-08
 
