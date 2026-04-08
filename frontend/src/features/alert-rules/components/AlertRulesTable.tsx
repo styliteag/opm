@@ -76,7 +76,7 @@ function scopeFor(rule: PortRule): "global" | "network" {
 }
 
 function alertsSearchFor(rule: PortRule): Record<string, unknown> {
-  const params: Record<string, unknown> = {};
+  const params: Record<string, unknown> = { dismissed: true };
   if (rule.source) params.source = rule.source;
   if (rule.port && /^\d+$/.test(rule.port)) params.port = Number(rule.port);
   if (rule.network_id) params.network_id = rule.network_id;
