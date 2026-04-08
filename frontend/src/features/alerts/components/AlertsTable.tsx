@@ -159,8 +159,8 @@ function createColumns(props: {
       accessorKey: "ip",
       header: ({ column }) => <SortableHeader label="Target" column={column} />,
       cell: ({ row }) => {
-        const { ip, hostname } = row.original;
-        return (
+        const { ip, hostname, host_id } = row.original;
+        const content = (
           <div className="flex flex-col gap-0.5">
             <span className="text-sm font-mono text-foreground">{ip}</span>
             {hostname && (
@@ -170,6 +170,18 @@ function createColumns(props: {
             )}
           </div>
         );
+        if (host_id) {
+          return (
+            <Link
+              to="/hosts/$hostId"
+              params={{ hostId: String(host_id) }}
+              className="hover:text-primary transition-colors"
+            >
+              {content}
+            </Link>
+          );
+        }
+        return content;
       },
       size: 160,
     },
@@ -191,11 +203,25 @@ function createColumns(props: {
       header: ({ column }) => (
         <SortableHeader label="Network" column={column} />
       ),
-      cell: ({ getValue }) => (
-        <span className="text-sm text-muted-foreground">
-          {getValue<string | null>() ?? "-"}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const { network_id, network_name } = row.original;
+        if (network_id && network_name) {
+          return (
+            <Link
+              to="/networks/$networkId"
+              params={{ networkId: String(network_id) }}
+              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              {network_name}
+            </Link>
+          );
+        }
+        return (
+          <span className="text-sm text-muted-foreground">
+            {network_name ?? "-"}
+          </span>
+        );
+      },
       size: 140,
     },
     {

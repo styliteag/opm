@@ -14,16 +14,28 @@ import { useHosts, useHostMutations } from "@/features/hosts/hooks/useHosts";
 import { useGlobalPorts } from "@/features/hosts/hooks/useGlobalPorts";
 import { useNetworks } from "@/features/dashboard/hooks/useDashboardData";
 
+interface HostsSearchParams {
+  search?: string;
+  network_id?: number;
+}
+
 export const Route = createFileRoute("/_authenticated/hosts/")({
   component: HostsPage,
+  validateSearch: (search: Record<string, unknown>): HostsSearchParams => ({
+    search: search.search as string | undefined,
+    network_id: search.network_id ? Number(search.network_id) : undefined,
+  }),
 });
 
 type ViewMode = "hosts" | "global-ports";
 
 function HostsPage() {
+  const searchParams = Route.useSearch();
   const [viewMode, setViewMode] = useState<ViewMode>("hosts");
-  const [search, setSearch] = useState("");
-  const [networkId, setNetworkId] = useState<number | undefined>();
+  const [search, setSearch] = useState(searchParams.search ?? "");
+  const [networkId, setNetworkId] = useState<number | undefined>(
+    searchParams.network_id,
+  );
   const [staleness, setStaleness] = useState<"all" | "active" | "stale">("all");
   const [selectedHostIds, setSelectedHostIds] = useState<number[]>([]);
   const [page, setPage] = useState(0);

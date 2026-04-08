@@ -1,10 +1,17 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Pencil, Play, Radar } from "lucide-react";
+import {
+  ArrowLeft,
+  Monitor,
+  Pencil,
+  Play,
+  Radar,
+  ScanLine,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
@@ -116,6 +123,26 @@ function NetworkDetailPage() {
             </p>
           </div>
         ))}
+      </div>
+
+      {/* Quick Links */}
+      <div className="flex items-center gap-2">
+        <Link
+          to="/hosts"
+          search={{ network_id: id }}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          <Monitor className="h-3.5 w-3.5 mr-1.5" />
+          View Hosts
+        </Link>
+        <Link
+          to="/scans"
+          search={{ network_id: id }}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          <ScanLine className="h-3.5 w-3.5 mr-1.5" />
+          View Scans
+        </Link>
       </div>
 
       {/* Port Rules */}

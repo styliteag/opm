@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Cross-entity navigation links throughout the UI:
+  - Alerts table: IP links to host detail, network name links to network detail
+  - Alert detail: target IP and network name are now clickable links
+  - Host detail: network names in header link to network detail
+  - Scan detail: network name links to network detail, IPs in port table link to hosts
+  - Network detail: "View Hosts" and "View Scans" quick-link buttons
+  - Alert rules table: network scope links to network detail
+- Hosts page accepts URL search params (`search`, `network_id`)
+- Scans page accepts URL search params (`network_id`)
+
 ## [1.9.12] - 2026-04-08
 
 ### Added

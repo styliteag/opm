@@ -87,8 +87,23 @@ function HostDetailPage() {
             <p className="mt-0.5 font-mono text-sm text-muted-foreground">
               {host.ip}
               {host.hostname && ` · ${host.hostname}`}
-              {networks.length > 0 &&
-                ` · ${networks.map((n) => n.name).join(", ")}`}
+              {networks.length > 0 && (
+                <>
+                  {" · "}
+                  {networks.map((n, i) => (
+                    <span key={n.id}>
+                      {i > 0 && ", "}
+                      <Link
+                        to="/networks/$networkId"
+                        params={{ networkId: String(n.id) }}
+                        className="hover:text-primary transition-colors"
+                      >
+                        {n.name}
+                      </Link>
+                    </span>
+                  ))}
+                </>
+              )}
             </p>
           </div>
         </div>

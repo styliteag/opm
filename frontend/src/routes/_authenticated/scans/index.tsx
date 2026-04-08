@@ -13,8 +13,15 @@ import { useScans } from "@/features/scans/hooks/useScans";
 import { formatRelativeTime, scanStatusVariant } from "@/lib/utils";
 import type { ScanSummary } from "@/lib/types";
 
+interface ScansSearchParams {
+  network_id?: number;
+}
+
 export const Route = createFileRoute("/_authenticated/scans/")({
   component: ScansPage,
+  validateSearch: (search: Record<string, unknown>): ScansSearchParams => ({
+    network_id: search.network_id ? Number(search.network_id) : undefined,
+  }),
 });
 
 const SCAN_COLUMNS: DataTableColumn<ScanSummary>[] = [
@@ -79,9 +86,14 @@ const SCAN_COLUMNS: DataTableColumn<ScanSummary>[] = [
 ];
 
 function ScansPage() {
+  const searchParams = Route.useSearch();
   const [page, setPage] = useState(0);
   const limit = 50;
-  const { data, isLoading, error, refetch } = useScans(page * limit, limit);
+  const { data, isLoading, error, refetch } = useScans(
+    page * limit,
+    limit,
+    searchParams.network_id,
+  );
 
   const scanList = data?.scans ?? [];
 

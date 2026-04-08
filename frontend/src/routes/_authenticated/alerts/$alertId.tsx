@@ -166,15 +166,40 @@ function AlertDetailPage() {
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Target</dt>
-                <dd className="mt-0.5 font-mono text-sm text-foreground">
-                  {alert.ip}
-                  {alert.port ? `:${alert.port}` : ""}
+                <dd className="mt-0.5 font-mono text-sm">
+                  {alert.host_id ? (
+                    <Link
+                      to="/hosts/$hostId"
+                      params={{ hostId: String(alert.host_id) }}
+                      className="text-foreground hover:text-primary transition-colors"
+                    >
+                      {alert.ip}
+                      {alert.port ? `:${alert.port}` : ""}
+                    </Link>
+                  ) : (
+                    <span className="text-foreground">
+                      {alert.ip}
+                      {alert.port ? `:${alert.port}` : ""}
+                    </span>
+                  )}
                 </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Network</dt>
-                <dd className="mt-0.5 text-sm text-foreground">
-                  {alert.network_name ?? "-"}
+                <dd className="mt-0.5 text-sm">
+                  {alert.network_id && alert.network_name ? (
+                    <Link
+                      to="/networks/$networkId"
+                      params={{ networkId: String(alert.network_id) }}
+                      className="text-foreground hover:text-primary transition-colors"
+                    >
+                      {alert.network_name}
+                    </Link>
+                  ) : (
+                    <span className="text-foreground">
+                      {alert.network_name ?? "-"}
+                    </span>
+                  )}
                 </dd>
               </div>
               <div>

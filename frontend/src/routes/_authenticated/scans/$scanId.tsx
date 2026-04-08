@@ -49,7 +49,13 @@ function ScanDetailPage() {
             Scan #{data.id}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {data.network_name ?? `Network #${data.network_id}`}
+            <Link
+              to="/networks/$networkId"
+              params={{ networkId: String(data.network_id) }}
+              className="hover:text-primary transition-colors"
+            >
+              {data.network_name ?? `Network #${data.network_id}`}
+            </Link>
           </p>
         </div>
         <StatusBadge
@@ -171,8 +177,14 @@ function ScanDetailPage() {
               <tbody>
                 {data.open_ports.map((port, i) => (
                   <tr key={i} className="border-b border-border">
-                    <td className="px-4 py-2 font-mono text-sm text-foreground">
-                      {port.ip}
+                    <td className="px-4 py-2 font-mono text-sm">
+                      <Link
+                        to="/hosts"
+                        search={{ search: port.ip }}
+                        className="text-foreground hover:text-primary transition-colors"
+                      >
+                        {port.ip}
+                      </Link>
                     </td>
                     <td className="px-4 py-2 font-mono text-sm text-primary">
                       {port.port}

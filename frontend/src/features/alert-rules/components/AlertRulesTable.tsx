@@ -179,11 +179,21 @@ export function AlertRulesTable({
         header: ({ column }) => (
           <SortableHeader label="Scope" column={column} />
         ),
-        cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
-            {row.original.network_name ?? "Global"}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const { network_id, network_name } = row.original;
+          if (network_id) {
+            return (
+              <Link
+                to="/networks/$networkId"
+                params={{ networkId: String(network_id) }}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                {network_name ?? `Network #${network_id}`}
+              </Link>
+            );
+          }
+          return <span className="text-sm text-muted-foreground">Global</span>;
+        },
         size: 140,
       },
       {
