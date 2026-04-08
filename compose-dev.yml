@@ -31,7 +31,7 @@ services:
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
-      DEBUG: "true"
+      DEBUG: ${DEBUG:-true}
       CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}

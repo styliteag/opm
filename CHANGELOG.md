@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Disable Swagger/ReDoc/OpenAPI endpoints in production (non-debug) mode
 - Add security headers to nginx (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
 - Remove hardcoded fallback credentials from DevLoginButton — require env vars
+- Separate `DATABASE_ECHO` setting from `DEBUG` flag to prevent SQL query logging when debug mode is enabled
 
 ## [1.10.0] - 2026-04-09
 

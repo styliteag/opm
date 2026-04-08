@@ -39,6 +39,7 @@ class Settings(BaseSettings):
 
     # Application
     debug: bool = False
+    database_echo: bool = False
 
     # Timezone for cron schedules (e.g., "Europe/Berlin", "America/New_York")
     # Defaults to server's local timezone if not set
