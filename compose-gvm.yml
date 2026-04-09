@@ -226,6 +226,17 @@ services:
       - gvmd
       - ospd-openvas
 
+  # ── GVM Web UI (GSA) ────────────────────────────────────────────────────
+  gsa:
+    image: registry.community.greenbone.net/community/gsa:stable
+    restart: unless-stopped
+    ports:
+      - "${GVM_GSA_PORT:-9392}:9392"
+    volumes:
+      - gvmd-socket:/run/gvmd
+    depends_on:
+      - gvmd
+
   # ── OPM GVM Scanner Agent ──────────────────────────────────────────────
   opm-scanner-gvm:
     build:

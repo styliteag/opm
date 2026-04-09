@@ -250,7 +250,26 @@ The GVM scanner adds full vulnerability assessment powered by the [Greenbone Com
    docker compose -f compose-gvm.yml logs -f gvmd
    ```
 
-4. In the OPM web dashboard, set a network's scanner type to **Greenbone** and choose a scan config (e.g. *Full and fast*).
+4. Set the GVM admin password:
+   ```bash
+   docker compose -f compose-gvm.yml exec --user gvmd gvmd gvmd --user=admin --new-password=admin
+   ```
+
+5. In the OPM web dashboard, set a network's scanner type to **Greenbone** and choose a scan config (e.g. *Full and fast*).
+
+### GVM Web UI (GSA)
+
+The compose stack includes the Greenbone Security Assistant (GSA) web interface for direct access to GVM:
+
+```bash
+docker compose -f compose-gvm.yml up -d gsa
+```
+
+Access at **http://localhost:9392** — login with the credentials set in step 4 (default: `admin`/`admin`).
+
+The GSA port can be changed via the `GVM_GSA_PORT` environment variable.
+
+> **Note:** GSA is optional — OPM already displays all GVM scan results in the host detail page.
 
 ### Environment Variables
 
@@ -262,6 +281,7 @@ The GVM scanner adds full vulnerability assessment powered by the [Greenbone Com
 | `GVM_LOG_LEVEL` | `INFO` | Log level |
 | `GVM_USER` | `admin` | GVM admin username |
 | `GVM_PASSWORD` | `admin` | GVM admin password |
+| `GVM_GSA_PORT` | `9392` | GSA web UI port |
 
 ### Production
 
