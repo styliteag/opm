@@ -16,7 +16,12 @@ Distributed network port scanning and monitoring system for security purposes wi
   - SSH version tracking with outdated version alerts
   - Configuration regression detection between scans
 - **Multi-Site Scanning**: Deploy scanner agents at different locations
-- **Alerting**: Configurable alerts for new ports, policy violations, SSH security issues, and NSE vulnerability findings
+- **Greenbone (GVM) Vulnerability Scanning**: Optional Greenbone Community Edition integration for comprehensive vulnerability assessment
+  - Connects via `python-gvm` Unix socket bridge — no web UI needed
+  - Scan config presets: Full and fast, Full and deep, Discovery, System Discovery
+  - Results with CVSS scores, CVE mapping, solution recommendations, and Quality of Detection
+  - Automatic alert generation for medium+ severity findings
+- **Alerting**: Configurable alerts for new ports, policy violations, SSH security issues, NSE findings, and GVM vulnerabilities
 - **Compliance Reports**: Export PDF and CSV reports for SSH security compliance
 - **Web Dashboard**: React-based UI with dark mode support
 
@@ -60,6 +65,7 @@ Distributed network port scanning and monitoring system for security purposes wi
 | backend  | 8000 | FastAPI REST API                     |
 | db       | 3306 | MariaDB database                     |
 | scanner  | -    | Network scanner agent (Masscan, Nmap, NSE, SSH probe) |
+| scanner-gvm | - | GVM scanner bridge (optional, via `compose-gvm.yml`) |
 
 ### Development
 
@@ -217,6 +223,63 @@ The scanner will automatically connect to your main server and start processing 
 
 **Note:** The scanner requires `NET_RAW` and `NET_ADMIN` capabilities to perform network scans. These are automatically configured in the compose file.
 
+## Running the Greenbone (GVM) Scanner (Optional)
+
+The GVM scanner adds full vulnerability assessment powered by the [Greenbone Community Edition](https://greenbone.github.io/docs/latest/). It runs as a separate compose stack alongside the main OPM deployment.
+
+### Prerequisites
+
+- Main OPM stack running (`compose.yml` or `compose-dev.yml`)
+- A Scanner record created in OPM (via web dashboard → Scanners) with the API key noted
+- Sufficient disk space (~5 GB for vulnerability feeds on first sync)
+
+### Setup
+
+1. Set the scanner API key:
+   ```bash
+   export GVM_SCANNER_API_KEY=your-api-key-here
+   ```
+
+2. Start the GVM stack:
+   ```bash
+   docker compose -f compose-gvm.yml up -d
+   ```
+
+3. Wait for feed sync to complete (first startup takes a significant amount of time):
+   ```bash
+   docker compose -f compose-gvm.yml logs -f gvmd
+   ```
+
+4. In the OPM web dashboard, set a network's scanner type to **Greenbone** and choose a scan config (e.g. *Full and fast*).
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `GVM_SCANNER_API_KEY` | *(required)* | Scanner API key from OPM |
+| `GVM_BACKEND_URL` | `http://backend:8000` | OPM backend URL |
+| `GVM_POLL_INTERVAL` | `60` | Seconds between job polls |
+| `GVM_LOG_LEVEL` | `INFO` | Log level |
+| `GVM_USER` | `admin` | GVM admin username |
+| `GVM_PASSWORD` | `admin` | GVM admin password |
+
+### Using a Pre-built Image
+
+Instead of building locally, you can use the published image:
+
+```bash
+# In compose-gvm.yml, replace the build section for opm-scanner-gvm with:
+#   image: styliteag/opm-scanner-gvm:latest
+```
+
+### Architecture
+
+The GVM scanner bridge (`opm-scanner-gvm`) communicates with GVM via a Unix socket and with OPM via REST API. It does **not** include masscan or nmap — it is a lightweight Python container that translates between OPM scan jobs and GVM tasks.
+
+```
+OPM Backend  <──REST──>  opm-scanner-gvm  <──Unix socket──>  gvmd  ──>  ospd-openvas
+```
+
 ## Architecture
 
 ```
@@ -226,12 +289,15 @@ The scanner will automatically connect to your main server and start processing 
 +-------------+     +---------+     +----------+
                          ^
                          |
-              +----------+----------+
-              |          |          |
-         +--------+ +--------+ +--------+
-         |Scanner1| |Scanner2| |Scanner3|
-         +--------+ +--------+ +--------+
-              (Distributed at different sites)
+              +----------+----------+-----------+
+              |          |          |           |
+         +--------+ +--------+ +--------+ +----------+
+         |Scanner1| |Scanner2| |Scanner3| |GVM Bridge|
+         +--------+ +--------+ +--------+ +----------+
+              (Distributed scanners)            |
+                                          +----------+
+                                          |  gvmd    |
+                                          +----------+
 ```
 
 ## Documentation

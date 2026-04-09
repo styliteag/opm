@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Greenbone (GVM)**: `gvm_scan_config` field on Network model (Full and fast, Full and deep, Discovery, System Discovery)
 - **Greenbone (GVM)**: VulnerabilitiesTable component on scan detail page with severity badges and expandable rows
 - **Greenbone (GVM)**: NetworkForm updated with greenbone scanner type option and GVM config dropdown
+- **Greenbone (GVM)**: documentation in README.md (setup, env vars, architecture), CLAUDE.md, and AGENTS.md
 
 ### Fixed
 

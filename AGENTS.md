@@ -12,6 +12,7 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 | `opm-frontend` | 5173 | http://localhost:5173  |
 | `opm-db`       | 3306 | mysql://localhost:3306 |
 | `opm-scanner`  | —    | (polls backend)        |
+| `opm-scanner-gvm` | — | (GVM bridge, via `compose-gvm.yml`) |
 
 **Credentials**: `admin@example.com` / `admin` — check `.env` or `compose-dev.yml` for overrides.
 
@@ -54,6 +55,7 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 - Scanner results accept RUNNING or CANCELLED scans; cancelled store partial results without status change
 - Scheduled scans via APScheduler every minute; skip networks with planned/running scans
 - Alerts deduped by `(alert_type, ip, port)` while not dismissed
+- Alert sources: `port`, `ssh`, `nse`, `gvm` — each with distinct alert types
 - Alert emails: resolve from network `alert_config.email_recipients` or `ALERT_EMAIL_RECIPIENTS`
 
 ## Frontend Conventions
@@ -68,12 +70,24 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 
 ## Scanner Conventions
 
-- Registry pattern: **masscan** (port discovery), **nmap** (service detection), **nse** (vulnerability scripts)
+- Registry pattern: **masscan** (port discovery), **nmap** (service detection), **nse** (vulnerability scripts), **greenbone/GVM** (vulnerability assessment)
 - Masscan needs `NET_RAW` + `NET_ADMIN` Docker capabilities
 - Port spec exclusions prefixed `!` → `--exclude-ports`; full range if only exclusions
 - Logs batched via `threading_utils.py`, sent to `/api/scanner/logs` every ~5s
 - IPv6: checks connectivity first, fails fast if unreachable
 - Host discovery polls `/api/scanner/host-discovery-jobs` separately from scan jobs
+
+### Greenbone (GVM) Scanner
+
+- Separate compose stack: `compose-gvm.yml` (runs alongside main OPM stack via shared `opm-network`)
+- `opm-scanner-gvm` container bridges OPM ↔ GVM via `python-gvm` over Unix socket (`/run/gvmd/gvmd.sock`)
+- Docker image: `Dockerfile.gvm` (no masscan/nmap — lightweight Python-only)
+- Network `scanner_type` must be set to `"greenbone"` with a `gvm_scan_config` preset
+- GVM scan configs: `Full and fast`, `Full and deep`, `Discovery`, `System Discovery`
+- Vulnerability results submitted to `POST /api/scanner/vulnerability-results` → stored in `vulnerabilities` table
+- Alerts generated for medium+ severity findings: `gvm_vulnerability` (no CVEs) and `gvm_cve_detected` (has CVEs)
+- Host detail page shows all GVM findings (including info/low) deduped by OID via `GET /api/hosts/{id}/vulnerabilities`
+- First startup downloads GVM vulnerability feeds — takes significant time; monitor via `docker compose -f compose-gvm.yml logs -f gvmd`
 
 ## Alert State Terminology
 
@@ -98,7 +112,7 @@ Alert state tracked across orthogonal dimensions. Naming differs between layers.
 
 1. `./release.sh [major|minor|patch]` — bumps VERSION, updates CHANGELOG, syncs NSE, commits, tags, pushes
 2. Tag triggers GitHub Actions: typecheck, multi-arch Docker build, push to Docker Hub + GHCR
-3. Images: `styliteag/opm` (combined) and `styliteag/opm-scanner`
+3. Images: `styliteag/opm` (combined), `styliteag/opm-scanner`, and `styliteag/opm-scanner-gvm`
 
 ## Gotchas
 

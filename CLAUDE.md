@@ -10,6 +10,9 @@ Full conventions, architecture, patterns: @AGENTS.md
 # Dev environment
 docker compose -f compose-dev.yml up --build
 
+# GVM scanner (optional, requires main stack running + API key)
+docker compose -f compose-gvm.yml up -d
+
 # Backend (from backend/)
 cd backend && uv run --extra dev mypy src/
 cd backend && uv run ruff check src/
@@ -39,7 +42,7 @@ docker exec opm-backend uv run alembic revision --autogenerate -m "desc"
 - Feature modules in `src/features/` (admin, alerts, auth, dashboard, hosts, networks, nse, scanners, scans)
 - Use `TYPE_CHECKING` for circular imports in SQLAlchemy relationship type hints
 - Alembic migrations auto-apply on startup
-- Scanner uses `uv` with hatchling build system
+- Scanner uses `uv` with hatchling build system; GVM scanner variant uses `Dockerfile.gvm` and `compose-gvm.yml`
 - Subdirectory CLAUDE.md files in `backend/`, `frontend/`, `scanner/` load automatically
 
 ## Rules
