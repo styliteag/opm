@@ -408,15 +408,8 @@ def process_greenbone_job(
             progress_reporter=progress_reporter,
         )
 
-        # Submit open ports via standard endpoint
-        if open_ports:
-            try:
-                client.submit_results(scan_id, "success", open_ports)
-                logger.info("Submitted %d open ports for scan %s", len(open_ports), scan_id)
-            except Exception:
-                logger.exception("Failed to submit open port results for scan %s", scan_id)
-
-        # Submit vulnerabilities via dedicated endpoint
+        # Submit vulnerabilities FIRST (before port results, which transitions
+        # scan to COMPLETED — vulnerability endpoint requires RUNNING status)
         if vulnerabilities:
             try:
                 client.submit_vulnerability_results(scan_id, vulnerabilities)
@@ -428,12 +421,12 @@ def process_greenbone_job(
             except Exception:
                 logger.exception("Failed to submit vulnerability results for scan %s", scan_id)
 
-        # If no open ports found, still mark scan as success
-        if not open_ports:
-            try:
-                client.submit_results(scan_id, "success", [])
-            except Exception:
-                logger.exception("Failed to submit empty results for scan %s", scan_id)
+        # Submit open ports (transitions scan to COMPLETED)
+        try:
+            client.submit_results(scan_id, "success", open_ports)
+            logger.info("Submitted %d open ports for scan %s", len(open_ports), scan_id)
+        except Exception:
+            logger.exception("Failed to submit port results for scan %s", scan_id)
 
     except Exception as exc:
         logger.exception("Greenbone scan failed for network %s", job.network_id)
