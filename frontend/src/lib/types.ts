@@ -16,6 +16,7 @@ export type AlertType =
   | "gvm_cve_detected";
 
 export type Severity = "critical" | "high" | "medium" | "info";
+export type VulnerabilitySeverity = Severity | "low";
 export type ScanStatus =
   | "planned"
   | "running"
@@ -345,7 +346,7 @@ export interface Vulnerability {
   name: string;
   description: string;
   severity: number;
-  severity_label: string;
+  severity_label: VulnerabilitySeverity;
   cvss_base_vector: string | null;
   cve_ids: string[];
   solution: string | null;

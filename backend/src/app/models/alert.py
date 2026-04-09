@@ -56,6 +56,7 @@ class Alert(Base):
         SQLEnum(AlertType, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     source: Mapped[str] = mapped_column(String(50), nullable=False, index=True, default="port")
+    source_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     ip: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
     port: Mapped[int | None] = mapped_column(nullable=True, index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)

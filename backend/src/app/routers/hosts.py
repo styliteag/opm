@@ -36,10 +36,10 @@ from app.schemas.host import (
     PortRuleMatch,
 )
 from app.schemas.scan import HostRescanRequest, ScanTriggerResponse
-from app.schemas.vulnerability import VulnerabilityListResponse
+from app.schemas.vulnerability import VulnerabilityListResponse, VulnerabilitySeverityLabel
 from app.services import global_open_ports as global_ports_service
 from app.services import hosts as hosts_service
-from app.services.vulnerability_results import get_vulnerabilities_by_ip
+from app.services.vulnerability_results import get_vulnerabilities_for_host
 
 router = APIRouter(prefix="/api/hosts", tags=["hosts"])
 
@@ -490,7 +490,7 @@ async def get_host_vulnerabilities(
     user: CurrentUser,
     db: DbSession,
     host_id: int,
-    severity_label: str | None = Query(None),
+    severity_label: VulnerabilitySeverityLabel | None = Query(None),
 ) -> VulnerabilityListResponse:
     """Get GVM vulnerability results for a host, deduped by OID."""
     host = await hosts_service.get_host_by_id(db, host_id)
@@ -499,7 +499,7 @@ async def get_host_vulnerabilities(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Host not found",
         )
-    return await get_vulnerabilities_by_ip(db, host.ip, severity_label)
+    return await get_vulnerabilities_for_host(db, host, severity_label)
 
 
 @router.patch("/{host_id}", response_model=HostResponse)

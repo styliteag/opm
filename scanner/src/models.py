@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
+
+VulnerabilitySeverityLabel = Literal["critical", "high", "medium", "low", "info"]
 
 
 @dataclass(frozen=True)
@@ -114,7 +116,7 @@ class VulnerabilityResult:
     name: str
     description: str
     severity: float
-    severity_label: str
+    severity_label: VulnerabilitySeverityLabel
     cvss_base_vector: str | None
     cve_ids: list[str]
     solution: str | None

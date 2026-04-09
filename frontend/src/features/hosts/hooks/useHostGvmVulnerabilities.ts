@@ -5,7 +5,7 @@ import type { VulnerabilityListResponse } from "@/lib/types";
 
 export function useHostGvmVulnerabilities(hostId: number) {
   return useQuery({
-    queryKey: ["hosts", hostId, "vulnerabilities"],
+    queryKey: ["hosts", hostId, "gvm-vulnerabilities"],
     queryFn: () =>
       fetchApi<VulnerabilityListResponse>(
         `/api/hosts/${hostId}/vulnerabilities`,

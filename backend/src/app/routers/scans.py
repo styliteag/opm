@@ -31,7 +31,7 @@ from app.schemas.scan import (
     ScanVisibilityRequest,
     ScanWithNamesResponse,
 )
-from app.schemas.vulnerability import VulnerabilityListResponse
+from app.schemas.vulnerability import VulnerabilityListResponse, VulnerabilitySeverityLabel
 from app.services import scans as scans_service
 from app.services.vulnerability_results import get_vulnerabilities_by_scan
 
@@ -158,7 +158,7 @@ async def get_scan_vulnerabilities(
     user: CurrentUser,
     db: DbSession,
     scan_id: int,
-    severity_label: str | None = Query(None),
+    severity_label: VulnerabilitySeverityLabel | None = Query(None),
     ip: str | None = Query(None),
 ) -> VulnerabilityListResponse:
     """Get vulnerability results for a scan with optional filters."""
