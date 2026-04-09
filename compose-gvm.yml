@@ -11,6 +11,10 @@
 # Usage:
 #   docker compose -f compose-gvm.yml up -d
 #
+# For production, comment out the build block and use the image line instead:
+#   image: styliteag/opm-scanner-gvm:latest
+#   GVM_BACKEND_URL=http://app:80
+#
 # First startup downloads vulnerability feeds — this can take a long time.
 # Monitor feed sync: docker compose -f compose-gvm.yml logs -f gvmd
 
@@ -227,6 +231,8 @@ services:
     build:
       context: ./scanner
       dockerfile: Dockerfile.gvm
+    # Or use a pre-built image (production):
+    # image: styliteag/opm-scanner-gvm:latest
     restart: unless-stopped
     environment:
       BACKEND_URL: ${GVM_BACKEND_URL:-http://backend:8000}

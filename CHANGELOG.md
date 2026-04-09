@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Greenbone (GVM)**: NetworkForm updated with greenbone scanner type option and GVM config dropdown
 - **Greenbone (GVM)**: documentation in README.md (setup, env vars, architecture), CLAUDE.md, and AGENTS.md
 
+### Changed
+
+- **Greenbone (GVM)**: `compose-gvm.yml` defaults to build from source (dev); published image commented out for prod
+
 ### Fixed
 
 - **Greenbone (GVM)**: VulnerabilitiesTable colors broken — `text-primary`/`text-secondary`/`text-tertiary`/`text-quaternary` resolved to wrong values (brand indigo, invisible, undefined); migrated to design system tokens

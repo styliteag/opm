@@ -263,14 +263,16 @@ The GVM scanner adds full vulnerability assessment powered by the [Greenbone Com
 | `GVM_USER` | `admin` | GVM admin username |
 | `GVM_PASSWORD` | `admin` | GVM admin password |
 
-### Using a Pre-built Image
+### Production
 
-Instead of building locally, you can use the published image:
+For production, edit `compose-gvm.yml` and swap the build/image lines on `opm-scanner-gvm`:
 
-```bash
-# In compose-gvm.yml, replace the build section for opm-scanner-gvm with:
-#   image: styliteag/opm-scanner-gvm:latest
+```yaml
+# image: styliteag/opm-scanner-gvm:latest   # uncomment this
+# build: ...                                  # comment out
 ```
+
+Then set `GVM_BACKEND_URL=http://app:80` (the prod service name).
 
 ### Architecture
 
