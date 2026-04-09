@@ -143,6 +143,15 @@ async def update_network(
         network.port_timeout = port_timeout
     if scanner_type is not None:
         network.scanner_type = scanner_type
+        # Sync phases port_scan tool when scanner_type changes
+        if network.phases is not None:
+            updated_phases = [
+                {**phase, "tool": scanner_type}
+                if phase.get("name") == "port_scan"
+                else phase
+                for phase in network.phases
+            ]
+            network.phases = updated_phases
     if scan_protocol is not None:
         network.scan_protocol = scan_protocol
     if alert_config is not None or clear_alert_config:
