@@ -141,6 +141,8 @@ class ScannerJobResponse(BaseModel):
     custom_script_hashes: dict[str, str] | None = None
     # Multi-phase pipeline config (from network)
     phases: list[dict[str, Any]] | None = None
+    # GVM-specific fields (populated when scanner_type == "greenbone")
+    gvm_scan_config: str | None = None
 
     model_config = {"from_attributes": True}
 

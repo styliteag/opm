@@ -57,6 +57,11 @@ class Network(Base):
     phases: Mapped[list[dict[str, Any]] | None] = mapped_column(
         JSON, nullable=True, comment="Multi-phase scan pipeline config"
     )
+    gvm_scan_config: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="GVM scan config preset for greenbone scanner type",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.utc_timestamp()
     )

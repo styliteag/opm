@@ -87,6 +87,7 @@ async def get_pending_jobs_for_scanner(
                 nse_script_args=nse_script_args,
                 custom_script_hashes=custom_script_hashes,
                 phases=net.phases,
+                gvm_scan_config=net.gvm_scan_config,
             )
         )
 

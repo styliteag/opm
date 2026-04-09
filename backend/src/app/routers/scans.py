@@ -31,7 +31,9 @@ from app.schemas.scan import (
     ScanVisibilityRequest,
     ScanWithNamesResponse,
 )
+from app.schemas.vulnerability import VulnerabilityListResponse
 from app.services import scans as scans_service
+from app.services.vulnerability_results import get_vulnerabilities_by_scan
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
 
@@ -149,6 +151,18 @@ async def get_scan_detail(
         )
 
     return ScanDetailResponse.model_validate(scan)
+
+
+@router.get("/{scan_id}/vulnerabilities", response_model=VulnerabilityListResponse)
+async def get_scan_vulnerabilities(
+    user: CurrentUser,
+    db: DbSession,
+    scan_id: int,
+    severity_label: str | None = Query(None),
+    ip: str | None = Query(None),
+) -> VulnerabilityListResponse:
+    """Get vulnerability results for a scan with optional filters."""
+    return await get_vulnerabilities_by_scan(db, scan_id, severity_label, ip)
 
 
 @router.get("/{scan_id}/diff", response_model=ScanDiffResponse)

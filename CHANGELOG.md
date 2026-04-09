@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Greenbone (GVM)**: new scanner type with dedicated `opm-scanner-gvm` container, `python-gvm` bridge, and `compose-gvm.yml`
+- **Greenbone (GVM)**: `vulnerabilities` table + model for storing GVM scan findings (CVSS, OID, QoD, solution)
+- **Greenbone (GVM)**: `POST /api/scanner/vulnerability-results` and `GET /api/scans/{scan_id}/vulnerabilities` endpoints
+- **Greenbone (GVM)**: `gvm_scan_config` field on Network model (Full and fast, Full and deep, Discovery, System Discovery)
+- **Greenbone (GVM)**: VulnerabilitiesTable component on scan detail page with severity badges and expandable rows
+- **Greenbone (GVM)**: NetworkForm updated with greenbone scanner type option and GVM config dropdown
+
 ## [1.11.3] - 2026-04-09
 
 ### Fixed

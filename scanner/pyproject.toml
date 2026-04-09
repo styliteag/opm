@@ -10,6 +10,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+gvm = [
+    "python-gvm>=24.0.0",
+]
 dev = [
     "pytest>=8.0.0",
     "mypy>=1.13.0",

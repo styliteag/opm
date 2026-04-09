@@ -47,6 +47,8 @@ class ScannerJob:
     custom_script_hashes: dict[str, str] | None = None
     # Multi-phase pipeline
     phases: list[ScanPhase] | None = None
+    # GVM-specific fields
+    gvm_scan_config: str | None = None
 
 
 @dataclass(frozen=True)
@@ -99,6 +101,43 @@ class ScanRunResult:
 
     open_ports: list[OpenPortResult]
     cancelled: bool
+
+
+@dataclass(frozen=True)
+class VulnerabilityResult:
+    """Individual vulnerability finding from a GVM/Greenbone scan."""
+
+    ip: str
+    port: int | None
+    protocol: str
+    oid: str
+    name: str
+    description: str
+    severity: float
+    severity_label: str
+    cvss_base_vector: str | None
+    cve_ids: list[str]
+    solution: str | None
+    solution_type: str | None
+    qod: int | None
+
+    def to_payload(self) -> dict[str, Any]:
+        """Convert to JSON-serializable payload."""
+        return {
+            "ip": self.ip,
+            "port": self.port,
+            "protocol": self.protocol,
+            "oid": self.oid,
+            "name": self.name,
+            "description": self.description,
+            "severity": self.severity,
+            "severity_label": self.severity_label,
+            "cvss_base_vector": self.cvss_base_vector,
+            "cve_ids": self.cve_ids,
+            "solution": self.solution,
+            "solution_type": self.solution_type,
+            "qod": self.qod,
+        }
 
 
 @dataclass(frozen=True)

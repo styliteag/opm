@@ -28,7 +28,7 @@ const schema = z.object({
   cidr: z.string().min(1, "CIDR is required"),
   port_spec: z.string().min(1, "Port spec is required"),
   scanner_id: z.coerce.number().min(1, "Scanner is required"),
-  scanner_type: z.enum(["masscan", "nmap"]),
+  scanner_type: z.enum(["masscan", "nmap", "greenbone"]),
   scan_protocol: z.enum(["tcp", "udp", "both"]),
   scan_rate: z.coerce.number().optional(),
   scan_timeout: z.preprocess(
@@ -80,6 +80,9 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
   const [phases, setPhases] = useState<ScanPhase[] | null>(
     network?.phases ?? null,
   );
+  const [gvmScanConfig, setGvmScanConfig] = useState<string>(
+    network?.gvm_scan_config ?? "Full and fast",
+  );
 
   const {
     register,
@@ -96,7 +99,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
           cidr: network.cidr,
           port_spec: network.port_spec,
           scanner_id: network.scanner_id,
-          scanner_type: network.scanner_type as "masscan" | "nmap",
+          scanner_type: network.scanner_type as "masscan" | "nmap" | "greenbone",
           scan_protocol: network.scan_protocol as "tcp" | "udp" | "both",
           scan_rate: network.scan_rate ?? undefined,
           scan_timeout: network.scan_timeout ?? undefined,
@@ -127,6 +130,8 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
   const watchedRate = useWatch({ control, name: "scan_rate" }) ?? 1000;
   const watchedSchedule = useWatch({ control, name: "scan_schedule" }) ?? "";
   const watchedNseProfileId = useWatch({ control, name: "nse_profile_id" });
+  const watchedScannerType = useWatch({ control, name: "scanner_type" });
+  const isGreenbone = watchedScannerType === "greenbone";
 
   const vulnEnabled = (phases ?? []).some(
     (p) => p.name === "vulnerability" && p.enabled,
@@ -150,7 +155,11 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
 
   const onSubmit = (data: FormData) => {
     const { email_recipients, ...rest } = data;
-    const payload: Record<string, unknown> = { ...rest, phases };
+    const payload: Record<string, unknown> = {
+      ...rest,
+      phases: isGreenbone ? null : phases,
+      gvm_scan_config: isGreenbone ? gvmScanConfig : null,
+    };
 
     // Build alert_config with email_recipients if provided
     if (email_recipients?.trim()) {
@@ -280,8 +289,24 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
                 <Select id="scanner_type" {...register("scanner_type")}>
                   <option value="masscan">Masscan</option>
                   <option value="nmap">Nmap</option>
+                  <option value="greenbone">Greenbone (GVM)</option>
                 </Select>
               </div>
+              {isGreenbone && (
+                <div>
+                  <Label htmlFor="gvm_scan_config">GVM Config</Label>
+                  <Select
+                    id="gvm_scan_config"
+                    value={gvmScanConfig}
+                    onChange={(e) => setGvmScanConfig(e.target.value)}
+                  >
+                    <option value="Full and fast">Full and fast</option>
+                    <option value="Full and deep">Full and deep</option>
+                    <option value="Discovery">Discovery</option>
+                    <option value="System Discovery">System Discovery</option>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label htmlFor="scan_protocol">Protocol</Label>
                 <Select id="scan_protocol" {...register("scan_protocol")}>
@@ -291,6 +316,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
                 </Select>
               </div>
             </div>
+            {!isGreenbone && (<>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label htmlFor="scan_rate">Rate (pps)</Label>
@@ -370,8 +396,10 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
                 </p>
               </div>
             )}
+            </>)}
           </fieldset>
 
+          {!isGreenbone && (<>
           <hr className="border-border/40" />
 
           {/* ── Scan Phases & NSE ── */}
@@ -407,6 +435,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
               )}
             </div>
           </fieldset>
+          </>)}
 
           <hr className="border-border/40" />
 

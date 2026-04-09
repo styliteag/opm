@@ -26,6 +26,10 @@ from app.schemas.scanner import (
     ScannerResultResponse,
     ScannerScanStatusResponse,
 )
+from app.schemas.vulnerability import (
+    VulnerabilityResultRequest,
+    VulnerabilityResultResponse,
+)
 from app.services import host_discovery as host_discovery_service
 from app.services import hosts as hosts_service
 from app.services.scanner_auth import authenticate_scanner
@@ -34,6 +38,7 @@ from app.services.scanner_logs import submit_scan_logs
 from app.services.scanner_progress import update_scan_progress
 from app.services.scanner_results import submit_scan_results
 from app.services.scanner_status import get_scan_status
+from app.services.vulnerability_results import submit_vulnerability_results
 
 router = APIRouter(prefix="/api/scanner", tags=["scanner"])
 
@@ -447,3 +452,31 @@ async def submit_host_discovery_results(
         status="success",
         hosts_recorded=hosts_recorded,
     )
+
+
+@router.post("/vulnerability-results", response_model=VulnerabilityResultResponse)
+async def submit_scanner_vulnerability_results(
+    request: VulnerabilityResultRequest,
+    db: DbSession,
+    scanner: CurrentScanner,
+) -> VulnerabilityResultResponse:
+    """Submit vulnerability results from a GVM scanner.
+
+    Accepts scan_id, status, vulnerabilities list, and optional error_message.
+
+    Each vulnerability includes: ip, port, protocol, oid, name, description,
+    severity, severity_label, cvss_base_vector, cve_ids, solution,
+    solution_type, qod.
+
+    Requires valid scanner JWT token.
+    """
+    result = await submit_vulnerability_results(db, scanner, request)
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found, not assigned to this scanner, or not in running status",
+        )
+
+    await db.commit()
+    return result

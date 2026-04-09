@@ -112,6 +112,7 @@ export interface Network {
   host_discovery_enabled: boolean;
   scan_schedule_enabled: boolean;
   phases: ScanPhase[] | null;
+  gvm_scan_config: string | null;
   is_ipv6: boolean;
   created_at: string;
   updated_at: string;
@@ -330,6 +331,30 @@ export interface TrendDataResponse {
 
 export interface AlertTrendDataResponse {
   data: AlertTrendDataPoint[];
+}
+
+export interface Vulnerability {
+  id: number;
+  scan_id: number;
+  ip: string;
+  port: number | null;
+  protocol: string;
+  oid: string;
+  name: string;
+  description: string;
+  severity: number;
+  severity_label: string;
+  cvss_base_vector: string | null;
+  cve_ids: string[];
+  solution: string | null;
+  solution_type: string | null;
+  qod: number | null;
+  created_at: string;
+}
+
+export interface VulnerabilityListResponse {
+  results: Vulnerability[];
+  total: number;
 }
 
 export interface NseResult {

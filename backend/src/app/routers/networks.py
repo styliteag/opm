@@ -101,6 +101,7 @@ async def create_network(
         nse_profile_id=request.nse_profile_id,
         host_discovery_enabled=request.host_discovery_enabled,
         phases=request.phases,
+        gvm_scan_config=request.gvm_scan_config,
     )
     await db.commit()
 
@@ -206,6 +207,9 @@ async def update_network(
         clear_phases="phases" in request.model_fields_set and request.phases is None,
         clear_schedule="scan_schedule" in request.model_fields_set,
         clear_alert_config="alert_config" in request.model_fields_set,
+        gvm_scan_config=request.gvm_scan_config,
+        clear_gvm_scan_config="gvm_scan_config" in request.model_fields_set
+        and request.gvm_scan_config is None,
     )
     await db.commit()
     return NetworkResponse.model_validate(updated_network)

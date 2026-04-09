@@ -11,6 +11,7 @@ import {
   useScanMutations,
 } from "@/features/scans/hooks/useScans";
 import { ScanDiffView } from "@/features/scans/components/ScanDiffView";
+import { VulnerabilitiesTable } from "@/features/scans/components/VulnerabilitiesTable";
 import {
   formatDate,
   formatRate,
@@ -205,6 +206,9 @@ function ScanDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Vulnerabilities (GVM) */}
+      <VulnerabilitiesTable scanId={data.id} />
 
       {/* Scan Diff */}
       {data.status === "completed" && <ScanDiffView scanId={data.id} />}

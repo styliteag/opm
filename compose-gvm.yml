@@ -1,0 +1,261 @@
+# Greenbone (GVM) scanner stack for STYLiTE Orbit Monitor.
+#
+# Based on the official Greenbone Community Edition compose file.
+# Images from registry.community.greenbone.net/community/
+#
+# Prerequisites:
+#   1. Main OPM stack must be running (compose.yml or compose-dev.yml)
+#   2. Create a Scanner record in OPM and note the API key
+#   3. Set GVM_SCANNER_API_KEY in your environment or .env file
+#
+# Usage:
+#   docker compose -f compose-gvm.yml up -d
+#
+# First startup downloads vulnerability feeds — this can take a long time.
+# Monitor feed sync: docker compose -f compose-gvm.yml logs -f gvmd
+
+services:
+  # ── GVM Feed Data ──────────────────────────────────────────────────────
+  vulnerability-tests:
+    image: registry.community.greenbone.net/community/vulnerability-tests
+    environment:
+      KEEP_ALIVE: 1
+    volumes:
+      - vt-data:/mnt
+
+  notus-data:
+    image: registry.community.greenbone.net/community/notus-data
+    environment:
+      KEEP_ALIVE: 1
+    volumes:
+      - notus-data:/mnt
+
+  scap-data:
+    image: registry.community.greenbone.net/community/scap-data
+    environment:
+      KEEP_ALIVE: 1
+    volumes:
+      - scap-data:/mnt
+
+  cert-bund-data:
+    image: registry.community.greenbone.net/community/cert-bund-data
+    environment:
+      KEEP_ALIVE: 1
+    volumes:
+      - cert-data:/mnt
+
+  dfn-cert-data:
+    image: registry.community.greenbone.net/community/dfn-cert-data
+    environment:
+      KEEP_ALIVE: 1
+    volumes:
+      - cert-data:/mnt
+    depends_on:
+      cert-bund-data:
+        condition: service_healthy
+
+  data-objects:
+    image: registry.community.greenbone.net/community/data-objects
+    environment:
+      KEEP_ALIVE: 1
+    volumes:
+      - data-objects:/mnt
+
+  report-formats:
+    image: registry.community.greenbone.net/community/report-formats
+    environment:
+      KEEP_ALIVE: 1
+    volumes:
+      - data-objects:/mnt
+    depends_on:
+      data-objects:
+        condition: service_healthy
+
+  gpg-data:
+    image: registry.community.greenbone.net/community/gpg-data
+    volumes:
+      - gpg-data:/mnt
+
+  # ── GVM Infrastructure ─────────────────────────────────────────────────
+  redis-server:
+    image: registry.community.greenbone.net/community/redis-server
+    restart: unless-stopped
+    volumes:
+      - redis-socket:/run/redis/
+
+  pg-gvm-migrator:
+    image: registry.community.greenbone.net/community/pg-gvm-migrator:stable
+    restart: "no"
+    volumes:
+      - psql-data:/var/lib/postgresql
+      - psql-socket:/var/run/postgresql
+
+  pg-gvm:
+    image: registry.community.greenbone.net/community/pg-gvm:stable
+    restart: unless-stopped
+    volumes:
+      - psql-data:/var/lib/postgresql
+      - psql-socket:/var/run/postgresql
+    depends_on:
+      pg-gvm-migrator:
+        condition: service_completed_successfully
+
+  # ── GVM Core Services ──────────────────────────────────────────────────
+  gvmd:
+    image: registry.community.greenbone.net/community/gvmd:stable
+    restart: unless-stopped
+    volumes:
+      - gvmd-data:/var/lib/gvm
+      - scap-data:/var/lib/gvm/scap-data/
+      - cert-data:/var/lib/gvm/cert-data
+      - data-objects:/var/lib/gvm/data-objects/gvmd
+      - vt-data:/var/lib/openvas/plugins
+      - psql-data:/var/lib/postgresql
+      - gvmd-socket:/run/gvmd
+      - ospd-socket:/run/ospd
+      - psql-socket:/var/run/postgresql
+    depends_on:
+      pg-gvm:
+        condition: service_started
+      scap-data:
+        condition: service_healthy
+      cert-bund-data:
+        condition: service_healthy
+      dfn-cert-data:
+        condition: service_healthy
+      data-objects:
+        condition: service_healthy
+      report-formats:
+        condition: service_healthy
+    networks:
+      - default
+      - opm-network
+
+  configure-openvas:
+    image: registry.community.greenbone.net/community/openvas-scanner:stable
+    volumes:
+      - openvas-data:/mnt
+      - openvas-log-data:/var/log/openvas
+    command:
+      - /bin/sh
+      - -c
+      - |
+        printf "table_driven_lsc = yes\nopenvasd_server = http://openvasd:80\n" > /mnt/openvas.conf
+        sed "s/127/128/" /etc/openvas/openvas_log.conf | sed 's/gvm/openvas/' > /mnt/openvas_log.conf
+        chmod 644 /mnt/openvas.conf
+        chmod 644 /mnt/openvas_log.conf
+        touch /var/log/openvas/openvas.log
+        chmod 666 /var/log/openvas/openvas.log
+
+  openvasd:
+    image: registry.community.greenbone.net/community/openvas-scanner:stable
+    restart: unless-stopped
+    environment:
+      OPENVASD_MODE: service_notus
+      GNUPGHOME: /etc/openvas/gnupg
+      LISTENING: 0.0.0.0:80
+    volumes:
+      - openvas-data:/etc/openvas
+      - openvas-log-data:/var/log/openvas
+      - gpg-data:/etc/openvas/gnupg
+      - notus-data:/var/lib/notus
+    depends_on:
+      vulnerability-tests:
+        condition: service_healthy
+      notus-data:
+        condition: service_healthy
+      configure-openvas:
+        condition: service_completed_successfully
+      gpg-data:
+        condition: service_completed_successfully
+    networks:
+      default:
+        aliases:
+          - openvasd
+
+  ospd-openvas:
+    image: registry.community.greenbone.net/community/ospd-openvas:stable
+    restart: unless-stopped
+    hostname: ospd-openvas.local
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
+    command:
+      [
+        "ospd-openvas", "-f",
+        "--config", "/etc/gvm/ospd-openvas.conf",
+        "--notus-feed-dir", "/var/lib/notus/advisories",
+        "-m", "666",
+      ]
+    volumes:
+      - gpg-data:/etc/openvas/gnupg
+      - vt-data:/var/lib/openvas/plugins
+      - notus-data:/var/lib/notus
+      - ospd-socket:/run/ospd
+      - redis-socket:/run/redis/
+      - openvas-data:/etc/openvas/
+      - openvas-log-data:/var/log/openvas
+    depends_on:
+      redis-server:
+        condition: service_started
+      gpg-data:
+        condition: service_completed_successfully
+      configure-openvas:
+        condition: service_completed_successfully
+      vulnerability-tests:
+        condition: service_healthy
+      notus-data:
+        condition: service_healthy
+
+  gvm-tools:
+    image: registry.community.greenbone.net/community/gvm-tools
+    volumes:
+      - gvmd-socket:/run/gvmd
+      - ospd-socket:/run/ospd
+    depends_on:
+      - gvmd
+      - ospd-openvas
+
+  # ── OPM GVM Scanner Agent ──────────────────────────────────────────────
+  opm-scanner-gvm:
+    build:
+      context: ./scanner
+      dockerfile: Dockerfile.gvm
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: ${GVM_BACKEND_URL:-http://backend:8000}
+      API_KEY: ${GVM_SCANNER_API_KEY:?Set GVM_SCANNER_API_KEY to the scanner API key from OPM}
+      POLL_INTERVAL: ${GVM_POLL_INTERVAL:-60}
+      LOG_LEVEL: ${GVM_LOG_LEVEL:-INFO}
+      GVM_HOST: gvmd
+      GVM_PORT: "9390"
+      GVM_USER: ${GVM_USER:-admin}
+      GVM_PASSWORD: ${GVM_PASSWORD:-admin}
+    depends_on:
+      gvmd:
+        condition: service_started
+    networks:
+      - opm-network
+
+volumes:
+  vt-data:
+  notus-data:
+  scap-data:
+  cert-data:
+  data-objects:
+  gpg-data:
+  redis-socket:
+  psql-data:
+  psql-socket:
+  gvmd-data:
+  gvmd-socket:
+  ospd-socket:
+  openvas-data:
+  openvas-log-data:
+
+networks:
+  opm-network:
+    external: true

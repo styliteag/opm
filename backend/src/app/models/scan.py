@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from app.models.scanner import Scanner
     from app.models.ssh_scan_result import SSHScanResult
     from app.models.user import User
+    from app.models.vulnerability import Vulnerability
 
 
 class ScanStatus(str, Enum):
@@ -112,6 +113,9 @@ class Scan(Base):
         "NseResult", back_populates="scan", cascade="all, delete-orphan"
     )
     nse_template: Mapped["NseTemplate | None"] = relationship("NseTemplate")
+    vulnerabilities: Mapped[list["Vulnerability"]] = relationship(
+        "Vulnerability", back_populates="scan", cascade="all, delete-orphan"
+    )
 
     @property
     def cancelled_by_email(self) -> str | None:

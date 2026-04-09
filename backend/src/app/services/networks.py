@@ -59,6 +59,7 @@ async def create_network(
     nse_profile_id: int | None = None,
     host_discovery_enabled: bool = True,
     phases: list[dict[str, Any]] | None = None,
+    gvm_scan_config: str | None = None,
 ) -> Network:
     """Create a new network."""
     network = Network(
@@ -76,6 +77,7 @@ async def create_network(
         nse_profile_id=nse_profile_id,
         host_discovery_enabled=host_discovery_enabled,
         phases=phases,
+        gvm_scan_config=gvm_scan_config,
     )
     db.add(network)
     await db.flush()
@@ -104,6 +106,8 @@ async def update_network(
     clear_phases: bool = False,
     clear_schedule: bool = False,
     clear_alert_config: bool = False,
+    gvm_scan_config: str | None = None,
+    clear_gvm_scan_config: bool = False,
 ) -> Network:
     """Update an existing network.
 
@@ -151,6 +155,8 @@ async def update_network(
         network.host_discovery_enabled = host_discovery_enabled
     if phases is not None or clear_phases:
         network.phases = phases
+    if gvm_scan_config is not None or clear_gvm_scan_config:
+        network.gvm_scan_config = gvm_scan_config
     if scanner_type is not None:
         network.scanner_type = scanner_type
         # Sync phases port_scan tool — must run AFTER phases assignment

@@ -17,6 +17,7 @@ from src.models import (
     OpenPortResult,
     ScannerJob,
     ScanPhase,
+    VulnerabilityResult,
 )
 from src.ssh_probe import SSHProbeResult
 from src.utils import parse_int
@@ -162,6 +163,7 @@ class ScannerClient:
                         nse_script_args=job.get("nse_script_args"),
                         custom_script_hashes=job.get("custom_script_hashes"),
                         phases=_parse_phases(job.get("phases")),
+                        gvm_scan_config=job.get("gvm_scan_config"),
                     )
                 )
             except (KeyError, TypeError, ValueError) as exc:
@@ -247,6 +249,25 @@ class ScannerClient:
         }
         response = self._request(
             "POST", "/api/nse/scanner/results", json=payload, auth_required=True
+        )
+        response.raise_for_status()
+
+    def submit_vulnerability_results(
+        self,
+        scan_id: int,
+        vulnerabilities: list[VulnerabilityResult],
+        status: str = "success",
+        error_message: str | None = None,
+    ) -> None:
+        """Submit GVM vulnerability results to the backend."""
+        payload: dict[str, Any] = {
+            "scan_id": scan_id,
+            "vulnerabilities": [v.to_payload() for v in vulnerabilities],
+            "status": status,
+            "error_message": error_message,
+        }
+        response = self._request(
+            "POST", "/api/scanner/vulnerability-results", json=payload, auth_required=True
         )
         response.raise_for_status()
 

@@ -6,6 +6,8 @@ import logging
 import shutil
 from typing import Any
 
+# Ensure scanners are registered at import time
+import src.scanners  # noqa: F401
 from src.client import ScannerClient
 from src.discovery import (
     DEFAULT_SSH_PROBE_CONCURRENCY,
@@ -19,13 +21,9 @@ from src.models import (
     OpenPortResult,
     ScannerJob,
     ScanPhase,
-    ScanRunResult,
 )
 from src.scanners.nmap import run_nmap
 from src.scanners.registry import get_scanner
-
-# Ensure scanners are registered at import time
-import src.scanners  # noqa: F401
 from src.ssh_probe import SSHProbeResult
 from src.threading_utils import LogBufferHandler, LogStreamer, ProgressReporter
 from src.utils import check_ipv6_connectivity
@@ -358,6 +356,87 @@ def process_job(
 
     except Exception as exc:
         logger.exception("Scan failed for network %s", job.network_id)
+        try:
+            client.submit_results(scan_id, "failed", [], error_message=str(exc))
+        except Exception:
+            logger.exception("Failed to submit failure results for scan %s", scan_id)
+    finally:
+        progress_reporter.stop()
+        progress_reporter.join()
+        log_streamer.stop()
+        log_streamer.join()
+
+
+def process_greenbone_job(
+    job: ScannerJob,
+    client: ScannerClient,
+    logger: logging.Logger,
+    log_buffer: LogBufferHandler,
+) -> None:
+    """Process a Greenbone/GVM scan job — standalone pipeline."""
+    log_buffer.reset()
+    logger.info("Claiming Greenbone job for network %s", job.network_id)
+
+    scan_id = client.claim_job(job.network_id)
+    if scan_id is None:
+        log_buffer.reset()
+        return
+
+    logger.info("Claimed Greenbone job for network %s with scan ID %s", job.network_id, scan_id)
+
+    log_streamer = LogStreamer(client=client, log_buffer=log_buffer, scan_id=scan_id)
+    log_streamer.start()
+
+    progress_reporter = ProgressReporter(client=client, scan_id=scan_id)
+    progress_reporter.start()
+
+    try:
+        from src.scanners.greenbone import GreenboneScanner
+
+        progress_reporter.update(0, "Connecting to GVM...")
+
+        scanner = GreenboneScanner()
+        gvm_config = job.gvm_scan_config or "Full and fast"
+
+        open_ports, vulnerabilities = scanner.run_scan(
+            client=client,
+            scan_id=scan_id,
+            target_cidr=job.target_ip or job.cidr,
+            port_spec=job.port_spec,
+            gvm_scan_config=gvm_config,
+            logger=logger,
+            progress_reporter=progress_reporter,
+        )
+
+        # Submit open ports via standard endpoint
+        if open_ports:
+            try:
+                client.submit_results(scan_id, "success", open_ports)
+                logger.info("Submitted %d open ports for scan %s", len(open_ports), scan_id)
+            except Exception:
+                logger.exception("Failed to submit open port results for scan %s", scan_id)
+
+        # Submit vulnerabilities via dedicated endpoint
+        if vulnerabilities:
+            try:
+                client.submit_vulnerability_results(scan_id, vulnerabilities)
+                logger.info(
+                    "Submitted %d vulnerabilities for scan %s",
+                    len(vulnerabilities),
+                    scan_id,
+                )
+            except Exception:
+                logger.exception("Failed to submit vulnerability results for scan %s", scan_id)
+
+        # If no open ports found, still mark scan as success
+        if not open_ports:
+            try:
+                client.submit_results(scan_id, "success", [])
+            except Exception:
+                logger.exception("Failed to submit empty results for scan %s", scan_id)
+
+    except Exception as exc:
+        logger.exception("Greenbone scan failed for network %s", job.network_id)
         try:
             client.submit_results(scan_id, "failed", [], error_message=str(exc))
         except Exception:

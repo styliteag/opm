@@ -1,0 +1,25 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=UTC
+
+RUN pip install uv
+
+COPY pyproject.toml ./
+COPY uv.lock* ./
+
+RUN uv sync --frozen --extra gvm || uv sync --extra gvm
+
+COPY src ./src
+
+ARG VERSION=unknown
+ENV APP_VERSION=${VERSION}
+RUN echo "${VERSION:-unknown}" > /app/VERSION
+
+CMD ["uv", "run", "python", "-m", "src.main"]

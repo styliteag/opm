@@ -5,7 +5,12 @@ from __future__ import annotations
 import time
 
 from src.client import ScannerClient
-from src.orchestration import check_dependencies, process_host_discovery_job, process_job
+from src.orchestration import (
+    check_dependencies,
+    process_greenbone_job,
+    process_host_discovery_job,
+    process_job,
+)
 from src.threading_utils import LogBufferHandler
 from src.utils import configure_logging, get_version, load_config
 
@@ -39,7 +44,10 @@ def main() -> None:
                     has_work = True
                     logger.info("Found %s pending port scan job(s)", len(jobs))
                     for job in jobs:
-                        process_job(job, client, logger, log_buffer)
+                        if job.scanner_type == "greenbone":
+                            process_greenbone_job(job, client, logger, log_buffer)
+                        else:
+                            process_job(job, client, logger, log_buffer)
             except Exception:
                 logger.exception("Failed to fetch port scan jobs")
 
