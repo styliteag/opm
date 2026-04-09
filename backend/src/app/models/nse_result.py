@@ -34,7 +34,7 @@ class NseResult(Base):
         ForeignKey("nse_templates.id", ondelete="SET NULL"), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime, nullable=False, server_default=func.utc_timestamp()
     )
 
     # Relationships

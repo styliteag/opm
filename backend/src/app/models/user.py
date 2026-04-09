@@ -53,10 +53,10 @@ class User(Base):
         default=ThemePreference.SYSTEM,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime, nullable=False, server_default=func.utc_timestamp()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime, nullable=False, server_default=func.utc_timestamp(), onupdate=func.utc_timestamp()
     )
 
     # Relationships

@@ -56,10 +56,10 @@ class NseTemplate(Base):
     category: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime, nullable=False, server_default=func.utc_timestamp()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime, nullable=False, server_default=func.utc_timestamp(), onupdate=func.utc_timestamp()
     )
 
     # Relationships

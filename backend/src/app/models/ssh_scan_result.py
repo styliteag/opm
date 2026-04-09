@@ -25,7 +25,7 @@ class SSHScanResult(Base):
     host_ip: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
     port: Mapped[int] = mapped_column(Integer, nullable=False, default=22)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime, nullable=False, server_default=func.utc_timestamp()
     )
 
     # Authentication methods

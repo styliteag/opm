@@ -27,7 +27,7 @@ class Scanner(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     scanner_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime, nullable=False, server_default=func.utc_timestamp()
     )
 
     # Relationships

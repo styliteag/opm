@@ -29,7 +29,9 @@ class ScanLog(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     scan_id: Mapped[int] = mapped_column(ForeignKey("scans.id"), nullable=False, index=True)
-    timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.utc_timestamp()
+    )
     level: Mapped[LogLevel] = mapped_column(
         SQLEnum(LogLevel, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
