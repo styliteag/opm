@@ -41,20 +41,23 @@ BUILTIN_PROFILES: list[dict[str, Any]] = [
     {
         "name": "High Risk Scan",
         "description": (
-            "Focused scan with critical vulnerability detection scripts."
-            " Targets high-impact vulnerabilities and common attack vectors."
+            "Comprehensive CVE and vulnerability detection scan."
+            " Covers critical exploits across HTTP, SSH, SSL/TLS, SMB,"
+            " and common services. No brute-force scripts."
         ),
         "nse_scripts": [
-            # * (any protocol) — 6
+            # * (any protocol) — 7
             "banner",
             "ssl-ccs-injection",
             "ssl-cert",
+            "ssl-dh-params",
             "ssl-heartbleed",
             "ssl-poodle",
             "vulners",
-            # ftp — 1
+            # ftp — 2
             "ftp-anon",
-            # http — 9
+            "ftp-vuln-cve2010-4221",
+            # http — 11
             "http-auth",
             "http-enum",
             "http-shellshock",
@@ -62,7 +65,10 @@ BUILTIN_PROFILES: list[dict[str, Any]] = [
             "http-vuln-cve2012-1823",
             "http-vuln-cve2014-3704",
             "http-vuln-cve2015-1635",
+            "http-vuln-cve2011-3192",
+            "http-vuln-cve2017-1001000",
             "http-vuln-cve2017-5638",
+            "http-vuln-cve2017-8917",
             "http-vuln-cve2017-5689",
             # smb — 6
             "smb-enum-shares",
@@ -71,9 +77,15 @@ BUILTIN_PROFILES: list[dict[str, Any]] = [
             "smb-security-mode",
             "smb-vuln-ms08-067",
             "smb-vuln-ms17-010",
-            # ssh — 1
+            # rdp — 1
+            "rdp-vuln-ms12-020",
+            # smtp — 1
+            "smtp-vuln-cve2010-4344",
+            # ssh — 2
             "ssh-auth-methods",
+            "ssh-vuln-cve2018-15473",
         ],
+        "script_args": {"vulners.showall": "true"},
         "category": "scan_profiles",
         "platform": "any",
         "priority": 0,

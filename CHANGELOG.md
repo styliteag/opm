@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **NSE**: expand High Risk Scan profile from 23 to 31 scripts — add `ssl-dh-params`, `ftp-vuln-cve2010-4221`, `http-vuln-cve2011-3192`, `http-vuln-cve2017-1001000`, `http-vuln-cve2017-8917`, `rdp-vuln-ms12-020`, `smtp-vuln-cve2010-4344`, `ssh-vuln-cve2018-15473`, and `vulners.showall` script args
+
 ## [1.11.1] - 2026-04-09
 
 ### Changed
