@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Frontend**: extract host detail page sub-components (InlineHostname, HostComment, PortsTab, AlertsTab, ScansTab, SshTab) into `features/hosts/components/`, reducing route file from 810 to ~230 lines
+
 ### Added
 
 - **Greenbone (GVM)**: alert generation from GVM vulnerability results (medium+ severity), with `gvm_vulnerability` and `gvm_cve_detected` alert types
