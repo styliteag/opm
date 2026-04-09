@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Networks**: scanner_type change not syncing to phases — frontend-sent phases overwrote backend sync
+
 ## [1.11.2] - 2026-04-09
 
 ### Changed

@@ -141,17 +141,6 @@ async def update_network(
         network.scan_timeout = scan_timeout
     if port_timeout is not None:
         network.port_timeout = port_timeout
-    if scanner_type is not None:
-        network.scanner_type = scanner_type
-        # Sync phases port_scan tool when scanner_type changes
-        if network.phases is not None:
-            updated_phases = [
-                {**phase, "tool": scanner_type}
-                if phase.get("name") == "port_scan"
-                else phase
-                for phase in network.phases
-            ]
-            network.phases = updated_phases
     if scan_protocol is not None:
         network.scan_protocol = scan_protocol
     if alert_config is not None or clear_alert_config:
@@ -162,6 +151,18 @@ async def update_network(
         network.host_discovery_enabled = host_discovery_enabled
     if phases is not None or clear_phases:
         network.phases = phases
+    if scanner_type is not None:
+        network.scanner_type = scanner_type
+        # Sync phases port_scan tool — must run AFTER phases assignment
+        # so frontend-sent phases don't overwrite the tool sync
+        if network.phases is not None:
+            updated_phases = [
+                {**phase, "tool": scanner_type}
+                if phase.get("name") == "port_scan"
+                else phase
+                for phase in network.phases
+            ]
+            network.phases = updated_phases
 
     await db.flush()
     await db.refresh(network)
