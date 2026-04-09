@@ -13,8 +13,8 @@ from src.client import ScannerClient
 from src.models import OpenPortResult, VulnerabilityResult
 from src.threading_utils import ProgressReporter
 
-# GVM poll interval in seconds
-GVM_POLL_INTERVAL = 10
+# GVM poll interval in seconds (keep >= 30 to avoid overloading gvmd)
+GVM_POLL_INTERVAL = 30
 
 # Fallback UUIDs — used only if dynamic lookup fails
 _FALLBACK_CONFIG_IDS: dict[str, str] = {
