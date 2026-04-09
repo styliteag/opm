@@ -118,6 +118,40 @@ jobs:
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
 
+      - name: Build and push opm-scanner-gvm to Docker Hub
+        uses: docker/build-push-action@v6
+        with:
+          context: ./scanner
+          file: ./scanner/Dockerfile.gvm
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            docker.io/styliteag/opm-scanner-gvm:${{ steps.version.outputs.version }}
+            docker.io/styliteag/opm-scanner-gvm:latest
+          provenance: false
+          sbom: false
+          cache-from: type=registry,ref=docker.io/styliteag/opm-scanner-gvm:buildcache
+          cache-to: type=registry,ref=docker.io/styliteag/opm-scanner-gvm:buildcache,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+
+      - name: Build and push opm-scanner-gvm to GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: ./scanner
+          file: ./scanner/Dockerfile.gvm
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/styliteag/opm-scanner-gvm:${{ steps.version.outputs.version }}
+            ghcr.io/styliteag/opm-scanner-gvm:latest
+          provenance: false
+          sbom: false
+          cache-from: type=registry,ref=ghcr.io/styliteag/opm-scanner-gvm:buildcache
+          cache-to: type=registry,ref=ghcr.io/styliteag/opm-scanner-gvm:buildcache,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+
       - name: Delete old GHCR package versions (opm)
         uses: actions/delete-package-versions@v5
         continue-on-error: true
@@ -132,6 +166,15 @@ jobs:
         continue-on-error: true
         with:
           package-name: "opm-scanner"
+          package-type: "container"
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: false
+
+      - name: Delete old GHCR package versions (opm-scanner-gvm)
+        uses: actions/delete-package-versions@v5
+        continue-on-error: true
+        with:
+          package-name: "opm-scanner-gvm"
           package-type: "container"
           min-versions-to-keep: 5
           delete-only-untagged-versions: false

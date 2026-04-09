@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Greenbone (GVM)**: alert generation from GVM vulnerability results (medium+ severity), with `gvm_vulnerability` and `gvm_cve_detected` alert types
 - **Greenbone (GVM)**: GVM source and type filters on /alerts page
 - **Greenbone (GVM)**: GVM vulnerability results on host detail page (all severities incl. info/low), deduped by OID
+- **Greenbone (GVM)**: `opm-scanner-gvm` added to CI release workflow (Docker Hub + GHCR, multi-arch)
 - **Greenbone (GVM)**: new scanner type with dedicated `opm-scanner-gvm` container, `python-gvm` bridge, and `compose-gvm.yml`
 - **Greenbone (GVM)**: `vulnerabilities` table + model for storing GVM scan findings (CVSS, OID, QoD, solution)
 - **Greenbone (GVM)**: `POST /api/scanner/vulnerability-results` and `GET /api/scans/{scan_id}/vulnerabilities` endpoints
