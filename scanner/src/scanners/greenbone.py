@@ -218,13 +218,16 @@ class GreenboneScanner:
                 min(progress, 99), f"GVM scan: {task_status} ({progress}%)"
             )
 
-            if task_status in ("Done", "Stopped"):
+            if task_status == "Done":
                 break
 
-            if task_status in ("Stop Requested", "Delete Requested"):
+            if task_status in (
+                "Stopped", "Interrupted",
+                "Stop Requested", "Delete Requested",
+            ):
                 raise RuntimeError(f"GVM task ended with status: {task_status}")
 
-            logger.debug("GVM task %s: %s (%d%%)", task_id, task_status, progress)
+            logger.info("GVM task %s: %s (%d%%)", task_id, task_status, progress)
 
     def _fetch_results(
         self,

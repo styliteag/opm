@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import time
 
 from src.client import ScannerClient
@@ -51,16 +53,17 @@ def main() -> None:
             except Exception:
                 logger.exception("Failed to fetch port scan jobs")
 
-            # Check for host discovery jobs
-            try:
-                host_discovery_jobs = client.get_host_discovery_jobs()
-                if host_discovery_jobs:
-                    has_work = True
-                    logger.info("Found %s pending host discovery job(s)", len(host_discovery_jobs))
-                    for hd_job in host_discovery_jobs:
-                        process_host_discovery_job(hd_job, client, logger)
-            except Exception:
-                logger.exception("Failed to fetch host discovery jobs")
+            # Check for host discovery jobs (skip if nmap not available, e.g. GVM-only container)
+            if shutil.which("nmap"):
+                try:
+                    host_discovery_jobs = client.get_host_discovery_jobs()
+                    if host_discovery_jobs:
+                        has_work = True
+                        logger.info("Found %s pending host discovery job(s)", len(host_discovery_jobs))
+                        for hd_job in host_discovery_jobs:
+                            process_host_discovery_job(hd_job, client, logger)
+                except Exception:
+                    logger.exception("Failed to fetch host discovery jobs")
 
             if not has_work:
                 logger.debug("No pending jobs; sleeping")
