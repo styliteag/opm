@@ -23,6 +23,8 @@ const ALERT_TYPES: { value: AlertType; label: string; group: string }[] = [
   { value: "ssh_config_regression", label: "SSH Regression", group: "SSH" },
   { value: "nse_vulnerability", label: "NSE Vulnerability", group: "NSE" },
   { value: "nse_cve_detected", label: "NSE CVE", group: "NSE" },
+  { value: "gvm_vulnerability", label: "GVM Vulnerability", group: "GVM" },
+  { value: "gvm_cve_detected", label: "GVM CVE", group: "GVM" },
 ];
 
 const SEVERITIES: { value: Severity; label: string }[] = [
@@ -38,12 +40,13 @@ const STATUS_OPTIONS: { value: boolean | undefined; label: string }[] = [
   { value: true, label: "Dismissed" },
 ];
 
-type AlertSource = "port" | "ssh" | "nse";
+type AlertSource = "port" | "ssh" | "nse" | "gvm";
 
 const ALERT_SOURCES: { value: AlertSource; label: string }[] = [
   { value: "port", label: "Port" },
   { value: "ssh", label: "SSH" },
   { value: "nse", label: "NSE" },
+  { value: "gvm", label: "GVM" },
 ];
 
 interface AlertFilterValues {
@@ -171,7 +174,7 @@ export function AlertFilters({
     !!filters.search ||
     !!filters.port;
 
-  const groups = ["Port", "SSH", "NSE"] as const;
+  const groups = ["Port", "SSH", "NSE", "GVM"] as const;
 
   return (
     <div

@@ -11,7 +11,9 @@ export type AlertType =
   | "ssh_outdated_version"
   | "ssh_config_regression"
   | "nse_vulnerability"
-  | "nse_cve_detected";
+  | "nse_cve_detected"
+  | "gvm_vulnerability"
+  | "gvm_cve_detected";
 
 export type Severity = "critical" | "high" | "medium" | "info";
 export type ScanStatus =

@@ -19,6 +19,11 @@ export const NSE_ALERT_TYPES: { value: string; label: string }[] = [
   { value: "nse_cve_detected", label: "CVE Detected" },
 ];
 
+export const GVM_ALERT_TYPES: { value: string; label: string }[] = [
+  { value: "gvm_vulnerability", label: "GVM Vulnerability" },
+  { value: "gvm_cve_detected", label: "GVM CVE Detected" },
+];
+
 export const RULE_SOURCE_BADGES: Record<
   string,
   { label: string; className: string }
@@ -26,13 +31,15 @@ export const RULE_SOURCE_BADGES: Record<
   port: { label: "Port", className: "bg-blue-500/10 text-blue-500" },
   ssh: { label: "SSH", className: "bg-amber-500/10 text-amber-500" },
   nse: { label: "NSE", className: "bg-purple-500/10 text-purple-500" },
+  gvm: { label: "GVM", className: "bg-emerald-500/10 text-emerald-500" },
 };
 
-/** Returns the human-readable label for an SSH or NSE alert type value. */
+/** Returns the human-readable label for an SSH, NSE, or GVM alert type value. */
 export function getAlertTypeLabel(value: string): string {
   return (
     SSH_ALERT_TYPES.find((t) => t.value === value)?.label ??
     NSE_ALERT_TYPES.find((t) => t.value === value)?.label ??
+    GVM_ALERT_TYPES.find((t) => t.value === value)?.label ??
     value
   );
 }

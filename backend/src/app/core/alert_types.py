@@ -108,3 +108,17 @@ register_alert_type(
     default_severity="high",
     description="SSH security configuration has degraded compared to the previous scan.",
 )
+register_alert_type(
+    "gvm_vulnerability",
+    label="GVM Vulnerability",
+    category="gvm",
+    default_severity="high",
+    description="Greenbone vulnerability scanner found a vulnerability without known CVEs.",
+)
+register_alert_type(
+    "gvm_cve_detected",
+    label="GVM CVE",
+    category="gvm",
+    default_severity="high",
+    description="Greenbone vulnerability scanner found a vulnerability with known CVEs.",
+)
