@@ -11,6 +11,11 @@ from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.scan import Scan, ScanStatus, TriggerType
 from app.models.scan_log import LogLevel, ScanLog
+from app.repositories.base import BaseRepository
+
+
+class ScanRepository(BaseRepository[Scan]):
+    model = Scan
 
 
 async def create_manual_scan(db: AsyncSession, network: Network) -> Scan:
@@ -136,8 +141,7 @@ async def get_scan_with_ports(db: AsyncSession, scan_id: int) -> Scan | None:
 
 async def get_scan_by_id(db: AsyncSession, scan_id: int) -> Scan | None:
     """Get a scan by ID without loading relationships."""
-    result = await db.execute(select(Scan).where(Scan.id == scan_id))
-    return result.scalar_one_or_none()
+    return await ScanRepository(db).get_by_id(scan_id)
 
 
 async def get_scan_logs(
@@ -200,8 +204,7 @@ async def set_scan_hidden(db: AsyncSession, scan: Scan, hidden: bool) -> Scan:
 
 async def delete_scan(db: AsyncSession, scan: Scan) -> None:
     """Permanently delete a scan and its related data."""
-    await db.delete(scan)
-    await db.flush()
+    await ScanRepository(db).delete(scan)
 
 
 async def get_latest_scans_by_network(

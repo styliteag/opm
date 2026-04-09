@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.expression import ColumnElement
 
 from app.models.nse_template import NseTemplate, NseTemplateSeverity, NseTemplateType
+from app.repositories.base import BaseRepository
 from app.schemas.nse import NseProfileCreate, NseProfileUpdate
+
+
+class NseTemplateRepository(BaseRepository[NseTemplate]):
+    model = NseTemplate
 
 
 async def get_all_profiles(
@@ -17,33 +24,37 @@ async def get_all_profiles(
     profile_type: str | None = None,
 ) -> list[NseTemplate]:
     """Get all profiles with optional filtering."""
-    stmt = select(NseTemplate).order_by(NseTemplate.priority.asc(), NseTemplate.name.asc())
-
+    repo = NseTemplateRepository(db)
+    filters: list[ColumnElement[Any]] = []
     if search:
         pattern = f"%{search}%"
-        stmt = stmt.where(
+        filters.append(
             NseTemplate.name.ilike(pattern) | NseTemplate.description.ilike(pattern)
         )
     if severity:
-        stmt = stmt.where(NseTemplate.severity == severity)
+        filters.append(NseTemplate.severity == severity)
     if platform:
-        stmt = stmt.where(NseTemplate.platform == platform)
+        filters.append(NseTemplate.platform == platform)
     if profile_type:
-        stmt = stmt.where(NseTemplate.type == profile_type)
+        filters.append(NseTemplate.type == profile_type)
 
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    return await repo.list_paginated(
+        filters=filters,
+        sort_column=NseTemplate.priority,
+        sort_dir="asc",
+        offset=0,
+        limit=10000,
+    )
 
 
 async def get_profile_by_id(db: AsyncSession, profile_id: int) -> NseTemplate | None:
     """Get a profile by ID."""
-    result = await db.execute(select(NseTemplate).where(NseTemplate.id == profile_id))
-    return result.scalar_one_or_none()
+    return await NseTemplateRepository(db).get_by_id(profile_id)
 
 
 async def create_profile(db: AsyncSession, data: NseProfileCreate) -> NseTemplate:
     """Create a new custom NSE profile."""
-    profile = NseTemplate(
+    return await NseTemplateRepository(db).create(
         name=data.name,
         description=data.description,
         nse_scripts=data.nse_scripts,
@@ -54,16 +65,14 @@ async def create_profile(db: AsyncSession, data: NseProfileCreate) -> NseTemplat
         script_args=data.script_args,
         priority=data.priority,
     )
-    db.add(profile)
-    return profile
 
 
 async def clone_profile(db: AsyncSession, source: NseTemplate, new_name: str) -> NseTemplate:
     """Clone an existing profile (builtin or custom) into a new custom profile."""
-    cloned = NseTemplate(
+    return await NseTemplateRepository(db).create(
         name=new_name,
         description=source.description,
-        nse_scripts=list(source.nse_scripts),  # new list, no mutation
+        nse_scripts=list(source.nse_scripts),
         severity=source.severity,
         platform=source.platform,
         type=NseTemplateType.CUSTOM,
@@ -71,15 +80,12 @@ async def clone_profile(db: AsyncSession, source: NseTemplate, new_name: str) ->
         script_args=dict(source.script_args) if source.script_args else None,
         priority=source.priority,
     )
-    db.add(cloned)
-    return cloned
 
 
 async def update_profile(
     db: AsyncSession, profile: NseTemplate, data: NseProfileUpdate
 ) -> NseTemplate:
     """Update an NSE profile."""
-
     if data.name is not None:
         profile.name = data.name
     if data.description is not None:
@@ -102,4 +108,4 @@ async def update_profile(
 
 async def delete_profile(db: AsyncSession, profile: NseTemplate) -> None:
     """Delete an NSE profile."""
-    await db.delete(profile)
+    await NseTemplateRepository(db).delete(profile)

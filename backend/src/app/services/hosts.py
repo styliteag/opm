@@ -12,18 +12,21 @@ from app.lib.ip_utils import IPRange
 from app.models.alert import Alert
 from app.models.global_open_port import GlobalOpenPort
 from app.models.host import Host
+from app.repositories.base import BaseRepository
+
+
+class HostRepository(BaseRepository[Host]):
+    model = Host
 
 
 async def get_host_by_ip(db: AsyncSession, ip: str) -> Host | None:
     """Get a host by IP address."""
-    result = await db.execute(select(Host).where(Host.ip == ip))
-    return result.scalar_one_or_none()
+    return await HostRepository(db).get_by_field(Host.ip, ip)
 
 
 async def get_host_by_id(db: AsyncSession, host_id: int) -> Host | None:
     """Get a host by its ID."""
-    result = await db.execute(select(Host).where(Host.id == host_id))
-    return result.scalar_one_or_none()
+    return await HostRepository(db).get_by_id(host_id)
 
 
 async def upsert_host(
@@ -100,9 +103,7 @@ async def update_host_comment(
         return None
 
     host.user_comment = user_comment
-    await db.flush()
-    await db.refresh(host)
-    return host
+    return await HostRepository(db).flush_and_refresh(host)
 
 
 async def update_host_fields(
@@ -115,11 +116,7 @@ async def update_host_fields(
     if host is None:
         return None
 
-    for key, value in fields.items():
-        setattr(host, key, value)
-    await db.flush()
-    await db.refresh(host)
-    return host
+    return await HostRepository(db).update(host, **dict(fields))
 
 
 async def get_hosts(

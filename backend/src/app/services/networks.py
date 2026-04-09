@@ -11,36 +11,36 @@ from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
+from app.repositories.base import BaseRepository
+
+
+class NetworkRepository(BaseRepository[Network]):
+    model = Network
 
 
 async def get_all_networks(db: AsyncSession) -> list[Network]:
     """Get all networks."""
-    stmt = select(Network).order_by(Network.created_at.desc())
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    return await NetworkRepository(db).get_all(order_by=Network.created_at)
 
 
 async def get_network_by_id(db: AsyncSession, network_id: int) -> Network | None:
     """Get a network by its ID."""
-    stmt = select(Network).where(Network.id == network_id)
-    result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    return await NetworkRepository(db).get_by_id(network_id)
 
 
 async def get_network_by_name(db: AsyncSession, name: str) -> Network | None:
     """Get a network by its name."""
-    stmt = select(Network).where(Network.name == name)
-    result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    return await NetworkRepository(db).get_by_field(Network.name, name)
 
 
 async def get_networks_by_scanner_id(db: AsyncSession, scanner_id: int) -> list[Network]:
     """Get all networks for a specific scanner."""
-    stmt = (
-        select(Network).where(Network.scanner_id == scanner_id).order_by(Network.created_at.desc())
+    return await NetworkRepository(db).list_paginated(
+        filters=[Network.scanner_id == scanner_id],
+        sort_column=Network.created_at,
+        offset=0,
+        limit=10000,
     )
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
 
 
 async def create_network(
@@ -62,7 +62,7 @@ async def create_network(
     gvm_scan_config: str | None = None,
 ) -> Network:
     """Create a new network."""
-    network = Network(
+    return await NetworkRepository(db).create(
         name=name,
         cidr=cidr,
         port_spec=port_spec,
@@ -79,10 +79,6 @@ async def create_network(
         phases=phases,
         gvm_scan_config=gvm_scan_config,
     )
-    db.add(network)
-    await db.flush()
-    await db.refresh(network)
-    return network
 
 
 async def update_network(
@@ -170,9 +166,7 @@ async def update_network(
             ]
             network.phases = updated_phases
 
-    await db.flush()
-    await db.refresh(network)
-    return network
+    return await NetworkRepository(db).flush_and_refresh(network)
 
 
 async def get_network_overview(db: AsyncSession, network_id: int) -> dict[str, Any] | None:
@@ -305,5 +299,4 @@ async def get_network_overview(db: AsyncSession, network_id: int) -> dict[str, A
 
 async def delete_network(db: AsyncSession, network: Network) -> None:
     """Delete a network (cascades to scans, rules, exclusions)."""
-    await db.delete(network)
-    await db.flush()
+    await NetworkRepository(db).delete(network)

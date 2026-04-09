@@ -12,33 +12,31 @@ from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
+from app.repositories.base import BaseRepository
+
+
+class ScannerRepository(BaseRepository[Scanner]):
+    model = Scanner
 
 
 def generate_api_key() -> str:
     """Generate a secure 32+ character API key."""
-    # Generate 32 bytes = 64 hex characters for strong security
     return secrets.token_hex(32)
 
 
 async def get_all_scanners(db: AsyncSession) -> list[Scanner]:
     """Get all scanners."""
-    stmt = select(Scanner).order_by(Scanner.created_at.desc())
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    return await ScannerRepository(db).get_all(order_by=Scanner.created_at)
 
 
 async def get_scanner_by_id(db: AsyncSession, scanner_id: int) -> Scanner | None:
     """Get a scanner by its ID."""
-    stmt = select(Scanner).where(Scanner.id == scanner_id)
-    result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    return await ScannerRepository(db).get_by_id(scanner_id)
 
 
 async def get_scanner_by_name(db: AsyncSession, name: str) -> Scanner | None:
     """Get a scanner by its name."""
-    stmt = select(Scanner).where(Scanner.name == name)
-    result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    return await ScannerRepository(db).get_by_field(Scanner.name, name)
 
 
 async def create_scanner(
@@ -47,23 +45,15 @@ async def create_scanner(
     description: str | None = None,
     location: str | None = None,
 ) -> tuple[Scanner, str]:
-    """Create a new scanner and return it with the plain API key.
-
-    Returns:
-        Tuple of (Scanner, api_key) where api_key is the plain text key (shown once)
-    """
+    """Create a new scanner and return it with the plain API key."""
     api_key = generate_api_key()
     api_key_hash = hash_password(api_key)
-
-    scanner = Scanner(
+    scanner = await ScannerRepository(db).create(
         name=name,
         api_key_hash=api_key_hash,
         description=description,
         location=location,
     )
-    db.add(scanner)
-    await db.flush()
-    await db.refresh(scanner)
     return scanner, api_key
 
 
@@ -75,30 +65,21 @@ async def update_scanner(
     location: str | None = None,
 ) -> Scanner:
     """Update an existing scanner."""
+    repo = ScannerRepository(db)
     if name is not None:
         scanner.name = name
     if description is not None:
         scanner.description = description
     if location is not None:
         scanner.location = location
-
-    await db.flush()
-    await db.refresh(scanner)
-    return scanner
+    return await repo.flush_and_refresh(scanner)
 
 
 async def regenerate_api_key(db: AsyncSession, scanner: Scanner) -> tuple[Scanner, str]:
-    """Regenerate the API key for a scanner.
-
-    Returns:
-        Tuple of (Scanner, api_key) where api_key is the new plain text key (shown once)
-    """
+    """Regenerate the API key for a scanner."""
     api_key = generate_api_key()
-    api_key_hash = hash_password(api_key)
-    scanner.api_key_hash = api_key_hash
-
-    await db.flush()
-    await db.refresh(scanner)
+    scanner.api_key_hash = hash_password(api_key)
+    scanner = await ScannerRepository(db).flush_and_refresh(scanner)
     return scanner, api_key
 
 
@@ -221,8 +202,7 @@ async def get_scanner_overview(db: AsyncSession, scanner_id: int) -> dict[str, A
 
 async def delete_scanner(db: AsyncSession, scanner: Scanner) -> None:
     """Delete a scanner (cascades to networks)."""
-    await db.delete(scanner)
-    await db.flush()
+    await ScannerRepository(db).delete(scanner)
 
 
 async def verify_scanner_api_key(scanner: Scanner, api_key: str) -> bool:

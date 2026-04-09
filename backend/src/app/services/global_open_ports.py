@@ -10,6 +10,11 @@ from sqlalchemy.sql import ColumnElement
 
 from app.models.global_open_port import GlobalOpenPort
 from app.models.scan import Scan, ScanStatus
+from app.repositories.base import BaseRepository
+
+
+class GlobalOpenPortRepository(BaseRepository[GlobalOpenPort]):
+    model = GlobalOpenPort
 
 IPRange = tuple[int, IPv4Address | IPv6Address, IPv4Address | IPv6Address]
 
@@ -172,22 +177,18 @@ async def get_global_open_ports(
 
 async def get_global_open_port_by_id(db: AsyncSession, port_id: int) -> GlobalOpenPort | None:
     """Get a global open port by its ID."""
-    result = await db.execute(select(GlobalOpenPort).where(GlobalOpenPort.id == port_id))
-    return result.scalar_one_or_none()
+    return await GlobalOpenPortRepository(db).get_by_id(port_id)
 
 
 async def update_port_comment(
     db: AsyncSession, port_id: int, user_comment: str | None
 ) -> GlobalOpenPort | None:
     """Update the user_comment on a GlobalOpenPort. Returns None if not found."""
-    result = await db.execute(select(GlobalOpenPort).where(GlobalOpenPort.id == port_id))
-    port = result.scalar_one_or_none()
+    repo = GlobalOpenPortRepository(db)
+    port = await repo.get_by_id(port_id)
     if port is None:
         return None
-    port.user_comment = user_comment
-    await db.flush()
-    await db.refresh(port)
-    return port
+    return await repo.update(port, user_comment=user_comment)
 
 
 async def get_latest_scan_times_by_network(

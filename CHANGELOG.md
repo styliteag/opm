@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Greenbone (GVM)**: GSA web UI service in `compose-gvm.yml` (port 9392, configurable via `GVM_GSA_PORT`)
+- **Docs**: GVM admin password setup and GSA web UI instructions in README
+
 ### Changed
 
+- **Backend**: introduce repository pattern (`BaseRepository[T]`) for data access abstraction, migrate 9 services to use it
+- **Backend**: decompose `alert_queries.py` (542 lines, 8 responsibilities) into `AlertRepository`, `alert_state.py`, and `alert_auto_dismiss.py`
 - **Frontend**: extract host detail page sub-components (InlineHostname, HostComment, PortsTab, AlertsTab, ScansTab, SshTab) into `features/hosts/components/`, reducing route file from 810 to ~230 lines
 
 ### Added
