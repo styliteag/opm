@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Greenbone (GVM)**: GSA web UI service in `compose-gvm.yml` (port 9392, configurable via `GVM_GSA_PORT`)
 - **Docs**: GVM admin password setup and GSA web UI instructions in README
 
+### Fixed
+
+- **Backend**: ruff line length and import sort violations in vulnerability service and migration
+
 ### Changed
 
 - **Backend**: introduce repository pattern (`BaseRepository[T]`) for data access abstraction, migrate 9 services to use it
