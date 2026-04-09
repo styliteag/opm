@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-10
+
 ### Added
 
 - **Greenbone (GVM)**: GSA web UI service in `compose-gvm.yml` (port 9392, configurable via `GVM_GSA_PORT`)
