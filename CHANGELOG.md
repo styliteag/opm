@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Alerts**: replace auto-polling (30s) with manual Refresh button
 - **Alerts**: export CSV/PDF now respects current filter state
 - **Alerts**: replace native `confirm()` dialogs with styled DeleteConfirmModal showing severity breakdown
-- **Alerts**: add comment indicator (chat bubble icon) in alerts table when comments exist
+- **Alerts**: comment indicator (chat bubble) in alerts table shows styled tooltip with author and preview
 - **Alerts**: add Related SSH Alerts card on alert detail page
 - **Alerts**: add "Clear filters" button and active filter dot indicators on filter dropdowns
 - **Alerts**: show dismiss suggestions for bulk dismiss (general suggestions without port filter)

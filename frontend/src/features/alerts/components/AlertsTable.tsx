@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
+import { Tooltip, TooltipProvider } from "@/components/ui/tooltip";
 import type { Alert } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
 
@@ -134,12 +135,22 @@ function createColumns(props: {
               {row.original.message}
             </span>
             {row.original.last_comment && (
-              <span
-                className="shrink-0 text-muted-foreground"
-                title={`${row.original.last_comment_by ?? "Unknown"}: ${row.original.last_comment}`}
+              <Tooltip
+                content={
+                  <div className="space-y-0.5">
+                    <p className="font-emphasis text-foreground">
+                      {row.original.last_comment_by ?? "Unknown"}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {row.original.last_comment}
+                    </p>
+                  </div>
+                }
               >
-                <MessageCircle className="h-3.5 w-3.5" />
-              </span>
+                <span className="shrink-0 text-muted-foreground cursor-default">
+                  <MessageCircle className="h-3.5 w-3.5" />
+                </span>
+              </Tooltip>
             )}
           </Link>
         );
@@ -326,6 +337,7 @@ export function AlertsTable({
   });
 
   return (
+    <TooltipProvider>
     <div className="rounded-lg border border-border">
       <Table className="table-fixed">
         <colgroup>
@@ -375,5 +387,6 @@ export function AlertsTable({
         </TableBody>
       </Table>
     </div>
+    </TooltipProvider>
   );
 }
