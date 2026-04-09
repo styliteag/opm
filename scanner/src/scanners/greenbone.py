@@ -16,8 +16,8 @@ from src.threading_utils import ProgressReporter
 # GVM poll interval in seconds
 GVM_POLL_INTERVAL = 10
 
-# GVM scan config name → well-known UUID mappings
-GVM_SCAN_CONFIG_IDS: dict[str, str] = {
+# Fallback UUIDs — used only if dynamic lookup fails
+_FALLBACK_CONFIG_IDS: dict[str, str] = {
     "Full and fast": "daba56c8-73ec-11df-a475-002264764cea",
     "Full and deep": "708f25c4-7489-11df-8094-002264764cea",
     "Discovery": "8715c877-47a0-438d-98a3-27c7a6ab2196",
@@ -53,8 +53,7 @@ class GreenboneScanner:
     label = "Greenbone (GVM)"
 
     def __init__(self) -> None:
-        self._gvm_host = os.environ.get("GVM_HOST", "gvmd")
-        self._gvm_port = int(os.environ.get("GVM_PORT", "9390"))
+        self._gvm_socket = os.environ.get("GVM_SOCKET", "/run/gvmd/gvmd.sock")
         self._gvm_user = os.environ.get("GVM_USER", "admin")
         self._gvm_pass = os.environ.get("GVM_PASSWORD", "admin")
 
@@ -73,17 +72,18 @@ class GreenboneScanner:
         Returns:
             Tuple of (open_ports, vulnerabilities)
         """
-        from gvm.connections import TLSConnection
+        from gvm.connections import UnixSocketConnection
         from gvm.protocols.gmp import Gmp
 
-        config_id = self._resolve_config_id(gvm_scan_config, logger)
-        connection = TLSConnection(hostname=self._gvm_host, port=self._gvm_port)
+        connection = UnixSocketConnection(path=self._gvm_socket)
         target_id: str | None = None
         task_id: str | None = None
 
         with Gmp(connection=connection) as gmp:
             gmp.authenticate(self._gvm_user, self._gvm_pass)
-            logger.info("Authenticated with GVM at %s:%s", self._gvm_host, self._gvm_port)
+            logger.info("Authenticated with GVM via %s", self._gvm_socket)
+
+            config_id = self._resolve_config_id(gmp, gvm_scan_config, logger)
 
             try:
                 # Create target
@@ -136,16 +136,33 @@ class GreenboneScanner:
                 # Cleanup GVM objects
                 self._cleanup(gmp, task_id, target_id, logger)
 
-    def _resolve_config_id(self, config_name: str, logger: logging.Logger) -> str:
-        """Resolve config name to GVM config UUID."""
-        config_id = GVM_SCAN_CONFIG_IDS.get(config_name)
-        if config_id is None:
-            logger.warning(
-                "Unknown GVM config '%s', falling back to 'Full and fast'",
-                config_name,
-            )
-            config_id = GVM_SCAN_CONFIG_IDS["Full and fast"]
-        return config_id
+    def _resolve_config_id(
+        self, gmp: Any, config_name: str, logger: logging.Logger
+    ) -> str:
+        """Resolve config name to GVM config UUID via dynamic lookup."""
+        try:
+            configs_resp = gmp.get_scan_configs()
+            tree = ElementTree.fromstring(str(configs_resp))
+            for cfg in tree.findall(".//config"):
+                name_elem = cfg.find("name")
+                cfg_id = cfg.get("id", "")
+                if name_elem is not None and name_elem.text == config_name:
+                    logger.info("Resolved GVM config '%s' -> %s", config_name, cfg_id)
+                    return cfg_id
+            logger.warning("GVM config '%s' not found in dynamic lookup", config_name)
+        except Exception:
+            logger.warning("Dynamic config lookup failed", exc_info=True)
+
+        # Fall back to hardcoded UUIDs
+        fallback = _FALLBACK_CONFIG_IDS.get(config_name)
+        if fallback:
+            logger.info("Using fallback UUID for '%s': %s", config_name, fallback)
+            return fallback
+
+        raise RuntimeError(
+            f"GVM scan config '{config_name}' not found. "
+            "Feeds may still be syncing — retry after feed sync completes."
+        )
 
     def _find_openvas_scanner(self, gmp: Any, logger: logging.Logger) -> str:
         """Find the OpenVAS scanner UUID in GVM."""

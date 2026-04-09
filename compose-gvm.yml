@@ -19,6 +19,7 @@ services:
   vulnerability-tests:
     image: registry.community.greenbone.net/community/vulnerability-tests
     environment:
+      FEED_RELEASE: "24.10"
       KEEP_ALIVE: 1
     volumes:
       - vt-data:/mnt
@@ -57,6 +58,7 @@ services:
   data-objects:
     image: registry.community.greenbone.net/community/data-objects
     environment:
+      FEED_RELEASE: "24.10"
       KEEP_ALIVE: 1
     volumes:
       - data-objects:/mnt
@@ -64,6 +66,7 @@ services:
   report-formats:
     image: registry.community.greenbone.net/community/report-formats
     environment:
+      FEED_RELEASE: "24.10"
       KEEP_ALIVE: 1
     volumes:
       - data-objects:/mnt
@@ -230,10 +233,11 @@ services:
       API_KEY: ${GVM_SCANNER_API_KEY:?Set GVM_SCANNER_API_KEY to the scanner API key from OPM}
       POLL_INTERVAL: ${GVM_POLL_INTERVAL:-60}
       LOG_LEVEL: ${GVM_LOG_LEVEL:-INFO}
-      GVM_HOST: gvmd
-      GVM_PORT: "9390"
+      GVM_SOCKET: /run/gvmd/gvmd.sock
       GVM_USER: ${GVM_USER:-admin}
       GVM_PASSWORD: ${GVM_PASSWORD:-admin}
+    volumes:
+      - gvmd-socket:/run/gvmd
     depends_on:
       gvmd:
         condition: service_started
