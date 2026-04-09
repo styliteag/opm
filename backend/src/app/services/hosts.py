@@ -212,6 +212,21 @@ async def get_open_port_count_for_host(db: AsyncSession, host_id: int) -> int:
     return result.scalar_one()
 
 
+async def get_open_port_counts_for_hosts(
+    db: AsyncSession, host_ids: list[int],
+) -> dict[int, int]:
+    """Get open port counts for multiple hosts in a single query."""
+    if not host_ids:
+        return {}
+    result = await db.execute(
+        select(GlobalOpenPort.host_id, func.count())
+        .where(GlobalOpenPort.host_id.in_(host_ids))
+        .group_by(GlobalOpenPort.host_id)
+    )
+    counts = {row[0]: row[1] for row in result.all()}
+    return {hid: counts.get(hid, 0) for hid in host_ids}
+
+
 async def get_host_counts(
     db: AsyncSession,
     *,

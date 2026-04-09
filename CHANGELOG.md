@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Greenbone (GVM)**: VulnerabilitiesTable colors broken — `text-primary`/`text-secondary`/`text-tertiary`/`text-quaternary` resolved to wrong values (brand indigo, invisible, undefined); migrated to design system tokens
+- **Hosts**: N+1 query in host list, CSV export, and PDF export — replaced per-host `get_open_port_count_for_host()` loop with single batch `GROUP BY` query
 
 ## [1.11.3] - 2026-04-09
 

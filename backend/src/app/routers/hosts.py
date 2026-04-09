@@ -94,12 +94,14 @@ async def list_hosts(
         ip_search=ip_search,
     )
 
-    # Build response with open port counts
+    # Build response with open port counts (single batch query)
+    port_counts = await hosts_service.get_open_port_counts_for_hosts(
+        db, [host.id for host in hosts],
+    )
     host_responses = []
     for host in hosts:
-        port_count = await hosts_service.get_open_port_count_for_host(db, host.id)
         response = HostResponse.model_validate(host)
-        response.open_port_count = port_count
+        response.open_port_count = port_counts.get(host.id, 0)
         host_responses.append(response)
 
     return HostListResponse(
@@ -591,9 +593,11 @@ async def export_hosts_csv(
             return "Unknown"
         return "Up" if pingable else "Down"
 
+    port_counts = await hosts_service.get_open_port_counts_for_hosts(
+        db, [host.id for host in hosts],
+    )
     rows = []
     for host in hosts:
-        port_count = await hosts_service.get_open_port_count_for_host(db, host.id)
         rows.append(
             [
                 host.ip,
@@ -602,7 +606,7 @@ async def export_hosts_csv(
                 "",  # OS Guess - not available in current Host model
                 host.first_seen_at.isoformat() if host.first_seen_at else "",
                 host.last_seen_at.isoformat() if host.last_seen_at else "",
-                port_count,
+                port_counts.get(host.id, 0),
             ]
         )
     return csv_response(
@@ -656,9 +660,11 @@ async def export_hosts_pdf(
         )
         elements.append(Spacer(1, 0.3 * inch))
 
+        port_counts = await hosts_service.get_open_port_counts_for_hosts(
+            db, [host.id for host in hosts],
+        )
         table_rows = []
         for host in hosts:
-            port_count = await hosts_service.get_open_port_count_for_host(db, host.id)
             table_rows.append(
                 [
                     host.ip,
@@ -666,7 +672,7 @@ async def export_hosts_pdf(
                     _pingable_status_pdf(host),
                     host.first_seen_at.strftime("%Y-%m-%d %H:%M") if host.first_seen_at else "N/A",
                     host.last_seen_at.strftime("%Y-%m-%d %H:%M") if host.last_seen_at else "N/A",
-                    str(port_count),
+                    str(port_counts.get(host.id, 0)),
                 ]
             )
 
