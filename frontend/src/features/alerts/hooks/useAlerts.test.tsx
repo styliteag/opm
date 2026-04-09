@@ -109,16 +109,6 @@ describe('useAlertMutations', () => {
     expect(result.current.bulkDismiss).toBeDefined()
   })
 
-  it('provides bulkReopen mutation', () => {
-    const { result } = renderHook(() => useAlertMutations(), { wrapper: createWrapper() })
-    expect(result.current.bulkReopen).toBeDefined()
-  })
-
-  it('provides updateStatus mutation', () => {
-    const { result } = renderHook(() => useAlertMutations(), { wrapper: createWrapper() })
-    expect(result.current.updateStatus).toBeDefined()
-  })
-
   it('provides assign mutation', () => {
     const { result } = renderHook(() => useAlertMutations(), { wrapper: createWrapper() })
     expect(result.current.assign).toBeDefined()

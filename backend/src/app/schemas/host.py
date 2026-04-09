@@ -158,7 +158,6 @@ class HostAlertSummary(BaseModel):
     message: str
     severity: str
     dismissed: bool
-    resolution_status: str
     created_at: datetime
     dismiss_reason: str | None = None
     network_id: int | None = None

@@ -10,7 +10,6 @@ const makeAlert = (severity: string, dismissed = false): HostAlertSummary => ({
   message: 'test',
   severity,
   dismissed,
-  resolution_status: 'open',
   created_at: new Date().toISOString(),
   dismiss_reason: null,
   network_id: null,

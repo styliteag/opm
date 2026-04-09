@@ -14,11 +14,6 @@ export type AlertType =
   | "nse_cve_detected";
 
 export type Severity = "critical" | "high" | "medium" | "info";
-export type ResolutionStatus =
-  | "open"
-  | "in_progress"
-  | "resolved"
-  | "fix_planned";
 export type ScanStatus =
   | "planned"
   | "running"
@@ -61,7 +56,6 @@ export interface Alert {
   dismissed: boolean;
   assigned_to_user_id: number | null;
   assigned_to_email: string | null;
-  resolution_status: ResolutionStatus;
   created_at: string;
   dismiss_reason: string | null;
   severity: Severity;
@@ -81,6 +75,7 @@ export interface Alert {
 export interface AlertListResponse {
   alerts: Alert[];
   total: number;
+  severity_counts: Record<string, number>;
 }
 
 export interface DismissSuggestion {
@@ -279,7 +274,6 @@ export interface HostAlertSummary {
   message: string;
   severity: string;
   dismissed: boolean;
-  resolution_status: string;
   created_at: string;
   dismiss_reason: string | null;
   network_id: number | null;

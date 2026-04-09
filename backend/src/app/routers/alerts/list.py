@@ -1,5 +1,6 @@
 """Alert list and export endpoints."""
 
+from collections import Counter
 from datetime import datetime
 from typing import Any
 
@@ -7,6 +8,9 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, Spacer
+from sqlalchemy import and_
+from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser, DbSession, Pagination
 from app.lib.export import (
@@ -17,12 +21,15 @@ from app.lib.export import (
     new_pdf_buffer,
     pdf_response,
 )
-from app.models.alert import AlertType
+from app.models.alert import Alert, AlertType
+from app.models.host import Host
+from app.models.network import Network
 from app.schemas.alert import (
     AlertListResponse,
     AlertResponse,
     AlertSSHSummary,
     DismissSuggestionsResponse,
+    Severity,
 )
 from app.schemas.host import PortRuleMatch
 from app.services import alert_comments as alert_comments_service
@@ -32,12 +39,76 @@ from app.services import hosts as hosts_service
 from app.services import networks as networks_service
 from app.services import ssh_results as ssh_service
 from app.services import users as users_service
-from app.services.alert_queries import count_alerts
+from app.services.alert_queries import _build_alert_filters, count_alerts
 from app.services.alert_rules import port_rule_matches_alert, ssh_rule_matches_alert
 
 from .detail import _severity_override_value, compute_alert_severity
 
 router = APIRouter()
+
+# Lightweight severity mapping by alert_type (no async rule checks)
+_TYPE_SEVERITY: dict[str, str] = {
+    "blocked": "critical",
+    "new_port": "high",
+    "not_allowed": "medium",
+    "ssh_insecure_auth": "high",
+    "ssh_weak_cipher": "medium",
+    "ssh_weak_kex": "medium",
+    "ssh_outdated_version": "medium",
+    "ssh_config_regression": "high",
+    "nse_vulnerability": "medium",
+    "nse_cve_detected": "medium",
+}
+
+
+async def _count_by_severity(
+    db: AsyncSession,
+    *,
+    alert_type: AlertType | None = None,
+    source: str | None = None,
+    network_id: int | None = None,
+    dismissed: bool | None = None,
+    ip: str | None = None,
+    port: int | None = None,
+    search: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+) -> dict[str, int]:
+    """Count alerts grouped by computed severity (lightweight, no rule checks)."""
+    query = (
+        sa_select(Alert.alert_type, Alert.severity_override)
+        .outerjoin(Network, Alert.network_id == Network.id)
+    )
+    if search:
+        query = query.outerjoin(Host, Alert.ip == Host.ip)
+
+    filters = _build_alert_filters(
+        alert_type=alert_type,
+        source=source,
+        network_id=network_id,
+        dismissed=dismissed,
+        ip=ip,
+        port=port,
+        search=search,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    if filters:
+        query = query.where(and_(*filters))
+
+    result = await db.execute(query)
+    counts: Counter[str] = Counter()
+    for at, override in result.all():
+        if override:
+            try:
+                sev = Severity(override).value
+            except ValueError:
+                sev = _TYPE_SEVERITY.get(at.value, "medium")
+        else:
+            sev = _TYPE_SEVERITY.get(at.value, "medium")
+        counts[sev] += 1
+
+    return dict(counts)
 
 
 @router.get("/", response_model=AlertListResponse)
@@ -152,7 +223,6 @@ async def list_alerts(
                 dismissed=alert.dismissed,
                 assigned_to_user_id=alert.assigned_to_user_id,
                 assigned_to_email=assigned_to_email,
-                resolution_status=alert.resolution_status,
                 created_at=alert.created_at,
                 severity=severity,
                 severity_override=_severity_override_value(alert),
@@ -245,7 +315,21 @@ async def list_alerts(
                 )
         resp.matching_rules = matches
 
-    return AlertListResponse(alerts=alert_responses, total=total)
+    # Compute severity counts across all matching alerts (not just current page)
+    severity_counts = await _count_by_severity(
+        db,
+        alert_type=alert_type,
+        source=source,
+        network_id=network_id,
+        dismissed=dismissed,
+        ip=ip,
+        port=port,
+        search=search,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    return AlertListResponse(alerts=alert_responses, total=total, severity_counts=severity_counts)
 
 
 @router.get("/export/csv")
@@ -253,15 +337,24 @@ async def export_alerts_csv(
     user: CurrentUser,
     db: DbSession,
     alert_type: AlertType | None = Query(None, alias="type"),
+    source: str | None = Query(None, max_length=10),
+    network_id: int | None = Query(None, ge=1),
     dismissed: bool | None = Query(None),
+    ip: str | None = Query(None),
+    port: int | None = Query(None, ge=1, le=65535),
+    search: str | None = Query(None, max_length=200),
 ) -> StreamingResponse:
     """Export alerts as CSV with optional filters."""
     # Get all alerts with filters (no pagination for export)
     alerts = await alerts_service.get_alerts(
         db,
         alert_type=alert_type,
-        network_id=None,
+        source=source,
+        network_id=network_id,
         dismissed=dismissed,
+        ip=ip,
+        port=port,
+        search=search,
         start_date=None,
         end_date=None,
         offset=0,
@@ -288,15 +381,24 @@ async def export_alerts_pdf(
     user: CurrentUser,
     db: DbSession,
     alert_type: AlertType | None = Query(None, alias="type"),
+    source: str | None = Query(None, max_length=10),
+    network_id: int | None = Query(None, ge=1),
     dismissed: bool | None = Query(None),
+    ip: str | None = Query(None),
+    port: int | None = Query(None, ge=1, le=65535),
+    search: str | None = Query(None, max_length=200),
 ) -> StreamingResponse:
     """Export alerts as PDF with optional filters."""
     # Get all alerts with filters (no pagination for export)
     alerts = await alerts_service.get_alerts(
         db,
         alert_type=alert_type,
-        network_id=None,
+        source=source,
+        network_id=network_id,
         dismissed=dismissed,
+        ip=ip,
+        port=port,
+        search=search,
         start_date=None,
         end_date=None,
         offset=0,

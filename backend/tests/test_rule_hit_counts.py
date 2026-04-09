@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert import Alert, AlertType
 from app.models.alert_rule import AlertRule, RuleType
 from app.models.network import Network
 from app.models.scan import Scan, ScanStatus, TriggerType
@@ -86,7 +86,6 @@ class TestRuleHitCounts:
                     port=80,
                     message=f"Port 80 alert {i}",
                     dismissed=True,
-                    resolution_status=ResolutionStatus.RESOLVED,
                 )
             )
 
@@ -101,7 +100,6 @@ class TestRuleHitCounts:
                 port=80,
                 message="Active alert",
                 dismissed=False,
-                resolution_status=ResolutionStatus.OPEN,
             )
         )
 
@@ -116,7 +114,6 @@ class TestRuleHitCounts:
                 port=443,
                 message="Port 443 alert",
                 dismissed=True,
-                resolution_status=ResolutionStatus.RESOLVED,
             )
         )
 

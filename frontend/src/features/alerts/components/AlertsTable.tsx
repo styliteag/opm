@@ -10,6 +10,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  MessageCircle,
   MoreHorizontal,
   Eye,
   XCircle,
@@ -34,8 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
-import { StatusBadge } from "@/components/data-display/StatusBadge";
-import type { Alert, ResolutionStatus } from "@/lib/types";
+import type { Alert } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
 
 interface AlertsTableProps {
@@ -54,23 +54,6 @@ const sourceBadgeColors: Record<string, string> = {
   port: "bg-blue-500/10 text-blue-500",
   ssh: "bg-amber-500/10 text-amber-500",
   nse: "bg-purple-500/10 text-purple-500",
-};
-
-const resolutionVariant: Record<
-  ResolutionStatus,
-  "neutral" | "warning" | "success" | "danger"
-> = {
-  open: "neutral",
-  in_progress: "warning",
-  resolved: "success",
-  fix_planned: "danger",
-};
-
-const resolutionLabel: Record<ResolutionStatus, string> = {
-  open: "Open",
-  in_progress: "In Progress",
-  resolved: "Resolved",
-  fix_planned: "Fix Planned",
 };
 
 function SortableHeader({
@@ -150,6 +133,14 @@ function createColumns(props: {
             <span className="truncate text-sm text-foreground group-hover/link:text-primary transition-colors">
               {row.original.message}
             </span>
+            {row.original.last_comment && (
+              <span
+                className="shrink-0 text-muted-foreground"
+                title={`${row.original.last_comment_by ?? "Unknown"}: ${row.original.last_comment}`}
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+              </span>
+            )}
           </Link>
         );
       },
@@ -225,29 +216,6 @@ function createColumns(props: {
       size: 140,
     },
     {
-      accessorKey: "resolution_status",
-      header: ({ column }) => <SortableHeader label="Status" column={column} />,
-      cell: ({ row }) => {
-        const status = row.original.resolution_status;
-        const assignee = row.original.assigned_to_email;
-        return (
-          <div className="flex flex-col gap-1">
-            <StatusBadge
-              label={resolutionLabel[status]}
-              variant={resolutionVariant[status]}
-              dot
-            />
-            {assignee && (
-              <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">
-                {assignee.split("@")[0]}
-              </span>
-            )}
-          </div>
-        );
-      },
-      size: 130,
-    },
-    {
       accessorKey: "created_at",
       header: ({ column }) => (
         <SortableHeader label="Detected" column={column} />
@@ -301,11 +269,7 @@ function createColumns(props: {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                onClick={() => {
-                  if (confirm("Delete this alert permanently?")) {
-                    props.onDelete?.(alert.id);
-                  }
-                }}
+                onClick={() => props.onDelete?.(alert.id)}
               >
                 <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                 Delete

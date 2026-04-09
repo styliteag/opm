@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert import Alert, AlertType
 from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.scan import Scan, ScanStatus, TriggerType
@@ -136,7 +136,6 @@ class TestNetworkOverviewEndpoint:
                     port=80 + i,
                     message=f"Test alert {i}",
                     dismissed=False,
-                    resolution_status=ResolutionStatus.OPEN,
                 )
             )
 
@@ -151,7 +150,6 @@ class TestNetworkOverviewEndpoint:
                 port=8080,
                 message="Dismissed alert",
                 dismissed=True,
-                resolution_status=ResolutionStatus.RESOLVED,
             )
         )
         await db_session.commit()

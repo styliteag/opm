@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert import Alert, AlertType
 from app.models.alert_event import AlertEvent, AlertEventType
 from app.models.alert_rule import AlertRule, RuleType
 from app.models.network import Network
@@ -30,7 +30,6 @@ async def test_alert(
         port=80,
         message="Test alert for event emission",
         dismissed=False,
-        resolution_status=ResolutionStatus.OPEN,
     )
     db_session.add(alert)
     await db_session.commit()
@@ -55,7 +54,6 @@ async def dismissed_alert(
         message="Dismissed test alert",
         dismissed=True,
         dismiss_reason="test reason",
-        resolution_status=ResolutionStatus.OPEN,
     )
     db_session.add(alert)
     await db_session.commit()
@@ -79,7 +77,6 @@ async def ssh_alert(
         port=22,
         message="SSH insecure auth on 10.0.0.3:22",
         dismissed=False,
-        resolution_status=ResolutionStatus.OPEN,
     )
     db_session.add(alert)
     await db_session.commit()
@@ -103,7 +100,6 @@ async def nse_alert(
         port=80,
         message="NSE vulnerability found by http-vuln-test on 10.0.0.4:80",
         dismissed=False,
-        resolution_status=ResolutionStatus.OPEN,
     )
     db_session.add(alert)
     await db_session.commit()
@@ -236,26 +232,6 @@ class TestReopenEventEmission:
         assert len(events) == 1
         assert events[0].user_id == admin_user.id
 
-    @pytest.mark.asyncio
-    async def test_bulk_reopen_emits_events(
-        self,
-        client,
-        db_session: AsyncSession,
-        admin_headers: dict[str, str],
-        admin_user: User,
-        dismissed_alert: Alert,
-    ) -> None:
-        """bulk_reopen_alerts endpoint emits REOPENED event per alert."""
-        resp = await client.put(
-            "/api/alerts/bulk-reopen",
-            headers=admin_headers,
-            json={"alert_ids": [dismissed_alert.id]},
-        )
-        assert resp.status_code == 200
-
-        events = await _get_events(db_session, dismissed_alert.id, AlertEventType.REOPENED)
-        assert len(events) == 1
-        assert events[0].user_id == admin_user.id
 
 
 class TestWorkflowEventEmission:
@@ -283,30 +259,6 @@ class TestWorkflowEventEmission:
         assert events[0].user_id == admin_user.id
         assert events[0].extra is not None
         assert events[0].extra["assigned_to_user_id"] == admin_user.id
-
-    @pytest.mark.asyncio
-    async def test_update_status_emits_event(
-        self,
-        client,
-        db_session: AsyncSession,
-        admin_headers: dict[str, str],
-        admin_user: User,
-        test_alert: Alert,
-    ) -> None:
-        """update_alert_status endpoint emits STATUS_CHANGED event with old and new status."""
-        resp = await client.patch(
-            f"/api/alerts/{test_alert.id}/status",
-            headers=admin_headers,
-            json={"resolution_status": "in_progress"},
-        )
-        assert resp.status_code == 200
-
-        events = await _get_events(db_session, test_alert.id, AlertEventType.STATUS_CHANGED)
-        assert len(events) == 1
-        assert events[0].user_id == admin_user.id
-        assert events[0].extra is not None
-        assert events[0].extra["old_status"] == "open"
-        assert events[0].extra["new_status"] == "in_progress"
 
     @pytest.mark.asyncio
     async def test_update_severity_emits_event(

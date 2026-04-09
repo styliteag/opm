@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import event as sa_event
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert import Alert, AlertType
 from app.models.alert_event import AlertEvent, AlertEventType
 from app.models.network import Network
 from app.models.scan import Scan, ScanStatus, TriggerType
@@ -84,7 +84,6 @@ async def timeline_alert(
         port=80,
         message="New port detected: 80/tcp on 10.0.0.42",
         dismissed=False,
-        resolution_status=ResolutionStatus.OPEN,
     )
     db_session.add(alert)
     await db_session.commit()

@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Alerts**: remove `resolution_status` field (full vertical removal: DB, API, UI)
+- **Alerts**: severity counters in header now show totals across all matching alerts, not just current page
+- **Alerts**: replace auto-polling (30s) with manual Refresh button
+- **Alerts**: export CSV/PDF now respects current filter state
+- **Alerts**: replace native `confirm()` dialogs with styled DeleteConfirmModal showing severity breakdown
+- **Alerts**: add comment indicator (chat bubble icon) in alerts table when comments exist
+- **Alerts**: add Related SSH Alerts card on alert detail page
+- **Alerts**: add "Clear filters" button and active filter dot indicators on filter dropdowns
+- **Alerts**: show dismiss suggestions for bulk dismiss (general suggestions without port filter)
+- **Alerts**: replace StatusBadge with dismissed indicator on host detail alerts tab
+- Recurrence detection now reopens all dismissed alerts (not just formerly "resolved") when ports reappear
+
+### Removed
+
+- `resolution_status` column, enum, API endpoint (`PATCH /alerts/{id}/status`), and all frontend UI
+- `PUT /alerts/bulk-reopen` endpoint and frontend `bulkReopen` mutation (dead code)
+- `AlertStatusRequest`, `AlertBulkReopenRequest`, `AlertBulkReopenResponse` schemas
+
+### Added
+
+- `severity_counts` field in `AlertListResponse` for accurate header counters
+- Alembic migration `006_remove_resolution_status` to drop the column
+- `DeleteConfirmModal` component for styled delete confirmations
 - Refactor CLAUDE.md and AGENTS.md for progressive disclosure (940 → 170 lines, 82% reduction)
 - Move design system tokens to `.claude/rules/design-system.md`
 - Add workflow orchestration rules in `.claude/rules/workflow.md`

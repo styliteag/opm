@@ -242,7 +242,6 @@ async def get_host_overview(
             message=alert.message,
             severity=severity,
             dismissed=alert.dismissed,
-            resolution_status=alert.resolution_status.value,
             created_at=alert.created_at,
             dismiss_reason=alert.dismiss_reason,
             network_id=alert.network_id,

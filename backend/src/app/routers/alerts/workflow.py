@@ -1,4 +1,4 @@
-"""Alert assignment, status, and severity endpoints."""
+"""Alert assignment and severity endpoints."""
 
 from fastapi import APIRouter, Body, HTTPException, status
 
@@ -8,7 +8,6 @@ from app.schemas.alert import (
     AlertAssignRequest,
     AlertResponse,
     AlertSeverityRequest,
-    AlertStatusRequest,
 )
 from app.services import alerts as alerts_service
 from app.services import users as users_service
@@ -78,72 +77,6 @@ async def assign_alert(
         dismissed=alert.dismissed,
         assigned_to_user_id=alert.assigned_to_user_id,
         assigned_to_email=assigned_to_email,
-        resolution_status=alert.resolution_status,
-        created_at=alert.created_at,
-        severity=severity,
-        severity_override=_severity_override_value(alert),
-    )
-
-
-@router.patch("/{alert_id}/status", response_model=AlertResponse)
-async def update_alert_status(
-    user: AnalystUser,
-    db: DbSession,
-    alert_id: int,
-    request: AlertStatusRequest = Body(...),
-) -> AlertResponse:
-    """Update the resolution status of an alert."""
-    # Verify alert exists
-    alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
-    if alert_with_network is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Alert not found",
-        )
-
-    alert, network_name = alert_with_network
-
-    # Validate status is a valid enum value (Pydantic already does this via the schema)
-    # Capture old status before mutation
-    old_status = alert.resolution_status.value
-    # Update the resolution status
-    alert.resolution_status = request.resolution_status
-    await emit_event(
-        db,
-        alert_id=alert.id,
-        event_type=AlertEventType.STATUS_CHANGED,
-        user_id=user.id,
-        metadata={"old_status": old_status, "new_status": request.resolution_status.value},
-    )
-    await db.commit()
-    await db.refresh(alert)
-
-    # Get assigned user email if assigned
-    assigned_to_email: str | None = None
-    if alert.assigned_to_user_id is not None:
-        assigned_user = await users_service.get_user_by_id(db, alert.assigned_to_user_id)
-        if assigned_user is not None:
-            assigned_to_email = assigned_user.email
-
-    # Compute severity for response
-    severity = await compute_alert_severity(
-        db, alert.alert_type, alert.ip, alert.port or 0, alert.severity_override
-    )
-
-    return AlertResponse(
-        id=alert.id,
-        type=alert.alert_type,
-        source=alert.source,
-        network_id=alert.network_id,
-        network_name=network_name,
-        global_open_port_id=alert.global_open_port_id,
-        ip=alert.ip,
-        port=alert.port,
-        message=alert.message,
-        dismissed=alert.dismissed,
-        assigned_to_user_id=alert.assigned_to_user_id,
-        assigned_to_email=assigned_to_email,
-        resolution_status=alert.resolution_status,
         created_at=alert.created_at,
         severity=severity,
         severity_override=_severity_override_value(alert),
@@ -201,7 +134,7 @@ async def update_alert_severity(
         dismissed=alert.dismissed,
         assigned_to_user_id=alert.assigned_to_user_id,
         assigned_to_email=assigned_to_email,
-        resolution_status=alert.resolution_status,
+
         created_at=alert.created_at,
         severity=severity,
         severity_override=_severity_override_value(alert),

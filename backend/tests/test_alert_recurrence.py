@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert import Alert, AlertType
 from app.models.alert_event import AlertEvent, AlertEventType
 from app.models.alert_rule import AlertRule, RuleType
 from app.models.network import Network
@@ -42,10 +42,10 @@ async def second_scan(db_session: AsyncSession, completed_scan: tuple[Network, S
 
 
 @pytest.fixture
-async def resolved_dismissed_alert(
+async def dismissed_alert(
     db_session: AsyncSession, completed_scan: tuple[Network, Scan]
 ) -> Alert:
-    """Create a resolved+dismissed alert for 192.168.1.1:80."""
+    """Create a dismissed alert for 192.168.1.1:80."""
     network, scan = completed_scan
     alert = Alert(
         scan_id=scan.id,
@@ -57,30 +57,6 @@ async def resolved_dismissed_alert(
         message="New open port detected: 192.168.1.1:80",
         dismissed=True,
         dismiss_reason="resolved issue",
-        resolution_status=ResolutionStatus.RESOLVED,
-    )
-    db_session.add(alert)
-    await db_session.commit()
-    await db_session.refresh(alert)
-    return alert
-
-
-@pytest.fixture
-async def resolved_not_dismissed_alert(
-    db_session: AsyncSession, completed_scan: tuple[Network, Scan]
-) -> Alert:
-    """Create a resolved but not dismissed alert for 192.168.1.2:443."""
-    network, scan = completed_scan
-    alert = Alert(
-        scan_id=scan.id,
-        network_id=network.id,
-        alert_type=AlertType.NEW_PORT,
-        source="port",
-        ip="192.168.1.2",
-        port=443,
-        message="New open port detected: 192.168.1.2:443",
-        dismissed=False,
-        resolution_status=ResolutionStatus.RESOLVED,
     )
     db_session.add(alert)
     await db_session.commit()
@@ -92,10 +68,10 @@ class TestRecurrenceDetection:
     """Tests for recurrence detection in alert generation."""
 
     @pytest.mark.asyncio
-    async def test_resolved_dismissed_alert_reopened(
+    async def test_dismissed_alert_reopened(
         self,
         db_session: AsyncSession,
-        resolved_dismissed_alert: Alert,
+        dismissed_alert: Alert,
         second_scan: Scan,
     ) -> None:
         """Resolved+dismissed alert is reopened when same ip:port reappears."""
@@ -111,38 +87,15 @@ class TestRecurrenceDetection:
 
         count = await generate_alerts_for_scan(db_session, second_scan)
 
-        await db_session.refresh(resolved_dismissed_alert)
-        assert resolved_dismissed_alert.dismissed is False
-        assert resolved_dismissed_alert.resolution_status == ResolutionStatus.OPEN
-        assert resolved_dismissed_alert.dismiss_reason is None
-
-    @pytest.mark.asyncio
-    async def test_resolved_not_dismissed_alert_reopened(
-        self,
-        db_session: AsyncSession,
-        resolved_not_dismissed_alert: Alert,
-        second_scan: Scan,
-    ) -> None:
-        """Resolved-only alert (dismissed=False) is reopened when port reappears."""
-        op = OpenPort(
-            scan_id=second_scan.id,
-            ip="192.168.1.2",
-            port=443,
-            protocol="tcp",
-        )
-        db_session.add(op)
-        await db_session.commit()
-
-        count = await generate_alerts_for_scan(db_session, second_scan)
-
-        await db_session.refresh(resolved_not_dismissed_alert)
-        assert resolved_not_dismissed_alert.resolution_status == ResolutionStatus.OPEN
+        await db_session.refresh(dismissed_alert)
+        assert dismissed_alert.dismissed is False
+        assert dismissed_alert.dismiss_reason is None
 
     @pytest.mark.asyncio
     async def test_recurrence_event_created(
         self,
         db_session: AsyncSession,
-        resolved_dismissed_alert: Alert,
+        dismissed_alert: Alert,
         second_scan: Scan,
     ) -> None:
         """RECURRENCE event is created with scan_id when alert is reopened."""
@@ -159,7 +112,7 @@ class TestRecurrenceDetection:
 
         result = await db_session.execute(
             select(AlertEvent).where(
-                AlertEvent.alert_id == resolved_dismissed_alert.id,
+                AlertEvent.alert_id == dismissed_alert.id,
                 AlertEvent.event_type == AlertEventType.RECURRENCE,
             )
         )
@@ -172,7 +125,7 @@ class TestRecurrenceDetection:
     async def test_accepted_port_not_reopened(
         self,
         db_session: AsyncSession,
-        resolved_dismissed_alert: Alert,
+        dismissed_alert: Alert,
         second_scan: Scan,
     ) -> None:
         """Accepted port (matching global rule) is NOT reopened by recurrence."""
@@ -197,10 +150,9 @@ class TestRecurrenceDetection:
 
         await generate_alerts_for_scan(db_session, second_scan)
 
-        await db_session.refresh(resolved_dismissed_alert)
-        # Should still be resolved+dismissed
-        assert resolved_dismissed_alert.dismissed is True
-        assert resolved_dismissed_alert.resolution_status == ResolutionStatus.RESOLVED
+        await db_session.refresh(dismissed_alert)
+        # Should still be dismissed
+        assert dismissed_alert.dismissed is True
 
     @pytest.mark.asyncio
     async def test_alert_with_port_none_skipped(
@@ -220,7 +172,6 @@ class TestRecurrenceDetection:
             port=None,
             message="Some alert with no port",
             dismissed=True,
-            resolution_status=ResolutionStatus.RESOLVED,
         )
         db_session.add(alert)
         op = OpenPort(scan_id=second_scan.id, ip="192.168.1.1", port=80, protocol="tcp")
@@ -231,7 +182,6 @@ class TestRecurrenceDetection:
 
         await db_session.refresh(alert)
         assert alert.dismissed is True
-        assert alert.resolution_status == ResolutionStatus.RESOLVED
 
     @pytest.mark.asyncio
     async def test_different_network_alert_not_reopened(
@@ -254,7 +204,7 @@ class TestRecurrenceDetection:
         db_session.add(other_network)
         await db_session.flush()
 
-        # Create resolved alert on the OTHER network
+        # Create dismissed alert on the OTHER network
         alert = Alert(
             scan_id=scan.id,
             network_id=other_network.id,
@@ -264,7 +214,6 @@ class TestRecurrenceDetection:
             port=80,
             message="Alert on other network",
             dismissed=True,
-            resolution_status=ResolutionStatus.RESOLVED,
         )
         db_session.add(alert)
 
@@ -276,7 +225,6 @@ class TestRecurrenceDetection:
 
         await db_session.refresh(alert)
         assert alert.dismissed is True
-        assert alert.resolution_status == ResolutionStatus.RESOLVED
 
 
 class TestCreatedEventEmission:
@@ -362,7 +310,7 @@ class TestCreatedEventEmission:
     async def test_recurrence_reopen_count_included_in_return(
         self,
         db_session: AsyncSession,
-        resolved_dismissed_alert: Alert,
+        dismissed_alert: Alert,
         second_scan: Scan,
     ) -> None:
         """Recurrence reopen count is included in generate_alerts_for_scan return value."""

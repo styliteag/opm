@@ -31,10 +31,9 @@ export function DismissModal({
   onSuccess,
 }: DismissModalProps) {
   const [reason, setReason] = useState("");
-  const { dismiss, bulkDismiss } = useAlertMutations();
-  const suggestions = useDismissSuggestions(port);
-
   const isBulk = alertIds.length > 1;
+  const { dismiss, bulkDismiss } = useAlertMutations();
+  const suggestions = useDismissSuggestions(isBulk ? undefined : port);
 
   const handleDismiss = () => {
     const trimmed = reason.trim();

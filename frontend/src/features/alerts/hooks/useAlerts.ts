@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { fetchApi, postApi, putApi, deleteApi } from "@/lib/api";
+import { fetchApi, patchApi, postApi, putApi, deleteApi } from "@/lib/api";
 import type {
   AlertListResponse,
   AlertComment,
@@ -46,7 +46,6 @@ export function useAlerts(filters: AlertFilters) {
     queryKey: ["alerts", filters],
     queryFn: () =>
       fetchApi<AlertListResponse>(`/api/alerts/?${buildAlertParams(filters)}`),
-    refetchInterval: 30_000,
   });
 }
 
@@ -110,18 +109,6 @@ export function useAlertMutations() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
   });
 
-  const bulkReopen = useMutation({
-    mutationFn: (data: { alert_ids: number[] }) =>
-      putApi("/api/alerts/bulk-reopen", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  const updateStatus = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      patchApi(`/api/alerts/${id}/status`, { resolution_status: status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
   const assign = useMutation({
     mutationFn: ({ id, userId }: { id: number; userId: number | null }) =>
       patchApi(`/api/alerts/${id}/assign`, { assigned_to_user_id: userId }),
@@ -151,14 +138,9 @@ export function useAlertMutations() {
     bulkDismiss,
     bulkAcceptGlobal,
     bulkAcceptNetwork,
-    bulkReopen,
-    updateStatus,
     assign,
     remove,
     overrideSeverity,
     bulkDelete,
   };
 }
-
-// Need patchApi import
-import { patchApi } from "@/lib/api";

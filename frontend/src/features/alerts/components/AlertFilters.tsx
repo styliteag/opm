@@ -68,18 +68,23 @@ const triggerClass =
 function FilterDropdown({
   label,
   value,
+  active,
   children,
 }: {
   label: string;
   value: string;
+  active?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className={triggerClass}
+        className={`${triggerClass} relative`}
         aria-label={`Filter by ${label}: ${value}`}
       >
+        {active && (
+          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+        )}
         <span className="text-muted-foreground">{label}:</span>
         <span className="font-emphasis">{value}</span>
         <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -157,6 +162,15 @@ export function AlertFilters({
         ? "Dismissed"
         : "Active";
 
+  const hasActiveFilters =
+    !!filters.severity ||
+    !!filters.source ||
+    !!filters.type ||
+    !!filters.network_id ||
+    filters.dismissed !== undefined ||
+    !!filters.search ||
+    !!filters.port;
+
   const groups = ["Port", "SSH", "NSE"] as const;
 
   return (
@@ -205,7 +219,7 @@ export function AlertFilters({
 
       <Filter className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
 
-      <FilterDropdown label="Severity" value={severityLabel}>
+      <FilterDropdown label="Severity" value={severityLabel} active={!!filters.severity}>
         <DropdownMenuItem
           onClick={() => onChange({ ...filters, severity: undefined })}
         >
@@ -222,7 +236,7 @@ export function AlertFilters({
         ))}
       </FilterDropdown>
 
-      <FilterDropdown label="Source" value={sourceLabel}>
+      <FilterDropdown label="Source" value={sourceLabel} active={!!filters.source}>
         <DropdownMenuItem
           onClick={() => onChange({ ...filters, source: undefined })}
         >
@@ -239,7 +253,7 @@ export function AlertFilters({
         ))}
       </FilterDropdown>
 
-      <FilterDropdown label="Type" value={typeLabel}>
+      <FilterDropdown label="Type" value={typeLabel} active={!!filters.type}>
         <DropdownMenuItem
           onClick={() => onChange({ ...filters, type: undefined })}
         >
@@ -261,7 +275,7 @@ export function AlertFilters({
         ))}
       </FilterDropdown>
 
-      <FilterDropdown label="Network" value={networkLabel}>
+      <FilterDropdown label="Network" value={networkLabel} active={!!filters.network_id}>
         <DropdownMenuItem
           onClick={() => onChange({ ...filters, network_id: undefined })}
         >
@@ -278,10 +292,10 @@ export function AlertFilters({
         ))}
       </FilterDropdown>
 
-      <FilterDropdown label="Status" value={statusLabel}>
+      <FilterDropdown label="Status" value={statusLabel} active={filters.dismissed !== undefined}>
         {STATUS_OPTIONS.map((opt) => (
           <DropdownMenuItem
-            key={opt.value}
+            key={String(opt.value)}
             onClick={() =>
               onChange({
                 ...filters,
@@ -293,6 +307,19 @@ export function AlertFilters({
           </DropdownMenuItem>
         ))}
       </FilterDropdown>
+
+      {hasActiveFilters && (
+        <button
+          onClick={() => {
+            setSearchInput("");
+            setPortInput("");
+            onChange({});
+          }}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Clear filters
+        </button>
+      )}
     </div>
   );
 }

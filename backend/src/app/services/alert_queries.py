@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import Integer, String, and_, case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert import Alert, AlertType
 from app.models.alert_event import AlertEventType
 from app.models.host import Host
 from app.models.network import Network
@@ -77,7 +77,6 @@ SORTABLE_COLUMNS: dict[str, Any] = {
     "ip": Alert.ip,
     "port": Alert.port,
     "network_name": Network.name,
-    "resolution_status": Alert.resolution_status,
     "created_at": Alert.created_at,
 }
 
@@ -217,13 +216,10 @@ async def dismiss_alert(
     db: AsyncSession,
     alert: Alert,
     dismiss_reason: str | None = None,
-    resolution_status: ResolutionStatus | None = None,
 ) -> Alert:
     """Mark an alert as dismissed."""
     alert.dismissed = True
     alert.dismiss_reason = dismiss_reason
-    if resolution_status is not None:
-        alert.resolution_status = resolution_status
     await db.flush()
     await db.refresh(alert)
     return alert
@@ -240,10 +236,9 @@ async def dismiss_alerts(db: AsyncSession, alerts: list[Alert]) -> list[Alert]:
 
 
 async def reopen_alert(db: AsyncSession, alert: Alert) -> Alert:
-    """Reopen a dismissed alert, resetting resolution status to OPEN."""
+    """Reopen a dismissed alert."""
     alert.dismissed = False
     alert.dismiss_reason = None
-    alert.resolution_status = ResolutionStatus.OPEN
     await db.flush()
     await db.refresh(alert)
     return alert

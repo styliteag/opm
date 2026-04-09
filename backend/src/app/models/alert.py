@@ -36,15 +36,6 @@ class AlertType(str, Enum):
     NSE_CVE_DETECTED = "nse_cve_detected"
 
 
-class ResolutionStatus(str, Enum):
-    """Alert resolution status values."""
-
-    OPEN = "open"
-    IN_PROGRESS = "in_progress"
-    RESOLVED = "resolved"
-    FIX_PLANNED = "fix_planned"
-
-
 class Alert(Base):
     """Alert model for tracking security notifications."""
 
@@ -69,11 +60,6 @@ class Alert(Base):
     dismiss_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     assigned_to_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True, index=True
-    )
-    resolution_status: Mapped[ResolutionStatus] = mapped_column(
-        SQLEnum(ResolutionStatus, values_callable=lambda x: [e.value for e in x]),
-        nullable=False,
-        default=ResolutionStatus.OPEN,
     )
     severity_override: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(

@@ -70,12 +70,6 @@ function AlertDetailPage() {
   if (!alert) return <ErrorState message={`Alert #${id} not found`} />;
 
   const commentList = comments.data ?? [];
-  const statusVariant = {
-    open: "danger" as const,
-    in_progress: "warning" as const,
-    resolved: "success" as const,
-    fix_planned: "neutral" as const,
-  };
 
   return (
     <div className="space-y-6">
@@ -90,10 +84,6 @@ function AlertDetailPage() {
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <SeverityBadge severity={alert.severity} />
-            <StatusBadge
-              label={alert.resolution_status.replace("_", " ")}
-              variant={statusVariant[alert.resolution_status]}
-            />
             {alert.dismissed && <Badge variant="outline">Dismissed</Badge>}
           </div>
           <h1 className="mt-2 text-xl font-strong text-foreground">
@@ -335,6 +325,32 @@ function AlertDetailPage() {
                   </dd>
                 </div>
               </dl>
+            </div>
+          )}
+
+          {/* Related SSH Alerts */}
+          {alert.related_ssh_alert_count > 0 && (
+            <div className="rounded-lg border border-border bg-card p-5">
+              <h3 className="text-sm font-strong text-foreground mb-3">
+                Related SSH Alerts
+              </h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                {alert.related_ssh_alert_count} SSH security{" "}
+                {alert.related_ssh_alert_count === 1 ? "alert" : "alerts"} found
+                for this host
+                {alert.related_ssh_alerts_dismissed
+                  ? " (all dismissed)"
+                  : " (some active)"}
+                .
+              </p>
+              <Link
+                to="/alerts"
+                search={{ source: "ssh", search: alert.ip }}
+                className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors"
+              >
+                <ShieldAlert className="h-3.5 w-3.5" />
+                View SSH alerts for {alert.ip}
+              </Link>
             </div>
           )}
 

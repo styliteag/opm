@@ -5,7 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel
 
-from app.models.alert import AlertType, ResolutionStatus
+from app.models.alert import AlertType
 from app.schemas.host import PortRuleMatch
 
 
@@ -45,7 +45,6 @@ class AlertResponse(BaseModel):
     dismissed: bool
     assigned_to_user_id: int | None = None
     assigned_to_email: str | None = None
-    resolution_status: ResolutionStatus = ResolutionStatus.OPEN
     created_at: datetime
     dismiss_reason: str | None = None
     severity: Severity = Severity.MEDIUM  # Computed field
@@ -71,6 +70,7 @@ class AlertListResponse(BaseModel):
 
     alerts: list[AlertResponse]
     total: int = 0
+    severity_counts: dict[str, int] = {}
 
 
 class AlertBulkDismissResponse(BaseModel):
@@ -107,7 +107,6 @@ class DismissRequest(BaseModel):
 
     reason: str | None = None
     include_ssh_findings: bool = False
-    resolution_status: ResolutionStatus | None = None
 
 
 class BulkDismissRequest(BaseModel):
@@ -115,7 +114,6 @@ class BulkDismissRequest(BaseModel):
 
     alert_ids: list[int]
     reason: str | None = None
-    resolution_status: ResolutionStatus | None = None
 
 
 class BulkDeleteRequest(BaseModel):
@@ -129,25 +127,6 @@ class BulkDeleteResponse(BaseModel):
 
     deleted_ids: list[int]
     missing_ids: list[int]
-
-
-class AlertBulkReopenRequest(BaseModel):
-    """Request schema for bulk reopening alerts."""
-
-    alert_ids: list[int]
-
-
-class AlertBulkReopenResponse(BaseModel):
-    """Response schema for bulk reopen results."""
-
-    reopened_ids: list[int]
-    missing_ids: list[int]
-
-
-class AlertStatusRequest(BaseModel):
-    """Request schema for updating alert resolution status."""
-
-    resolution_status: ResolutionStatus
 
 
 class AlertSeverityRequest(BaseModel):

@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert import Alert, AlertType
 from app.models.alert_event import AlertEvent, AlertEventType
 from app.models.network import Network
 from app.models.open_port import OpenPort
@@ -111,7 +111,6 @@ async def tl_alert(
         port=80,
         message="New port detected: 80/tcp",
         dismissed=False,
-        resolution_status=ResolutionStatus.OPEN,
     )
     db_session.add(alert)
     await db_session.commit()

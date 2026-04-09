@@ -123,7 +123,6 @@ async def get_alert(
         dismissed=alert.dismissed,
         assigned_to_user_id=alert.assigned_to_user_id,
         assigned_to_email=assigned_to_email,
-        resolution_status=alert.resolution_status,
         created_at=alert.created_at,
         severity=severity,
         severity_override=_severity_override_value(alert),

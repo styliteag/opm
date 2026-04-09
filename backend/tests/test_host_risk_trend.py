@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.alert import Alert, AlertType, ResolutionStatus
+from app.models.alert import Alert, AlertType
 from app.models.host import Host
 from app.models.network import Network
 from app.models.scan import Scan, ScanStatus, TriggerType
@@ -76,7 +76,6 @@ class TestHostRiskTrend:
                 port=22,
                 message="Blocked port",
                 dismissed=False,
-                resolution_status=ResolutionStatus.OPEN,
                 created_at=now - timedelta(days=5),
             )
         )

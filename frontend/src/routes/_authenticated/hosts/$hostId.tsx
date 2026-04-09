@@ -18,6 +18,7 @@ import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InlineTextCell } from "@/components/ui/inline-text-cell";
 import {
@@ -626,16 +627,11 @@ function AlertsTab({ alerts }: { alerts: HostAlertSummary[] }) {
                   Port {alert.port} · {alert.network_name ?? "Unknown network"}
                 </p>
               </div>
-              <StatusBadge
-                label={alert.resolution_status.replace("_", " ")}
-                variant={
-                  alert.resolution_status === "resolved"
-                    ? "success"
-                    : alert.resolution_status === "open"
-                      ? "danger"
-                      : "warning"
-                }
-              />
+              {alert.dismissed && (
+                <Badge variant="outline" className="text-xs">
+                  Dismissed
+                </Badge>
+              )}
               <span className="text-xs text-muted-foreground">
                 {formatRelativeTime(alert.created_at)}
               </span>

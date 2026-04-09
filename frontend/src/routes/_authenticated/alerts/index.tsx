@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { SortingState } from "@tanstack/react-table";
-import { Download, ChevronDown, FileText } from "lucide-react";
+import { Download, ChevronDown, FileText, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
@@ -13,11 +13,13 @@ import { AlertsTable } from "@/features/alerts/components/AlertsTable";
 import { AlertFilters } from "@/features/alerts/components/AlertFilters";
 import { DismissModal } from "@/features/alerts/components/DismissModal";
 import { AcceptModal } from "@/features/alerts/components/AcceptModal";
+import { DeleteConfirmModal } from "@/features/alerts/components/DeleteConfirmModal";
 import {
   useAlerts,
   useAlertMutations,
 } from "@/features/alerts/hooks/useAlerts";
 import { useNetworks } from "@/features/dashboard/hooks/useDashboardData";
+import { useAuthStore } from "@/stores/auth.store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,12 +94,13 @@ function AlertsPage() {
   const networks = useNetworks();
   const { bulkDelete, reopen } = useAlertMutations();
 
+  const [deleteTarget, setDeleteTarget] = useState<number[] | null>(null);
+
   const alertList = alerts.data?.alerts ?? [];
   const totalAlerts = alerts.data?.total ?? 0;
-  const criticalCount = alertList.filter(
-    (a) => a.severity === "critical",
-  ).length;
-  const highCount = alertList.filter((a) => a.severity === "high").length;
+  const severityCounts = alerts.data?.severity_counts ?? {};
+  const criticalCount = severityCounts.critical ?? 0;
+  const highCount = severityCounts.high ?? 0;
 
   const networkList = (networks.data?.networks ?? []).map((n) => ({
     id: n.id,
@@ -112,14 +115,43 @@ function AlertsPage() {
   };
 
   const handleDelete = (alertId: number) => {
-    bulkDelete.mutate(
-      { alert_ids: [alertId] },
-      {
-        onSuccess: () => toast.success("Alert deleted"),
-        onError: (e) => toast.error(e.message),
-      },
-    );
+    // Compute severity for the single alert being deleted
+    const alert = alertList.find((a) => a.id === alertId);
+    const singleSeverity: Record<string, number> = {};
+    if (alert) singleSeverity[alert.severity] = 1;
+    setDeleteTarget([alertId]);
   };
+
+  const exportAlerts = useCallback(
+    async (format: "csv" | "pdf") => {
+      const params = new URLSearchParams();
+      if (filters.type) params.set("type", filters.type);
+      if (filters.source) params.set("source", filters.source);
+      if (filters.network_id)
+        params.set("network_id", String(filters.network_id));
+      if (filters.dismissed !== undefined)
+        params.set("dismissed", String(filters.dismissed));
+      if (filters.port) params.set("port", String(filters.port));
+      if (filters.search) params.set("search", filters.search);
+      const qs = params.toString();
+      const url = `/api/alerts/export/${format}${qs ? `?${qs}` : ""}`;
+      const token = useAuthStore.getState().token;
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        toast.error(`Export failed: ${res.statusText}`);
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `alerts.${format}`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    },
+    [filters],
+  );
 
   return (
     <div className="space-y-6">
@@ -145,6 +177,16 @@ function AlertsPage() {
               {highCount}
             </span>
           </div>
+          <button
+            onClick={() => alerts.refetch()}
+            disabled={alerts.isFetching}
+            className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${alerts.isFetching ? "animate-spin" : ""}`}
+            />
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <Download className="h-3.5 w-3.5" />
@@ -152,17 +194,13 @@ function AlertsPage() {
               <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <a href="/api/alerts/export/csv">
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  Export CSV
-                </a>
+              <DropdownMenuItem onClick={() => exportAlerts("csv")}>
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Export CSV
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href="/api/alerts/export/pdf">
-                  <FileText className="h-3.5 w-3.5 mr-1.5" />
-                  Export PDF
-                </a>
+              <DropdownMenuItem onClick={() => exportAlerts("pdf")}>
+                <FileText className="h-3.5 w-3.5 mr-1.5" />
+                Export PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -216,18 +254,7 @@ function AlertsPage() {
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
-                onClick={() => {
-                  if (
-                    confirm(
-                      `Delete ${selectedIds.length} alert(s) permanently?`,
-                    )
-                  ) {
-                    bulkDelete.mutate(
-                      { alert_ids: selectedIds },
-                      { onSuccess: () => setSelectedIds([]) },
-                    );
-                  }
-                }}
+                onClick={() => setDeleteTarget(selectedIds)}
               >
                 Delete Permanently
               </DropdownMenuItem>
@@ -324,6 +351,36 @@ function AlertsPage() {
           }}
           onSuccess={() => setSelectedIds([])}
           networks={networkList}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          alertCount={deleteTarget.length}
+          severityCounts={
+            deleteTarget.reduce<Record<string, number>>((acc, id) => {
+              const a = alertList.find((x) => x.id === id);
+              if (a) acc[a.severity] = (acc[a.severity] ?? 0) + 1;
+              return acc;
+            }, {})
+          }
+          open={!!deleteTarget}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+          onConfirm={() => {
+            bulkDelete.mutate(
+              { alert_ids: deleteTarget },
+              {
+                onSuccess: () => {
+                  setSelectedIds([]);
+                  setDeleteTarget(null);
+                  toast.success(`Deleted ${deleteTarget.length} alert(s)`);
+                },
+                onError: (e) => toast.error(e.message),
+              },
+            );
+          }}
         />
       )}
     </div>

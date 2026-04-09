@@ -14,8 +14,6 @@ from app.schemas.alert import (
     AlertBulkAcceptRequest,
     AlertBulkAcceptResponse,
     AlertBulkDismissResponse,
-    AlertBulkReopenRequest,
-    AlertBulkReopenResponse,
     AlertResponse,
     BulkDeleteRequest,
     BulkDeleteResponse,
@@ -61,10 +59,7 @@ async def dismiss_alert(
     alert, network_name = alert_with_network
     reason = request.reason if request else None
     include_ssh = request.include_ssh_findings if request else False
-    resolution_status = request.resolution_status if request else None
-    alert = await alerts_service.dismiss_alert(
-        db, alert, dismiss_reason=reason, resolution_status=resolution_status
-    )
+    alert = await alerts_service.dismiss_alert(db, alert, dismiss_reason=reason)
 
     # Auto-create comment if reason provided
     if reason:
@@ -247,12 +242,10 @@ async def dismiss_alerts_bulk(
     alerts = await alerts_service.get_alerts_by_ids(db, unique_ids)
     reason = request.reason.strip() if request.reason else None
 
-    # Set dismiss_reason and resolution_status on each alert, then dismiss
+    # Set dismiss_reason on each alert, then dismiss
     for alert in alerts:
         if reason:
             alert.dismiss_reason = reason
-        if request.resolution_status is not None:
-            alert.resolution_status = request.resolution_status
     await alerts_service.dismiss_alerts(db, alerts)
 
     # Auto-create comments and propagate reason to GlobalOpenPort/Host
@@ -352,48 +345,6 @@ async def reopen_alert(
         created_at=alert.created_at,
         severity=severity,
         severity_override=_severity_override_value(alert),
-    )
-
-
-@router.put("/bulk-reopen", response_model=AlertBulkReopenResponse)
-async def bulk_reopen_alerts(
-    admin: AnalystUser,
-    db: DbSession,
-    request: AlertBulkReopenRequest = Body(...),
-) -> AlertBulkReopenResponse:
-    """Bulk reopen dismissed alerts (admin only)."""
-    if not request.alert_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="alert_ids cannot be empty",
-        )
-
-    unique_ids = sorted(set(request.alert_ids))
-    reopened_ids: list[int] = []
-    missing_ids: list[int] = []
-
-    for alert_id in unique_ids:
-        result = await alerts_service.get_alert_with_network_name(db, alert_id)
-        if result is None:
-            missing_ids.append(alert_id)
-            continue
-        alert, _ = result
-        if not alert.dismissed:
-            missing_ids.append(alert_id)
-            continue
-        await alerts_service.reopen_alert(db, alert)
-        await emit_event(
-            db,
-            alert_id=alert_id,
-            event_type=AlertEventType.REOPENED,
-            user_id=admin.id,
-        )
-        reopened_ids.append(alert_id)
-
-    await db.commit()
-    return AlertBulkReopenResponse(
-        reopened_ids=reopened_ids,
-        missing_ids=missing_ids,
     )
 
 
