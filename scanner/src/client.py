@@ -55,6 +55,7 @@ class ScannerClient:
         api_key: str,
         logger: logging.Logger,
         scanner_version: str = "unknown",
+        scanner_kind: str = "standard",
         timeout: float = REQUEST_TIMEOUT_SECONDS,
         max_retries: int = MAX_RETRIES,
         backoff_base: float = BACKOFF_BASE_SECONDS,
@@ -64,6 +65,7 @@ class ScannerClient:
         self._api_key = api_key
         self._logger = logger
         self._scanner_version = scanner_version
+        self._scanner_kind = scanner_kind
         self._token: str | None = None
         self._token_expires_at = 0.0
         self._max_retries = max_retries
@@ -126,7 +128,10 @@ class ScannerClient:
             "POST",
             "/api/scanner/auth",
             headers={"X-API-Key": self._api_key},
-            json={"scanner_version": self._scanner_version},
+            json={
+                "scanner_version": self._scanner_version,
+                "scanner_kind": self._scanner_kind,
+            },
             auth_required=False,
         )
         response.raise_for_status()

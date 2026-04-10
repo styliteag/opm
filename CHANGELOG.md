@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Greenbone (GVM)**: scanner version now reported correctly instead of `unknown` — `compose-gvm.yml` mounts `./VERSION:/app/VERSION:ro` into `opm-scanner-gvm` the same way `compose-dev.yml` does for the standard scanner, so `get_version()` reads the real version file instead of falling back to the Dockerfile build arg default
 - **Greenbone (GVM)**: GSA web UI no longer segfaults on 24.10 — rewrote `compose-gvm.yml` to use the upstream three-part pattern (`gsa` static assets → `gsad` API daemon → `nginx` frontend/proxy) instead of running the legacy monolithic `gsa:stable` image as a daemon
 - **Greenbone (GVM)**: nginx front-end no longer crash-loops with `host not found in upstream "gsad:80"` — custom `docker/gvm-nginx.conf` now uses Docker's embedded DNS resolver (`127.0.0.11`) with a variable in `proxy_pass`, forcing runtime resolution instead of the one-shot startup lookup that `upstream { server gsad:80; }` performs
 
@@ -20,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scanners**: Scanner detail page now has an "Edit" button opening a modal to change name, description, location, and kind (standard/gvm); scanner list page shows a new "Type" column with a GVM / Standard badge, and the detail header shows kind + location alongside status
+- **Scanners**: Scanner agent now self-reports its kind (`standard` / `gvm`) in the `/api/scanner/auth` request body (detected via presence of `masscan` / `gvmd` socket); backend accepts it as authoritative and updates `Scanner.kind` on auth, logging any drift from the admin-configured value. Version column now renders as `2.0.1 (gvm)` / `2.0.1 (std)` on both list and detail pages via a new `formatScannerVersion()` helper
 - **Greenbone (GVM)**: `.env.example` now lists all `GVM_*` variables (`GVM_SCANNER_API_KEY`, `GVM_BACKEND_URL`, `GVM_POLL_INTERVAL`, `GVM_LOG_LEVEL`, `GVM_USER`, `GVM_PASSWORD`, `GVM_GSA_PORT`, `GVM_GSA_HTTPS_PORT`)
 - **Greenbone (GVM)**: GVM config library with auto-deploy on scan — admins can upload exported `<get_configs_response>` / `<get_port_lists_response>` XMLs via `/admin/gvm-library`; the scanner agent self-checks on scan claim and imports missing or drifted entries before running `create_target`. Version drift detected via an `[OPM:hash=<sha256>]` marker embedded in the GVM `<comment>` element.
 - **Greenbone (GVM)**: `Scanner.kind` column (`"standard"` / `"gvm"`) picked at scanner creation — Scanner detail page now shows GVM Scan Configs and GVM Port Lists tabs for GVM scanners with a manual "Refresh metadata" trigger that piggybacks on the existing `/api/scanner/jobs` poll.

@@ -1,5 +1,6 @@
 """Scanner authentication service for API key validation."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -7,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, verify_password
 from app.models.scanner import Scanner
-from app.schemas.scanner import ScannerAuthResponse
+from app.schemas.scanner import ScannerAuthResponse, ScannerKind
+
+logger = logging.getLogger(__name__)
 
 # Scanner JWT expires in 15 minutes
 SCANNER_TOKEN_EXPIRATION_MINUTES = 15
@@ -20,7 +23,10 @@ async def get_all_scanners(db: AsyncSession) -> list[Scanner]:
 
 
 async def authenticate_scanner(
-    db: AsyncSession, api_key: str, scanner_version: str | None = None
+    db: AsyncSession,
+    api_key: str,
+    scanner_version: str | None = None,
+    scanner_kind: ScannerKind | None = None,
 ) -> tuple[Scanner, ScannerAuthResponse] | None:
     """
     Authenticate a scanner by API key.
@@ -37,6 +43,17 @@ async def authenticate_scanner(
             scanner.last_seen_at = datetime.now(timezone.utc)
             if scanner_version is not None:
                 scanner.scanner_version = scanner_version
+            # Accept the scanner's self-reported kind as authoritative — the
+            # running image knows whether it has masscan or gvmd. Log any
+            # drift from the admin-configured value for visibility.
+            if scanner_kind is not None and scanner.kind != scanner_kind:
+                logger.info(
+                    "Scanner %s reported kind=%s (was %s); updating",
+                    scanner.id,
+                    scanner_kind,
+                    scanner.kind,
+                )
+                scanner.kind = scanner_kind
 
             # Create scanner-scoped JWT token
             token_data = {

@@ -120,6 +120,7 @@ class ScannerAuthRequest(BaseModel):
     """Request schema for scanner authentication."""
 
     scanner_version: str | None = None
+    scanner_kind: ScannerKind | None = None
 
 
 class ScannerAuthResponse(BaseModel):

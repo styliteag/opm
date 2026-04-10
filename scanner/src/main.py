@@ -75,16 +75,27 @@ def main() -> None:
     check_dependencies(logger)
 
     version = get_version()
-    logger.info("STYLiTE Orbit Monitor Scanner v%s starting...", version)
+    is_gvm = _is_gvm_scanner()
+    kind = "gvm" if is_gvm else "standard"
+    logger.info(
+        "STYLiTE Orbit Monitor Scanner v%s (%s) starting...",
+        version,
+        kind,
+    )
     logger.info("Polling interval set to %s seconds", config.poll_interval)
 
-    client = ScannerClient(config.backend_url, config.api_key, logger, scanner_version=version)
+    client = ScannerClient(
+        config.backend_url,
+        config.api_key,
+        logger,
+        scanner_version=version,
+        scanner_kind=kind,
+    )
 
     # Wait for backend to be ready before starting
     logger.info("Waiting for backend to be ready...")
     client.wait_for_backend()
 
-    is_gvm = _is_gvm_scanner()
     last_gvm_metadata_push = 0.0
     if is_gvm:
         logger.info("Running as GVM scanner — will push metadata snapshots to backend")

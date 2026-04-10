@@ -1,18 +1,22 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   CheckCircle,
   Clock,
   Network,
+  Pencil,
   RefreshCw,
   ScanLine,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { EditScannerModal } from "@/features/scanners/components/EditScannerModal";
 import {
   DataTable,
   type DataTableColumn,
@@ -24,7 +28,12 @@ import {
   useScannerRefreshMutation,
 } from "@/features/gvm-library/hooks/useGvmLibrary";
 import { useScannerDetail } from "@/features/scanners/hooks/useScanners";
-import { formatRelativeTime, isOnline, scanStatusVariant } from "@/lib/utils";
+import {
+  formatRelativeTime,
+  formatScannerVersion,
+  isOnline,
+  scanStatusVariant,
+} from "@/lib/utils";
 import type {
   GvmKind,
   GvmLibraryEntry,
@@ -137,6 +146,7 @@ function ScannerDetailPage() {
   const { scannerId } = Route.useParams();
   const id = Number(scannerId);
   const { data, isLoading, error, refetch } = useScannerDetail(id);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (isLoading) return <LoadingState rows={6} />;
   if (error) return <ErrorState message={error.message} onRetry={refetch} />;
@@ -161,7 +171,7 @@ function ScannerDetailPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-strong text-foreground">{s.name}</h1>
-          <div className="mt-0.5 flex items-center gap-3">
+          <div className="mt-0.5 flex flex-wrap items-center gap-3">
             {s.description && (
               <span className="text-sm text-muted-foreground">
                 {s.description}
@@ -172,14 +182,39 @@ function ScannerDetailPage() {
               variant={online ? "success" : "danger"}
               dot
             />
-            {s.scanner_version && (
+            <StatusBadge
+              label={s.kind === "gvm" ? "GVM" : "Standard"}
+              variant={s.kind === "gvm" ? "warning" : "neutral"}
+            />
+            {s.location && (
               <span className="text-xs text-muted-foreground">
-                v{s.scanner_version}
+                {s.location}
+              </span>
+            )}
+            {s.scanner_version && (
+              <span className="text-xs font-mono text-muted-foreground">
+                v{formatScannerVersion(s.scanner_version, s.kind)}
               </span>
             )}
           </div>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setEditOpen(true)}
+          className="gap-1.5"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          Edit
+        </Button>
       </div>
+
+      <EditScannerModal
+        scanner={s}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+      />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

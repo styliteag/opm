@@ -333,6 +333,10 @@ services:
       GVM_PASSWORD: ${GVM_PASSWORD:-admin}
     volumes:
       - gvmd_socket_vol:/run/gvmd
+      # Mount the repo VERSION file so get_version() reports the real version
+      # instead of falling back to "unknown". Matches how compose-dev.yml wires
+      # up the standard opm-scanner.
+      - ./VERSION:/app/VERSION:ro
     depends_on:
       gvmd:
         condition: service_started

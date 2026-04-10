@@ -76,6 +76,16 @@ export function isOnline(
   return Date.now() - parseUTC(lastSeenAt).getTime() < thresholdMs;
 }
 
+/** Format a scanner version + kind as "2.0.1 (gvm)" / "2.0.1 (std)". */
+export function formatScannerVersion(
+  version: string | null | undefined,
+  kind: "standard" | "gvm" | null | undefined,
+): string {
+  if (!version) return "-";
+  const suffix = kind === "gvm" ? "gvm" : "std";
+  return `${version} (${suffix})`;
+}
+
 /** Format a packets-per-second rate as a human-readable string. */
 export function formatRate(pps: number): string {
   if (pps >= 1_000_000) return `${(pps / 1_000_000).toFixed(1)}M pps`;

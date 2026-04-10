@@ -127,11 +127,14 @@ async def scanner_authenticate(
             detail="Rate limit exceeded. Maximum 10 attempts per minute.",
         )
 
-    # Extract scanner_version from body if provided
+    # Extract scanner_version + scanner_kind from body if provided
     scanner_version = body.scanner_version if body else None
+    scanner_kind = body.scanner_kind if body else None
 
     # Authenticate with API key
-    result = await authenticate_scanner(db, x_api_key, scanner_version)
+    result = await authenticate_scanner(
+        db, x_api_key, scanner_version, scanner_kind
+    )
 
     if result is None:
         raise HTTPException(
@@ -141,7 +144,7 @@ async def scanner_authenticate(
 
     scanner, response = result
 
-    # Commit the last_seen_at and scanner_version update
+    # Commit the last_seen_at, scanner_version and kind updates
     await db.commit()
 
     return response

@@ -15,7 +15,11 @@ import { useScanners } from "@/features/dashboard/hooks/useDashboardData";
 import { useScannerMutations } from "@/features/scanners/hooks/useScanners";
 import { CreateScannerModal } from "@/features/scanners/components/CreateScannerModal";
 import { ApiKeyDisplay } from "@/components/feedback/ApiKeyDisplay";
-import { formatRelativeTime, isOnline } from "@/lib/utils";
+import {
+  formatRelativeTime,
+  formatScannerVersion,
+  isOnline,
+} from "@/lib/utils";
 import type { Scanner } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/scanners/")({
@@ -140,11 +144,21 @@ function ScannersPage() {
                 },
               },
               {
+                key: "kind",
+                header: "Type",
+                render: (scanner) => (
+                  <StatusBadge
+                    label={scanner.kind === "gvm" ? "GVM" : "Standard"}
+                    variant={scanner.kind === "gvm" ? "warning" : "neutral"}
+                  />
+                ),
+              },
+              {
                 key: "version",
                 header: "Version",
                 render: (scanner) => (
-                  <span className="text-sm text-muted-foreground">
-                    {scanner.scanner_version ?? "-"}
+                  <span className="text-sm font-mono text-muted-foreground">
+                    {formatScannerVersion(scanner.scanner_version, scanner.kind)}
                   </span>
                 ),
               },
