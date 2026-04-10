@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **GVM Library**: Scan Config viewer — new read-only dialog on `/admin/gvm-library` that parses uploaded scan config XML client-side and exposes an Overview tab (name, comment, type, family/NVT totals with `growing` flags), plus tabs for Families (NVT counts per family), Preferences (human-readable name, type, value, default per NVT preference) and NVT Selectors (include/exclude rules). Makes it practical to audit what a library entry actually contains without having to download and read raw XML
+- **GVM Library**: Port List editor — new side-by-side TCP/UDP range editor on `/admin/gvm-library`. Supports viewing existing port lists, editing them in place (name is treated as the primary key and locked in edit mode, so saving overwrites the same library row), and creating new port lists from scratch. Range input accepts comma/whitespace/semicolon-separated tokens like `22,80,443,1000-2000`, auto-normalizes and merges overlapping/adjacent ranges, validates against 1-65535, and shows a live table of resolved ranges with per-range port counts. Presets for well-known ports, web-only, Nmap top 100, IANA 1-1023, All TCP and All TCP/UDP. On save the editor serializes a valid `<get_port_lists_response>` XML envelope and round-trips through the existing upload endpoint (upsert by `<name>`)
+- **GVM Library**: View / Edit / New action buttons on the library table rows and a dedicated "New Port List" button in the Port Lists tab
+
 ### Changed
 
 - **Networks**: Edit/Create Network form now hides the Protocol select when scanner type is Greenbone (GVM) — `scan_protocol` is only consumed by masscan/nmap/NSE; GVM derives TCP/UDP from the selected Port List (library/mirror) or from `port/tcp` tokens in the raw Port Specification, so exposing the dropdown was misleading. Rate, Scan Timeout, Port Timeout, Phases and NSE Profile were already hidden for Greenbone

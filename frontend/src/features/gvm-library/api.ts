@@ -48,6 +48,21 @@ export function libraryXmlDownloadUrl(entryId: number): string {
   return `/api/gvm/library/${entryId}/xml`
 }
 
+export async function fetchLibraryXmlText(entryId: number): Promise<string> {
+  const token = useAuthStore.getState().token
+  const res = await fetch(libraryXmlDownloadUrl(entryId), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (res.status === 401) {
+    useAuthStore.getState().logout()
+    throw new Error('Session expired')
+  }
+  if (!res.ok) {
+    throw new Error(`Failed to load XML: ${res.statusText}`)
+  }
+  return res.text()
+}
+
 export async function downloadLibraryXml(entry: GvmLibraryEntry): Promise<void> {
   const token = useAuthStore.getState().token
   const res = await fetch(libraryXmlDownloadUrl(entry.id), {

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { GvmKind, GvmLibraryEntry } from "@/lib/types";
 import {
   deleteLibraryEntry,
+  fetchLibraryXmlText,
   getLibraryEntryReferences,
   getScannerMirror,
   listLibraryEntries,
@@ -37,6 +38,15 @@ export function useLibraryMutations() {
   });
 
   return { upload, remove };
+}
+
+export function useLibraryEntryXml(entryId: number | null) {
+  return useQuery({
+    queryKey: ["gvm", "library", entryId, "xml"],
+    queryFn: () => fetchLibraryXmlText(entryId as number),
+    enabled: entryId !== null,
+    staleTime: 60_000,
+  });
 }
 
 export function useLibraryEntryReferences(entryId: number | null) {

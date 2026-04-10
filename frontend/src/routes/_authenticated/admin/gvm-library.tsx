@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, Trash2, Upload } from "lucide-react";
+import { Download, Eye, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { ErrorState } from "@/components/data-display/ErrorState";
@@ -22,6 +22,11 @@ import {
   useLibraryMutations,
 } from "@/features/gvm-library/hooks/useGvmLibrary";
 import { downloadLibraryXml } from "@/features/gvm-library/api";
+import { ScanConfigViewer } from "@/features/gvm-library/components/ScanConfigViewer";
+import {
+  PortListEditor,
+  type PortListEditorMode,
+} from "@/features/gvm-library/components/PortListEditor";
 import { formatRelativeTime } from "@/lib/utils";
 import type { GvmKind, GvmLibraryEntry } from "@/lib/types";
 
@@ -34,6 +39,13 @@ function GvmLibraryPage() {
   const [deleteTarget, setDeleteTarget] = useState<GvmLibraryEntry | null>(
     null,
   );
+  const [viewScanConfig, setViewScanConfig] = useState<GvmLibraryEntry | null>(
+    null,
+  );
+  const [portListEditor, setPortListEditor] = useState<{
+    entry: GvmLibraryEntry | null;
+    mode: PortListEditorMode;
+  } | null>(null);
 
   return (
     <div className="space-y-6">
@@ -59,10 +71,26 @@ function GvmLibraryPage() {
         </TabsList>
 
         <TabsContent value="scan_config">
-          <LibraryTabPanel kind="scan_config" onRequestDelete={setDeleteTarget} />
+          <LibraryTabPanel
+            kind="scan_config"
+            onRequestDelete={setDeleteTarget}
+            onView={(entry) => setViewScanConfig(entry)}
+          />
         </TabsContent>
         <TabsContent value="port_list">
-          <LibraryTabPanel kind="port_list" onRequestDelete={setDeleteTarget} />
+          <LibraryTabPanel
+            kind="port_list"
+            onRequestDelete={setDeleteTarget}
+            onView={(entry) =>
+              setPortListEditor({ entry, mode: "view" })
+            }
+            onEdit={(entry) =>
+              setPortListEditor({ entry, mode: "edit" })
+            }
+            onCreateNew={() =>
+              setPortListEditor({ entry: null, mode: "new" })
+            }
+          />
         </TabsContent>
       </Tabs>
 
@@ -70,6 +98,19 @@ function GvmLibraryPage() {
         entry={deleteTarget}
         onClose={() => setDeleteTarget(null)}
       />
+
+      <ScanConfigViewer
+        entry={viewScanConfig}
+        onClose={() => setViewScanConfig(null)}
+      />
+
+      {portListEditor && (
+        <PortListEditor
+          entry={portListEditor.entry}
+          mode={portListEditor.mode}
+          onClose={() => setPortListEditor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -79,9 +120,18 @@ function GvmLibraryPage() {
 interface LibraryTabPanelProps {
   kind: GvmKind;
   onRequestDelete: (entry: GvmLibraryEntry) => void;
+  onView?: (entry: GvmLibraryEntry) => void;
+  onEdit?: (entry: GvmLibraryEntry) => void;
+  onCreateNew?: () => void;
 }
 
-function LibraryTabPanel({ kind, onRequestDelete }: LibraryTabPanelProps) {
+function LibraryTabPanel({
+  kind,
+  onRequestDelete,
+  onView,
+  onEdit,
+  onCreateNew,
+}: LibraryTabPanelProps) {
   const { data, isLoading, error, refetch } = useLibraryEntries(kind);
   const { upload } = useLibraryMutations();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -124,6 +174,16 @@ function LibraryTabPanel({ kind, onRequestDelete }: LibraryTabPanelProps) {
             e.target.value = "";
           }}
         />
+        {kind === "port_list" && onCreateNew && (
+          <button
+            onClick={onCreateNew}
+            disabled={upload.isPending}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+          >
+            <Plus className="h-4 w-4" />
+            New Port List
+          </button>
+        )}
         <p className="text-xs text-muted-foreground">
           Name is read from the XML — upload an exported file from GSA (9392).
         </p>
@@ -168,6 +228,24 @@ function LibraryTabPanel({ kind, onRequestDelete }: LibraryTabPanelProps) {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {onView && (
+                        <button
+                          onClick={() => onView(entry)}
+                          className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-muted"
+                          title="View"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {onEdit && (
+                        <button
+                          onClick={() => onEdit(entry)}
+                          className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-muted"
+                          title="Edit"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           downloadLibraryXml(entry).catch((err) =>
