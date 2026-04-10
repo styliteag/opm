@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-04-10
+
 ### Fixed
 
 - **Greenbone (GVM)**: scanner version now reported correctly instead of `unknown` — `compose-gvm.yml` mounts `./VERSION:/app/VERSION:ro` into `opm-scanner-gvm` the same way `compose-dev.yml` does for the standard scanner, so `get_version()` reads the real version file instead of falling back to the Dockerfile build arg default
