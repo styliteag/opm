@@ -52,10 +52,10 @@ router = APIRouter(prefix="/api/networks", tags=["networks"])
 
 @router.get("", response_model=NetworkListResponse)
 async def list_networks(
-    admin: CurrentUser,
+    user: CurrentUser,
     db: DbSession,
 ) -> NetworkListResponse:
-    """Get list of all networks (admin only)."""
+    """Get list of all networks (any authenticated user)."""
     networks = await networks_service.get_all_networks(db)
     return NetworkListResponse(
         networks=[NetworkResponse.model_validate(network) for network in networks]

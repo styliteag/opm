@@ -155,8 +155,8 @@ class TestDismissEventEmission:
         test_alert: Alert,
     ) -> None:
         """dismiss_alerts_bulk endpoint emits DISMISSED event per alert."""
-        resp = await client.put(
-            "/api/alerts/dismiss-bulk",
+        resp = await client.post(
+            "/api/alerts/bulk-dismiss",
             headers=admin_headers,
             json={"alert_ids": [test_alert.id], "reason": "bulk dismiss"},
         )

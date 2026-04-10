@@ -355,8 +355,8 @@ class TestAlertRouter:
         await db_session.commit()
         await db_session.refresh(alert2)
 
-        response = await client.put(
-            "/api/alerts/dismiss-bulk",
+        response = await client.post(
+            "/api/alerts/bulk-dismiss",
             headers=admin_headers,
             json={"alert_ids": [alert1.id, alert2.id]},
         )

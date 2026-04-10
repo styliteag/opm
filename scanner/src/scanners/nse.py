@@ -17,7 +17,7 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from src.models import NseScriptResult, ScanRunResult
 from src.utils import format_command, sanitize_cidr
@@ -315,7 +315,11 @@ def _run_nse_scan(
                             if host_match:
                                 hosts_done += 1
                                 current_host = host_match.group(1)
-                                logger.info("NSE: scanning host %s (%d done)", current_host, hosts_done)
+                                logger.info(
+                                    "NSE: scanning host %s (%d done)",
+                                    current_host,
+                                    hosts_done,
+                                )
                                 if progress_reporter and max_pct < 5:
                                     progress_reporter.update(
                                         5.0, f"NSE: scanning {current_host}"

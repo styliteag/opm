@@ -138,7 +138,12 @@ def _run_port_scan_phase(
         target = ",".join(live_ips)
         logger.info("Port scan targeting %d live hosts from discovery", len(live_ips))
 
-    logger.info("=== Port Scan Phase === tool=%s target=%s ports=%s", phase.tool, target, port_range)
+    logger.info(
+        "=== Port Scan Phase === tool=%s target=%s ports=%s",
+        phase.tool,
+        target,
+        port_range,
+    )
 
     if job.target_ip and phase.tool != "nmap":
         result = run_nmap(
@@ -300,7 +305,13 @@ def _submit_pipeline_results(
 
     if ps:
         try:
-            client.submit_results(scan_id, status, open_ports, ssh_results=ssh_results, error_message=error)
+            client.submit_results(
+                scan_id,
+                status,
+                open_ports,
+                ssh_results=ssh_results,
+                error_message=error,
+            )
             logger.info("Submitted port scan results for scan %s", scan_id)
         except Exception:
             logger.exception("Failed to submit port scan results for scan %s", scan_id)

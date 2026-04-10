@@ -229,10 +229,10 @@ class TestNetworkRouter:
     async def test_list_networks_as_viewer(
         self, client: AsyncClient, viewer_user: User, viewer_headers: dict
     ):
-        """List networks should return 403 for viewer."""
+        """Viewers are authenticated read-only users — they can list networks."""
         response = await client.get("/api/networks", headers=viewer_headers)
 
-        assert response.status_code == 403
+        assert response.status_code == 200
 
     async def test_create_network_as_admin(
         self,

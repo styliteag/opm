@@ -14,11 +14,12 @@ describe("AlertFilters", () => {
       <AlertFilters filters={{}} onChange={() => {}} networks={networks} />,
     );
     expect(screen.getByText("Severity:")).toBeInTheDocument();
+    expect(screen.getByText("Source:")).toBeInTheDocument();
     expect(screen.getByText("Type:")).toBeInTheDocument();
     expect(screen.getByText("Network:")).toBeInTheDocument();
     expect(screen.getByText("Status:")).toBeInTheDocument();
-    // All dropdowns should show "All" as default value
-    expect(screen.getAllByText("All")).toHaveLength(4);
+    // All 5 dropdowns should show "All" as default value
+    expect(screen.getAllByText("All")).toHaveLength(5);
   });
 
   it("shows selected severity label", () => {

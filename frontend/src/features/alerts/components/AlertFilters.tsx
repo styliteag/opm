@@ -111,12 +111,22 @@ export function AlertFilters({
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const portDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // Keep the latest filters + onChange in refs so the debounced effects can
+  // read them without being invalidated every render (the effects only want
+  // to fire when the *input* string changes, not when the parent re-renders).
+  const filtersRef = useRef(filters);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    filtersRef.current = filters;
+    onChangeRef.current = onChange;
+  });
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const trimmed = searchInput.trim() || undefined;
-      if (trimmed !== filters.search) {
-        onChange({ ...filters, search: trimmed });
+      if (trimmed !== filtersRef.current.search) {
+        onChangeRef.current({ ...filtersRef.current, search: trimmed });
       }
     }, 300);
     return () => {
@@ -133,8 +143,8 @@ export function AlertFilters({
         (Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535)
           ? parsed
           : undefined;
-      if (valid !== filters.port) {
-        onChange({ ...filters, port: valid });
+      if (valid !== filtersRef.current.port) {
+        onChangeRef.current({ ...filtersRef.current, port: valid });
       }
     }, 400);
     return () => {

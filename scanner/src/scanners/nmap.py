@@ -241,7 +241,10 @@ def run_nmap_service_detection(
                                             )
                                             progress_reporter.update(
                                                 max_pct,
-                                                f"Service detection: {hosts_str} hosts, {nmap_pct:.0f}%",
+                                                (
+                                                    f"Service detection: {hosts_str} "
+                                                    f"hosts, {nmap_pct:.0f}%"
+                                                ),
                                             )
                                         except ValueError:
                                             pass
@@ -442,8 +445,8 @@ def _parse_nmap_xml(xml_content: str, logger: logging.Logger) -> list[OpenPortRe
                 if service_parts:
                     banner = " ".join(service_parts)
 
-            # Get TTL from times or extrareasons if available (nmap doesn't typically expose TTL directly)
-            # TTL is not commonly available in nmap output, so we leave it as None
+            # Get TTL from times or extrareasons if available (nmap doesn't
+            # typically expose TTL directly), so we leave it as None.
             ttl: int | None = None
 
             results.append(
@@ -579,9 +582,11 @@ def _run_nmap_phase(
                                 ):
                                     logger.info("Nmap: %s", line)
 
-                                    # Parse host completion stats: "8 hosts completed (32 up), 24 undergoing"
+                                    # Parse "8 hosts completed (32 up), 24 undergoing"
                                     stats_match = re.search(
-                                        r"(\d+)\s+hosts?\s+completed\s+\((\d+)\s+up\)(?:,\s+(\d+)\s+undergoing)?",
+                                        r"(\d+)\s+hosts?\s+completed\s+"
+                                        r"\((\d+)\s+up\)"
+                                        r"(?:,\s+(\d+)\s+undergoing)?",
                                         line,
                                         re.IGNORECASE,
                                     )
@@ -592,12 +597,14 @@ def _run_nmap_phase(
                                             int(stats_match.group(3)) if stats_match.group(3) else 0
                                         )
 
-                                        # When nmap discovers more hosts, reset max to completed work only
+                                        # When nmap discovers more hosts, reset
+                                        # max to completed work only.
                                         if (
                                             total_hosts_up > last_total_hosts
                                             and last_total_hosts > 0
                                         ):
-                                            # Recalculate max based on completed hosts (locked-in progress)
+                                            # Recalculate max from locked-in
+                                            # progress (completed hosts only).
                                             completed_pct = (
                                                 hosts_completed / total_hosts_up
                                             ) * 100.0
@@ -605,7 +612,9 @@ def _run_nmap_phase(
                                                 completed_pct * progress_scale
                                             )
                                             logger.info(
-                                                "Host count increased %d -> %d, reset progress to %.1f%% (completed hosts only)",
+                                                "Host count increased %d -> %d, "
+                                                "reset progress to %.1f%% "
+                                                "(completed hosts only)",
                                                 last_total_hosts,
                                                 total_hosts_up,
                                                 max_scaled_pct,
@@ -619,22 +628,31 @@ def _run_nmap_phase(
                                     if pct_match and progress_reporter and total_hosts_up > 0:
                                         try:
                                             batch_pct = float(pct_match.group(1))
-                                            # Calculate true overall progress accounting for host batching
-                                            # Formula: (completed_hosts + in_progress_hosts * batch_pct/100) / total_hosts * 100
-                                            batch_progress = hosts_in_progress * batch_pct / 100.0
+                                            # Overall = (completed + in_progress
+                                            # * batch_pct/100) / total * 100.
+                                            batch_progress = (
+                                                hosts_in_progress * batch_pct / 100.0
+                                            )
                                             overall_nmap_pct = (
-                                                (hosts_completed + batch_progress) / total_hosts_up
+                                                (hosts_completed + batch_progress)
+                                                / total_hosts_up
                                             ) * 100.0
-                                            # Scale to phase range (0-50% for phase 1, 50-100% for phase 2)
+                                            # Scale to phase range
+                                            # (0-50% phase 1, 50-100% phase 2).
                                             scaled_pct = progress_offset + (
                                                 overall_nmap_pct * progress_scale
                                             )
-                                            # Never let progress bar go backwards within the same host count
-                                            # But always update the message so user sees activity
+                                            # Never let the bar go backwards while
+                                            # the host count is stable, but do
+                                            # update the message for activity.
                                             display_pct = max(scaled_pct, max_scaled_pct)
                                             if scaled_pct > max_scaled_pct:
                                                 max_scaled_pct = scaled_pct
-                                            progress_msg = f"{phase_name}: {hosts_completed}/{total_hosts_up} hosts, batch {batch_pct:.0f}%"
+                                            progress_msg = (
+                                                f"{phase_name}: {hosts_completed}"
+                                                f"/{total_hosts_up} hosts, "
+                                                f"batch {batch_pct:.0f}%"
+                                            )
                                             # Estimate rate from elapsed time
                                             nmap_elapsed = time.time() - start_time
                                             est_rate: float | None = None
@@ -648,7 +666,9 @@ def _run_nmap_phase(
                                                 actual_rate=est_rate,
                                             )
                                             logger.info(
-                                                "Progress %.1f%% (overall: %.1f%%, batch: %.1f%%) - %d/%d hosts",
+                                                "Progress %.1f%% "
+                                                "(overall: %.1f%%, batch: %.1f%%)"
+                                                " - %d/%d hosts",
                                                 display_pct,
                                                 overall_nmap_pct,
                                                 batch_pct,
@@ -927,7 +947,11 @@ def run_nmap(
 
         if progress_reporter:
             progress_reporter.update(
-                100.0, f"Complete - {len(merged_ports)} open ports ({len(service_map)} with service info)"
+                100.0,
+                (
+                    f"Complete - {len(merged_ports)} open ports "
+                    f"({len(service_map)} with service info)"
+                ),
             )
 
         return ScanRunResult(open_ports=merged_ports, cancelled=False)
