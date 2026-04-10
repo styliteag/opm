@@ -134,6 +134,7 @@ class NetworkCreateRequest(BaseModel):
     scan_schedule_enabled: bool = True
     phases: list[dict[str, Any]] | None = None
     gvm_scan_config: str | None = None
+    gvm_port_list: str | None = None
 
     @field_validator("cidr")
     @classmethod
@@ -201,6 +202,7 @@ class NetworkUpdateRequest(BaseModel):
     scan_schedule_enabled: bool | None = None
     phases: list[dict[str, Any]] | None = None
     gvm_scan_config: str | None = None
+    gvm_port_list: str | None = None
 
     @field_validator("cidr")
     @classmethod
@@ -277,6 +279,7 @@ class NetworkResponse(BaseModel):
     scan_schedule_enabled: bool
     phases: list[dict[str, Any]] | None
     gvm_scan_config: str | None
+    gvm_port_list: str | None
     is_ipv6: bool
     created_at: datetime
     updated_at: datetime

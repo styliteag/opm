@@ -24,6 +24,7 @@ export function useScannerMutations() {
       name: string;
       description?: string;
       location?: string;
+      kind?: "standard" | "gvm";
     }) => postApi<{ id: number; api_key: string }>("/api/scanners", data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["scanners"] }),
   });
@@ -37,6 +38,7 @@ export function useScannerMutations() {
       name?: string;
       description?: string;
       location?: string;
+      kind?: "standard" | "gvm";
     }) => putApi(`/api/scanners/${id}`, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["scanners"] }),
   });

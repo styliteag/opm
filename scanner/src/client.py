@@ -10,12 +10,14 @@ from typing import Any
 import httpx
 
 from src.models import (
+    ClaimedJob,
     HostDiscoveryJob,
     HostResult,
     LogEntry,
     NseScriptResult,
     OpenPortResult,
     ScannerJob,
+    ScannerJobsResult,
     ScanPhase,
     VulnerabilityResult,
 )
@@ -137,8 +139,8 @@ class ScannerClient:
         self._token_expires_at = time.time() + max(expires_in - 30, 0)
         self._logger.info("Authenticated scanner for site %s", payload.get("site_name"))
 
-    def get_jobs(self) -> list[ScannerJob]:
-        """Get pending port scan jobs."""
+    def get_jobs(self) -> ScannerJobsResult:
+        """Get pending port scan jobs + GVM control-plane flags."""
         response = self._request("GET", "/api/scanner/jobs", auth_required=True)
         response.raise_for_status()
         payload = response.json()
@@ -164,20 +166,24 @@ class ScannerClient:
                         custom_script_hashes=job.get("custom_script_hashes"),
                         phases=_parse_phases(job.get("phases")),
                         gvm_scan_config=job.get("gvm_scan_config"),
+                        gvm_port_list=job.get("gvm_port_list"),
                     )
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 self._logger.warning("Skipping invalid job payload: %s", exc)
-        return jobs
+        return ScannerJobsResult(
+            jobs=jobs,
+            gvm_refresh=bool(payload.get("gvm_refresh", False)),
+        )
 
-    def claim_job(self, network_id: int) -> int | None:
+    def claim_job(self, network_id: int) -> ClaimedJob | None:
         """Claim a port scan job.
 
         Args:
             network_id: The network ID to claim
 
         Returns:
-            Scan ID if successful, None otherwise
+            ClaimedJob with scan_id and required_library_entries, or None.
         """
         response = self._request(
             "POST",
@@ -196,7 +202,18 @@ class ScannerClient:
         scan_id = payload.get("scan_id")
         if not isinstance(scan_id, int):
             raise RuntimeError("Invalid claim response")
-        return scan_id
+        required_raw = payload.get("required_library_entries") or []
+        required: list[dict[str, str]] = []
+        for item in required_raw:
+            if not isinstance(item, dict):
+                continue
+            kind = item.get("kind")
+            name = item.get("name")
+            xml_hash = item.get("xml_hash")
+            if not (isinstance(kind, str) and isinstance(name, str) and isinstance(xml_hash, str)):
+                continue
+            required.append({"kind": kind, "name": name, "xml_hash": xml_hash})
+        return ClaimedJob(scan_id=scan_id, required_library_entries=required)
 
     def submit_results(
         self,
@@ -251,6 +268,29 @@ class ScannerClient:
             "POST", "/api/nse/scanner/results", json=payload, auth_required=True
         )
         response.raise_for_status()
+
+    def post_gvm_metadata(self, entries: list[dict[str, Any]]) -> None:
+        """Post a full GVM metadata snapshot to the backend."""
+        payload = {"entries": entries}
+        response = self._request(
+            "POST",
+            "/api/scanner/gvm-metadata",
+            json=payload,
+            auth_required=True,
+        )
+        response.raise_for_status()
+        self._logger.info("Posted GVM metadata snapshot: %d entries", len(entries))
+
+    def get_gvm_library_xml(self, kind: str, name: str) -> bytes:
+        """Fetch a library entry's raw XML from the backend for import."""
+        response = self._request(
+            "GET",
+            "/api/scanner/gvm-library",
+            params={"kind": kind, "name": name},
+            auth_required=True,
+        )
+        response.raise_for_status()
+        return response.content
 
     def submit_vulnerability_results(
         self,
@@ -437,6 +477,7 @@ class ScannerClient:
         *,
         json: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        params: dict[str, str] | None = None,
         auth_required: bool,
     ) -> httpx.Response:
         """Make an HTTP request with retries and authentication.
@@ -446,6 +487,7 @@ class ScannerClient:
             url: URL path
             json: Optional JSON payload
             headers: Optional headers
+            params: Optional query string parameters
             auth_required: Whether authentication is required
 
         Returns:
@@ -462,7 +504,13 @@ class ScannerClient:
                 request_headers["Authorization"] = f"Bearer {self._token}"
             try:
                 with self._http_lock:
-                    response = self._client.request(method, url, json=json, headers=request_headers)
+                    response = self._client.request(
+                        method,
+                        url,
+                        json=json,
+                        headers=request_headers,
+                        params=params,
+                    )
             except httpx.RequestError as exc:
                 last_exc = exc
                 if attempt == self._max_retries:

@@ -1,5 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle, Clock, Network, ScanLine } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle,
+  Clock,
+  Network,
+  RefreshCw,
+  ScanLine,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LoadingState } from "@/components/data-display/LoadingState";
@@ -10,9 +18,20 @@ import {
   type DataTableColumn,
 } from "@/components/data-display/DataTable";
 import { StatCard } from "@/features/dashboard/components/StatCard";
+import {
+  useLibraryEntries,
+  useScannerMirror,
+  useScannerRefreshMutation,
+} from "@/features/gvm-library/hooks/useGvmLibrary";
 import { useScannerDetail } from "@/features/scanners/hooks/useScanners";
 import { formatRelativeTime, isOnline, scanStatusVariant } from "@/lib/utils";
-import type { ScannerNetworkInfo, ScannerScanSummary } from "@/lib/types";
+import type {
+  GvmKind,
+  GvmLibraryEntry,
+  GvmScannerMetadataEntry,
+  ScannerNetworkInfo,
+  ScannerScanSummary,
+} from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/scanners/$scannerId")({
   component: ScannerDetailPage,
@@ -202,6 +221,12 @@ function ScannerDetailPage() {
           <TabsTrigger value="scans">
             Recent Scans ({data.recent_scans.length})
           </TabsTrigger>
+          {s.kind === "gvm" && (
+            <>
+              <TabsTrigger value="gvm_scan_configs">GVM Scan Configs</TabsTrigger>
+              <TabsTrigger value="gvm_port_lists">GVM Port Lists</TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="networks" className="pt-4">
@@ -231,7 +256,213 @@ function ScannerDetailPage() {
             />
           )}
         </TabsContent>
+
+        {s.kind === "gvm" && (
+          <>
+            <TabsContent value="gvm_scan_configs" className="pt-4">
+              <GvmMirrorTab scannerId={id} kind="scan_config" />
+            </TabsContent>
+            <TabsContent value="gvm_port_lists" className="pt-4">
+              <GvmMirrorTab scannerId={id} kind="port_list" />
+            </TabsContent>
+          </>
+        )}
       </Tabs>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+interface GvmMirrorTabProps {
+  scannerId: number;
+  kind: GvmKind;
+}
+
+type MirrorStatus =
+  | "installed"
+  | "update_pending"
+  | "will_deploy"
+  | "unmanaged";
+
+function computeStatus(
+  entry: GvmScannerMetadataEntry | undefined,
+  libraryEntry: GvmLibraryEntry | undefined,
+): MirrorStatus {
+  if (!entry && libraryEntry) return "will_deploy";
+  if (!libraryEntry) return entry?.is_builtin ? "installed" : "unmanaged";
+  if (!entry) return "will_deploy";
+  return entry.xml_hash === libraryEntry.xml_hash
+    ? "installed"
+    : "update_pending";
+}
+
+function statusVariant(status: MirrorStatus) {
+  switch (status) {
+    case "installed":
+      return "success" as const;
+    case "update_pending":
+      return "warning" as const;
+    case "will_deploy":
+      return "neutral" as const;
+    case "unmanaged":
+      return "neutral" as const;
+  }
+}
+
+function statusLabel(status: MirrorStatus): string {
+  switch (status) {
+    case "installed":
+      return "installed";
+    case "update_pending":
+      return "update pending";
+    case "will_deploy":
+      return "will deploy";
+    case "unmanaged":
+      return "unmanaged";
+  }
+}
+
+function GvmMirrorTab({ scannerId, kind }: GvmMirrorTabProps) {
+  const mirror = useScannerMirror(scannerId, kind);
+  const library = useLibraryEntries(kind);
+  const refresh = useScannerRefreshMutation(scannerId);
+
+  if (mirror.isLoading) return <LoadingState rows={4} />;
+  if (mirror.error) {
+    return (
+      <ErrorState message={mirror.error.message} onRetry={mirror.refetch} />
+    );
+  }
+
+  const entries = mirror.data?.entries ?? [];
+  const libraryByName = new Map<string, GvmLibraryEntry>();
+  for (const entry of library.data?.entries ?? []) {
+    libraryByName.set(entry.name, entry);
+  }
+
+  // Merge library entries that aren't on the scanner yet (status = will_deploy)
+  const namesInMirror = new Set(entries.map((e) => e.name));
+  const libraryOnly = (library.data?.entries ?? []).filter(
+    (e) => !namesInMirror.has(e.name),
+  );
+
+  const handleRefresh = () => {
+    refresh.mutate(undefined, {
+      onSuccess: () => toast.success("Refresh requested"),
+      onError: (err: Error) => toast.error(err.message),
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          {mirror.data?.gvm_synced_at
+            ? `Last synced ${formatRelativeTime(mirror.data.gvm_synced_at)}`
+            : "Never synced"}
+          {mirror.data?.gvm_refresh_requested && " · refresh pending..."}
+        </p>
+        <button
+          onClick={handleRefresh}
+          disabled={refresh.isPending}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1 text-xs hover:bg-muted disabled:opacity-60"
+        >
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${refresh.isPending ? "animate-spin" : ""}`}
+          />
+          Refresh metadata
+        </button>
+      </div>
+
+      {entries.length === 0 && libraryOnly.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No {kind === "scan_config" ? "scan configs" : "port lists"} known for
+          this scanner. Trigger a refresh to fetch live state.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border bg-muted/30 text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 text-left font-emphasis">Name</th>
+                <th className="px-4 py-2 text-left font-emphasis">Source</th>
+                <th className="px-4 py-2 text-left font-emphasis">
+                  Installed
+                </th>
+                <th className="px-4 py-2 text-left font-emphasis">Library</th>
+                <th className="px-4 py-2 text-left font-emphasis">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => {
+                const libraryEntry = libraryByName.get(entry.name);
+                const status = computeStatus(entry, libraryEntry);
+                const source = libraryEntry
+                  ? "Library"
+                  : entry.is_builtin
+                    ? "Built-in"
+                    : "Unmanaged";
+                return (
+                  <tr
+                    key={`mirror-${entry.id}`}
+                    className="border-b border-border/50 last:border-0"
+                  >
+                    <td className="px-4 py-2 font-emphasis text-foreground">
+                      {entry.name}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">
+                      {source}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+                      {entry.xml_hash ? entry.xml_hash.slice(0, 8) : "—"}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+                      {libraryEntry ? libraryEntry.xml_hash.slice(0, 8) : "—"}
+                    </td>
+                    <td className="px-4 py-2">
+                      <StatusBadge
+                        label={statusLabel(status)}
+                        variant={statusVariant(status)}
+                        dot
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+              {libraryOnly.map((libraryEntry) => {
+                const status = computeStatus(undefined, libraryEntry);
+                return (
+                  <tr
+                    key={`lib-${libraryEntry.id}`}
+                    className="border-b border-border/50 last:border-0"
+                  >
+                    <td className="px-4 py-2 font-emphasis text-foreground">
+                      {libraryEntry.name}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">
+                      Library
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+                      —
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+                      {libraryEntry.xml_hash.slice(0, 8)}
+                    </td>
+                    <td className="px-4 py-2">
+                      <StatusBadge
+                        label={statusLabel(status)}
+                        variant={statusVariant(status)}
+                        dot
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

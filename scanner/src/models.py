@@ -51,6 +51,27 @@ class ScannerJob:
     phases: list[ScanPhase] | None = None
     # GVM-specific fields
     gvm_scan_config: str | None = None
+    gvm_port_list: str | None = None
+
+
+@dataclass(frozen=True)
+class ScannerJobsResult:
+    """Result of get_jobs — jobs plus GVM control-plane flags."""
+
+    jobs: list[ScannerJob]
+    gvm_refresh: bool = False
+
+
+@dataclass(frozen=True)
+class ClaimedJob:
+    """Result of claim_job — scan id plus required library entries.
+
+    ``required_library_entries`` elements are dicts with keys
+    ``kind`` ('scan_config' or 'port_list'), ``name``, and ``xml_hash``.
+    """
+
+    scan_id: int
+    required_library_entries: list[dict[str, str]]
 
 
 @dataclass(frozen=True)

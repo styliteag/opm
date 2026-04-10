@@ -8,6 +8,8 @@ from app.models.base import Base
 from app.models.global_open_port import GlobalOpenPort
 from app.models.global_port_rule import GlobalPortRule
 from app.models.global_setting import GlobalSetting
+from app.models.gvm_library import GvmLibraryEntry
+from app.models.gvm_scanner_metadata import GvmScannerMetadata
 from app.models.host import Host
 from app.models.host_discovery_scan import HostDiscoveryScan
 from app.models.network import Network
@@ -41,6 +43,8 @@ __all__ = [
     "GlobalOpenPort",
     "GlobalPortRule",
     "GlobalSetting",
+    "GvmLibraryEntry",
+    "GvmScannerMetadata",
     "Host",
     "HostDiscoveryScan",
     "NseTemplate",

@@ -82,12 +82,19 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 - Separate compose stack: `compose-gvm.yml` (runs alongside main OPM stack via shared `opm-network`)
 - `opm-scanner-gvm` container bridges OPM ↔ GVM via `python-gvm` over Unix socket (`/run/gvmd/gvmd.sock`)
 - Docker image: `Dockerfile.gvm` (no masscan/nmap — lightweight Python-only)
-- Network `scanner_type` must be set to `"greenbone"` with a `gvm_scan_config` preset
-- GVM scan configs: `Full and fast`, `Full and deep`, `Discovery`, `System Discovery`
+- `Scanner.kind` column (`"standard"` / `"gvm"`) — set by admin at scanner creation; existing scanners default to `"standard"` on migration 010 and must be edited to `"gvm"` after upgrade
+- Network `scanner_type` must be `"greenbone"` with a `gvm_scan_config` (and optional `gvm_port_list`) — both are **names** of library/built-in entries, never UUIDs
 - Vulnerability results submitted to `POST /api/scanner/vulnerability-results` → stored in `vulnerabilities` table
 - Alerts generated for medium+ severity findings: `gvm_vulnerability` (no CVEs) and `gvm_cve_detected` (has CVEs)
 - Host detail page shows all GVM findings (including info/low) deduped by OID via `GET /api/hosts/{id}/vulnerabilities`
 - First startup downloads GVM vulnerability feeds — takes significant time; monitor via `docker compose -f compose-gvm.yml logs -f gvmd`
+
+#### GVM Library + Scanner Mirror
+
+- **Library** (`gvm_config_library` table, admin-managed via `/admin/gvm-library`) holds user-uploaded scan config and port list XMLs with `UNIQUE(kind, name)` and a `xml_hash` column. Upload auto-extracts `<name>` from the XML; built-in names are rejected; size cap 5 MB.
+- **Per-scanner mirror** (`gvm_scanner_metadata` table) is a live cache of what the scanner's GVM instance currently has. The `opm-scanner-gvm` agent posts full snapshots via `POST /api/scanner/gvm-metadata` on startup, every ~5 min while idle, and on-demand when `gvm_refresh: true` is piggybacked in the `/api/scanner/jobs` poll response (admin triggers via the scanner detail page).
+- **Auto-deploy before scan**: `/api/scanner/jobs/{id}/claim` returns `required_library_entries` whose names resolve via library lookup. The scanner self-checks against its own `get_scan_configs()` / `get_port_lists()`, fetches missing/drifted XML via `GET /api/scanner/gvm-library?kind=...&name=...`, imports via `gmp.import_config` / `gmp.import_port_list`. Version drift is detected via an `[OPM:hash=<sha256>]` marker embedded in the GVM `<comment>` element on import.
+- **Network resolution order** at scan claim: library → scanner-native mirror → fail fast. Built-in configs like "Full and fast" resolve via step 2 once the mirror is populated.
 
 ## Alert State Terminology
 

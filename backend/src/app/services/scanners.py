@@ -44,6 +44,7 @@ async def create_scanner(
     name: str,
     description: str | None = None,
     location: str | None = None,
+    kind: str = "standard",
 ) -> tuple[Scanner, str]:
     """Create a new scanner and return it with the plain API key."""
     api_key = generate_api_key()
@@ -53,6 +54,7 @@ async def create_scanner(
         api_key_hash=api_key_hash,
         description=description,
         location=location,
+        kind=kind,
     )
     return scanner, api_key
 
@@ -63,6 +65,7 @@ async def update_scanner(
     name: str | None = None,
     description: str | None = None,
     location: str | None = None,
+    kind: str | None = None,
 ) -> Scanner:
     """Update an existing scanner."""
     repo = ScannerRepository(db)
@@ -72,6 +75,8 @@ async def update_scanner(
         scanner.description = description
     if location is not None:
         scanner.location = location
+    if kind is not None:
+        scanner.kind = kind
     return await repo.flush_and_refresh(scanner)
 
 

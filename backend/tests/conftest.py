@@ -28,12 +28,18 @@ async def engine():
         connect_args={"check_same_thread": False},
     )
 
-    # Enable foreign keys for SQLite
+    # Enable foreign keys for SQLite + register MariaDB-compatible UDF
+    # so models using server_default=func.utc_timestamp() work in tests.
     @event.listens_for(engine.sync_engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
+        dbapi_connection.create_function(
+            "utc_timestamp",
+            0,
+            lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        )
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -19,8 +19,12 @@ import {
 import { useNetworkMutations } from "@/features/networks/hooks/useNetworkDetail";
 import { useScanners } from "@/features/dashboard/hooks/useDashboardData";
 import { useNseProfiles } from "@/features/nse/hooks/useNse";
+import {
+  useLibraryEntries,
+  useScannerMirror,
+} from "@/features/gvm-library/hooks/useGvmLibrary";
 import { computeScanEstimate } from "@/lib/scan-estimate";
-import type { Network, ScanPhase } from "@/lib/types";
+import type { GvmKind, Network, ScanPhase } from "@/lib/types";
 import { PhaseCards } from "./PhaseCards";
 
 const schema = z.object({
@@ -72,6 +76,25 @@ interface NetworkFormProps {
   network?: Network;
 }
 
+interface GvmDropdownOptions {
+  library: string[];
+  scanner: string[];
+}
+
+function buildGvmDropdownOptions(
+  _kind: GvmKind,
+  libraryEntries: ReadonlyArray<{ name: string }>,
+  mirrorEntries: ReadonlyArray<{ name: string }>,
+): GvmDropdownOptions {
+  const library = [...libraryEntries].map((e) => e.name).sort();
+  const librarySet = new Set(library);
+  const scanner = [...mirrorEntries]
+    .map((e) => e.name)
+    .filter((name) => !librarySet.has(name))
+    .sort();
+  return { library, scanner };
+}
+
 export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
   const { create, update } = useNetworkMutations();
   const scanners = useScanners();
@@ -82,6 +105,9 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
   );
   const [gvmScanConfig, setGvmScanConfig] = useState<string>(
     network?.gvm_scan_config ?? "Full and fast",
+  );
+  const [gvmPortList, setGvmPortList] = useState<string>(
+    network?.gvm_port_list ?? "",
   );
 
   const {
@@ -131,7 +157,37 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
   const watchedSchedule = useWatch({ control, name: "scan_schedule" }) ?? "";
   const watchedNseProfileId = useWatch({ control, name: "nse_profile_id" });
   const watchedScannerType = useWatch({ control, name: "scanner_type" });
+  const watchedScannerId = Number(useWatch({ control, name: "scanner_id" }) ?? 0);
   const isGreenbone = watchedScannerType === "greenbone";
+
+  // Populate GVM dropdowns: union of library entries + assigned scanner's mirror
+  const libraryScanConfigs = useLibraryEntries(
+    isGreenbone ? "scan_config" : undefined,
+  );
+  const libraryPortLists = useLibraryEntries(
+    isGreenbone ? "port_list" : undefined,
+  );
+  const scannerMirrorConfigs = useScannerMirror(
+    watchedScannerId,
+    "scan_config",
+    { enabled: isGreenbone && watchedScannerId > 0 },
+  );
+  const scannerMirrorPortLists = useScannerMirror(
+    watchedScannerId,
+    "port_list",
+    { enabled: isGreenbone && watchedScannerId > 0 },
+  );
+
+  const gvmScanConfigOptions = buildGvmDropdownOptions(
+    "scan_config",
+    libraryScanConfigs.data?.entries ?? [],
+    scannerMirrorConfigs.data?.entries ?? [],
+  );
+  const gvmPortListOptions = buildGvmDropdownOptions(
+    "port_list",
+    libraryPortLists.data?.entries ?? [],
+    scannerMirrorPortLists.data?.entries ?? [],
+  );
 
   const vulnEnabled = (phases ?? []).some(
     (p) => p.name === "vulnerability" && p.enabled,
@@ -159,6 +215,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
       ...rest,
       phases: isGreenbone ? null : phases,
       gvm_scan_config: isGreenbone ? gvmScanConfig : null,
+      gvm_port_list: isGreenbone && gvmPortList ? gvmPortList : null,
     };
 
     // Build alert_config with email_recipients if provided
@@ -294,16 +351,41 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
               </div>
               {isGreenbone && (
                 <div>
-                  <Label htmlFor="gvm_scan_config">GVM Config</Label>
+                  <Label htmlFor="gvm_scan_config">GVM Scan Config</Label>
                   <Select
                     id="gvm_scan_config"
                     value={gvmScanConfig}
                     onChange={(e) => setGvmScanConfig(e.target.value)}
                   >
-                    <option value="Full and fast">Full and fast</option>
-                    <option value="Full and deep">Full and deep</option>
-                    <option value="Discovery">Discovery</option>
-                    <option value="System Discovery">System Discovery</option>
+                    {gvmScanConfigOptions.library.length > 0 && (
+                      <optgroup label="Library">
+                        {gvmScanConfigOptions.library.map((name) => (
+                          <option key={`lib-${name}`} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {gvmScanConfigOptions.scanner.length > 0 && (
+                      <optgroup label="Scanner Built-in / Live">
+                        {gvmScanConfigOptions.scanner.map((name) => (
+                          <option key={`scn-${name}`} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {gvmScanConfigOptions.library.length === 0 &&
+                      gvmScanConfigOptions.scanner.length === 0 && (
+                        <>
+                          <option value="Full and fast">Full and fast</option>
+                          <option value="Full and deep">Full and deep</option>
+                          <option value="Discovery">Discovery</option>
+                          <option value="System Discovery">
+                            System Discovery
+                          </option>
+                        </>
+                      )}
                   </Select>
                 </div>
               )}
@@ -316,6 +398,42 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
                 </Select>
               </div>
             </div>
+            {isGreenbone && (
+              <div>
+                <Label htmlFor="gvm_port_list">GVM Port List (optional)</Label>
+                <Select
+                  id="gvm_port_list"
+                  value={gvmPortList}
+                  onChange={(e) => setGvmPortList(e.target.value)}
+                >
+                  <option value="">
+                    (use custom port range from field above)
+                  </option>
+                  {gvmPortListOptions.library.length > 0 && (
+                    <optgroup label="Library">
+                      {gvmPortListOptions.library.map((name) => (
+                        <option key={`lib-${name}`} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {gvmPortListOptions.scanner.length > 0 && (
+                    <optgroup label="Scanner Built-in / Live">
+                      {gvmPortListOptions.scanner.map((name) => (
+                        <option key={`scn-${name}`} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </Select>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  When set, the scanner uses this GVM port list instead of the
+                  raw port specification above.
+                </p>
+              </div>
+            )}
             {!isGreenbone && (<>
             <div className="grid grid-cols-3 gap-3">
               <div>

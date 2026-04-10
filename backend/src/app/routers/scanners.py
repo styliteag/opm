@@ -49,6 +49,7 @@ async def create_scanner(
         name=request.name,
         description=request.description,
         location=request.location,
+        kind=request.kind,
     )
     await db.commit()
 
@@ -58,6 +59,7 @@ async def create_scanner(
         description=scanner.description,
         location=scanner.location,
         last_seen_at=scanner.last_seen_at,
+        kind=scanner.kind,
         created_at=scanner.created_at,
         api_key=api_key,
     )
@@ -135,6 +137,7 @@ async def update_scanner(
         name=request.name,
         description=request.description,
         location=request.location,
+        kind=request.kind,
     )
     await db.commit()
     return ScannerResponse.model_validate(updated_scanner)

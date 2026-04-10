@@ -116,6 +116,7 @@ export interface Network {
   scan_schedule_enabled: boolean;
   phases: ScanPhase[] | null;
   gvm_scan_config: string | null;
+  gvm_port_list: string | null;
   is_ipv6: boolean;
   created_at: string;
   updated_at: string;
@@ -183,13 +184,62 @@ export interface LatestScansByNetworkResponse {
   latest_scans: LatestScanEntry[];
 }
 
+export type ScannerKind = "standard" | "gvm";
+export type GvmKind = "scan_config" | "port_list";
+
 export interface Scanner {
   id: number;
   name: string;
   description: string | null;
+  location?: string | null;
   last_seen_at: string | null;
   scanner_version: string | null;
+  kind: ScannerKind;
+  gvm_refresh_requested?: boolean;
+  gvm_synced_at?: string | null;
   created_at?: string;
+}
+
+export interface GvmLibraryEntry {
+  id: number;
+  kind: GvmKind;
+  name: string;
+  xml_hash: string;
+  uploaded_by_user_id: number | null;
+  uploaded_by_username: string | null;
+  uploaded_at: string;
+  updated_at: string;
+}
+
+export interface GvmLibraryListResponse {
+  entries: GvmLibraryEntry[];
+}
+
+export interface GvmScannerMetadataEntry {
+  id: number;
+  scanner_id: number;
+  kind: GvmKind;
+  name: string;
+  gvm_uuid: string;
+  is_builtin: boolean;
+  xml_hash: string | null;
+  extra: Record<string, unknown> | null;
+  synced_at: string;
+}
+
+export interface GvmScannerMirrorResponse {
+  scanner_id: number;
+  scanner_name: string;
+  scanner_kind: ScannerKind;
+  gvm_synced_at: string | null;
+  gvm_refresh_requested: boolean;
+  entries: GvmScannerMetadataEntry[];
+}
+
+export interface GvmScannerRefreshResponse {
+  scanner_id: number;
+  gvm_refresh_requested: boolean;
+  message: string;
 }
 
 export interface ScannerListResponse {

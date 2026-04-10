@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useScannerMutations } from '@/features/scanners/hooks/useScanners'
@@ -14,6 +15,7 @@ const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   location: z.string().optional(),
+  kind: z.enum(['standard', 'gvm']).default('standard'),
 })
 
 type FormData = z.infer<typeof schema>
@@ -28,6 +30,7 @@ export function CreateScannerModal({ open, onOpenChange, onCreated }: CreateScan
   const { create } = useScannerMutations()
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: { kind: 'standard' },
   })
 
   const onSubmit = (data: FormData) => {
@@ -61,6 +64,17 @@ export function CreateScannerModal({ open, onOpenChange, onCreated }: CreateScan
           <div>
             <Label htmlFor="location">Location</Label>
             <Input id="location" {...register('location')} placeholder="e.g. AWS eu-west-1" />
+          </div>
+          <div>
+            <Label htmlFor="kind">Kind</Label>
+            <Select id="kind" {...register('kind')}>
+              <option value="standard">Standard (masscan / nmap / nse)</option>
+              <option value="gvm">GVM (Greenbone bridge)</option>
+            </Select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Pick GVM if this scanner runs the opm-scanner-gvm image with a
+              gvmd socket mount.
+            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

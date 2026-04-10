@@ -9,6 +9,7 @@ from app.models.network import Network
 from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
 from app.schemas.scanner import ScannerJobClaimResponse, ScannerJobResponse
+from app.services import gvm_library as gvm_library_service
 from app.services import nse_scripts as nse_scripts_service
 
 
@@ -88,6 +89,7 @@ async def get_pending_jobs_for_scanner(
                 custom_script_hashes=custom_script_hashes,
                 phases=net.phases,
                 gvm_scan_config=net.gvm_scan_config,
+                gvm_port_list=net.gvm_port_list,
             )
         )
 
@@ -152,9 +154,13 @@ async def claim_job(
     planned_scan.status = ScanStatus.RUNNING
     planned_scan.started_at = datetime.now(timezone.utc)
 
+    # Resolve library references — scanner will self-check + auto-push
+    required_entries = await gvm_library_service.resolve_required_entries(db, network)
+
     return ScannerJobClaimResponse(
         scan_id=planned_scan.id,
         network_id=network_id,
+        required_library_entries=required_entries,
     )
 
 

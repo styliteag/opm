@@ -62,6 +62,12 @@ class Network(Base):
         nullable=True,
         comment="GVM scan config preset for greenbone scanner type",
     )
+    gvm_port_list: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="GVM port list name for greenbone scanner type; when set, "
+        "scanner uses port_list_id instead of raw port_range",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.utc_timestamp()
     )

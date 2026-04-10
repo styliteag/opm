@@ -46,6 +46,18 @@ def _extract_cves(text: str) -> list[str]:
     return re.findall(r"CVE-\d{4}-\d{4,}", text)
 
 
+def _find_uuid_by_name(xml_text: str, tag: str, target_name: str) -> str | None:
+    """Return the UUID of the first ``<tag>`` child whose ``<name>`` matches."""
+    tree = ElementTree.fromstring(xml_text)
+    for elem in tree.findall(f".//{tag}"):
+        name_elem = elem.find("name")
+        if name_elem is not None and name_elem.text == target_name:
+            uuid = elem.get("id", "")
+            if uuid:
+                return uuid
+    return None
+
+
 class GreenboneScanner:
     """Bridge to GVM/OpenVAS via python-gvm GMP protocol."""
 
@@ -66,14 +78,25 @@ class GreenboneScanner:
         gvm_scan_config: str,
         logger: logging.Logger,
         progress_reporter: ProgressReporter,
+        gvm_port_list: str | None = None,
+        required_library_entries: list[dict[str, str]] | None = None,
     ) -> tuple[list[OpenPortResult], list[VulnerabilityResult]]:
         """Run a full GVM scan: create target, start task, poll, fetch results.
+
+        Args:
+            gvm_port_list: If set, resolves to GVM port_list_id and used
+                instead of the raw ``port_spec`` string.
+            required_library_entries: Library entries the scanner must have
+                installed before running. Passed through from the claim
+                response; drives the ensure_required self-check + import flow.
 
         Returns:
             Tuple of (open_ports, vulnerabilities)
         """
         from gvm.connections import UnixSocketConnection
         from gvm.protocols.gmp import Gmp
+
+        from src.scanners.greenbone_imports import ensure_required
 
         connection = UnixSocketConnection(path=self._gvm_socket)
         target_id: str | None = None
@@ -83,16 +106,41 @@ class GreenboneScanner:
             gmp.authenticate(self._gvm_user, self._gvm_pass)
             logger.info("Authenticated with GVM via %s", self._gvm_socket)
 
+            # Deploy or update any library-managed configs/port lists the
+            # backend said this scan needs. Idempotent — skips entries
+            # whose installed hash already matches.
+            if required_library_entries:
+                ensure_required(gmp, required_library_entries, client, logger)
+
             config_id = self._resolve_config_id(gmp, gvm_scan_config, logger)
+            port_list_id = (
+                self._resolve_port_list_id(gmp, gvm_port_list, logger)
+                if gvm_port_list
+                else None
+            )
 
             try:
-                # Create target
+                # Create target. GVM accepts either a raw port_range or a
+                # port_list_id — prefer the library-managed port list when
+                # the network has one set.
                 target_name = f"OPM-scan-{scan_id}-{int(time.time())}"
-                target_resp = gmp.create_target(
-                    name=target_name,
-                    hosts=[target_cidr],
-                    port_range=port_spec,
-                )
+                if port_list_id is not None:
+                    logger.info(
+                        "Using GVM port list %r (%s) for target",
+                        gvm_port_list,
+                        port_list_id,
+                    )
+                    target_resp = gmp.create_target(
+                        name=target_name,
+                        hosts=[target_cidr],
+                        port_list_id=port_list_id,
+                    )
+                else:
+                    target_resp = gmp.create_target(
+                        name=target_name,
+                        hosts=[target_cidr],
+                        port_range=port_spec,
+                    )
                 target_id = self._extract_id(target_resp)
                 logger.info("Created GVM target %s (%s)", target_name, target_id)
 
@@ -142,13 +190,10 @@ class GreenboneScanner:
         """Resolve config name to GVM config UUID via dynamic lookup."""
         try:
             configs_resp = gmp.get_scan_configs()
-            tree = ElementTree.fromstring(str(configs_resp))
-            for cfg in tree.findall(".//config"):
-                name_elem = cfg.find("name")
-                cfg_id = cfg.get("id", "")
-                if name_elem is not None and name_elem.text == config_name:
-                    logger.info("Resolved GVM config '%s' -> %s", config_name, cfg_id)
-                    return cfg_id
+            uuid = _find_uuid_by_name(str(configs_resp), "config", config_name)
+            if uuid is not None:
+                logger.info("Resolved GVM config '%s' -> %s", config_name, uuid)
+                return uuid
             logger.warning("GVM config '%s' not found in dynamic lookup", config_name)
         except Exception:
             logger.warning("Dynamic config lookup failed", exc_info=True)
@@ -162,6 +207,25 @@ class GreenboneScanner:
         raise RuntimeError(
             f"GVM scan config '{config_name}' not found. "
             "Feeds may still be syncing — retry after feed sync completes."
+        )
+
+    def _resolve_port_list_id(
+        self, gmp: Any, port_list_name: str, logger: logging.Logger
+    ) -> str:
+        """Resolve a port list name to its GVM UUID."""
+        try:
+            resp = gmp.get_port_lists()
+            uuid = _find_uuid_by_name(str(resp), "port_list", port_list_name)
+            if uuid is not None:
+                logger.info(
+                    "Resolved GVM port list '%s' -> %s", port_list_name, uuid
+                )
+                return uuid
+        except Exception:
+            logger.warning("Dynamic port list lookup failed", exc_info=True)
+        raise RuntimeError(
+            f"GVM port list '{port_list_name}' not found on scanner. "
+            "Upload it via the OPM library or create it in GSA."
         )
 
     def _find_openvas_scanner(self, gmp: Any, logger: logging.Logger) -> str:

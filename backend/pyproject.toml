@@ -21,6 +21,7 @@ dependencies = [
     "email-validator>=2.0.0",
     "reportlab>=4.0.0",
     "pillow>=12.1.1",
+    "defusedxml>=0.7.1",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +35,7 @@ dev = [
     "types-PyJWT>=1.7.0",
     "types-passlib>=1.7.0",
     "types-reportlab>=4.0.0",
+    "types-defusedxml>=0.7.0",
 ]
 
 [build-system]

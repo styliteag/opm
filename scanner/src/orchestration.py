@@ -327,11 +327,12 @@ def process_job(
     log_buffer.reset()
     logger.info("Claiming job for network %s", job.network_id)
 
-    scan_id = client.claim_job(job.network_id)
-    if scan_id is None:
+    claimed = client.claim_job(job.network_id)
+    if claimed is None:
         log_buffer.reset()
         return
 
+    scan_id = claimed.scan_id
     logger.info("Claimed job for network %s with scan ID %s", job.network_id, scan_id)
     if job.target_ip:
         logger.info("Single-host scan mode: targeting %s", job.target_ip)
@@ -377,11 +378,12 @@ def process_greenbone_job(
     log_buffer.reset()
     logger.info("Claiming Greenbone job for network %s", job.network_id)
 
-    scan_id = client.claim_job(job.network_id)
-    if scan_id is None:
+    claimed = client.claim_job(job.network_id)
+    if claimed is None:
         log_buffer.reset()
         return
 
+    scan_id = claimed.scan_id
     logger.info("Claimed Greenbone job for network %s with scan ID %s", job.network_id, scan_id)
 
     log_streamer = LogStreamer(client=client, log_buffer=log_buffer, scan_id=scan_id)
@@ -406,6 +408,8 @@ def process_greenbone_job(
             gvm_scan_config=gvm_config,
             logger=logger,
             progress_reporter=progress_reporter,
+            gvm_port_list=job.gvm_port_list,
+            required_library_entries=claimed.required_library_entries,
         )
 
         # Submit vulnerabilities FIRST (before port results, which transitions

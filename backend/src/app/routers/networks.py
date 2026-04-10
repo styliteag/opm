@@ -102,6 +102,7 @@ async def create_network(
         host_discovery_enabled=request.host_discovery_enabled,
         phases=request.phases,
         gvm_scan_config=request.gvm_scan_config,
+        gvm_port_list=request.gvm_port_list,
     )
     await db.commit()
 
@@ -210,6 +211,9 @@ async def update_network(
         gvm_scan_config=request.gvm_scan_config,
         clear_gvm_scan_config="gvm_scan_config" in request.model_fields_set
         and request.gvm_scan_config is None,
+        gvm_port_list=request.gvm_port_list,
+        clear_gvm_port_list="gvm_port_list" in request.model_fields_set
+        and request.gvm_port_list is None,
     )
     await db.commit()
     return NetworkResponse.model_validate(updated_network)

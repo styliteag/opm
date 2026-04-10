@@ -1,9 +1,13 @@
 """Scanner management schemas for CRUD operations and API."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator
+
+from app.schemas.gvm_library import RequiredLibraryEntry
+
+ScannerKind = Literal["standard", "gvm"]
 
 # --- Admin/CRUD Schemas ---
 
@@ -14,6 +18,7 @@ class ScannerCreateRequest(BaseModel):
     name: str
     description: str | None = None
     location: str | None = None
+    kind: ScannerKind = "standard"
 
 
 class ScannerUpdateRequest(BaseModel):
@@ -22,6 +27,7 @@ class ScannerUpdateRequest(BaseModel):
     name: str | None = None
     description: str | None = None
     location: str | None = None
+    kind: ScannerKind | None = None
 
 
 class ScannerResponse(BaseModel):
@@ -33,6 +39,9 @@ class ScannerResponse(BaseModel):
     location: str | None
     last_seen_at: datetime | None
     scanner_version: str | None
+    kind: ScannerKind
+    gvm_refresh_requested: bool
+    gvm_synced_at: datetime | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -46,6 +55,7 @@ class ScannerCreateResponse(BaseModel):
     description: str | None
     location: str | None
     last_seen_at: datetime | None
+    kind: ScannerKind
     created_at: datetime
     api_key: str  # Only shown once at creation
 
@@ -143,6 +153,7 @@ class ScannerJobResponse(BaseModel):
     phases: list[dict[str, Any]] | None = None
     # GVM-specific fields (populated when scanner_type == "greenbone")
     gvm_scan_config: str | None = None
+    gvm_port_list: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -151,6 +162,7 @@ class ScannerJobListResponse(BaseModel):
     """List of pending scan jobs."""
 
     jobs: list[ScannerJobResponse]
+    gvm_refresh: bool = False  # set when the scanner should re-post its metadata snapshot
 
 
 class ScannerJobClaimResponse(BaseModel):
@@ -159,6 +171,7 @@ class ScannerJobClaimResponse(BaseModel):
     scan_id: int
     network_id: int
     message: str = "Job claimed successfully"
+    required_library_entries: list[RequiredLibraryEntry] = []
 
 
 class OpenPortData(BaseModel):

@@ -30,6 +30,7 @@ import { Route as AuthenticatedAlertsAlertIdRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminRolesRouteImport } from './routes/_authenticated/admin/roles'
 import { Route as AuthenticatedAdminOrganizationRouteImport } from './routes/_authenticated/admin/organization'
+import { Route as AuthenticatedAdminGvmLibraryRouteImport } from './routes/_authenticated/admin/gvm-library'
 import { Route as AuthenticatedNseEditorScriptNameRouteImport } from './routes/_authenticated/nse/editor.$scriptName'
 
 const LoginRoute = LoginRouteImport.update({
@@ -146,6 +147,12 @@ const AuthenticatedAdminOrganizationRoute =
     path: '/admin/organization',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminGvmLibraryRoute =
+  AuthenticatedAdminGvmLibraryRouteImport.update({
+    id: '/admin/gvm-library',
+    path: '/admin/gvm-library',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedNseEditorScriptNameRoute =
   AuthenticatedNseEditorScriptNameRouteImport.update({
     id: '/nse/editor/$scriptName',
@@ -158,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/trends': typeof AuthenticatedTrendsRoute
+  '/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -181,6 +189,7 @@ export interface FileRoutesByTo {
   '/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/trends': typeof AuthenticatedTrendsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -206,6 +215,7 @@ export interface FileRoutesById {
   '/_authenticated/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/_authenticated/trends': typeof AuthenticatedTrendsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
   '/_authenticated/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/_authenticated/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -231,6 +241,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/alert-rules'
     | '/trends'
+    | '/admin/gvm-library'
     | '/admin/organization'
     | '/admin/roles'
     | '/admin/users'
@@ -254,6 +265,7 @@ export interface FileRouteTypes {
     | '/alert-rules'
     | '/trends'
     | '/'
+    | '/admin/gvm-library'
     | '/admin/organization'
     | '/admin/roles'
     | '/admin/users'
@@ -278,6 +290,7 @@ export interface FileRouteTypes {
     | '/_authenticated/alert-rules'
     | '/_authenticated/trends'
     | '/_authenticated/'
+    | '/_authenticated/admin/gvm-library'
     | '/_authenticated/admin/organization'
     | '/_authenticated/admin/roles'
     | '/_authenticated/admin/users'
@@ -451,6 +464,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminOrganizationRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/gvm-library': {
+      id: '/_authenticated/admin/gvm-library'
+      path: '/admin/gvm-library'
+      fullPath: '/admin/gvm-library'
+      preLoaderRoute: typeof AuthenticatedAdminGvmLibraryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/nse/editor/$scriptName': {
       id: '/_authenticated/nse/editor/$scriptName'
       path: '/nse/editor/$scriptName'
@@ -465,6 +485,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAlertRulesRoute: typeof AuthenticatedAlertRulesRoute
   AuthenticatedTrendsRoute: typeof AuthenticatedTrendsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedAdminGvmLibraryRoute: typeof AuthenticatedAdminGvmLibraryRoute
   AuthenticatedAdminOrganizationRoute: typeof AuthenticatedAdminOrganizationRoute
   AuthenticatedAdminRolesRoute: typeof AuthenticatedAdminRolesRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -488,6 +509,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAlertRulesRoute: AuthenticatedAlertRulesRoute,
   AuthenticatedTrendsRoute: AuthenticatedTrendsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedAdminGvmLibraryRoute: AuthenticatedAdminGvmLibraryRoute,
   AuthenticatedAdminOrganizationRoute: AuthenticatedAdminOrganizationRoute,
   AuthenticatedAdminRolesRoute: AuthenticatedAdminRolesRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,

@@ -6,8 +6,13 @@ from datetime import datetime, timezone
 from threading import Lock
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi.responses import Response
 
 from app.core.deps import CurrentScanner, DbSession
+from app.schemas.gvm_library import (
+    GvmMetadataSnapshotRequest,
+    GvmMetadataSnapshotResponse,
+)
 from app.schemas.scanner import (
     HostDiscoveryJobClaimResponse,
     HostDiscoveryJobListResponse,
@@ -30,6 +35,8 @@ from app.schemas.vulnerability import (
     VulnerabilityResultRequest,
     VulnerabilityResultResponse,
 )
+from app.services import gvm_library as gvm_library_service
+from app.services import gvm_metadata as gvm_metadata_service
 from app.services import host_discovery as host_discovery_service
 from app.services import hosts as hosts_service
 from app.services.scanner_auth import authenticate_scanner
@@ -153,7 +160,9 @@ async def get_scanner_jobs(
     - Manual scan triggers
     - Scheduled scan triggers
 
-    Also updates the site's last_seen_at timestamp (heartbeat).
+    Also updates the site's last_seen_at timestamp (heartbeat) and includes
+    a ``gvm_refresh`` flag when an admin has requested an on-demand
+    metadata snapshot from this GVM scanner.
 
     Requires valid scanner JWT token.
     """
@@ -162,7 +171,8 @@ async def get_scanner_jobs(
     await db.commit()
 
     jobs = await get_pending_jobs_for_scanner(db, scanner)
-    return ScannerJobListResponse(jobs=jobs)
+    gvm_refresh = scanner.kind == "gvm" and scanner.gvm_refresh_requested
+    return ScannerJobListResponse(jobs=jobs, gvm_refresh=gvm_refresh)
 
 
 @router.post("/jobs/{network_id}/claim", response_model=ScannerJobClaimResponse)
@@ -451,6 +461,77 @@ async def submit_host_discovery_results(
         scan_id=request.scan_id,
         status="success",
         hosts_recorded=hosts_recorded,
+    )
+
+
+# --- GVM Metadata + Library Endpoints (scanner-facing) ---------------
+
+
+@router.post("/gvm-metadata", response_model=GvmMetadataSnapshotResponse)
+async def ingest_gvm_metadata_snapshot(
+    request: GvmMetadataSnapshotRequest,
+    db: DbSession,
+    scanner: CurrentScanner,
+) -> GvmMetadataSnapshotResponse:
+    """Ingest a full GVM metadata snapshot posted by the scanner agent.
+
+    Called on scanner startup, every ~5 min while idle, and when the scanner
+    observes the ``gvm_refresh`` flag in the ``/jobs`` response. Replaces
+    all existing mirror rows for this scanner in a single transaction and
+    clears the refresh flag.
+    """
+    if scanner.kind != "gvm":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="gvm-metadata can only be posted by GVM scanners",
+        )
+
+    count = await gvm_metadata_service.ingest_snapshot(db, scanner, request.entries)
+    await db.commit()
+    return GvmMetadataSnapshotResponse(
+        scanner_id=scanner.id, entries_stored=count
+    )
+
+
+@router.get("/gvm-library")
+async def fetch_gvm_library_xml(
+    db: DbSession,
+    scanner: CurrentScanner,
+    kind: str,
+    name: str,
+) -> Response:
+    """Fetch a library entry's raw XML for import into the scanner's GVM.
+
+    Called by the scanner agent during auto-push (Flow C) when a claimed
+    scan references a library entry that is missing or drifted.
+    """
+    if scanner.kind != "gvm":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="gvm-library is only available to GVM scanners",
+        )
+
+    if kind not in {"scan_config", "port_list"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="kind must be 'scan_config' or 'port_list'",
+        )
+
+    entry = await gvm_library_service.get_entry_by_name(
+        db,
+        kind,  # type: ignore[arg-type]
+        name,
+    )
+    if entry is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Library entry not found: kind={kind} name={name!r}",
+        )
+
+    return Response(
+        content=entry.xml_blob.encode("utf-8"),
+        media_type="application/xml",
+        headers={"X-OPM-XML-Hash": entry.xml_hash},
     )
 
 

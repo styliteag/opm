@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Greenbone (GVM)**: `.env.example` now lists all `GVM_*` variables (`GVM_SCANNER_API_KEY`, `GVM_BACKEND_URL`, `GVM_POLL_INTERVAL`, `GVM_LOG_LEVEL`, `GVM_USER`, `GVM_PASSWORD`, `GVM_GSA_PORT`, `GVM_GSA_HTTPS_PORT`)
+- **Greenbone (GVM)**: GVM config library with auto-deploy on scan — admins can upload exported `<get_configs_response>` / `<get_port_lists_response>` XMLs via `/admin/gvm-library`; the scanner agent self-checks on scan claim and imports missing or drifted entries before running `create_target`. Version drift detected via an `[OPM:hash=<sha256>]` marker embedded in the GVM `<comment>` element.
+- **Greenbone (GVM)**: `Scanner.kind` column (`"standard"` / `"gvm"`) picked at scanner creation — Scanner detail page now shows GVM Scan Configs and GVM Port Lists tabs for GVM scanners with a manual "Refresh metadata" trigger that piggybacks on the existing `/api/scanner/jobs` poll.
+- **Greenbone (GVM)**: GVM port list selection on networks — new `gvm_port_list` field and network form dropdown. When set, the scanner passes `port_list_id` to `gmp.create_target` instead of the raw `port_range` string, using GVM's native port list system.
+- **Greenbone (GVM)**: Per-network `gvm_scan_config` and `gvm_port_list` dropdowns now populate dynamically from the OPM library ∪ the currently-assigned scanner's live mirror (`gvm_scanner_metadata`), replacing the previous hardcoded 4-option list.
+
+### Migration
+
+- **Alembic 010**: adds `scanners.kind` (default `"standard"`), `scanners.gvm_refresh_requested`, `scanners.gvm_synced_at`, `networks.gvm_port_list`, `gvm_config_library` table, `gvm_scanner_metadata` table. Existing GVM scanners must be manually edited to `kind="gvm"` post-upgrade via the scanner edit form, otherwise the GVM tabs and metadata loop will remain inactive.
 
 ## [2.0.0] - 2026-04-10
 

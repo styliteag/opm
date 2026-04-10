@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
+  Library,
   Monitor,
   ShieldAlert,
   Network,
@@ -49,6 +50,12 @@ const settingsNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { label: "Scanners", href: "/scanners", icon: Server },
+  {
+    label: "GVM Library",
+    href: "/admin/gvm-library",
+    icon: Library,
+    adminOnly: true,
+  },
   { label: "Users", href: "/admin/users", icon: Users, adminOnly: true },
   { label: "Roles", href: "/admin/roles", icon: Shield, adminOnly: true },
   {
