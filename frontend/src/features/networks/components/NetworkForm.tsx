@@ -415,14 +415,16 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
                   </Select>
                 </div>
               )}
-              <div>
-                <Label htmlFor="scan_protocol">Protocol</Label>
-                <Select id="scan_protocol" {...register("scan_protocol")}>
-                  <option value="tcp">TCP</option>
-                  <option value="udp">UDP</option>
-                  <option value="both">Both</option>
-                </Select>
-              </div>
+              {!isGreenbone && (
+                <div>
+                  <Label htmlFor="scan_protocol">Protocol</Label>
+                  <Select id="scan_protocol" {...register("scan_protocol")}>
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                    <option value="both">Both</option>
+                  </Select>
+                </div>
+              )}
             </div>
             {isGreenbone && (
               <div>

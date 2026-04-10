@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.1.1] - 2026-04-10
+### Changed
+
+- **Networks**: Edit/Create Network form now hides the Protocol select when scanner type is Greenbone (GVM) — `scan_protocol` is only consumed by masscan/nmap/NSE; GVM derives TCP/UDP from the selected Port List (library/mirror) or from `port/tcp` tokens in the raw Port Specification, so exposing the dropdown was misleading. Rate, Scan Timeout, Port Timeout, Phases and NSE Profile were already hidden for Greenbone
+
+
 
 ## [2.1.0] - 2026-04-10
 
