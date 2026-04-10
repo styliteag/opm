@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Greenbone (GVM)**: GSA web UI no longer segfaults on 24.10 — rewrote `compose-gvm.yml` to use the upstream three-part pattern (`gsa` static assets → `gsad` API daemon → `nginx` frontend/proxy) instead of running the legacy monolithic `gsa:stable` image as a daemon
+- **Greenbone (GVM)**: nginx front-end no longer crash-loops with `host not found in upstream "gsad:80"` — custom `docker/gvm-nginx.conf` now uses Docker's embedded DNS resolver (`127.0.0.11`) with a variable in `proxy_pass`, forcing runtime resolution instead of the one-shot startup lookup that `upstream { server gsad:80; }` performs
 
 ### Changed
 
