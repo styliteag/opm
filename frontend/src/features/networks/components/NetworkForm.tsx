@@ -302,18 +302,44 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
               </div>
             </div>
             <div>
-              <Label htmlFor="port_spec">Port Specification</Label>
+              <div className="flex items-baseline justify-between">
+                <Label htmlFor="port_spec">Port Specification</Label>
+                {isGreenbone && gvmPortList && (
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Ignored — GVM Port List active
+                  </span>
+                )}
+              </div>
               <Input
                 id="port_spec"
                 {...register("port_spec")}
                 placeholder="1-65535"
-                className="font-mono"
+                className={`font-mono ${
+                  isGreenbone && gvmPortList
+                    ? "opacity-50"
+                    : ""
+                }`}
               />
               {errors.port_spec && (
                 <p className="mt-1 text-xs text-destructive">
                   {errors.port_spec.message}
                 </p>
               )}
+              {isGreenbone && gvmPortList ? (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Not used for this scan — ports come from GVM Port List{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                    {gvmPortList}
+                  </code>
+                  . Clear the port list dropdown below to use this field
+                  instead.
+                </p>
+              ) : isGreenbone ? (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Active: the scanner will use these ports directly (no GVM
+                  Port List selected).
+                </p>
+              ) : null}
             </div>
           </fieldset>
 
@@ -428,9 +454,21 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
                     </optgroup>
                   )}
                 </Select>
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  When set, the scanner uses this GVM port list instead of the
-                  raw port specification above.
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {gvmPortList ? (
+                    <>
+                      <span className="text-foreground/80 font-emphasis">
+                        Active:
+                      </span>{" "}
+                      scanner will pass <code>port_list_id</code> to GVM. The
+                      Port Specification above is ignored.
+                    </>
+                  ) : (
+                    <>
+                      Leave empty to use the raw Port Specification field at
+                      the top of the form. Pick a GVM port list to override.
+                    </>
+                  )}
                 </p>
               </div>
             )}
