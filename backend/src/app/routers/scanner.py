@@ -2,7 +2,6 @@
 
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
 from threading import Lock
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
@@ -160,16 +159,13 @@ async def get_scanner_jobs(
     - Manual scan triggers
     - Scheduled scan triggers
 
-    Also updates the site's last_seen_at timestamp (heartbeat) and includes
-    a ``gvm_refresh`` flag when an admin has requested an on-demand
-    metadata snapshot from this GVM scanner.
+    Includes a ``gvm_refresh`` flag when an admin has requested an
+    on-demand metadata snapshot from this GVM scanner. The scanner's
+    ``last_seen_at`` heartbeat is updated globally in the
+    ``CurrentScanner`` dependency, not in this handler.
 
     Requires valid scanner JWT token.
     """
-    # Update last_seen_at as heartbeat
-    scanner.last_seen_at = datetime.now(timezone.utc)
-    await db.commit()
-
     jobs = await get_pending_jobs_for_scanner(db, scanner)
     gvm_refresh = scanner.kind == "gvm" and scanner.gvm_refresh_requested
     return ScannerJobListResponse(jobs=jobs, gvm_refresh=gvm_refresh)

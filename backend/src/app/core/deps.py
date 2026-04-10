@@ -1,6 +1,7 @@
 """FastAPI dependencies for authentication and database access."""
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Query, status
@@ -153,6 +154,15 @@ async def get_current_scanner(
 
     if scanner is None:
         raise credentials_exception
+
+    # Heartbeat: any authenticated scanner call counts as "seen". This is
+    # especially important for long-running scans (e.g. GVM), where the
+    # main poll loop is blocked inside process_greenbone_job and the /jobs
+    # endpoint is not called again until the scan finishes — without this,
+    # the scanner would flip to "offline" in the UI after 5 minutes even
+    # while actively posting progress updates every ~30 seconds.
+    scanner.last_seen_at = datetime.now(timezone.utc)
+    await db.commit()
 
     return scanner
 
