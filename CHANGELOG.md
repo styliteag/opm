@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Greenbone (GVM)**: GSA web UI no longer segfaults on 24.10 — rewrote `compose-gvm.yml` to use the upstream three-part pattern (`gsa` static assets → `gsad` API daemon → `nginx` frontend/proxy) instead of running the legacy monolithic `gsa:stable` image as a daemon
+
+### Changed
+
+- **Greenbone (GVM)**: `compose-gvm.yml` aligned with upstream volume naming (`*_vol` suffix) and project name `greenbone-community-edition`
+- **Greenbone (GVM)**: documented ghcr.io mirror as a commented-out alternative next to each image (community registry remains the default since ghcr.io does not publish every image)
+- **Docs**: clarified `opm-network` is only required in the dev compose setup
+
+### Added
+
+- **Greenbone (GVM)**: `.env.example` now lists all `GVM_*` variables (`GVM_SCANNER_API_KEY`, `GVM_BACKEND_URL`, `GVM_POLL_INTERVAL`, `GVM_LOG_LEVEL`, `GVM_USER`, `GVM_PASSWORD`, `GVM_GSA_PORT`, `GVM_GSA_HTTPS_PORT`)
+
 ## [2.0.0] - 2026-04-10
 
 ### Added

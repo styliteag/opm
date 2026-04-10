@@ -252,7 +252,8 @@ The GVM scanner adds full vulnerability assessment powered by the [Greenbone Com
 
 4. Set the GVM admin password:
    ```bash
-   docker compose -f compose-gvm.yml exec --user gvmd gvmd gvmd --user=admin --new-password=admin
+   docker compose exec --user gvmd gvmd gvmd --user=admin --new-password=admin
+   # or: docker compose -f compose-gvm.yml exec --user gvmd gvmd gvmd --user=admin --new-password=admin
    ```
 
 5. In the OPM web dashboard, set a network's scanner type to **Greenbone** and choose a scan config (e.g. *Full and fast*).

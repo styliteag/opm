@@ -1,7 +1,25 @@
 # Greenbone (GVM) scanner stack for STYLiTE Orbit Monitor.
 #
-# Based on the official Greenbone Community Edition compose file.
-# Images from registry.community.greenbone.net/community/
+# Based on the official Greenbone Community Edition compose file
+# (https://greenbone.github.io/docs/latest/22.4/container/index.html)
+# plus the OPM scanner agent that bridges gvmd ↔ OPM backend.
+#
+# IMAGE REGISTRY:
+#   Images are pulled from the Greenbone community registry:
+#     registry.community.greenbone.net/community/...
+#   A GitHub Container Registry mirror exists at `ghcr.io/greenbone/...` but
+#   does NOT publish every image (feed-data, pg-gvm, etc.) — swapping the
+#   prefix will cause "manifest unknown" errors for some services, so stick
+#   with the community registry unless you have a specific reason not to.
+#
+# NOTE ON THE WEB UI (GSA):
+#   In 24.10 Greenbone split the monolithic `gsa` image into three parts:
+#     1. `gsa`   → one-shot image that copies static web assets to a shared
+#                  volume, signals ready via `/run/gsa/copying.done`, then idles
+#     2. `gsad`  → HTTP API daemon that talks to gvmd over a Unix socket
+#     3. `nginx` → serves the static frontend + reverse-proxies the API
+#   Running `gsa:stable` as a daemon by itself segfaults — this is expected.
+#   The upstream pattern below is the only supported setup.
 #
 # Prerequisites:
 #   1. Main OPM stack must be running (compose.yml or compose-dev.yml)
@@ -11,98 +29,118 @@
 # Usage:
 #   docker compose -f compose-gvm.yml up -d
 #
-# For production, comment out the build block and use the image line instead:
+# For production, comment out the scanner build block and use the image line:
 #   image: styliteag/opm-scanner-gvm:latest
 #   GVM_BACKEND_URL=http://app:80
 #
+# NETWORKS:
+#   `opm-network` is only required in the dev setup (compose-dev.yml) where
+#   the backend lives in a separate compose project. In production (compose.yml)
+#   the OPM services run in the same project and the default network covers it,
+#   so the external `opm-network` attachment on opm-scanner-gvm is a no-op but
+#   harmless — it stays here so the same file works in both environments.
+#
 # First startup downloads vulnerability feeds — this can take a long time.
 # Monitor feed sync: docker compose -f compose-gvm.yml logs -f gvmd
+
+name: greenbone-community-edition
 
 services:
   # ── GVM Feed Data ──────────────────────────────────────────────────────
   vulnerability-tests:
     image: registry.community.greenbone.net/community/vulnerability-tests
+    # image: ghcr.io/greenbone/vulnerability-tests
     environment:
       FEED_RELEASE: "24.10"
       KEEP_ALIVE: 1
     volumes:
-      - vt-data:/mnt
+      - vt_data_vol:/mnt
 
   notus-data:
     image: registry.community.greenbone.net/community/notus-data
+    # image: ghcr.io/greenbone/notus-data
     environment:
       KEEP_ALIVE: 1
     volumes:
-      - notus-data:/mnt
+      - notus_data_vol:/mnt
 
   scap-data:
     image: registry.community.greenbone.net/community/scap-data
+    # image: ghcr.io/greenbone/scap-data
     environment:
       KEEP_ALIVE: 1
     volumes:
-      - scap-data:/mnt
+      - scap_data_vol:/mnt
 
   cert-bund-data:
     image: registry.community.greenbone.net/community/cert-bund-data
+    # image: ghcr.io/greenbone/cert-bund-data
     environment:
       KEEP_ALIVE: 1
     volumes:
-      - cert-data:/mnt
+      - cert_data_vol:/mnt
 
   dfn-cert-data:
     image: registry.community.greenbone.net/community/dfn-cert-data
+    # image: ghcr.io/greenbone/dfn-cert-data
     environment:
       KEEP_ALIVE: 1
     volumes:
-      - cert-data:/mnt
+      - cert_data_vol:/mnt
     depends_on:
       cert-bund-data:
         condition: service_healthy
 
   data-objects:
     image: registry.community.greenbone.net/community/data-objects
+    # image: ghcr.io/greenbone/data-objects
     environment:
       FEED_RELEASE: "24.10"
       KEEP_ALIVE: 1
     volumes:
-      - data-objects:/mnt
+      - data_objects_vol:/mnt
 
   report-formats:
     image: registry.community.greenbone.net/community/report-formats
+    # image: ghcr.io/greenbone/report-formats
     environment:
       FEED_RELEASE: "24.10"
       KEEP_ALIVE: 1
     volumes:
-      - data-objects:/mnt
+      - data_objects_vol:/mnt
     depends_on:
       data-objects:
         condition: service_healthy
 
   gpg-data:
     image: registry.community.greenbone.net/community/gpg-data
+    # image: ghcr.io/greenbone/gpg-data
     volumes:
-      - gpg-data:/mnt
+      - gpg_data_vol:/mnt
 
   # ── GVM Infrastructure ─────────────────────────────────────────────────
   redis-server:
     image: registry.community.greenbone.net/community/redis-server
+    # image: ghcr.io/greenbone/redis-server
     restart: unless-stopped
     volumes:
-      - redis-socket:/run/redis/
+      - redis_socket_vol:/run/redis/
 
   pg-gvm-migrator:
     image: registry.community.greenbone.net/community/pg-gvm-migrator:stable
+    # image: ghcr.io/greenbone/pg-gvm-migrator:stable
     restart: "no"
     volumes:
-      - psql-data:/var/lib/postgresql
-      - psql-socket:/var/run/postgresql
+      - psql_data_vol:/var/lib/postgresql
+      - psql_socket_vol:/var/run/postgresql
 
   pg-gvm:
     image: registry.community.greenbone.net/community/pg-gvm:stable
+    # image: ghcr.io/greenbone/pg-gvm:stable
     restart: unless-stopped
     volumes:
-      - psql-data:/var/lib/postgresql
-      - psql-socket:/var/run/postgresql
+      - psql_data_vol:/var/lib/postgresql
+      - psql_socket_vol:/var/run/postgresql
     depends_on:
       pg-gvm-migrator:
         condition: service_completed_successfully
@@ -110,17 +148,18 @@ services:
   # ── GVM Core Services ──────────────────────────────────────────────────
   gvmd:
     image: registry.community.greenbone.net/community/gvmd:stable
+    # image: ghcr.io/greenbone/gvmd:stable
     restart: unless-stopped
     volumes:
-      - gvmd-data:/var/lib/gvm
-      - scap-data:/var/lib/gvm/scap-data/
-      - cert-data:/var/lib/gvm/cert-data
-      - data-objects:/var/lib/gvm/data-objects/gvmd
-      - vt-data:/var/lib/openvas/plugins
-      - psql-data:/var/lib/postgresql
-      - gvmd-socket:/run/gvmd
-      - ospd-socket:/run/ospd
-      - psql-socket:/var/run/postgresql
+      - gvmd_data_vol:/var/lib/gvm
+      - scap_data_vol:/var/lib/gvm/scap-data/
+      - cert_data_vol:/var/lib/gvm/cert-data
+      - data_objects_vol:/var/lib/gvm/data-objects/gvmd
+      - vt_data_vol:/var/lib/openvas/plugins
+      - psql_data_vol:/var/lib/postgresql
+      - gvmd_socket_vol:/run/gvmd
+      - ospd_openvas_socket_vol:/run/ospd
+      - psql_socket_vol:/var/run/postgresql
     depends_on:
       pg-gvm:
         condition: service_started
@@ -134,15 +173,13 @@ services:
         condition: service_healthy
       report-formats:
         condition: service_healthy
-    networks:
-      - default
-      - opm-network
 
   configure-openvas:
     image: registry.community.greenbone.net/community/openvas-scanner:stable
+    # image: ghcr.io/greenbone/openvas-scanner:stable
     volumes:
-      - openvas-data:/mnt
-      - openvas-log-data:/var/log/openvas
+      - openvas_data_vol:/mnt
+      - openvas_log_data_vol:/var/log/openvas
     command:
       - /bin/sh
       - -c
@@ -156,16 +193,17 @@ services:
 
   openvasd:
     image: registry.community.greenbone.net/community/openvas-scanner:stable
+    # image: ghcr.io/greenbone/openvas-scanner:stable
     restart: unless-stopped
     environment:
       OPENVASD_MODE: service_notus
       GNUPGHOME: /etc/openvas/gnupg
       LISTENING: 0.0.0.0:80
     volumes:
-      - openvas-data:/etc/openvas
-      - openvas-log-data:/var/log/openvas
-      - gpg-data:/etc/openvas/gnupg
-      - notus-data:/var/lib/notus
+      - openvas_data_vol:/etc/openvas
+      - openvas_log_data_vol:/var/log/openvas
+      - gpg_data_vol:/etc/openvas/gnupg
+      - notus_data_vol:/var/lib/notus
     depends_on:
       vulnerability-tests:
         condition: service_healthy
@@ -182,6 +220,7 @@ services:
 
   ospd-openvas:
     image: registry.community.greenbone.net/community/ospd-openvas:stable
+    # image: ghcr.io/greenbone/ospd-openvas:stable
     restart: unless-stopped
     hostname: ospd-openvas.local
     cap_add:
@@ -198,13 +237,13 @@ services:
         "-m", "666",
       ]
     volumes:
-      - gpg-data:/etc/openvas/gnupg
-      - vt-data:/var/lib/openvas/plugins
-      - notus-data:/var/lib/notus
-      - ospd-socket:/run/ospd
-      - redis-socket:/run/redis/
-      - openvas-data:/etc/openvas/
-      - openvas-log-data:/var/log/openvas
+      - gpg_data_vol:/etc/openvas/gnupg
+      - vt_data_vol:/var/lib/openvas/plugins
+      - notus_data_vol:/var/lib/notus
+      - ospd_openvas_socket_vol:/run/ospd
+      - redis_socket_vol:/run/redis/
+      - openvas_data_vol:/etc/openvas/
+      - openvas_log_data_vol:/var/log/openvas
     depends_on:
       redis-server:
         condition: service_started
@@ -219,23 +258,70 @@ services:
 
   gvm-tools:
     image: registry.community.greenbone.net/community/gvm-tools
+    # image: ghcr.io/greenbone/gvm-tools
     volumes:
-      - gvmd-socket:/run/gvmd
-      - ospd-socket:/run/ospd
+      - gvmd_socket_vol:/run/gvmd
+      - ospd_openvas_socket_vol:/run/ospd
     depends_on:
       - gvmd
       - ospd-openvas
 
-  # ── GVM Web UI (GSA) ────────────────────────────────────────────────────
+  # ── GVM Web UI (GSA) ───────────────────────────────────────────────────
+  # Three-part pattern: gsa (static assets) → gsad (HTTP API) → nginx (frontend+proxy)
   gsa:
-    image: registry.community.greenbone.net/community/gsa:stable
+    image: registry.community.greenbone.net/community/gsa:stable-slim
+    # image: ghcr.io/greenbone/gsa:stable-slim
+    environment:
+      MOUNT_PATH: "/mnt/web"
+      KEEP_ALIVE: 1
+    healthcheck:
+      test: ["CMD-SHELL", "test -e /run/gsa/copying.done"]
+      start_period: 5s
+    volumes:
+      - gsa_data_vol:/mnt/web
+
+  gsad:
+    image: registry.community.greenbone.net/community/gsad:stable
+    # image: ghcr.io/greenbone/gsad:stable
+    restart: unless-stopped
+    environment:
+      GSAD_ARGS: "--listen=0.0.0.0 --http-only --api-only -f"
+    volumes:
+      - gvmd_socket_vol:/run/gvmd
+    depends_on:
+      gvmd:
+        condition: service_started
+
+  gvm-config:
+    image: registry.community.greenbone.net/community/gvm-config:latest
+    # image: ghcr.io/greenbone/gvm-config:latest
+    restart: "no"
+    environment:
+      ENABLE_NGINX_CONFIG: "true"
+      ENABLE_TLS_GENERATION: "true"
+    volumes:
+      - nginx_config_vol:/mnt/nginx/configs
+      - nginx_certificates_vol:/mnt/nginx/certs
+
+  nginx:
+    image: registry.community.greenbone.net/community/nginx:latest
+    # image: ghcr.io/greenbone/nginx:latest
     restart: unless-stopped
     ports:
       - "${GVM_GSA_PORT:-9392}:9392"
+      # Uncomment to also expose HTTPS on 443 (uses auto-generated self-signed certs):
+      # - "${GVM_GSA_HTTPS_PORT:-443}:443"
     volumes:
-      - gvmd-socket:/run/gvmd
+      - nginx_config_vol:/etc/nginx/conf.d:ro
+      - nginx_certificates_vol:/etc/nginx/certs:ro
+      - gsa_data_vol:/usr/share/nginx/html:ro
     depends_on:
-      - gvmd
+      gvm-config:
+        condition: service_completed_successfully
+      gsa:
+        condition: service_healthy
+      gsad:
+        condition: service_started
 
   # ── OPM GVM Scanner Agent ──────────────────────────────────────────────
   opm-scanner-gvm:
@@ -244,6 +330,7 @@ services:
       dockerfile: Dockerfile.gvm
     # Or use a pre-built image (production):
     # image: styliteag/opm-scanner-gvm:latest
+    # image: ghcr.io/styliteag/opm-scanner-gvm:latest
     restart: unless-stopped
     environment:
       BACKEND_URL: ${GVM_BACKEND_URL:-http://backend:8000}
@@ -254,29 +341,39 @@ services:
       GVM_USER: ${GVM_USER:-admin}
       GVM_PASSWORD: ${GVM_PASSWORD:-admin}
     volumes:
-      - gvmd-socket:/run/gvmd
+      - gvmd_socket_vol:/run/gvmd
     depends_on:
       gvmd:
         condition: service_started
     networks:
+      - default
+      # opm-network is only required in dev (compose-dev.yml), where the
+      # OPM backend is in a separate compose project. Harmless in prod.
       - opm-network
 
 volumes:
-  vt-data:
-  notus-data:
-  scap-data:
-  cert-data:
-  data-objects:
-  gpg-data:
-  redis-socket:
-  psql-data:
-  psql-socket:
-  gvmd-data:
-  gvmd-socket:
-  ospd-socket:
-  openvas-data:
-  openvas-log-data:
+  gpg_data_vol:
+  scap_data_vol:
+  cert_data_vol:
+  data_objects_vol:
+  gvmd_data_vol:
+  psql_data_vol:
+  vt_data_vol:
+  notus_data_vol:
+  psql_socket_vol:
+  gvmd_socket_vol:
+  ospd_openvas_socket_vol:
+  redis_socket_vol:
+  openvas_data_vol:
+  openvas_log_data_vol:
+  gsa_data_vol:
+  nginx_config_vol:
+  nginx_certificates_vol:
 
 networks:
+  default:
+  # External network bridging to the OPM dev stack (compose-dev.yml).
+  # Only needed when the backend runs in a separate compose project; in
+  # production the backend is in the same project so this is a no-op.
   opm-network:
     external: true
