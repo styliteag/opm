@@ -1,6 +1,6 @@
 # Pinned upstream nuclei image — used as a multi-stage source for the
 # statically-linked nuclei binary. Bump the tag to update nuclei.
-ARG NUCLEI_VERSION=v3.3.7
+ARG NUCLEI_VERSION=v3.7.1
 FROM projectdiscovery/nuclei:${NUCLEI_VERSION} AS nuclei
 
 FROM python:3.12-slim
