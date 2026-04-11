@@ -172,3 +172,50 @@ export function useHostCachedHostnames(hostId: number | null) {
     enabled: hostId !== null,
   });
 }
+
+/** Shape of the 202 payload returned by the refresh endpoints. */
+export interface HostnameLookupRefreshResponse {
+  status: "queued";
+  queue_entry: {
+    id: number;
+    ip: string;
+    status: "pending" | "claimed" | "completed" | "failed";
+    requested_by_user_id: number | null;
+    requested_at: string;
+    claimed_at: string | null;
+    completed_at: string | null;
+    error_message: string | null;
+  };
+}
+
+/**
+ * Enqueue a manual hostname lookup for a host's IP.
+ *
+ * Posts to ``POST /api/hosts/{host_id}/hostname-lookup/refresh`` and
+ * schedules a delayed invalidation of the ``host-hostnames`` query
+ * so the panel refetches after the scanner has had time to drain
+ * the queue (next poll cycle, typically 5–10 s, plus network
+ * egress time for the HT / RapidDNS chain). The delay is a
+ * compromise: short enough that users see results "soon", long
+ * enough that we don't spam the backend with empty refetches
+ * while the scanner is still running.
+ */
+export function useRefreshHostHostnames(hostId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      postApi<HostnameLookupRefreshResponse>(
+        `/api/hosts/${hostId}/hostname-lookup/refresh`,
+        {},
+      ),
+    onSuccess: () => {
+      // The scanner picks up the queued job on its next poll cycle
+      // (default 10 s). Re-invalidate after a generous delay so the
+      // panel refetches once the cache row has been written.
+      window.setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["host-hostnames", hostId] });
+        qc.invalidateQueries({ queryKey: ["hosts"] });
+      }, 10_000);
+    },
+  });
+}
