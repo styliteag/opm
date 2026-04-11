@@ -573,17 +573,22 @@ class TestGetHostnamesForIps:
 # A trimmed-down rapiddns.io /sameip/ page snippet used as a parse
 # fixture. Mirrors the real layout: a results table with one row per
 # hostname and several `<td>` cells per row.
+# IPs in test fixtures come from the RFC 5737 TEST-NET-1 documentation
+# range (192.0.2.0/24). Hostnames come from RFC 2606 reserved example
+# domains. Both are guaranteed never to be routable or owned by anyone,
+# so CI logs or failure artifacts can't accidentally point at a real
+# third party.
 _RAPIDDNS_HTML = """\
 <!DOCTYPE html>
 <html><head><title>Same IP</title></head><body>
 <table class="table">
 <thead><tr><th>Host</th><th>A-Record</th><th>ASN</th></tr></thead>
 <tbody>
-<tr><td>bonifatiuskloster.de</td><td>213.183.76.224</td><td>12345</td></tr>
-<tr><td>www.bonifatiuskloster.de</td><td>213.183.76.224</td><td>12345</td></tr>
-<tr><td>derweinberg.at</td><td>213.183.76.224</td><td>12345</td></tr>
-<tr><td>sensocloud24.de</td><td>213.183.76.224</td><td>12345</td></tr>
-<tr><td>213.183.76.224</td><td>213.183.76.224</td><td>12345</td></tr>
+<tr><td>example.com</td><td>192.0.2.10</td><td>12345</td></tr>
+<tr><td>www.example.com</td><td>192.0.2.10</td><td>12345</td></tr>
+<tr><td>api.example.org</td><td>192.0.2.10</td><td>12345</td></tr>
+<tr><td>shop.example.net</td><td>192.0.2.10</td><td>12345</td></tr>
+<tr><td>192.0.2.10</td><td>192.0.2.10</td><td>12345</td></tr>
 <tr><td>just-some-word</td><td>-</td><td>-</td></tr>
 </tbody>
 </table>
@@ -598,10 +603,10 @@ class TestRapidDnsParse:
         # IPv4 literal and non-FQDN row ("just-some-word") should be
         # filtered out by the FQDN regex / IPv4 check.
         assert set(result.hostnames) == {
-            "bonifatiuskloster.de",
-            "www.bonifatiuskloster.de",
-            "derweinberg.at",
-            "sensocloud24.de",
+            "example.com",
+            "www.example.com",
+            "api.example.org",
+            "shop.example.net",
         }
 
     def test_empty_body_is_no_results(self) -> None:
@@ -652,7 +657,7 @@ class TestRapidDnsParse:
             source = _HappySource()
             result = await source.fetch("1.2.3.4")
             assert result.status == "success"
-            assert "bonifatiuskloster.de" in result.hostnames
+            assert "example.com" in result.hostnames
 
         import asyncio
 
