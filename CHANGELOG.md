@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.4] - 2026-04-11
+
 ### Fixed
 
 - **Scanner build**: bumped pinned `NUCLEI_VERSION` in `scanner/Dockerfile` from `v3.3.7` to `v3.7.1`. Docker Hub no longer serves the older tag (`docker.io/projectdiscovery/nuclei:v3.3.7: not found`), breaking fresh scanner image builds on the multi-stage `FROM projectdiscovery/nuclei:${NUCLEI_VERSION}` step. Probe-built locally to confirm the new tag resolves and the `nuclei -update-templates` CLI flags are unchanged
