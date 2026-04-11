@@ -32,10 +32,13 @@ from app.schemas.hostname_lookup import (
     CacheImportSummary,
     CacheStatusResponse,
     HostnameLookupEntry,
+    HostnameLookupQueueEntryResponse,
+    HostnameLookupRefreshResponse,
 )
 from app.services import hostname_lookup_io
 from app.services.hostname_lookup import (
     delete_cache_entry,
+    enqueue_hostname_lookup,
     update_cache_entry_manual,
 )
 from app.services.hostname_lookup_filler import run_hostname_cache_filler
@@ -162,6 +165,32 @@ async def update_hostname_cache_entry(
         queried_at=row.queried_at,
         expires_at=row.expires_at,
         error_message=row.error_message,
+    )
+
+
+@router.post(
+    "/entries/{ip}/refresh",
+    response_model=HostnameLookupRefreshResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def refresh_hostname_cache_entry(
+    user: AdminUser,
+    db: DbSession,
+    ip: str,
+) -> HostnameLookupRefreshResponse:
+    """Enqueue a manual hostname lookup for an arbitrary IP.
+
+    Admin counterpart to ``POST /api/hosts/{host_id}/hostname-lookup/refresh``
+    — operates on a raw IP rather than a host id, so the admin UI can
+    fire a refresh from the cache table without first navigating to the
+    host detail page. The scanner-side handling is identical.
+    """
+    entry = await enqueue_hostname_lookup(
+        db, ip=ip, requested_by_user_id=user.id
+    )
+    await db.commit()
+    return HostnameLookupRefreshResponse(
+        queue_entry=HostnameLookupQueueEntryResponse.model_validate(entry),
     )
 
 

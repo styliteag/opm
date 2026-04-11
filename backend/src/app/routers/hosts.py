@@ -35,12 +35,19 @@ from app.schemas.host import (
     HostUpdateRequest,
     PortRuleMatch,
 )
-from app.schemas.hostname_lookup import CacheEntryHostnamesResponse
+from app.schemas.hostname_lookup import (
+    CacheEntryHostnamesResponse,
+    HostnameLookupQueueEntryResponse,
+    HostnameLookupRefreshResponse,
+)
 from app.schemas.scan import HostRescanRequest, ScanTriggerResponse
 from app.schemas.vulnerability import VulnerabilityListResponse, VulnerabilitySeverityLabel
 from app.services import global_open_ports as global_ports_service
 from app.services import hosts as hosts_service
-from app.services.hostname_lookup import get_cache_row_for_ip
+from app.services.hostname_lookup import (
+    enqueue_hostname_lookup,
+    get_cache_row_for_ip,
+)
 from app.services.vulnerability_results import get_vulnerabilities_for_host
 
 router = APIRouter(prefix="/api/hosts", tags=["hosts"])
@@ -175,6 +182,45 @@ async def get_host_hostnames(
         source=row.source,
         queried_at=row.queried_at,
         expires_at=row.expires_at,
+    )
+
+
+@router.post(
+    "/{host_id}/hostname-lookup/refresh",
+    response_model=HostnameLookupRefreshResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def refresh_host_hostname_lookup(
+    user: CurrentUser,
+    db: DbSession,
+    host_id: int,
+) -> HostnameLookupRefreshResponse:
+    """Enqueue a manual hostname lookup for this host's IP.
+
+    Lands a ``pending`` row in ``hostname_lookup_queue``; the next
+    scanner poll claims it, runs the HackerTarget / RapidDNS chain
+    against the IP, posts results to ``hostname_lookup_cache``, and
+    marks the row completed. The 202 response carries the queue row id
+    so the UI can correlate the click with the eventual completion.
+
+    Any authenticated user can trigger a refresh on a host they can
+    see (same auth gate as ``GET /api/hosts/{host_id}``). Per-IP rate
+    limiting is intentionally not enforced here — the cache write is
+    idempotent and the budget counter prevents real abuse.
+    """
+    host = await hosts_service.get_host_by_id(db, host_id)
+    if host is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Host not found",
+        )
+
+    entry = await enqueue_hostname_lookup(
+        db, ip=host.ip, requested_by_user_id=user.id
+    )
+    await db.commit()
+    return HostnameLookupRefreshResponse(
+        queue_entry=HostnameLookupQueueEntryResponse.model_validate(entry),
     )
 
 

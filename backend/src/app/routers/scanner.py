@@ -12,6 +12,11 @@ from app.schemas.gvm_library import (
     GvmMetadataSnapshotRequest,
     GvmMetadataSnapshotResponse,
 )
+from app.schemas.hostname_lookup import (
+    HostnameLookupQueueCompleteRequest,
+    HostnameLookupQueueEntryResponse,
+    HostnameLookupQueueListResponse,
+)
 from app.schemas.scanner import (
     HostDiscoveryJobClaimResponse,
     HostDiscoveryJobListResponse,
@@ -39,7 +44,11 @@ from app.services import gvm_library as gvm_library_service
 from app.services import gvm_metadata as gvm_metadata_service
 from app.services import host_discovery as host_discovery_service
 from app.services import hosts as hosts_service
-from app.services.hostname_lookup import get_hostnames_for_ips
+from app.services.hostname_lookup import (
+    claim_pending_lookup_jobs,
+    get_hostnames_for_ips,
+    mark_queue_entry_completed,
+)
 from app.services.scanner_auth import authenticate_scanner
 from app.services.scanner_jobs import claim_job, get_pending_jobs_for_scanner, is_job_running
 from app.services.scanner_logs import submit_scan_logs
@@ -357,6 +366,74 @@ async def get_scanner_hostnames(
 
     mapping = await get_hostnames_for_ips(db, ip_list)
     return ScannerHostnamesResponse(hostnames=mapping)
+
+
+@router.get(
+    "/hostname-lookup-jobs",
+    response_model=HostnameLookupQueueListResponse,
+)
+async def claim_hostname_lookup_jobs(
+    db: DbSession,
+    scanner: CurrentScanner,  # noqa: ARG001 — DI gate for scanner JWT
+    limit: int = 10,
+) -> HostnameLookupQueueListResponse:
+    """Claim pending manual hostname lookup jobs for this scanner.
+
+    Atomically transitions up to ``limit`` rows from ``pending`` to
+    ``claimed`` and returns them. Also runs the lazy stuck-claim sweep
+    (>1h ``claimed`` → ``pending``) and the terminal-row GC (>7d
+    ``completed`` / ``failed`` → deleted) so the queue table stays
+    bounded without a scheduled job.
+
+    Scanner is expected to call this every poll cycle alongside the
+    existing scan-job poll. Each claimed entry must be terminated via
+    ``POST /hostname-lookup-jobs/{id}/complete`` once the enrichment
+    chain finishes.
+    """
+    safe_limit = max(1, min(limit, 50))
+    entries = await claim_pending_lookup_jobs(db, limit=safe_limit)
+    await db.commit()
+    return HostnameLookupQueueListResponse(
+        jobs=[
+            HostnameLookupQueueEntryResponse.model_validate(entry)
+            for entry in entries
+        ]
+    )
+
+
+@router.post(
+    "/hostname-lookup-jobs/{job_id}/complete",
+    response_model=HostnameLookupQueueEntryResponse,
+)
+async def complete_hostname_lookup_job(
+    job_id: int,
+    request: HostnameLookupQueueCompleteRequest,
+    db: DbSession,
+    scanner: CurrentScanner,  # noqa: ARG001 — DI gate for scanner JWT
+) -> HostnameLookupQueueEntryResponse:
+    """Mark a claimed hostname lookup job as terminal.
+
+    Called by the scanner after running the enrichment chain against
+    the queued IP and posting the results to the cache. Accepts
+    ``status='completed'`` for success / no_results outcomes and
+    ``status='failed'`` for transport / parser failures. The error
+    field is bounded to 500 chars and only stored when status='failed'.
+
+    Returns 404 if no job with that id exists.
+    """
+    entry = await mark_queue_entry_completed(
+        db,
+        job_id,
+        status=request.status,
+        error=request.error,
+    )
+    if entry is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Hostname lookup job {job_id} not found",
+        )
+    await db.commit()
+    return HostnameLookupQueueEntryResponse.model_validate(entry)
 
 
 # --- Host Discovery Endpoints ---

@@ -16,7 +16,18 @@ entries that rarely change, and a long TTL for stable `success` rows.
 
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -77,3 +88,60 @@ class HostnameLookupBudget(Base):
     source: Mapped[str] = mapped_column(String(32), nullable=False)
     day: Mapped[date] = mapped_column(Date, nullable=False)
     used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class HostnameLookupQueueEntry(Base):
+    """Pending / in-flight manual hostname lookup request.
+
+    The on-demand handoff between the backend (storage + manual edit
+    surface) and the scanner (the only egress point for external
+    hostname APIs in the scanner-centric architecture). A user clicks
+    "Refresh" on a host, the backend enqueues a row here, and the next
+    scanner poll claims it, runs the HackerTarget / RapidDNS chain
+    against the IP, posts results to ``hostname_lookup_cache``, and
+    marks the row completed.
+
+    Lifecycle:
+
+    - ``pending``  → newly enqueued, waiting for a scanner to claim
+    - ``claimed``  → a scanner has reserved the row and is processing
+                     it. Rows stuck in this state for > 1 hour get
+                     re-queued lazily on the next read
+    - ``completed``→ scanner posted results and called ``/complete``
+    - ``failed``   → scanner could not enrich (budget exhausted,
+                     network error, all sources returned no results)
+
+    Multiple ``pending`` rows for the same IP are allowed — de-dup
+    happens client-side at claim time, since MariaDB < 10.5 cannot
+    enforce a partial unique index on ``(ip, status='pending')``.
+    """
+
+    __tablename__ = "hostname_lookup_queue"
+    __table_args__ = (
+        Index(
+            "idx_hostname_queue_status_requested",
+            "status",
+            "requested_at",
+        ),
+        Index("idx_hostname_queue_ip", "ip"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    ip: Mapped[str] = mapped_column(String(45), nullable=False)
+    requested_by_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.utc_timestamp()
+    )
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="pending",
+        comment="'pending' | 'claimed' | 'completed' | 'failed'",
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -40,10 +40,14 @@ from datetime import datetime, timedelta
 from typing import Literal, Protocol
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.hostname_lookup import HostnameLookup, HostnameLookupBudget
+from app.models.hostname_lookup import (
+    HostnameLookup,
+    HostnameLookupBudget,
+    HostnameLookupQueueEntry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,19 @@ logger = logging.getLogger(__name__)
 TTL_SUCCESS_DAYS = 30
 TTL_NO_RESULTS_DAYS = 7
 TTL_FAILED_DAYS = 3
+
+# Stuck-claim sweep: a row stays in 'claimed' for at most this long
+# before the next read re-queues it. Tuned to comfortably exceed the
+# scanner's worst-case enrichment runtime (HackerTarget + RapidDNS +
+# crt.sh) for a single IP, while still recovering quickly enough that
+# a crashed scanner doesn't strand a manual refresh request.
+QUEUE_STUCK_CLAIM_AFTER = timedelta(hours=1)
+
+# Lazy GC retention for terminal queue rows. Completed / failed rows
+# linger as an audit trail then get deleted on the next read. Short
+# enough to keep the table tiny, long enough that operators can spot
+# "the refresh I clicked yesterday came back failed".
+QUEUE_TERMINAL_RETENTION = timedelta(days=7)
 
 # Manual edits (admin UI → PUT /entries/{ip}) use a long TTL so the
 # filler doesn't immediately overwrite a hand-curated list on the next
@@ -700,3 +717,157 @@ async def lookup_with_cache(
         len(result.hostnames),
     )
     return list(result.hostnames) if result.status == "success" else []
+
+
+# --- On-demand queue (manual lookup handoff to scanner) --------------
+
+
+async def enqueue_hostname_lookup(
+    db: AsyncSession,
+    ip: str,
+    requested_by_user_id: int | None,
+) -> HostnameLookupQueueEntry:
+    """Add a pending manual lookup row for ``ip``.
+
+    Always inserts a fresh ``pending`` row — duplicate suppression for
+    the same IP happens at claim time, not enqueue time, because
+    MariaDB < 10.5 cannot enforce a partial unique index on
+    ``(ip, status='pending')`` and we don't want to take a row lock for
+    every UI click.
+    """
+    entry = HostnameLookupQueueEntry(
+        ip=ip,
+        requested_by_user_id=requested_by_user_id,
+        status="pending",
+    )
+    db.add(entry)
+    await db.flush()
+    return entry
+
+
+async def _sweep_stuck_claims(db: AsyncSession) -> None:
+    """Re-queue ``claimed`` rows that exceeded the stuck-claim window.
+
+    Lazy maintenance — runs at the start of every claim cycle. A
+    crashed or rebooted scanner can leave a row pinned in ``claimed``
+    forever; this re-queues anything past
+    ``QUEUE_STUCK_CLAIM_AFTER`` so the next poll picks it up.
+    """
+    cutoff = _now() - QUEUE_STUCK_CLAIM_AFTER
+    await db.execute(
+        update(HostnameLookupQueueEntry)
+        .where(HostnameLookupQueueEntry.status == "claimed")
+        .where(HostnameLookupQueueEntry.claimed_at.is_not(None))
+        .where(HostnameLookupQueueEntry.claimed_at <= cutoff)
+        .values(status="pending", claimed_at=None)
+    )
+
+
+async def _sweep_terminal_rows(db: AsyncSession) -> None:
+    """Delete completed / failed rows older than the retention window."""
+    cutoff = _now() - QUEUE_TERMINAL_RETENTION
+    await db.execute(
+        delete(HostnameLookupQueueEntry)
+        .where(HostnameLookupQueueEntry.status.in_(("completed", "failed")))
+        .where(HostnameLookupQueueEntry.completed_at.is_not(None))
+        .where(HostnameLookupQueueEntry.completed_at <= cutoff)
+    )
+
+
+async def claim_pending_lookup_jobs(
+    db: AsyncSession, limit: int = 10
+) -> list[HostnameLookupQueueEntry]:
+    """Atomically claim up to ``limit`` pending queue rows for a scanner.
+
+    Performs the lazy stuck-claim sweep + terminal-row GC, then reads
+    the oldest pending rows, marks each as ``claimed`` with a fresh
+    ``claimed_at`` timestamp, and returns them to the caller. The
+    ``flush`` happens before return so the caller's commit persists the
+    state transition.
+
+    De-duplicates by IP within the returned batch — if the queue has
+    three pending rows for the same IP, only the oldest is claimed and
+    returned; the other two stay pending and get cleaned up the next
+    time their IP is enriched (the cache write covers all of them).
+    """
+    if limit <= 0:
+        return []
+
+    await _sweep_stuck_claims(db)
+    await _sweep_terminal_rows(db)
+
+    rows = (
+        (
+            await db.execute(
+                select(HostnameLookupQueueEntry)
+                .where(HostnameLookupQueueEntry.status == "pending")
+                .order_by(HostnameLookupQueueEntry.requested_at.asc())
+                .limit(limit * 4)  # over-fetch to absorb same-IP dupes
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    seen_ips: set[str] = set()
+    claimed: list[HostnameLookupQueueEntry] = []
+    now = _now()
+    for row in rows:
+        if row.ip in seen_ips:
+            continue
+        seen_ips.add(row.ip)
+        row.status = "claimed"
+        row.claimed_at = now
+        claimed.append(row)
+        if len(claimed) >= limit:
+            break
+
+    if claimed:
+        await db.flush()
+    return claimed
+
+
+async def mark_queue_entry_completed(
+    db: AsyncSession,
+    queue_id: int,
+    *,
+    status: Literal["completed", "failed"] = "completed",
+    error: str | None = None,
+) -> HostnameLookupQueueEntry | None:
+    """Mark a claimed queue row as terminal (completed or failed).
+
+    Returns the updated row, or ``None`` if no row matches ``queue_id``.
+    The error message is bounded to 500 characters before storage.
+    """
+    row = (
+        await db.execute(
+            select(HostnameLookupQueueEntry).where(
+                HostnameLookupQueueEntry.id == queue_id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+
+    row.status = status
+    row.completed_at = _now()
+    row.error_message = error[:500] if error else None
+    await db.flush()
+    return row
+
+
+async def get_pending_queue_count(db: AsyncSession) -> int:
+    """Return the number of pending + claimed queue rows.
+
+    Used by the admin status endpoint to surface "manual lookups
+    waiting" on the dashboard. Includes ``claimed`` so an in-flight
+    refresh still appears as outstanding work to the operator.
+    """
+    rows = (
+        await db.execute(
+            select(HostnameLookupQueueEntry.id).where(
+                HostnameLookupQueueEntry.status.in_(("pending", "claimed"))
+            )
+        )
+    ).all()
+    return len(rows)

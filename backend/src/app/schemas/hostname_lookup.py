@@ -154,3 +154,59 @@ class CacheEntryHostnamesResponse(BaseModel):
     source: str | None
     queried_at: datetime | None
     expires_at: datetime | None
+
+
+# --- Queue (on-demand manual lookup) ----------------------------------
+
+
+QueueStatus = Literal["pending", "claimed", "completed", "failed"]
+
+
+class HostnameLookupQueueEntryResponse(BaseModel):
+    """One row of the on-demand hostname lookup queue.
+
+    Returned by the scanner-facing ``GET /api/scanner/hostname-lookup-jobs``
+    endpoint when claiming pending jobs, and as the ``queued`` payload of
+    the user-facing refresh endpoints.
+    """
+
+    id: int
+    ip: str
+    status: QueueStatus
+    requested_by_user_id: int | None
+    requested_at: datetime
+    claimed_at: datetime | None
+    completed_at: datetime | None
+    error_message: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class HostnameLookupQueueListResponse(BaseModel):
+    """Wrapper for the scanner job-claim response."""
+
+    jobs: list[HostnameLookupQueueEntryResponse]
+
+
+class HostnameLookupQueueCompleteRequest(BaseModel):
+    """Body for ``POST /api/scanner/hostname-lookup-jobs/{id}/complete``.
+
+    Scanner reports terminal state after running the enrichment chain
+    against the queued IP and posting the results to the cache. The
+    ``error`` field is only meaningful for ``failed`` and is bounded
+    server-side before persisting.
+    """
+
+    status: Literal["completed", "failed"]
+    error: str | None = Field(default=None, max_length=500)
+
+
+class HostnameLookupRefreshResponse(BaseModel):
+    """202 payload for the user/admin refresh trigger endpoints.
+
+    Returns the freshly enqueued queue row so the UI can correlate
+    "I clicked Refresh" with "scanner picked up job N at T+5s".
+    """
+
+    status: Literal["queued"] = "queued"
+    queue_entry: HostnameLookupQueueEntryResponse
