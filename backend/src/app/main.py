@@ -32,6 +32,9 @@ from .routers import (
     users,
     version,
 )
+from .routers import (
+    hostname_lookup as hostname_lookup_router,
+)
 from .services.scheduler import shutdown_scheduler, start_scheduler
 
 logger = logging.getLogger(__name__)
@@ -95,6 +98,7 @@ app.include_router(global_ports.router)
 app.include_router(global_settings.router)
 app.include_router(gvm_library.router)
 app.include_router(host_timeline.router)
+app.include_router(hostname_lookup_router.router)
 app.include_router(hosts.router)
 app.include_router(metadata.router)
 app.include_router(networks.router)

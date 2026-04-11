@@ -1,0 +1,450 @@
+"""Tests for the hostname lookup cache export/import service + API.
+
+Covers three layers:
+1. ``export_cache`` — serialization shape, ordering, full-row coverage
+   regardless of status/TTL.
+2. ``import_cache`` — skip vs overwrite strategies, new-row insert,
+   missing-timestamp backfill via ``_ttl_for_status``, rejected-entry
+   accounting, round-trip lossless-ness when paired with ``export``.
+3. HTTP endpoints — admin gating, export body shape, import summary
+   return, query-param strategy selection, malformed payload
+   rejection (wrong format_version).
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.hostname_lookup import HostnameLookup
+from app.schemas.hostname_lookup import (
+    CacheImportSummary,
+    HostnameLookupEntry,
+)
+from app.services.hostname_lookup import (
+    HostnameLookupResult,
+    upsert_cache_row,
+)
+from app.services.hostname_lookup_io import export_cache, import_cache
+
+# --- export_cache ----------------------------------------------------
+
+
+class TestExportCache:
+    async def test_empty_cache(self, db_session: AsyncSession) -> None:
+        doc = await export_cache(db_session)
+        assert doc.format_version == 1
+        assert doc.entry_count == 0
+        assert doc.entries == []
+
+    async def test_includes_all_statuses(
+        self, db_session: AsyncSession
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.1",
+            HostnameLookupResult(
+                status="success", hostnames=["a.example", "b.example"]
+            ),
+            source="hackertarget",
+        )
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.2",
+            HostnameLookupResult(status="no_results", hostnames=[]),
+            source="hackertarget",
+        )
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.3",
+            HostnameLookupResult(
+                status="failed",
+                hostnames=[],
+                error_message="boom",
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        doc = await export_cache(db_session)
+        assert doc.entry_count == 3
+        statuses = {e.status for e in doc.entries}
+        assert statuses == {"success", "no_results", "failed"}
+
+    async def test_ordered_by_ip(self, db_session: AsyncSession) -> None:
+        for ip in ["10.0.0.3", "10.0.0.1", "10.0.0.2"]:
+            await upsert_cache_row(
+                db_session,
+                ip,
+                HostnameLookupResult(status="success", hostnames=[ip]),
+                source="hackertarget",
+            )
+        await db_session.commit()
+
+        doc = await export_cache(db_session)
+        assert [e.ip for e in doc.entries] == [
+            "10.0.0.1",
+            "10.0.0.2",
+            "10.0.0.3",
+        ]
+
+    async def test_preserves_hostnames_and_metadata(
+        self, db_session: AsyncSession
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.42",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["a.example.com", "b.example.com", "c.example.com"],
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        doc = await export_cache(db_session)
+        entry = doc.entries[0]
+        assert entry.ip == "10.0.0.42"
+        assert entry.hostnames == [
+            "a.example.com",
+            "b.example.com",
+            "c.example.com",
+        ]
+        assert entry.source == "hackertarget"
+        assert entry.status == "success"
+        assert entry.queried_at is not None
+        assert entry.expires_at is not None
+
+
+# --- import_cache ----------------------------------------------------
+
+
+class TestImportCacheSkip:
+    async def test_insert_into_empty_cache(
+        self, db_session: AsyncSession
+    ) -> None:
+        entries = [
+            HostnameLookupEntry(
+                ip="10.0.0.1",
+                hostnames=["x.example", "y.example"],
+                source="imported",
+                status="success",
+            ),
+            HostnameLookupEntry(
+                ip="10.0.0.2",
+                hostnames=[],
+                source="imported",
+                status="no_results",
+            ),
+        ]
+
+        summary = await import_cache(db_session, entries, strategy="skip")
+        await db_session.commit()
+
+        assert summary.total == 2
+        assert summary.inserted == 2
+        assert summary.skipped == 0
+        assert summary.overwritten == 0
+
+        rows = (
+            (await db_session.execute(select(HostnameLookup)))
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 2
+
+    async def test_skip_preserves_existing(
+        self, db_session: AsyncSession
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.1",
+            HostnameLookupResult(
+                status="success", hostnames=["existing.example"]
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        entries = [
+            HostnameLookupEntry(
+                ip="10.0.0.1",
+                hostnames=["imported.example"],
+                source="imported",
+                status="success",
+            ),
+            HostnameLookupEntry(
+                ip="10.0.0.2",
+                hostnames=["new.example"],
+                source="imported",
+                status="success",
+            ),
+        ]
+
+        summary = await import_cache(db_session, entries, strategy="skip")
+        await db_session.commit()
+
+        assert summary.inserted == 1
+        assert summary.skipped == 1
+
+        row = (
+            (
+                await db_session.execute(
+                    select(HostnameLookup).where(HostnameLookup.ip == "10.0.0.1")
+                )
+            ).scalar_one()
+        )
+        # Existing row preserved
+        assert row.hostnames_json == ["existing.example"]
+        assert row.source == "hackertarget"
+
+    async def test_backfills_missing_timestamps(
+        self, db_session: AsyncSession
+    ) -> None:
+        entries = [
+            HostnameLookupEntry(
+                ip="10.0.0.5",
+                hostnames=["only.example"],
+                source="bootstrap",
+                status="success",
+                # queried_at / expires_at omitted
+            ),
+        ]
+
+        await import_cache(db_session, entries, strategy="skip")
+        await db_session.commit()
+
+        row = (
+            await db_session.execute(
+                select(HostnameLookup).where(HostnameLookup.ip == "10.0.0.5")
+            )
+        ).scalar_one()
+        assert row.queried_at is not None
+        assert row.expires_at is not None
+        # Success TTL = 30 days → expires must be ~30 days in the future.
+        delta = row.expires_at - row.queried_at
+        assert 29 <= delta.days <= 30
+
+
+class TestImportCacheOverwrite:
+    async def test_overwrites_existing_row(
+        self, db_session: AsyncSession
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.1",
+            HostnameLookupResult(
+                status="success", hostnames=["old.example"]
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        entries = [
+            HostnameLookupEntry(
+                ip="10.0.0.1",
+                hostnames=["new1.example", "new2.example"],
+                source="imported",
+                status="success",
+            ),
+        ]
+
+        summary = await import_cache(db_session, entries, strategy="overwrite")
+        await db_session.commit()
+
+        assert summary.overwritten == 1
+        assert summary.skipped == 0
+
+        row = (
+            await db_session.execute(
+                select(HostnameLookup).where(HostnameLookup.ip == "10.0.0.1")
+            )
+        ).scalar_one()
+        assert row.hostnames_json == ["new1.example", "new2.example"]
+        assert row.source == "imported"
+
+
+class TestRoundTrip:
+    async def test_export_then_import_overwrite_is_lossless(
+        self, db_session: AsyncSession
+    ) -> None:
+        now = datetime.utcnow()
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.100",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["roundtrip.example", "second.example"],
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        exported = await export_cache(db_session)
+        assert len(exported.entries) == 1
+
+        # Simulate a restore — overwrite the existing row with its own data.
+        summary = await import_cache(
+            db_session, exported.entries, strategy="overwrite"
+        )
+        await db_session.commit()
+        assert summary.overwritten == 1
+
+        row = (
+            await db_session.execute(
+                select(HostnameLookup).where(HostnameLookup.ip == "10.0.0.100")
+            )
+        ).scalar_one()
+        assert row.hostnames_json == ["roundtrip.example", "second.example"]
+        # Timestamps survive round-trip (within DB precision).
+        assert abs((row.queried_at - now).total_seconds()) < 5
+
+
+# --- HTTP endpoints --------------------------------------------------
+
+
+class TestExportEndpoint:
+    async def test_export_requires_admin(
+        self, client: AsyncClient
+    ) -> None:
+        response = await client.get("/api/admin/hostname-lookup/export")
+        assert response.status_code in (401, 403)
+
+    async def test_export_empty_cache(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        response = await client.get(
+            "/api/admin/hostname-lookup/export", headers=admin_headers
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["format_version"] == 1
+        assert body["entry_count"] == 0
+        assert body["entries"] == []
+
+    async def test_export_returns_stored_entries(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.200",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["api.example", "www.example"],
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        response = await client.get(
+            "/api/admin/hostname-lookup/export", headers=admin_headers
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["entry_count"] == 1
+        assert body["entries"][0]["ip"] == "10.0.0.200"
+        assert body["entries"][0]["hostnames"] == ["api.example", "www.example"]
+
+
+class TestImportEndpoint:
+    async def test_import_requires_admin(
+        self, client: AsyncClient
+    ) -> None:
+        response = await client.post(
+            "/api/admin/hostname-lookup/import",
+            json={"format_version": 1, "entries": []},
+        )
+        assert response.status_code in (401, 403)
+
+    async def test_import_inserts_new_rows(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        payload = {
+            "format_version": 1,
+            "entries": [
+                {
+                    "ip": "10.0.0.201",
+                    "hostnames": ["from-api.example"],
+                    "source": "bootstrap",
+                    "status": "success",
+                },
+            ],
+        }
+        response = await client.post(
+            "/api/admin/hostname-lookup/import",
+            headers=admin_headers,
+            json=payload,
+        )
+        assert response.status_code == 200
+        summary = CacheImportSummary(**response.json())
+        assert summary.inserted == 1
+        assert summary.skipped == 0
+
+    async def test_import_rejects_wrong_format_version(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        payload = {
+            "format_version": 99,
+            "entries": [],
+        }
+        response = await client.post(
+            "/api/admin/hostname-lookup/import",
+            headers=admin_headers,
+            json=payload,
+        )
+        assert response.status_code == 422
+        detail = response.json()["detail"][0]
+        assert "format_version" in str(detail).lower()
+
+    async def test_import_strategy_param_overwrite(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.202",
+            HostnameLookupResult(
+                status="success", hostnames=["pre.example"]
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        payload = {
+            "format_version": 1,
+            "entries": [
+                {
+                    "ip": "10.0.0.202",
+                    "hostnames": ["post.example"],
+                    "source": "bootstrap",
+                    "status": "success",
+                },
+            ],
+        }
+        response = await client.post(
+            "/api/admin/hostname-lookup/import?strategy=overwrite",
+            headers=admin_headers,
+            json=payload,
+        )
+        assert response.status_code == 200
+        summary = response.json()
+        assert summary["overwritten"] == 1
+        assert summary["skipped"] == 0
+
+    async def test_import_strategy_param_rejects_unknown(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        response = await client.post(
+            "/api/admin/hostname-lookup/import?strategy=merge",
+            headers=admin_headers,
+            json={"format_version": 1, "entries": []},
+        )
+        assert response.status_code == 422
