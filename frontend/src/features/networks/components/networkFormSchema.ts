@@ -29,9 +29,10 @@ export const networkFormSchema = z.object({
   gvm_keep_reports: z.boolean().default(true),
   nuclei_enabled: z.boolean().default(false),
   nuclei_tags: z.string().optional(),
-  nuclei_severity: z
-    .enum(["info", "low", "medium", "high", "critical"])
-    .optional(),
+  nuclei_severity: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.enum(["info", "low", "medium", "high", "critical"]).optional(),
+  ),
   nuclei_timeout: z.preprocess(
     (val) =>
       val === "" || val === undefined || val === null ? undefined : Number(val),

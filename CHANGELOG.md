@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Network form**: leaving Nuclei "Minimum severity" at the default `""` option silently failed client-side validation (zod enum rejected empty string, no error UI on the field), so clicking Save/Create did nothing. Preprocess empty string → `undefined` on `nuclei_severity` so the default option round-trips as "use backend default"
+
+### Changed
+
+- **Network form**: edit-mode submit button now reads "Save" instead of "Update" for consistency with conventional form UX
+
 ## [2.1.4] - 2026-04-11
 
 ### Fixed

@@ -684,7 +684,7 @@ export function NetworkForm({
               {create.isPending || update.isPending
                 ? "Saving..."
                 : isEdit
-                  ? "Update"
+                  ? "Save"
                   : "Create"}
             </Button>
           </DialogFooter>
