@@ -28,6 +28,7 @@ import { Route as AuthenticatedNetworksNetworkIdRouteImport } from './routes/_au
 import { Route as AuthenticatedHostsHostIdRouteImport } from './routes/_authenticated/hosts/$hostId'
 import { Route as AuthenticatedAlertsAlertIdRouteImport } from './routes/_authenticated/alerts/$alertId'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as AuthenticatedAdminSshAlertDefaultsRouteImport } from './routes/_authenticated/admin/ssh-alert-defaults'
 import { Route as AuthenticatedAdminRolesRouteImport } from './routes/_authenticated/admin/roles'
 import { Route as AuthenticatedAdminOrganizationRouteImport } from './routes/_authenticated/admin/organization'
 import { Route as AuthenticatedAdminGvmLibraryRouteImport } from './routes/_authenticated/admin/gvm-library'
@@ -136,6 +137,12 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminSshAlertDefaultsRoute =
+  AuthenticatedAdminSshAlertDefaultsRouteImport.update({
+    id: '/admin/ssh-alert-defaults',
+    path: '/admin/ssh-alert-defaults',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminRolesRoute = AuthenticatedAdminRolesRouteImport.update({
   id: '/admin/roles',
   path: '/admin/roles',
@@ -168,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
+  '/admin/ssh-alert-defaults': typeof AuthenticatedAdminSshAlertDefaultsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/alerts/$alertId': typeof AuthenticatedAlertsAlertIdRoute
   '/hosts/$hostId': typeof AuthenticatedHostsHostIdRoute
@@ -192,6 +200,7 @@ export interface FileRoutesByTo {
   '/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
+  '/admin/ssh-alert-defaults': typeof AuthenticatedAdminSshAlertDefaultsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/alerts/$alertId': typeof AuthenticatedAlertsAlertIdRoute
   '/hosts/$hostId': typeof AuthenticatedHostsHostIdRoute
@@ -218,6 +227,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
   '/_authenticated/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/_authenticated/admin/roles': typeof AuthenticatedAdminRolesRoute
+  '/_authenticated/admin/ssh-alert-defaults': typeof AuthenticatedAdminSshAlertDefaultsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/alerts/$alertId': typeof AuthenticatedAlertsAlertIdRoute
   '/_authenticated/hosts/$hostId': typeof AuthenticatedHostsHostIdRoute
@@ -244,6 +254,7 @@ export interface FileRouteTypes {
     | '/admin/gvm-library'
     | '/admin/organization'
     | '/admin/roles'
+    | '/admin/ssh-alert-defaults'
     | '/admin/users'
     | '/alerts/$alertId'
     | '/hosts/$hostId'
@@ -268,6 +279,7 @@ export interface FileRouteTypes {
     | '/admin/gvm-library'
     | '/admin/organization'
     | '/admin/roles'
+    | '/admin/ssh-alert-defaults'
     | '/admin/users'
     | '/alerts/$alertId'
     | '/hosts/$hostId'
@@ -293,6 +305,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/gvm-library'
     | '/_authenticated/admin/organization'
     | '/_authenticated/admin/roles'
+    | '/_authenticated/admin/ssh-alert-defaults'
     | '/_authenticated/admin/users'
     | '/_authenticated/alerts/$alertId'
     | '/_authenticated/hosts/$hostId'
@@ -450,6 +463,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/ssh-alert-defaults': {
+      id: '/_authenticated/admin/ssh-alert-defaults'
+      path: '/admin/ssh-alert-defaults'
+      fullPath: '/admin/ssh-alert-defaults'
+      preLoaderRoute: typeof AuthenticatedAdminSshAlertDefaultsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/roles': {
       id: '/_authenticated/admin/roles'
       path: '/admin/roles'
@@ -488,6 +508,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminGvmLibraryRoute: typeof AuthenticatedAdminGvmLibraryRoute
   AuthenticatedAdminOrganizationRoute: typeof AuthenticatedAdminOrganizationRoute
   AuthenticatedAdminRolesRoute: typeof AuthenticatedAdminRolesRoute
+  AuthenticatedAdminSshAlertDefaultsRoute: typeof AuthenticatedAdminSshAlertDefaultsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAlertsAlertIdRoute: typeof AuthenticatedAlertsAlertIdRoute
   AuthenticatedHostsHostIdRoute: typeof AuthenticatedHostsHostIdRoute
@@ -512,6 +533,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminGvmLibraryRoute: AuthenticatedAdminGvmLibraryRoute,
   AuthenticatedAdminOrganizationRoute: AuthenticatedAdminOrganizationRoute,
   AuthenticatedAdminRolesRoute: AuthenticatedAdminRolesRoute,
+  AuthenticatedAdminSshAlertDefaultsRoute:
+    AuthenticatedAdminSshAlertDefaultsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAlertsAlertIdRoute: AuthenticatedAlertsAlertIdRoute,
   AuthenticatedHostsHostIdRoute: AuthenticatedHostsHostIdRoute,
