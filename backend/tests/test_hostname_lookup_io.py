@@ -28,7 +28,11 @@ from app.services.hostname_lookup import (
     HostnameLookupResult,
     upsert_cache_row,
 )
-from app.services.hostname_lookup_io import export_cache, import_cache
+from app.services.hostname_lookup_io import (
+    export_cache,
+    get_cache_status,
+    import_cache,
+)
 
 # --- export_cache ----------------------------------------------------
 
@@ -448,3 +452,155 @@ class TestImportEndpoint:
             json={"format_version": 1, "entries": []},
         )
         assert response.status_code == 422
+
+
+# --- get_cache_status service ---------------------------------------
+
+
+class TestGetCacheStatus:
+    async def test_empty_db_returns_zero_state(
+        self, db_session: AsyncSession
+    ) -> None:
+        status = await get_cache_status(db_session)
+        assert status.total_entries == 0
+        assert status.entries_by_status.success == 0
+        assert status.total_vhosts == 0
+        assert status.total_hosts == 0
+        assert status.enriched_hosts == 0
+        assert status.coverage_percent == 0.0
+        assert status.last_queried_at is None
+        # HackerTarget budget row always surfaced even when no filler ran.
+        assert any(b.source == "hackertarget" for b in status.budgets)
+
+    async def test_counts_by_status_and_vhosts(
+        self, db_session: AsyncSession
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.1",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["a.example", "b.example", "c.example"],
+            ),
+            source="hackertarget",
+        )
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.2",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["d.example"],
+            ),
+            source="hackertarget",
+        )
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.3",
+            HostnameLookupResult(status="no_results", hostnames=[]),
+            source="hackertarget",
+        )
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.4",
+            HostnameLookupResult(
+                status="failed",
+                hostnames=[],
+                error_message="boom",
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        status = await get_cache_status(db_session)
+        assert status.total_entries == 4
+        assert status.entries_by_status.success == 2
+        assert status.entries_by_status.no_results == 1
+        assert status.entries_by_status.failed == 1
+        assert status.total_vhosts == 4
+        assert status.last_queried_at is not None
+
+    async def test_coverage_percent(self, db_session: AsyncSession) -> None:
+        from app.models.host import Host
+
+        # 4 hosts total
+        for i in range(4):
+            host = Host(ip=f"10.0.0.{i + 100}", seen_by_networks=[])
+            db_session.add(host)
+
+        # 1 enriched
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.100",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["one.example"],
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        status = await get_cache_status(db_session)
+        assert status.total_hosts == 4
+        assert status.enriched_hosts == 1
+        assert status.coverage_percent == 25.0
+
+    async def test_expired_success_row_not_counted_as_enriched(
+        self, db_session: AsyncSession
+    ) -> None:
+        from app.models.host import Host
+        from datetime import datetime, timedelta
+
+        host = Host(ip="10.0.0.200", seen_by_networks=[])
+        db_session.add(host)
+
+        row = HostnameLookup(
+            ip="10.0.0.200",
+            hostnames_json=["stale.example"],
+            source="hackertarget",
+            status="success",
+            queried_at=datetime.utcnow() - timedelta(days=60),
+            expires_at=datetime.utcnow() - timedelta(days=10),
+        )
+        db_session.add(row)
+        await db_session.commit()
+
+        status = await get_cache_status(db_session)
+        # Host counted, but enrichment is stale so coverage is 0%.
+        assert status.total_hosts == 1
+        assert status.enriched_hosts == 0
+
+    async def test_status_endpoint_returns_payload(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        response = await client.get(
+            "/api/admin/hostname-lookup/status", headers=admin_headers
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "filler_enabled" in body
+        assert "coverage_percent" in body
+        assert "budgets" in body
+
+    async def test_status_endpoint_requires_admin(
+        self, client: AsyncClient
+    ) -> None:
+        response = await client.get("/api/admin/hostname-lookup/status")
+        assert response.status_code in (401, 403)
+
+
+class TestRunFillerEndpoint:
+    async def test_run_filler_requires_admin(
+        self, client: AsyncClient
+    ) -> None:
+        response = await client.post("/api/admin/hostname-lookup/run-filler")
+        assert response.status_code in (401, 403)
+
+    async def test_run_filler_returns_202(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        response = await client.post(
+            "/api/admin/hostname-lookup/run-filler", headers=admin_headers
+        )
+        assert response.status_code == 202
+        body = response.json()
+        assert body["status"] == "started"

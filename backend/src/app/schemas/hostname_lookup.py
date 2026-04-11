@@ -82,3 +82,48 @@ class CacheImportSummary(BaseModel):
     skipped: int
     rejected: int
     errors: list[str] = Field(default_factory=list)
+
+
+class CacheStatusByStatus(BaseModel):
+    """Counts of cache rows grouped by lookup status."""
+
+    success: int = 0
+    no_results: int = 0
+    failed: int = 0
+
+
+class CacheBudgetStatus(BaseModel):
+    """Per-source daily budget snapshot for the status dashboard."""
+
+    source: str
+    used: int
+    limit: int
+    remaining: int
+    day: str  # ISO date
+
+
+class CacheStatusResponse(BaseModel):
+    """Status dashboard payload — stats for the ``/admin/hostname-lookup`` page.
+
+    Answers "is the cache healthy and how much of the host inventory has
+    been enriched yet?" in one round-trip so the UI can render its
+    overview cards without per-metric requests.
+    """
+
+    filler_enabled: bool
+    filler_interval_minutes: int
+    total_entries: int
+    entries_by_status: CacheStatusByStatus
+    total_vhosts: int
+    total_hosts: int
+    enriched_hosts: int
+    coverage_percent: float
+    last_queried_at: datetime | None
+    budgets: list[CacheBudgetStatus]
+
+
+class CacheFillerRunResponse(BaseModel):
+    """Response for the manual filler trigger endpoint."""
+
+    status: str  # "started" | "skipped"
+    message: str

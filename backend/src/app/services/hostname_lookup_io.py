@@ -29,18 +29,29 @@ quota.
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.hostname_lookup import HostnameLookup
+from app.core.config import settings
+from app.models.host import Host
+from app.models.hostname_lookup import HostnameLookup, HostnameLookupBudget
 from app.schemas.hostname_lookup import (
+    CacheBudgetStatus,
     CacheExportDocument,
     CacheImportSummary,
+    CacheStatusByStatus,
+    CacheStatusResponse,
     HostnameLookupEntry,
 )
-from app.services.hostname_lookup import _now, _ttl_for_status
+from app.services.hostname_lookup import (
+    HACKERTARGET_DAILY_LIMIT_ANON,
+    HACKERTARGET_DAILY_LIMIT_WITH_KEY,
+    _now,
+    _ttl_for_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -197,8 +208,150 @@ async def import_cache(
     return summary
 
 
+async def get_cache_status(db: AsyncSession) -> CacheStatusResponse:
+    """Build the status dashboard payload for the admin UI.
+
+    One round-trip, no per-metric endpoints — aggregates:
+    - filler config (enabled, interval)
+    - cache row counts grouped by status
+    - total distinct hostnames across all success rows
+    - total hosts in OPM (any network) vs. enriched (has a success row)
+    - coverage percent (enriched / total hosts)
+    - most recent ``queried_at`` so operators can spot a stuck filler
+    - per-source daily budgets with today's used/remaining
+    """
+    # Row count per status.
+    status_rows = (
+        await db.execute(
+            select(HostnameLookup.status, func.count(HostnameLookup.id)).group_by(
+                HostnameLookup.status
+            )
+        )
+    ).all()
+    by_status = CacheStatusByStatus()
+    total_entries = 0
+    for row_status, row_count in status_rows:
+        total_entries += int(row_count)
+        if row_status == "success":
+            by_status.success = int(row_count)
+        elif row_status == "no_results":
+            by_status.no_results = int(row_count)
+        elif row_status == "failed":
+            by_status.failed = int(row_count)
+
+    # Total vhosts across all success rows — JSON LENGTH isn't portable
+    # and the row count is bounded by host count, so pulling the lists
+    # into Python is cheaper than a DB-side sum.
+    success_rows = (
+        (
+            await db.execute(
+                select(HostnameLookup.hostnames_json).where(
+                    HostnameLookup.status == "success"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    total_vhosts = sum(len(hostnames or []) for hostnames in success_rows)
+
+    # Host inventory counts.
+    total_hosts_result = await db.execute(select(func.count(Host.id)))
+    total_hosts = int(total_hosts_result.scalar() or 0)
+
+    # Enriched = hosts that have a fresh success row for their IP.
+    now = _now()
+    enriched_result = await db.execute(
+        select(func.count(func.distinct(HostnameLookup.ip))).where(
+            HostnameLookup.status == "success",
+            HostnameLookup.expires_at > now,
+        )
+    )
+    enriched_hosts = int(enriched_result.scalar() or 0)
+
+    coverage_percent = (
+        round((enriched_hosts / total_hosts) * 100, 1)
+        if total_hosts > 0
+        else 0.0
+    )
+
+    # Latest queried_at — None if cache is empty.
+    last_queried_at = (
+        await db.execute(
+            select(func.max(HostnameLookup.queried_at))
+        )
+    ).scalar()
+
+    # Budget rows for today, across all sources.
+    today: date = now.date()
+    budget_rows = (
+        (
+            await db.execute(
+                select(HostnameLookupBudget).where(
+                    HostnameLookupBudget.day == today
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    budgets: list[CacheBudgetStatus] = []
+    seen_sources: set[str] = set()
+    for row in budget_rows:
+        seen_sources.add(row.source)
+        limit = _daily_limit_for(row.source)
+        budgets.append(
+            CacheBudgetStatus(
+                source=row.source,
+                used=int(row.used),
+                limit=limit,
+                remaining=max(0, limit - int(row.used)),
+                day=today.isoformat(),
+            )
+        )
+    # Surface hackertarget even when no row exists yet today so the UI
+    # always shows a "50 remaining" state rather than an empty list.
+    if "hackertarget" not in seen_sources:
+        limit = _daily_limit_for("hackertarget")
+        budgets.append(
+            CacheBudgetStatus(
+                source="hackertarget",
+                used=0,
+                limit=limit,
+                remaining=limit,
+                day=today.isoformat(),
+            )
+        )
+
+    return CacheStatusResponse(
+        filler_enabled=settings.hostname_lookup_enabled,
+        filler_interval_minutes=settings.hostname_lookup_interval_minutes,
+        total_entries=total_entries,
+        entries_by_status=by_status,
+        total_vhosts=total_vhosts,
+        total_hosts=total_hosts,
+        enriched_hosts=enriched_hosts,
+        coverage_percent=coverage_percent,
+        last_queried_at=last_queried_at,
+        budgets=budgets,
+    )
+
+
+def _daily_limit_for(source: str) -> int:
+    """Return the configured daily cap for a given source."""
+    if source == "hackertarget":
+        return (
+            HACKERTARGET_DAILY_LIMIT_WITH_KEY
+            if settings.hackertarget_api_key
+            else HACKERTARGET_DAILY_LIMIT_ANON
+        )
+    # Unknown sources get no cap info; UI will show "n/a".
+    return 0
+
+
 __all__ = [
     "ImportStrategy",
     "export_cache",
+    "get_cache_status",
     "import_cache",
 ]
