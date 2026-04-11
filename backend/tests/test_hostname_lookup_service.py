@@ -29,6 +29,7 @@ from app.models.hostname_lookup import HostnameLookup
 from app.services.hostname_lookup import (
     HackerTargetSource,
     HostnameLookupResult,
+    RapidDnsSource,
     consume_budget,
     get_budget_used,
     get_cached_hostnames,
@@ -564,3 +565,115 @@ class TestGetHostnamesForIps:
         await db_session.commit()
 
         assert await get_hostnames_for_ips(db_session, ["10.0.0.40"]) == {}
+
+
+# --- RapidDnsSource.parse -------------------------------------------
+
+
+# A trimmed-down rapiddns.io /sameip/ page snippet used as a parse
+# fixture. Mirrors the real layout: a results table with one row per
+# hostname and several `<td>` cells per row.
+_RAPIDDNS_HTML = """\
+<!DOCTYPE html>
+<html><head><title>Same IP</title></head><body>
+<table class="table">
+<thead><tr><th>Host</th><th>A-Record</th><th>ASN</th></tr></thead>
+<tbody>
+<tr><td>bonifatiuskloster.de</td><td>213.183.76.224</td><td>12345</td></tr>
+<tr><td>www.bonifatiuskloster.de</td><td>213.183.76.224</td><td>12345</td></tr>
+<tr><td>derweinberg.at</td><td>213.183.76.224</td><td>12345</td></tr>
+<tr><td>sensocloud24.de</td><td>213.183.76.224</td><td>12345</td></tr>
+<tr><td>213.183.76.224</td><td>213.183.76.224</td><td>12345</td></tr>
+<tr><td>just-some-word</td><td>-</td><td>-</td></tr>
+</tbody>
+</table>
+</body></html>
+"""
+
+
+class TestRapidDnsParse:
+    def test_parses_hostname_table(self) -> None:
+        result = RapidDnsSource.parse(_RAPIDDNS_HTML)
+        assert result.status == "success"
+        # IPv4 literal and non-FQDN row ("just-some-word") should be
+        # filtered out by the FQDN regex / IPv4 check.
+        assert set(result.hostnames) == {
+            "bonifatiuskloster.de",
+            "www.bonifatiuskloster.de",
+            "derweinberg.at",
+            "sensocloud24.de",
+        }
+
+    def test_empty_body_is_no_results(self) -> None:
+        assert RapidDnsSource.parse("").status == "no_results"
+
+    def test_tiny_body_is_no_results(self) -> None:
+        assert RapidDnsSource.parse("<html></html>").status == "no_results"
+
+    def test_cloudflare_challenge_is_failed_with_rate_limit_marker(
+        self,
+    ) -> None:
+        body = (
+            '<html><body>' + "x" * 200 +
+            '<div id="cf-browser-verification">Checking your browser...</div>'
+            '</body></html>'
+        )
+        result = RapidDnsSource.parse(body)
+        assert result.status == "failed"
+        assert "api count exceeded" in (result.error_message or "").lower()
+
+    def test_captcha_without_table_is_failed(self) -> None:
+        body = (
+            '<html><body>' + "x" * 200
+            + '<p>Please solve the captcha below</p></body></html>'
+        )
+        result = RapidDnsSource.parse(body)
+        assert result.status == "failed"
+        assert "api count exceeded" in (result.error_message or "").lower()
+
+    def test_table_with_no_valid_hostnames_is_no_results(self) -> None:
+        body = (
+            "<html><body>" + "x" * 200
+            + "<table><tr><td>just-a-word</td></tr></table></body></html>"
+        )
+        result = RapidDnsSource.parse(body)
+        assert result.status == "no_results"
+
+    def test_fetch_wraps_parse(self) -> None:
+        """Integration at the fetch boundary — subclass overrides the
+        transport so we exercise _fetch_text → parse without real I/O."""
+
+        class _HappySource(RapidDnsSource):
+            async def _fetch_text(self, ip: str) -> str:
+                assert ip == "1.2.3.4"
+                return _RAPIDDNS_HTML
+
+        async def _run() -> None:
+            source = _HappySource()
+            result = await source.fetch("1.2.3.4")
+            assert result.status == "success"
+            assert "bonifatiuskloster.de" in result.hostnames
+
+        import asyncio
+
+        asyncio.run(_run())
+
+    def test_fetch_429_is_failed_with_rate_limit_marker(self) -> None:
+        import httpx
+
+        class _ThrottledSource(RapidDnsSource):
+            async def _fetch_text(self, ip: str) -> str:
+                request = httpx.Request("GET", RapidDnsSource.__module__)
+                response = httpx.Response(429, request=request, text="")
+                raise httpx.HTTPStatusError(
+                    "Too Many Requests", request=request, response=response
+                )
+
+        async def _run() -> None:
+            result = await _ThrottledSource().fetch("1.2.3.4")
+            assert result.status == "failed"
+            assert "api count exceeded" in (result.error_message or "").lower()
+
+        import asyncio
+
+        asyncio.run(_run())

@@ -309,13 +309,22 @@ async def get_cache_status(db: AsyncSession) -> CacheStatusResponse:
                 day=today.isoformat(),
             )
         )
-    # Surface hackertarget even when no row exists yet today so the UI
-    # always shows a "50 remaining" state rather than an empty list.
-    if "hackertarget" not in seen_sources:
-        limit = _daily_limit_for("hackertarget")
+    # Surface every enabled source even when no row exists yet today
+    # so the UI always shows a "N remaining" state rather than an
+    # empty list. Sources with configured daily_limit <= 0 are omitted
+    # so turning a source off at runtime hides it cleanly.
+    known_sources = ["hackertarget"]
+    if settings.rapiddns_enabled and settings.rapiddns_daily_limit > 0:
+        known_sources.append("rapiddns")
+    for source_name in known_sources:
+        if source_name in seen_sources:
+            continue
+        limit = _daily_limit_for(source_name)
+        if limit <= 0:
+            continue
         budgets.append(
             CacheBudgetStatus(
-                source="hackertarget",
+                source=source_name,
                 used=0,
                 limit=limit,
                 remaining=limit,
@@ -345,6 +354,8 @@ def _daily_limit_for(source: str) -> int:
             if settings.hackertarget_api_key
             else HACKERTARGET_DAILY_LIMIT_ANON
         )
+    if source == "rapiddns":
+        return settings.rapiddns_daily_limit
     # Unknown sources get no cap info; UI will show "n/a".
     return 0
 

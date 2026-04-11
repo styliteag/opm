@@ -44,8 +44,10 @@ from app.services.hostname_lookup import (
     HACKERTARGET_DAILY_LIMIT_ANON,
     HACKERTARGET_DAILY_LIMIT_WITH_KEY,
     HACKERTARGET_MIN_REQUEST_INTERVAL_S,
+    RAPIDDNS_MIN_REQUEST_INTERVAL_S,
     HackerTargetSource,
     HostnameLookupSource,
+    RapidDnsSource,
     consume_budget,
     get_budget_used,
     get_cached_hostnames,
@@ -262,12 +264,60 @@ async def fill_cache_once(
     return summary
 
 
-async def run_hostname_cache_filler() -> None:
-    """APScheduler entry point.
+def _build_source_chain() -> list[tuple[HostnameLookupSource, int, float]]:
+    """Build the ordered source list with per-source (limit, interval).
 
-    Opens a fresh session, builds the configured source, and calls
-    ``fill_cache_once`` exactly once. Wired into the scheduler at
-    startup with ``IntervalTrigger(minutes=hostname_lookup_interval_minutes)``.
+    Priority order: HackerTarget first (best signal for shared hosting
+    in practice), RapidDNS second as a fallback. The filler's own
+    candidate selector makes rapiddns automatically process only the
+    IPs HackerTarget didn't manage to enrich, because those IPs still
+    look like "no fresh row" to ``_select_candidate_ips``.
+
+    Sources with ``daily_limit <= 0`` or an explicit disable flag are
+    silently omitted so operators can turn individual sources off via
+    env vars without editing code.
+    """
+    chain: list[tuple[HostnameLookupSource, int, float]] = []
+
+    api_key = settings.hackertarget_api_key or None
+    ht_limit = (
+        HACKERTARGET_DAILY_LIMIT_WITH_KEY
+        if api_key
+        else HACKERTARGET_DAILY_LIMIT_ANON
+    )
+    chain.append(
+        (
+            HackerTargetSource(api_key=api_key),
+            ht_limit,
+            HACKERTARGET_MIN_REQUEST_INTERVAL_S,
+        )
+    )
+
+    if settings.rapiddns_enabled and settings.rapiddns_daily_limit > 0:
+        chain.append(
+            (
+                RapidDnsSource(),
+                settings.rapiddns_daily_limit,
+                RAPIDDNS_MIN_REQUEST_INTERVAL_S,
+            )
+        )
+
+    return chain
+
+
+async def run_hostname_cache_filler() -> None:
+    """APScheduler entry point — run one fill pass per enabled source.
+
+    Iterates the source chain in priority order. Each source gets a
+    fresh ``fill_cache_once`` call with its own daily limit and
+    throttle interval. The candidate selector naturally partitions
+    work across sources: sources later in the chain see only the IPs
+    the earlier sources couldn't enrich (failed rows live inside their
+    short TTL but are skipped by the selector for that same TTL).
+
+    Failures on one source never block the next — each source is
+    wrapped in its own try/except so a broken rapiddns doesn't
+    prevent HackerTarget from running tomorrow, and vice versa.
     """
     if not settings.hostname_lookup_enabled:
         logger.debug(
@@ -275,24 +325,26 @@ async def run_hostname_cache_filler() -> None:
         )
         return
 
-    api_key = settings.hackertarget_api_key or None
-    daily_limit = (
-        HACKERTARGET_DAILY_LIMIT_WITH_KEY
-        if api_key
-        else HACKERTARGET_DAILY_LIMIT_ANON
-    )
-    source = HackerTargetSource(api_key=api_key)
+    chain = _build_source_chain()
+    if not chain:
+        logger.info("hostname-filler: no enabled sources, skipping")
+        return
 
     async with async_session_factory() as db:
-        try:
-            await fill_cache_once(
-                db,
-                source=source,
-                daily_limit=daily_limit,
-            )
-        except Exception:
-            # Broad catch so a schema drift or programming error never
-            # crashes the APScheduler worker and stops all scan
-            # scheduling.
-            logger.exception("hostname-filler: unexpected failure")
-            await db.rollback()
+        for source, daily_limit, interval_s in chain:
+            try:
+                await fill_cache_once(
+                    db,
+                    source=source,
+                    daily_limit=daily_limit,
+                    interval_s=interval_s,
+                )
+            except Exception:
+                # Broad catch so a schema drift or programming error in
+                # one source never crashes the APScheduler worker and
+                # never blocks the next source.
+                logger.exception(
+                    "hostname-filler: unexpected failure for source=%s",
+                    source.name,
+                )
+                await db.rollback()

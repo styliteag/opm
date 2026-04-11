@@ -393,3 +393,115 @@ class TestFillCacheOnce:
         assert len(source.calls) == 2
         assert await get_budget_used(db_session, "stub") == 2
 
+
+# --- Multi-source chaining (HackerTarget → RapidDNS failover) -------
+
+
+class TestMultiSourceChaining:
+    """The real ``run_hostname_cache_filler`` chains sources in
+    priority order via ``_build_source_chain``. The filler unit tests
+    above exercise ``fill_cache_once`` with one source at a time; this
+    class verifies that calling ``fill_cache_once`` twice back-to-back
+    with different sources produces the expected "second source fills
+    the gaps the first couldn't" behaviour — which is exactly what
+    the chain runner does.
+    """
+
+    async def test_second_source_only_touches_ips_first_source_missed(
+        self, db_session: AsyncSession
+    ) -> None:
+        # Three hosts, all uncached to begin with.
+        for i in range(3):
+            await _add_host(db_session, f"10.0.0.{i + 10}", last_seen_offset_hours=i)
+
+        # First source (stub) only has budget for 1 call.
+        source_a = _StubSource(
+            default=HostnameLookupResult(
+                status="success",
+                hostnames=["first.example"],
+            ),
+            name="source_a",
+        )
+        await fill_cache_once(
+            db_session,
+            source=source_a,
+            daily_limit=1,  # only one call before exhausted
+            interval_s=0,
+        )
+
+        # Exactly one IP got enriched by source_a.
+        assert len(source_a.calls) == 1
+
+        # Second source (stub) picks up the remaining IPs — the
+        # candidate selector's "fresh row or not" predicate treats
+        # ANY fresh row as "don't touch this IP", so source_b sees
+        # only the two that source_a missed.
+        source_b = _StubSource(
+            default=HostnameLookupResult(
+                status="success",
+                hostnames=["second.example"],
+            ),
+            name="source_b",
+        )
+        await fill_cache_once(
+            db_session,
+            source=source_b,
+            daily_limit=50,
+            interval_s=0,
+        )
+
+        # source_b should have called only the 2 un-enriched IPs, not
+        # all 3 — the source_a-enriched IP has a fresh row and is
+        # skipped by the candidate query.
+        assert len(source_b.calls) == 2
+        enriched_by_a = source_a.calls[0]
+        assert enriched_by_a not in source_b.calls
+
+    async def test_second_source_runs_when_first_budget_exhausted(
+        self, db_session: AsyncSession
+    ) -> None:
+        """When the first source's pass returns skipped_reason=budget_
+        exhausted mid-run, the second source must still pick up the
+        leftover IPs."""
+        for i in range(4):
+            await _add_host(db_session, f"10.0.0.{i + 20}", last_seen_offset_hours=i)
+
+        # Pre-pin the first source's budget so its fill_cache_once
+        # returns skipped_reason=budget_exhausted immediately.
+        from app.services.hostname_lookup import pin_budget_exhausted
+        await pin_budget_exhausted(db_session, "source_a", 10)
+        await db_session.commit()
+
+        source_a = _StubSource(
+            default=HostnameLookupResult(
+                status="success",
+                hostnames=["a.example"],
+            ),
+            name="source_a",
+        )
+        summary_a = await fill_cache_once(
+            db_session,
+            source=source_a,
+            daily_limit=10,
+            interval_s=0,
+        )
+        assert summary_a.skipped_reason == "budget_exhausted"
+        assert source_a.calls == []
+
+        # Second source has fresh budget and processes all 4.
+        source_b = _StubSource(
+            default=HostnameLookupResult(
+                status="success",
+                hostnames=["b.example"],
+            ),
+            name="source_b",
+        )
+        summary_b = await fill_cache_once(
+            db_session,
+            source=source_b,
+            daily_limit=50,
+            interval_s=0,
+        )
+        assert summary_b.success == 4
+        assert len(source_b.calls) == 4
+

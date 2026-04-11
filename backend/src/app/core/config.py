@@ -47,13 +47,20 @@ class Settings(BaseSettings):
 
     # --- Hostname lookup cache (reverse-IP vhost discovery) ------------
     # Controls the background filler job that populates
-    # `hostname_lookup_cache` from HackerTarget's /reverseiplookup/ API.
-    # The cache powers the upcoming SNI-aware nuclei fan-out (Commit 5).
+    # `hostname_lookup_cache` from multiple reverse-IP sources. The
+    # cache powers the SNI-aware nuclei fan-out.
     hostname_lookup_enabled: bool = True
     # Free-tier API key from https://hackertarget.com/ (optional). When
     # set the filler uses the 100/day limit instead of the 50/day anon
     # limit. Empty string means anonymous mode.
     hackertarget_api_key: str = ""
+    # RapidDNS fallback: runs after HackerTarget in the source priority
+    # list. The filler's candidate selector skips IPs that already got
+    # a fresh row from any source, so rapiddns only fills the gaps HT
+    # couldn't. Daily limit is undocumented by rapiddns; default 100 is
+    # conservative. Set to 0 to disable without toggling the bool flag.
+    rapiddns_enabled: bool = True
+    rapiddns_daily_limit: int = 100
     # How often the filler job runs (minutes). Lower = more responsive
     # to newly-discovered hosts, but no point going below a few minutes
     # because the daily budget is the real bottleneck.

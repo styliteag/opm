@@ -34,6 +34,7 @@ persisted with a short TTL and an empty list is returned.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal, Protocol
@@ -65,6 +66,30 @@ HACKERTARGET_DAILY_LIMIT_WITH_KEY = 100
 HACKERTARGET_MIN_REQUEST_INTERVAL_S = 0.6  # stay under 2 req/s with headroom
 HACKERTARGET_URL = "https://api.hackertarget.com/reverseiplookup/"
 HACKERTARGET_TIMEOUT_S = 15.0
+
+# RapidDNS /sameip/ — fallback source when HackerTarget is exhausted
+# or fails. Rate limit is not publicly documented; the default 100/day
+# is a conservative guess and can be overridden via settings. Interval
+# throttle matches HackerTarget's conservative 2 req/s ceiling.
+RAPIDDNS_DEFAULT_DAILY_LIMIT = 100
+RAPIDDNS_MIN_REQUEST_INTERVAL_S = 0.6
+RAPIDDNS_URL_TEMPLATE = "https://rapiddns.io/sameip/{ip}"
+RAPIDDNS_TIMEOUT_S = 20.0
+# Plain browser UA — rapiddns serves the same HTML either way in
+# practice, but some CDN rules will flag missing UAs as bots.
+RAPIDDNS_USER_AGENT = (
+    "Mozilla/5.0 (OPM Hostname Cache) AppleWebKit/537.36 (KHTML, like Gecko)"
+)
+# Regex to pluck hostname strings out of the results table cells. The
+# page structure is `<td>hostname</td><td>A-record</td><td>...</td>`
+# repeated per row; we extract candidates then filter to valid-looking
+# FQDNs. Intentionally greedy + validated downstream rather than
+# pulling in BeautifulSoup for a single parser.
+_RAPIDDNS_TD_RE = re.compile(r"<td>([^<]{1,253})</td>", re.IGNORECASE)
+_FQDN_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$",
+    re.IGNORECASE,
+)
 
 LookupStatus = Literal["success", "no_results", "failed"]
 
@@ -220,6 +245,108 @@ def _is_probably_ipv4(value: str) -> bool:
         return all(0 <= int(p) <= 255 for p in parts)
     except ValueError:
         return False
+
+
+class RapidDnsSource:
+    """Reverse-IP lookup via rapiddns.io's ``/sameip/<ip>`` HTML page.
+
+    Used as the fallback source when HackerTarget's daily budget is
+    exhausted or it throws 429. Parsing is regex-based — rapiddns's
+    layout is a plain ``<td>hostname</td>`` table with deterministic
+    structure, so pulling in BeautifulSoup for a single call site
+    would be overkill.
+
+    Rate limit policy: rapiddns doesn't publish one. We default to 100
+    req/day and a 2 req/s throttle (same shape as HackerTarget) and
+    treat HTTP 429 or an obviously-blocked response (very short body
+    or Cloudflare challenge markers) as a pin-budget signal.
+    """
+
+    name = "rapiddns"
+
+    def __init__(self, timeout: float = RAPIDDNS_TIMEOUT_S) -> None:
+        self._timeout = timeout
+
+    async def fetch(self, ip: str) -> HostnameLookupResult:
+        try:
+            text = await self._fetch_text(ip)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 429:
+                return HostnameLookupResult(
+                    status="failed",
+                    hostnames=[],
+                    error_message="HTTP 429: API count exceeded",
+                )
+            return HostnameLookupResult(
+                status="failed",
+                hostnames=[],
+                error_message=f"HTTP {exc.response.status_code}: {exc}"[:500],
+            )
+        except httpx.HTTPError as exc:
+            return HostnameLookupResult(
+                status="failed",
+                hostnames=[],
+                error_message=f"HTTP error: {exc}"[:500],
+            )
+        return self.parse(text)
+
+    async def _fetch_text(self, ip: str) -> str:
+        """HTTP GET against rapiddns.io; split out for easy test stubs."""
+        url = RAPIDDNS_URL_TEMPLATE.format(ip=ip)
+        async with httpx.AsyncClient(
+            timeout=self._timeout,
+            headers={"User-Agent": RAPIDDNS_USER_AGENT},
+            follow_redirects=True,
+        ) as client:
+            response = await client.get(url, params={"full": "1"})
+            response.raise_for_status()
+            return response.text
+
+    @staticmethod
+    def parse(text: str) -> HostnameLookupResult:
+        """Classify a rapiddns HTML body into a lookup result.
+
+        Signals we distinguish:
+        - Empty / tiny body → ``no_results`` (rapiddns returned a stub)
+        - Body contains a Cloudflare challenge marker → ``failed`` with
+          a recognisable API-count-exceeded error message so the caller
+          pins the budget
+        - Otherwise: extract ``<td>...</td>`` cells, filter to valid
+          FQDNs, dedupe. Empty list → ``no_results``. Non-empty →
+          ``success``.
+        """
+        if not text or len(text) < 100:
+            return HostnameLookupResult(status="no_results", hostnames=[])
+
+        lowered = text.lower()
+        if "challenge-platform" in lowered or "cf-browser-verification" in lowered:
+            return HostnameLookupResult(
+                status="failed",
+                hostnames=[],
+                error_message="rapiddns: Cloudflare challenge — API count exceeded",
+            )
+        if "captcha" in lowered and "<td>" not in lowered:
+            return HostnameLookupResult(
+                status="failed",
+                hostnames=[],
+                error_message="rapiddns: captcha page — API count exceeded",
+            )
+
+        seen: dict[str, None] = {}
+        for candidate in _RAPIDDNS_TD_RE.findall(text):
+            stripped = candidate.strip()
+            if not stripped or _is_probably_ipv4(stripped):
+                continue
+            if not _FQDN_RE.match(stripped):
+                continue
+            seen.setdefault(stripped.lower(), None)
+
+        if not seen:
+            return HostnameLookupResult(status="no_results", hostnames=[])
+        return HostnameLookupResult(
+            status="success",
+            hostnames=list(seen.keys()),
+        )
 
 
 # --- Cache read/write ------------------------------------------------
