@@ -226,6 +226,18 @@ export function NetworkForm({
   const watchedNucleiEnabled = useWatch({ control, name: "nuclei_enabled" }) ?? false;
   const isGreenbone = watchedScannerType === "greenbone";
 
+  // Tab state — splits the form into General / Phases / Alerts so the dialog
+  // fits in one viewport without scrolling. All tab panels stay in the DOM
+  // (hidden attribute, not conditional mount) so react-hook-form keeps every
+  // input registered across tab switches.
+  type TabKey = "general" | "phases" | "alerts";
+  const [activeTab, setActiveTab] = useState<TabKey>("general");
+  // When switching to a Greenbone scanner the Phases tab is hidden, so treat
+  // "phases" as "general" while greenbone is selected (derived, not state —
+  // avoids a cascading render from a useEffect setState).
+  const effectiveTab: TabKey =
+    isGreenbone && activeTab === "phases" ? "general" : activeTab;
+
   // Auto-disable nuclei when the user switches scanner_type to greenbone
   // (nuclei is only supported for masscan/nmap). Toast once on the flip.
   useEffect(() => {
@@ -234,6 +246,20 @@ export function NetworkForm({
       toast.info("Nuclei disabled — not supported for Greenbone scanners");
     }
   }, [isGreenbone, watchedNucleiEnabled, setValue]);
+
+  // Map a field name to the tab that contains it, so we can auto-switch on
+  // validation error. Fields not listed here live in "general".
+  const fieldToTab: Record<string, TabKey> = {
+    nse_profile_id: "phases",
+    nuclei_enabled: "phases",
+    nuclei_tags: "phases",
+    nuclei_severity: "phases",
+    nuclei_timeout: "phases",
+    scan_schedule: "alerts",
+    email_recipients: "alerts",
+    ssh_probe_enabled: "alerts",
+    ssh_override_version_threshold: "alerts",
+  };
 
   const vulnEnabled = (phases ?? []).some(
     (p) => p.name === "vulnerability" && p.enabled,
@@ -346,9 +372,19 @@ export function NetworkForm({
     }
   };
 
+  // When zod rejects the submit, jump to the tab that holds the first bad
+  // field so the user can actually see the inline error.
+  const onInvalid = (fieldErrors: Record<string, unknown>) => {
+    const firstErrorField = Object.keys(fieldErrors)[0];
+    if (firstErrorField) {
+      const targetTab = fieldToTab[firstErrorField] ?? "general";
+      setActiveTab(targetTab);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl lg:max-w-6xl max-h-[90vh] overflow-y-auto p-6">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEdit
@@ -359,7 +395,63 @@ export function NetworkForm({
           </DialogTitle>
         </DialogHeader>
         <FormProvider {...formMethods}>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 py-2">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4 py-2">
+          {/* ── Tab bar — segmented control styled to match the Linear-inspired
+              design tokens. Keeps the form content trim so the dialog fits in
+              one viewport. ── */}
+          <div
+            role="tablist"
+            className="inline-flex rounded-md border border-border/40 bg-muted/30 p-0.5 text-xs font-emphasis"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={effectiveTab === "general"}
+              onClick={() => setActiveTab("general")}
+              className={`cursor-pointer rounded px-3 py-1 transition-colors ${
+                effectiveTab === "general"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              General
+            </button>
+            {!isGreenbone && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={effectiveTab === "phases"}
+                onClick={() => setActiveTab("phases")}
+                className={`cursor-pointer rounded px-3 py-1 transition-colors ${
+                  effectiveTab === "phases"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Phases
+              </button>
+            )}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={effectiveTab === "alerts"}
+              onClick={() => setActiveTab("alerts")}
+              className={`cursor-pointer rounded px-3 py-1 transition-colors ${
+                effectiveTab === "alerts"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Schedule &amp; Alerts
+            </button>
+          </div>
+
+          {/* ── General tab: Network identity + Scanner config ── */}
+          <div
+            role="tabpanel"
+            hidden={effectiveTab !== "general"}
+            className="space-y-4"
+          >
           {/* ── Network Identity ── */}
           <fieldset className="space-y-3">
             <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
@@ -576,50 +668,59 @@ export function NetworkForm({
             )}
             </>)}
           </fieldset>
+          </div>
+          {/* end General tab panel */}
 
-          {!isGreenbone && (<>
-          <hr className="border-border/40" />
-
-          {/* ── Scan Phases & NSE ── */}
-          <fieldset className="space-y-3">
-            <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
-              Phases
-            </legend>
-            <PhaseCards phases={phases} onChange={setPhases} />
+          {/* ── Phases tab: Scan Phases + NSE + Nuclei (hidden for Greenbone) ── */}
+          {!isGreenbone && (
             <div
-              className={`rounded-md transition-colors ${
-                nseProfileMissing
-                  ? "border border-yellow-500/40 bg-yellow-500/5 p-3"
-                  : ""
-              }`}
+              role="tabpanel"
+              hidden={effectiveTab !== "phases"}
+              className="space-y-4"
             >
-              <Label htmlFor="nse_profile_id">
-                NSE Profile{vulnEnabled ? "" : " (optional)"}
-              </Label>
-              <Select id="nse_profile_id" {...register("nse_profile_id")}>
-                <option value="">None</option>
-                {(profiles.data?.profiles ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </Select>
-              {nseProfileMissing && (
-                <p className="mt-1.5 text-xs text-yellow-500">
-                  Vulnerability phase is enabled — without a profile, only the
-                  default <span className="font-mono text-[11px]">vulners</span>{" "}
-                  script will run.
-                </p>
-              )}
+              <fieldset className="space-y-3">
+                <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
+                  Phases
+                </legend>
+                <PhaseCards phases={phases} onChange={setPhases} />
+                <div
+                  className={`rounded-md transition-colors ${
+                    nseProfileMissing
+                      ? "border border-yellow-500/40 bg-yellow-500/5 p-3"
+                      : ""
+                  }`}
+                >
+                  <Label htmlFor="nse_profile_id">
+                    NSE Profile{vulnEnabled ? "" : " (optional)"}
+                  </Label>
+                  <Select id="nse_profile_id" {...register("nse_profile_id")}>
+                    <option value="">None</option>
+                    {(profiles.data?.profiles ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </Select>
+                  {nseProfileMissing && (
+                    <p className="mt-1.5 text-xs text-yellow-500">
+                      Vulnerability phase is enabled — without a profile, only the
+                      default <span className="font-mono text-[11px]">vulners</span>{" "}
+                      script will run.
+                    </p>
+                  )}
+                </div>
+
+                <NucleiSettings enabled={watchedNucleiEnabled} />
+              </fieldset>
             </div>
+          )}
 
-            <NucleiSettings enabled={watchedNucleiEnabled} />
-          </fieldset>
-          </>)}
-
-          <hr className="border-border/40" />
-
-          {/* ── Schedule & Alerts ── */}
+          {/* ── Alerts tab: Schedule + Email + SSH probe + SSH overrides ── */}
+          <div
+            role="tabpanel"
+            hidden={effectiveTab !== "alerts"}
+            className="space-y-4"
+          >
           <fieldset className="space-y-3">
             <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
               Schedule &amp; Alerts
@@ -688,6 +789,8 @@ export function NetworkForm({
 
             <SshAlertOverrides />
           </fieldset>
+          </div>
+          {/* end Alerts tab panel */}
 
           <DialogFooter>
             <Button
