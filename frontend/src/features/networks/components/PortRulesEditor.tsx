@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { postApi, deleteApi } from "@/lib/api";
@@ -97,10 +98,9 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
         <div className="border-b border-border bg-accent/30 px-5 py-3">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                Source
-              </label>
+              <Label htmlFor={`port-rule-${networkId}-source`}>Source</Label>
               <Select
+                id={`port-rule-${networkId}-source`}
                 value={source}
                 onChange={(e) => {
                   setSource(e.target.value as RuleSource);
@@ -114,10 +114,11 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
               </Select>
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
+              <Label htmlFor={`port-rule-${networkId}-port`}>
                 Port{source !== "port" ? " (opt)" : ""}
-              </label>
+              </Label>
               <Input
+                id={`port-rule-${networkId}-port`}
                 value={port}
                 onChange={(e) => setPort(e.target.value)}
                 placeholder="80"
@@ -125,10 +126,9 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
               />
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                IP (opt)
-              </label>
+              <Label htmlFor={`port-rule-${networkId}-ip`}>IP (opt)</Label>
               <Input
+                id={`port-rule-${networkId}-ip`}
                 value={ip}
                 onChange={(e) => setIp(e.target.value)}
                 placeholder="192.168.1.1"
@@ -137,10 +137,11 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
             </div>
             {source === "ssh" && (
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">
+                <Label htmlFor={`port-rule-${networkId}-alert-type`}>
                   Alert Type
-                </label>
+                </Label>
                 <Select
+                  id={`port-rule-${networkId}-alert-type`}
                   value={alertType}
                   onChange={(e) => setAlertType(e.target.value)}
                 >
@@ -156,10 +157,11 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
             {source === "nse" && (
               <>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">
+                  <Label htmlFor={`port-rule-${networkId}-alert-type`}>
                     Alert Type
-                  </label>
+                  </Label>
                   <Select
+                    id={`port-rule-${networkId}-alert-type`}
                     value={alertType}
                     onChange={(e) => setAlertType(e.target.value)}
                   >
@@ -172,10 +174,11 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">
+                  <Label htmlFor={`port-rule-${networkId}-script`}>
                     Script
-                  </label>
+                  </Label>
                   <Input
+                    id={`port-rule-${networkId}-script`}
                     value={scriptName}
                     onChange={(e) => setScriptName(e.target.value)}
                     placeholder="script-name"
@@ -185,10 +188,9 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
               </>
             )}
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                Type
-              </label>
+              <Label htmlFor={`port-rule-${networkId}-rule-type`}>Type</Label>
               <Select
+                id={`port-rule-${networkId}-rule-type`}
                 value={ruleType}
                 onChange={(e) =>
                   setRuleType(e.target.value as "accepted" | "critical")
@@ -199,10 +201,11 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
               </Select>
             </div>
             <div className="flex-1 min-w-[120px]">
-              <label className="block text-xs text-muted-foreground mb-1">
+              <Label htmlFor={`port-rule-${networkId}-description`}>
                 Description
-              </label>
+              </Label>
               <Input
+                id={`port-rule-${networkId}-description`}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Reason"
@@ -282,9 +285,11 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                   )}
                 </div>
                 <button
+                  type="button"
                   onClick={() => removeRule.mutate(rule.id)}
-                  className="rounded p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                  className="rounded p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                   title="Remove rule"
+                  aria-label={`Remove rule for ${rule.match_criteria.ip ?? "any IP"}:${rule.match_criteria.port ?? "any port"}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

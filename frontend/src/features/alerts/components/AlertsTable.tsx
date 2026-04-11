@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   useReactTable,
@@ -70,12 +71,22 @@ function SortableHeader({
   const sorted = column.getIsSorted();
   const Icon =
     sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;
+  const nextDirection =
+    sorted === "asc"
+      ? "descending"
+      : sorted === "desc"
+        ? "unsorted"
+        : "ascending";
   return (
     <button
+      type="button"
       onClick={column.getToggleSortingHandler()}
       className="flex items-center gap-1 text-xs cursor-pointer"
+      aria-label={`Sort by ${label}, currently ${
+        sorted === false ? "unsorted" : sorted === "asc" ? "ascending" : "descending"
+      }, click to sort ${nextDirection}`}
     >
-      {label} <Icon className="h-3 w-3" />
+      {label} <Icon className="h-3 w-3" aria-hidden="true" />
     </button>
   );
 }
@@ -305,12 +316,10 @@ export function AlertsTable({
   sorting,
   onSortingChange,
 }: AlertsTableProps) {
-  const columns = createColumns({
-    onDismiss,
-    onReopen,
-    onAccept,
-    onDelete,
-  });
+  const columns = useMemo(
+    () => createColumns({ onDismiss, onReopen, onAccept, onDelete }),
+    [onDismiss, onReopen, onAccept, onDelete],
+  );
 
   const rowSelection = Object.fromEntries(
     alerts.map((a, i) => [i, selectedIds.includes(a.id)]),

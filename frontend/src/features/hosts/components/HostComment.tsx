@@ -4,6 +4,8 @@ import { Check, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { patchApi } from "@/lib/api";
 
 export function HostComment({
@@ -29,16 +31,18 @@ export function HostComment({
   });
 
   if (editing) {
+    const inputId = `host-comment-${hostId}`;
     return (
       <div className="rounded-lg border border-border bg-card p-4">
-        <label className="block text-xs font-emphasis text-muted-foreground mb-1.5">
+        <Label htmlFor={inputId} className="mb-1.5 text-xs text-muted-foreground">
           Host Comment
-        </label>
-        <textarea
+        </Label>
+        <Textarea
+          id={inputId}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={3}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+          className="resize-y"
           placeholder="Add a comment about this host..."
         />
         <div className="mt-2 flex items-center gap-2">

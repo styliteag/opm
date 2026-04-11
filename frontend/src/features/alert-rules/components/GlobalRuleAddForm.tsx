@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import {
   Dialog,
@@ -84,10 +85,9 @@ export function GlobalRuleAddForm({
         <div className="grid gap-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                Source
-              </label>
+              <Label htmlFor="global-rule-source">Source</Label>
               <Select
+                id="global-rule-source"
                 value={source}
                 onChange={(e) => {
                   setSource(e.target.value as RuleSource);
@@ -101,10 +101,9 @@ export function GlobalRuleAddForm({
               </Select>
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                Type
-              </label>
+              <Label htmlFor="global-rule-type">Type</Label>
               <Select
+                id="global-rule-type"
                 value={ruleType}
                 onChange={(e) =>
                   setRuleType(e.target.value as "accepted" | "critical")
@@ -118,10 +117,11 @@ export function GlobalRuleAddForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
+              <Label htmlFor="global-rule-port">
                 Port{source !== "port" ? " (optional)" : ""}
-              </label>
+              </Label>
               <Input
+                id="global-rule-port"
                 value={port}
                 onChange={(e) => setPort(e.target.value)}
                 placeholder={source === "ssh" ? "22" : "80"}
@@ -129,10 +129,9 @@ export function GlobalRuleAddForm({
               />
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                IP (optional)
-              </label>
+              <Label htmlFor="global-rule-ip">IP (optional)</Label>
               <Input
+                id="global-rule-ip"
                 value={ip}
                 onChange={(e) => setIp(e.target.value)}
                 placeholder="192.168.1.1"
@@ -143,10 +142,11 @@ export function GlobalRuleAddForm({
 
           {source === "ssh" && (
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
+              <Label htmlFor="global-rule-alert-type">
                 Alert Type (optional)
-              </label>
+              </Label>
               <Select
+                id="global-rule-alert-type"
                 value={alertType}
                 onChange={(e) => setAlertType(e.target.value)}
               >
@@ -163,10 +163,11 @@ export function GlobalRuleAddForm({
           {source === "nse" && (
             <>
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">
+                <Label htmlFor="global-rule-alert-type">
                   Alert Type (optional)
-                </label>
+                </Label>
                 <Select
+                  id="global-rule-alert-type"
                   value={alertType}
                   onChange={(e) => setAlertType(e.target.value)}
                 >
@@ -179,10 +180,11 @@ export function GlobalRuleAddForm({
                 </Select>
               </div>
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">
+                <Label htmlFor="global-rule-script">
                   Script Name (optional)
-                </label>
+                </Label>
                 <Input
+                  id="global-rule-script"
                   value={scriptName}
                   onChange={(e) => setScriptName(e.target.value)}
                   placeholder="http-vuln-cve2017-5638"
@@ -193,10 +195,9 @@ export function GlobalRuleAddForm({
           )}
 
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">
-              Description
-            </label>
+            <Label htmlFor="global-rule-description">Description</Label>
             <Input
+              id="global-rule-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Why this rule exists"

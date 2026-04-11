@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod/v4";
 import { toast } from "sonner";
 import cronstrue from "cronstrue";
 
@@ -19,53 +18,15 @@ import {
 import { useNetworkMutations } from "@/features/networks/hooks/useNetworkDetail";
 import { useScanners } from "@/features/dashboard/hooks/useDashboardData";
 import { useNseProfiles } from "@/features/nse/hooks/useNse";
-import {
-  useLibraryEntries,
-  useScannerMirror,
-} from "@/features/gvm-library/hooks/useGvmLibrary";
 import { computeScanEstimate } from "@/lib/scan-estimate";
-import type { GvmKind, Network, ScanPhase } from "@/lib/types";
+import type { Network, ScanPhase } from "@/lib/types";
+import { GvmConfigSection } from "./GvmConfigSection";
+import { NucleiSettings } from "./NucleiSettings";
 import { PhaseCards } from "./PhaseCards";
-
-const schema = z.object({
-  name: z.string().min(1, "Name is required"),
-  cidr: z.string().min(1, "CIDR is required"),
-  port_spec: z.string().min(1, "Port spec is required"),
-  scanner_id: z.coerce.number().min(1, "Scanner is required"),
-  scanner_type: z.enum(["masscan", "nmap", "greenbone"]),
-  scan_protocol: z.enum(["tcp", "udp", "both"]),
-  scan_rate: z.coerce.number().optional(),
-  scan_timeout: z.preprocess(
-    (val) =>
-      val === "" || val === undefined || val === null ? undefined : Number(val),
-    z.number().min(60).max(86400).optional(),
-  ),
-  port_timeout: z.preprocess(
-    (val) =>
-      val === "" || val === undefined || val === null ? undefined : Number(val),
-    z.number().min(100).max(30000).optional(),
-  ),
-  scan_schedule: z.string().optional(),
-  nse_profile_id: z.preprocess(
-    (val) =>
-      val === "" || val === undefined || val === null ? undefined : Number(val),
-    z.number().optional(),
-  ),
-  gvm_keep_reports: z.boolean().default(true),
-  nuclei_enabled: z.boolean().default(false),
-  nuclei_tags: z.string().optional(),
-  nuclei_severity: z
-    .enum(["info", "low", "medium", "high", "critical"])
-    .optional(),
-  nuclei_timeout: z.preprocess(
-    (val) =>
-      val === "" || val === undefined || val === null ? undefined : Number(val),
-    z.number().min(60).max(7200).optional(),
-  ),
-  email_recipients: z.string().optional(),
-});
-
-type FormData = z.infer<typeof schema>;
+import {
+  networkFormSchema,
+  type NetworkFormData,
+} from "./networkFormSchema";
 
 const RATE_PRESETS = [
   { label: "Slow", value: 100, desc: "Safe for production" },
@@ -93,25 +54,6 @@ interface NetworkFormProps {
   cloneSource?: Network;
 }
 
-interface GvmDropdownOptions {
-  library: string[];
-  scanner: string[];
-}
-
-function buildGvmDropdownOptions(
-  _kind: GvmKind,
-  libraryEntries: ReadonlyArray<{ name: string }>,
-  mirrorEntries: ReadonlyArray<{ name: string }>,
-): GvmDropdownOptions {
-  const library = [...libraryEntries].map((e) => e.name).sort();
-  const librarySet = new Set(library);
-  const scanner = [...mirrorEntries]
-    .map((e) => e.name)
-    .filter((name) => !librarySet.has(name))
-    .sort();
-  return { library, scanner };
-}
-
 export function NetworkForm({
   open,
   onOpenChange,
@@ -136,15 +78,8 @@ export function NetworkForm({
     source?.gvm_port_list ?? "",
   );
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    control,
-    formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  const formMethods = useForm<NetworkFormData>({
+    resolver: zodResolver(networkFormSchema),
     defaultValues: source
       ? {
           name: cloneSource && !network ? `Copy of ${source.name}` : source.name,
@@ -191,6 +126,15 @@ export function NetworkForm({
         },
   });
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    control,
+    formState: { errors },
+  } = formMethods;
+
   const watchedCidr = useWatch({ control, name: "cidr" }) ?? "";
   const watchedPortSpec = useWatch({ control, name: "port_spec" }) ?? "";
   const watchedRate = useWatch({ control, name: "scan_rate" }) ?? 1000;
@@ -209,35 +153,6 @@ export function NetworkForm({
       toast.info("Nuclei disabled — not supported for Greenbone scanners");
     }
   }, [isGreenbone, watchedNucleiEnabled, setValue]);
-
-  // Populate GVM dropdowns: union of library entries + assigned scanner's mirror
-  const libraryScanConfigs = useLibraryEntries(
-    isGreenbone ? "scan_config" : undefined,
-  );
-  const libraryPortLists = useLibraryEntries(
-    isGreenbone ? "port_list" : undefined,
-  );
-  const scannerMirrorConfigs = useScannerMirror(
-    watchedScannerId,
-    "scan_config",
-    { enabled: isGreenbone && watchedScannerId > 0 },
-  );
-  const scannerMirrorPortLists = useScannerMirror(
-    watchedScannerId,
-    "port_list",
-    { enabled: isGreenbone && watchedScannerId > 0 },
-  );
-
-  const gvmScanConfigOptions = buildGvmDropdownOptions(
-    "scan_config",
-    libraryScanConfigs.data?.entries ?? [],
-    scannerMirrorConfigs.data?.entries ?? [],
-  );
-  const gvmPortListOptions = buildGvmDropdownOptions(
-    "port_list",
-    libraryPortLists.data?.entries ?? [],
-    scannerMirrorPortLists.data?.entries ?? [],
-  );
 
   const vulnEnabled = (phases ?? []).some(
     (p) => p.name === "vulnerability" && p.enabled,
@@ -259,7 +174,7 @@ export function NetworkForm({
     cronHuman = "";
   }
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: NetworkFormData) => {
     const { email_recipients, ...rest } = data;
     // Nuclei is only meaningful for masscan/nmap. Force-clear config fields
     // when disabled or when scanner_type is greenbone so the backend gets a
@@ -335,6 +250,7 @@ export function NetworkForm({
                 : "Add Network"}
           </DialogTitle>
         </DialogHeader>
+        <FormProvider {...formMethods}>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 py-2">
           {/* ── Network Identity ── */}
           <fieldset className="space-y-3">
@@ -419,7 +335,13 @@ export function NetworkForm({
             <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
               Scanner
             </legend>
-            <div className="grid grid-cols-3 gap-3">
+            <div
+              className={
+                isGreenbone
+                  ? "grid grid-cols-2 gap-3"
+                  : "grid grid-cols-3 gap-3"
+              }
+            >
               <div>
                 <Label htmlFor="scanner_id">Scanner</Label>
                 <Select id="scanner_id" {...register("scanner_id")}>
@@ -444,46 +366,6 @@ export function NetworkForm({
                   <option value="greenbone">Greenbone (GVM)</option>
                 </Select>
               </div>
-              {isGreenbone && (
-                <div>
-                  <Label htmlFor="gvm_scan_config">GVM Scan Config</Label>
-                  <Select
-                    id="gvm_scan_config"
-                    value={gvmScanConfig}
-                    onChange={(e) => setGvmScanConfig(e.target.value)}
-                  >
-                    {gvmScanConfigOptions.library.length > 0 && (
-                      <optgroup label="Library">
-                        {gvmScanConfigOptions.library.map((name) => (
-                          <option key={`lib-${name}`} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {gvmScanConfigOptions.scanner.length > 0 && (
-                      <optgroup label="Scanner Built-in / Live">
-                        {gvmScanConfigOptions.scanner.map((name) => (
-                          <option key={`scn-${name}`} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {gvmScanConfigOptions.library.length === 0 &&
-                      gvmScanConfigOptions.scanner.length === 0 && (
-                        <>
-                          <option value="Full and fast">Full and fast</option>
-                          <option value="Full and deep">Full and deep</option>
-                          <option value="Discovery">Discovery</option>
-                          <option value="System Discovery">
-                            System Discovery
-                          </option>
-                        </>
-                      )}
-                  </Select>
-                </div>
-              )}
               {!isGreenbone && (
                 <div>
                   <Label htmlFor="scan_protocol">Protocol</Label>
@@ -496,70 +378,13 @@ export function NetworkForm({
               )}
             </div>
             {isGreenbone && (
-              <div>
-                <Label htmlFor="gvm_port_list">GVM Port List (optional)</Label>
-                <Select
-                  id="gvm_port_list"
-                  value={gvmPortList}
-                  onChange={(e) => setGvmPortList(e.target.value)}
-                >
-                  <option value="">
-                    (use custom port range from field above)
-                  </option>
-                  {gvmPortListOptions.library.length > 0 && (
-                    <optgroup label="Library">
-                      {gvmPortListOptions.library.map((name) => (
-                        <option key={`lib-${name}`} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {gvmPortListOptions.scanner.length > 0 && (
-                    <optgroup label="Scanner Built-in / Live">
-                      {gvmPortListOptions.scanner.map((name) => (
-                        <option key={`scn-${name}`} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </Select>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {gvmPortList ? (
-                    <>
-                      <span className="text-foreground/80 font-emphasis">
-                        Active:
-                      </span>{" "}
-                      scanner will pass <code>port_list_id</code> to GVM. The
-                      Port Specification above is ignored.
-                    </>
-                  ) : (
-                    <>
-                      Leave empty to use the raw Port Specification field at
-                      the top of the form. Pick a GVM port list to override.
-                    </>
-                  )}
-                </p>
-              </div>
-            )}
-            {isGreenbone && (
-              <div className="rounded-md border border-border/40 bg-card/40 p-3">
-                <label className="flex items-center gap-2 text-sm font-emphasis">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-border/50 bg-background"
-                    {...register("gvm_keep_reports")}
-                  />
-                  Keep GVM reports after scan
-                </label>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  When enabled (default), the scanner leaves task, target, and
-                  report in the Greenbone instance so you can inspect them in
-                  the GSA web UI. Uncheck to have the scanner delete them
-                  after each run.
-                </p>
-              </div>
+              <GvmConfigSection
+                scannerId={watchedScannerId}
+                scanConfig={gvmScanConfig}
+                onScanConfigChange={setGvmScanConfig}
+                portList={gvmPortList}
+                onPortListChange={setGvmPortList}
+              />
             )}
             {!isGreenbone && (<>
             <div className="grid grid-cols-3 gap-3">
@@ -680,70 +505,7 @@ export function NetworkForm({
               )}
             </div>
 
-            {/* ── Nuclei post-phase ── */}
-            <div className="rounded-md border border-border/40 bg-card/40 p-3">
-              <label className="flex items-center gap-2 text-sm font-emphasis">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-border/50 bg-background"
-                  {...register("nuclei_enabled")}
-                />
-                Vulnerability scanning (Nuclei)
-              </label>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Runs nuclei against HTTP/HTTPS services discovered by the port
-                scan. Available for masscan and nmap networks.
-              </p>
-              {watchedNucleiEnabled && (
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <Label htmlFor="nuclei_tags">Template tags (optional)</Label>
-                    <Input
-                      id="nuclei_tags"
-                      {...register("nuclei_tags")}
-                      placeholder="cves,exposures,misconfiguration"
-                      className="font-mono"
-                    />
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
-                      Comma-separated nuclei template tags. Leave empty to run
-                      all default tags.
-                    </p>
-                  </div>
-                  <div>
-                    <Label htmlFor="nuclei_severity">Minimum severity</Label>
-                    <Select
-                      id="nuclei_severity"
-                      {...register("nuclei_severity")}
-                    >
-                      <option value="">Default (medium)</option>
-                      <option value="info">Info</option>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="critical">Critical</option>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="nuclei_timeout">
-                      Timeout (seconds, optional)
-                    </Label>
-                    <Input
-                      id="nuclei_timeout"
-                      type="number"
-                      min={60}
-                      max={7200}
-                      {...register("nuclei_timeout")}
-                      placeholder="1800"
-                    />
-                    {errors.nuclei_timeout && (
-                      <p className="mt-1 text-xs text-destructive">
-                        {errors.nuclei_timeout.message}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <NucleiSettings enabled={watchedNucleiEnabled} />
           </fieldset>
           </>)}
 
@@ -819,6 +581,7 @@ export function NetworkForm({
             </Button>
           </DialogFooter>
         </form>
+        </FormProvider>
       </DialogContent>
     </Dialog>
   );

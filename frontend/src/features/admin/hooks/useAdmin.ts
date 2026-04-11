@@ -23,7 +23,7 @@ interface RoleInfo {
   permissions: string[];
 }
 
-interface OrgResponse {
+export interface Organization {
   id: number;
   name: string;
   description: string | null;
@@ -51,7 +51,7 @@ export function useRoles() {
 export function useOrganization() {
   return useQuery({
     queryKey: ["organization"],
-    queryFn: () => fetchApi<OrgResponse>("/api/organization"),
+    queryFn: () => fetchApi<Organization>("/api/organization"),
   });
 }
 
@@ -95,7 +95,7 @@ export function useOrgMutations() {
       contact_email?: string;
       logo_url?: string | null;
       security_policy_url?: string | null;
-    }) => putApi<OrgResponse>("/api/organization", data),
+    }) => putApi<Organization>("/api/organization", data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["organization"] }),
   });
 

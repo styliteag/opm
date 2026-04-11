@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -109,14 +110,19 @@ export function AcceptModal({
             .
           </p>
 
-          <div>
-            <label className="block text-sm font-emphasis text-foreground mb-1">
+          <div role="group" aria-labelledby="accept-scope-label">
+            <span
+              id="accept-scope-label"
+              className="block text-sm font-emphasis text-foreground mb-1"
+            >
               Scope
-            </label>
+            </span>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setScope("global")}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm transition-colors ${
+                aria-pressed={scope === "global"}
+                className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-sm transition-colors ${
                   scope === "global"
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border text-muted-foreground hover:text-foreground"
@@ -128,8 +134,10 @@ export function AcceptModal({
                 </div>
               </button>
               <button
+                type="button"
                 onClick={() => setScope("network")}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm transition-colors ${
+                aria-pressed={scope === "network"}
+                className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-sm transition-colors ${
                   scope === "network"
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border text-muted-foreground hover:text-foreground"
@@ -145,10 +153,11 @@ export function AcceptModal({
 
           {scope === "network" && (
             <div>
-              <label className="block text-sm font-emphasis text-foreground mb-1">
+              <Label htmlFor="accept-network" className="mb-1">
                 Network <span className="text-destructive">*</span>
-              </label>
+              </Label>
               <Select
+                id="accept-network"
                 value={networkId}
                 onChange={(e) =>
                   setNetworkId(e.target.value ? Number(e.target.value) : "")
@@ -165,10 +174,11 @@ export function AcceptModal({
           )}
 
           <div>
-            <label className="block text-sm font-emphasis text-foreground mb-1">
+            <Label htmlFor="accept-reason" className="mb-1">
               Reason <span className="text-destructive">*</span>
-            </label>
+            </Label>
             <Textarea
+              id="accept-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Why is this port/condition being accepted? (e.g. 'Known SMTP relay, monitored by ops team')"

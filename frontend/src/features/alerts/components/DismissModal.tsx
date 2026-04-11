@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -91,10 +92,11 @@ export function DismissModal({
             instead.
           </p>
           <div>
-            <label className="block text-sm font-emphasis text-foreground mb-1">
+            <Label htmlFor="dismiss-reason" className="mb-1">
               Reason <span className="text-destructive">*</span>
-            </label>
+            </Label>
             <Textarea
+              id="dismiss-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Why is this alert being dismissed?"

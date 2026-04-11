@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -44,8 +44,16 @@ export function ScriptUploadModal({
   onSuccess,
 }: ScriptUploadModalProps) {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { createScript } = useNseMutations();
   const navigate = useNavigate();
+
+  const resetForm = () => {
+    setForm(INITIAL_FORM);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -97,7 +105,7 @@ export function ScriptUploadModal({
       {
         onSuccess: () => {
           toast.success("Script uploaded");
-          setForm(INITIAL_FORM);
+          resetForm();
           onOpenChange(false);
           onSuccess?.();
           navigate({
@@ -176,6 +184,7 @@ export function ScriptUploadModal({
             <Label htmlFor="script-file">Upload .nse file</Label>
             <Input
               id="script-file"
+              ref={fileInputRef}
               type="file"
               accept=".nse,.lua"
               onChange={handleFileUpload}

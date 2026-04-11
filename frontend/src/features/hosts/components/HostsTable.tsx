@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -29,12 +30,22 @@ function SortableHeader({
   const sorted = column.getIsSorted();
   const Icon =
     sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;
+  const nextDirection =
+    sorted === "asc"
+      ? "descending"
+      : sorted === "desc"
+        ? "unsorted"
+        : "ascending";
   return (
     <button
+      type="button"
       onClick={column.getToggleSortingHandler()}
       className="flex items-center gap-1 text-xs cursor-pointer"
+      aria-label={`Sort by ${label}, currently ${
+        sorted === false ? "unsorted" : sorted === "asc" ? "ascending" : "descending"
+      }, click to sort ${nextDirection}`}
     >
-      {label} <Icon className="h-3 w-3" />
+      {label} <Icon className="h-3 w-3" aria-hidden="true" />
     </button>
   );
 }
@@ -82,100 +93,107 @@ export function HostsTable({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const columns: ColumnDef<Host>[] = [
-    {
-      accessorKey: "ip",
-      header: ({ column }) => (
-        <SortableHeader label="IP Address" column={column} />
-      ),
-      cell: ({ row }) => (
-        <Link
-          to="/hosts/$hostId"
-          params={{ hostId: String(row.original.id) }}
-          className="font-mono text-sm text-primary hover:text-primary/80 transition-colors"
-        >
-          {row.original.ip}
-        </Link>
-      ),
-    },
-    {
-      accessorKey: "hostname",
-      header: ({ column }) => (
-        <SortableHeader label="Hostname" column={column} />
-      ),
-      cell: ({ row }) => (
-        <InlineTextCell
-          value={row.original.hostname}
-          onSave={(val) =>
-            hostnameMutation.mutate({ hostId: row.original.id, hostname: val })
-          }
-          saveLabel="Save hostname"
-          placeholder="-"
-          isPending={hostnameMutation.isPending}
-        />
-      ),
-    },
-    {
-      accessorKey: "user_comment",
-      header: "Comment",
-      cell: ({ row }) => (
-        <InlineTextCell
-          value={row.original.user_comment}
-          onSave={(val) =>
-            commentMutation.mutate({
-              hostId: row.original.id,
-              user_comment: val,
-            })
-          }
-          saveLabel="Save comment"
-          placeholder="Add comment..."
-          isPending={commentMutation.isPending}
-        />
-      ),
-      size: 200,
-    },
-    {
-      id: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const diff = Date.now() - parseUTC(row.original.last_seen_at).getTime();
-        const isRecent = diff < 24 * 60 * 60 * 1000;
-        return (
-          <StatusBadge
-            label={isRecent ? "Online" : "Offline"}
-            variant={isRecent ? "success" : "neutral"}
-            dot
+  const columns = useMemo<ColumnDef<Host>[]>(
+    () => [
+      {
+        accessorKey: "ip",
+        header: ({ column }) => (
+          <SortableHeader label="IP Address" column={column} />
+        ),
+        cell: ({ row }) => (
+          <Link
+            to="/hosts/$hostId"
+            params={{ hostId: String(row.original.id) }}
+            className="font-mono text-sm text-primary hover:text-primary/80 transition-colors"
+          >
+            {row.original.ip}
+          </Link>
+        ),
+      },
+      {
+        accessorKey: "hostname",
+        header: ({ column }) => (
+          <SortableHeader label="Hostname" column={column} />
+        ),
+        cell: ({ row }) => (
+          <InlineTextCell
+            value={row.original.hostname}
+            onSave={(val) =>
+              hostnameMutation.mutate({
+                hostId: row.original.id,
+                hostname: val,
+              })
+            }
+            saveLabel="Save hostname"
+            placeholder="-"
+            isPending={hostnameMutation.isPending}
           />
-        );
+        ),
       },
-      size: 100,
-    },
-    {
-      accessorKey: "open_port_count",
-      header: "Open Ports",
-      cell: ({ getValue }) => {
-        const count = getValue<number | null>();
-        return (
-          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-emphasis text-primary">
-            {count ?? 0}
+      {
+        accessorKey: "user_comment",
+        header: "Comment",
+        cell: ({ row }) => (
+          <InlineTextCell
+            value={row.original.user_comment}
+            onSave={(val) =>
+              commentMutation.mutate({
+                hostId: row.original.id,
+                user_comment: val,
+              })
+            }
+            saveLabel="Save comment"
+            placeholder="Add comment..."
+            isPending={commentMutation.isPending}
+          />
+        ),
+        size: 200,
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => {
+          const diff =
+            Date.now() - parseUTC(row.original.last_seen_at).getTime();
+          const isRecent = diff < 24 * 60 * 60 * 1000;
+          return (
+            <StatusBadge
+              label={isRecent ? "Online" : "Offline"}
+              variant={isRecent ? "success" : "neutral"}
+              dot
+            />
+          );
+        },
+        size: 100,
+      },
+      {
+        accessorKey: "open_port_count",
+        header: "Open Ports",
+        cell: ({ getValue }) => {
+          const count = getValue<number | null>();
+          return (
+            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-emphasis text-primary">
+              {count ?? 0}
+            </span>
+          );
+        },
+        size: 100,
+      },
+      {
+        accessorKey: "last_seen_at",
+        header: ({ column }) => (
+          <SortableHeader label="Last Seen" column={column} />
+        ),
+        cell: ({ getValue }) => (
+          <span className="text-sm text-muted-foreground">
+            {formatRelativeTime(getValue<string>())}
           </span>
-        );
+        ),
+        size: 120,
       },
-      size: 100,
-    },
-    {
-      accessorKey: "last_seen_at",
-      header: ({ column }) => (
-        <SortableHeader label="Last Seen" column={column} />
-      ),
-      cell: ({ getValue }) => (
-        <span className="text-sm text-muted-foreground">
-          {formatRelativeTime(getValue<string>())}
-        </span>
-      ),
-      size: 120,
-    },
-  ];
+    ],
+    [hostnameMutation, commentMutation],
+  );
 
   const table = useReactTable({
     data: hosts,
@@ -215,12 +233,13 @@ export function HostsTable({
                 <th className="w-10 px-3 py-3">
                   <input
                     type="checkbox"
+                    aria-label="Select all hosts"
                     checked={
                       hosts.length > 0 &&
                       hosts.every((h) => selectedIds?.includes(h.id))
                     }
                     onChange={toggleAll}
-                    className="rounded border-border"
+                    className="rounded border-border cursor-pointer"
                   />
                 </th>
               )}
@@ -249,9 +268,10 @@ export function HostsTable({
                 <td className="w-10 px-3 py-3">
                   <input
                     type="checkbox"
+                    aria-label={`Select host ${row.original.ip}`}
                     checked={selectedIds?.includes(row.original.id) ?? false}
                     onChange={() => toggleId(row.original.id)}
-                    className="rounded border-border"
+                    className="rounded border-border cursor-pointer"
                   />
                 </td>
               )}
