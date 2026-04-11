@@ -45,5 +45,19 @@ class Settings(BaseSettings):
     # Defaults to server's local timezone if not set
     schedule_timezone: str = ""
 
+    # --- Hostname lookup cache (reverse-IP vhost discovery) ------------
+    # Controls the background filler job that populates
+    # `hostname_lookup_cache` from HackerTarget's /reverseiplookup/ API.
+    # The cache powers the upcoming SNI-aware nuclei fan-out (Commit 5).
+    hostname_lookup_enabled: bool = True
+    # Free-tier API key from https://hackertarget.com/ (optional). When
+    # set the filler uses the 100/day limit instead of the 50/day anon
+    # limit. Empty string means anonymous mode.
+    hackertarget_api_key: str = ""
+    # How often the filler job runs (minutes). Lower = more responsive
+    # to newly-discovered hosts, but no point going below a few minutes
+    # because the daily budget is the real bottleneck.
+    hostname_lookup_interval_minutes: int = 60
+
 
 settings = Settings()

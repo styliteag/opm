@@ -141,6 +141,11 @@ def start_scheduler() -> AsyncIOScheduler:
     if _scheduler is not None:
         return _scheduler
 
+    # Local import — hostname_lookup_filler pulls in httpx and the full
+    # hostname lookup service stack, which we don't want on module import
+    # if the scheduler module is imported for other reasons (e.g. tests).
+    from app.services.hostname_lookup_filler import run_hostname_cache_filler
+
     scheduler = AsyncIOScheduler(timezone=timezone.utc)
     scheduler.add_job(
         evaluate_schedules,
@@ -150,8 +155,26 @@ def start_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         misfire_grace_time=30,
     )
+    # Hostname lookup cache filler — hourly by default, gated on
+    # settings.hostname_lookup_enabled (the job itself short-circuits
+    # when the flag is off, so we always schedule it and let the
+    # function decide at fire time).
+    scheduler.add_job(
+        run_hostname_cache_filler,
+        IntervalTrigger(
+            minutes=settings.hostname_lookup_interval_minutes,
+            timezone=timezone.utc,
+        ),
+        id="hostname-cache-filler",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
+    )
     scheduler.start()
-    logger.info("Scan scheduler started")
+    logger.info(
+        "Scan scheduler started (scan eval every 1 min, hostname filler every %d min)",
+        settings.hostname_lookup_interval_minutes,
+    )
     _scheduler = scheduler
     return scheduler
 
