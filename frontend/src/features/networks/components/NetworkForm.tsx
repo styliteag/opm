@@ -85,6 +85,12 @@ interface NetworkFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   network?: Network;
+  /**
+   * When set (and `network` is not), pre-fills the form with values from this
+   * network so the user can create a copy. Stays in create mode — submission
+   * goes through `create.mutate`, not `update`.
+   */
+  cloneSource?: Network;
 }
 
 interface GvmDropdownOptions {
@@ -106,19 +112,28 @@ function buildGvmDropdownOptions(
   return { library, scanner };
 }
 
-export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
+export function NetworkForm({
+  open,
+  onOpenChange,
+  network,
+  cloneSource,
+}: NetworkFormProps) {
   const { create, update } = useNetworkMutations();
   const scanners = useScanners();
   const profiles = useNseProfiles();
   const isEdit = Boolean(network);
+  // Use the explicit edit target first; otherwise fall back to the clone
+  // source so the form can pre-fill from another network without entering
+  // edit mode.
+  const source = network ?? cloneSource;
   const [phases, setPhases] = useState<ScanPhase[] | null>(
-    network?.phases ?? null,
+    source?.phases ?? null,
   );
   const [gvmScanConfig, setGvmScanConfig] = useState<string>(
-    network?.gvm_scan_config ?? "Full and fast",
+    source?.gvm_scan_config ?? "Full and fast",
   );
   const [gvmPortList, setGvmPortList] = useState<string>(
-    network?.gvm_port_list ?? "",
+    source?.gvm_port_list ?? "",
   );
 
   const {
@@ -130,36 +145,36 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: network
+    defaultValues: source
       ? {
-          name: network.name,
-          cidr: network.cidr,
-          port_spec: network.port_spec,
-          scanner_id: network.scanner_id,
-          scanner_type: network.scanner_type as "masscan" | "nmap" | "greenbone",
-          scan_protocol: network.scan_protocol as "tcp" | "udp" | "both",
-          scan_rate: network.scan_rate ?? undefined,
-          scan_timeout: network.scan_timeout ?? undefined,
-          port_timeout: network.port_timeout ?? undefined,
-          scan_schedule: network.scan_schedule ?? undefined,
-          nse_profile_id: network.nse_profile_id ?? undefined,
-          gvm_keep_reports: network.gvm_keep_reports ?? true,
-          nuclei_enabled: network.nuclei_enabled ?? false,
-          nuclei_tags: network.nuclei_tags ?? undefined,
+          name: cloneSource && !network ? `Copy of ${source.name}` : source.name,
+          cidr: source.cidr,
+          port_spec: source.port_spec,
+          scanner_id: source.scanner_id,
+          scanner_type: source.scanner_type as "masscan" | "nmap" | "greenbone",
+          scan_protocol: source.scan_protocol as "tcp" | "udp" | "both",
+          scan_rate: source.scan_rate ?? undefined,
+          scan_timeout: source.scan_timeout ?? undefined,
+          port_timeout: source.port_timeout ?? undefined,
+          scan_schedule: source.scan_schedule ?? undefined,
+          nse_profile_id: source.nse_profile_id ?? undefined,
+          gvm_keep_reports: source.gvm_keep_reports ?? true,
+          nuclei_enabled: source.nuclei_enabled ?? false,
+          nuclei_tags: source.nuclei_tags ?? undefined,
           nuclei_severity:
-            (network.nuclei_severity as
+            (source.nuclei_severity as
               | "info"
               | "low"
               | "medium"
               | "high"
               | "critical"
               | null) ?? undefined,
-          nuclei_timeout: network.nuclei_timeout ?? undefined,
+          nuclei_timeout: source.nuclei_timeout ?? undefined,
           email_recipients: (
-            network.alert_config as Record<string, unknown> | null
+            source.alert_config as Record<string, unknown> | null
           )?.email_recipients
             ? String(
-                (network.alert_config as Record<string, unknown>)
+                (source.alert_config as Record<string, unknown>)
                   .email_recipients,
               )
             : "",
@@ -264,14 +279,16 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
         nucleiActive && rest.nuclei_timeout ? rest.nuclei_timeout : null,
     };
 
-    // Build alert_config with email_recipients if provided
+    // Build alert_config with email_recipients if provided. Clone mode reuses
+    // the source's alert_config so non-email keys (SMTP overrides, etc.) ride
+    // along with the copy.
     if (email_recipients?.trim()) {
       const recipients = email_recipients
         .split(",")
         .map((e) => e.trim())
         .filter(Boolean);
       const existingConfig =
-        (network?.alert_config as Record<string, unknown> | null) ?? {};
+        (source?.alert_config as Record<string, unknown> | null) ?? {};
       payload.alert_config = {
         ...existingConfig,
         email_recipients: recipients,
@@ -310,7 +327,13 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Network" : "Add Network"}</DialogTitle>
+          <DialogTitle>
+            {isEdit
+              ? "Edit Network"
+              : cloneSource
+                ? `Clone Network — ${cloneSource.name}`
+                : "Add Network"}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 py-2">
           {/* ── Network Identity ── */}

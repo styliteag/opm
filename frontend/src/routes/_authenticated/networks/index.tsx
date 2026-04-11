@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, Play } from "lucide-react";
+import { Plus, Play, Copy } from "lucide-react";
 import { toast } from "sonner";
+
+import type { Network } from "@/lib/types";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
@@ -22,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/networks/")({
 
 function NetworksPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [cloneSource, setCloneSource] = useState<Network | null>(null);
   const networks = useNetworks();
   const scanners = useScanners();
   const latestScans = useLatestScans();
@@ -159,6 +162,17 @@ function NetworksPage() {
                     <button
                       onClick={(e) => {
                         e.preventDefault();
+                        setCloneSource(network);
+                      }}
+                      className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary/30 hover:text-primary transition-colors cursor-pointer"
+                      title={`Create a copy of ${network.name}`}
+                    >
+                      <Copy className="h-3 w-3" />
+                      Clone
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
                         triggerScan.mutate(network.id, {
                           onSuccess: () =>
                             toast.success(`Scan triggered for ${network.name}`),
@@ -207,6 +221,18 @@ function NetworksPage() {
       )}
 
       <NetworkForm open={createOpen} onOpenChange={setCreateOpen} />
+      {cloneSource && (
+        // Remount per source so react-hook-form picks up fresh defaults
+        // when the user clones a different network in the same session.
+        <NetworkForm
+          key={`clone-${cloneSource.id}`}
+          open
+          onOpenChange={(open) => {
+            if (!open) setCloneSource(null);
+          }}
+          cloneSource={cloneSource}
+        />
+      )}
     </div>
   );
 }
