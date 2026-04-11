@@ -268,6 +268,44 @@ async def get_cached_hostnames(db: AsyncSession, ip: str) -> list[str] | None:
     return list(row.hostnames_json or [])
 
 
+async def get_hostnames_for_ips(
+    db: AsyncSession, ips: list[str]
+) -> dict[str, list[str]]:
+    """Bulk cache read — return fresh cached hostnames for a set of IPs.
+
+    Skips expired rows and ``failed`` rows (both serve as "no cached
+    answer"). Empty lists are **omitted** from the result so the caller
+    can distinguish "cache hit with zero vhosts" from "we haven't
+    looked this IP up yet" by checking dict membership.
+
+    Used by the scanner hostnames endpoint (``GET /api/scanner/hostnames``)
+    to prime nuclei's SNI fan-out targets right before the nuclei phase.
+    """
+    if not ips:
+        return {}
+
+    now = _now()
+    rows = (
+        (
+            await db.execute(
+                select(HostnameLookup).where(
+                    HostnameLookup.ip.in_(ips),
+                    HostnameLookup.expires_at > now,
+                    HostnameLookup.status != "failed",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    result: dict[str, list[str]] = {}
+    for row in rows:
+        names = list(row.hostnames_json or [])
+        if names:
+            result[row.ip] = names
+    return result
+
+
 async def upsert_cache_row(
     db: AsyncSession,
     ip: str,

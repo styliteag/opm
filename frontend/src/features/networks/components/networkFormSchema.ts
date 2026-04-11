@@ -39,6 +39,7 @@ export const networkFormSchema = z.object({
       val === "" || val === undefined || val === null ? undefined : Number(val),
     z.number().min(60).max(7200).optional(),
   ),
+  nuclei_sni_enabled: z.boolean().default(false),
   email_recipients: z.string().optional(),
   // Per-network SSH alert overrides. "inherit" means: do not set the key in
   // alert_config — global default applies. "on"/"off" force a specific value.

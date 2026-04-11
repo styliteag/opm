@@ -237,8 +237,42 @@ def _run_nuclei_phase(
         logger.info("nuclei: no open ports from port_scan phase, skipping")
         return {"nuclei_result": None}
 
+    # SNI fan-out: fetch cached hostnames for the discovered IPs so
+    # nuclei can scan each vhost separately via https://vhost:port.
+    # Only enabled when the network opted in AND we have open web ports
+    # — no point paying the round-trip for a zero-target scan.
+    known_hostnames: dict[str, list[str]] = {}
+    if job.nuclei_sni_enabled:
+        unique_ips = sorted({p.ip for p in open_ports})
+        try:
+            known_hostnames = client.get_hostnames_for_ips(unique_ips)
+        except Exception as exc:  # pragma: no cover — non-fatal
+            logger.warning(
+                "nuclei: hostname lookup failed (%s), falling back to IP-only targets",
+                exc,
+            )
+            known_hostnames = {}
+        if known_hostnames:
+            total_vhosts = sum(len(v) for v in known_hostnames.values())
+            logger.info(
+                "nuclei: SNI fan-out enabled, cached hostnames for %d/%d IPs (%d total vhosts)",
+                len(known_hostnames),
+                len(unique_ips),
+                total_vhosts,
+            )
+        else:
+            logger.info(
+                "nuclei: SNI fan-out enabled but no cached hostnames for any of %d IPs; "
+                "using IP-only targets",
+                len(unique_ips),
+            )
+
     try:
-        targets = build_targets(open_ports, job.scanner_type)
+        targets = build_targets(
+            open_ports,
+            job.scanner_type,
+            known_hostnames=known_hostnames or None,
+        )
     except Exception as exc:
         logger.warning("nuclei: build_targets failed: %s", exc)
         return {"nuclei_result": None}

@@ -32,6 +32,7 @@ from app.services.hostname_lookup import (
     consume_budget,
     get_budget_used,
     get_cached_hostnames,
+    get_hostnames_for_ips,
     lookup_with_cache,
     pin_budget_exhausted,
     upsert_cache_row,
@@ -466,3 +467,100 @@ class TestLookupWithCache:
 
         # One unit consumed, 19 still available.
         assert await get_budget_used(db_session, "stub") == 1
+
+
+# --- get_hostnames_for_ips (bulk cache read for the scanner) --------
+
+
+class TestGetHostnamesForIps:
+    async def test_empty_input_returns_empty_dict(
+        self, db_session: AsyncSession
+    ) -> None:
+        assert await get_hostnames_for_ips(db_session, []) == {}
+
+    async def test_miss_is_absent_from_result(
+        self, db_session: AsyncSession
+    ) -> None:
+        result = await get_hostnames_for_ips(db_session, ["10.0.0.1"])
+        assert "10.0.0.1" not in result
+        assert result == {}
+
+    async def test_returns_cached_hostnames(
+        self, db_session: AsyncSession
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.10",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["a.example", "b.example", "c.example"],
+            ),
+            source="hackertarget",
+        )
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.11",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["d.example"],
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        result = await get_hostnames_for_ips(
+            db_session, ["10.0.0.10", "10.0.0.11", "10.0.0.99"]
+        )
+        assert result == {
+            "10.0.0.10": ["a.example", "b.example", "c.example"],
+            "10.0.0.11": ["d.example"],
+        }
+        # Un-cached IP is simply absent.
+        assert "10.0.0.99" not in result
+
+    async def test_skips_empty_hostname_lists(
+        self, db_session: AsyncSession
+    ) -> None:
+        """no_results rows exist in the cache but have no hostnames;
+        the bulk helper should not include them in the map."""
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.20",
+            HostnameLookupResult(status="no_results", hostnames=[]),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        result = await get_hostnames_for_ips(db_session, ["10.0.0.20"])
+        assert result == {}
+
+    async def test_skips_failed_rows(self, db_session: AsyncSession) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.30",
+            HostnameLookupResult(
+                status="failed",
+                hostnames=[],
+                error_message="HTTP 500",
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        assert await get_hostnames_for_ips(db_session, ["10.0.0.30"]) == {}
+
+    async def test_skips_expired_rows(
+        self, db_session: AsyncSession
+    ) -> None:
+        row = HostnameLookup(
+            ip="10.0.0.40",
+            hostnames_json=["stale.example"],
+            source="hackertarget",
+            status="success",
+            queried_at=datetime.utcnow() - timedelta(days=60),
+            expires_at=datetime.utcnow() - timedelta(days=10),
+        )
+        db_session.add(row)
+        await db_session.commit()
+
+        assert await get_hostnames_for_ips(db_session, ["10.0.0.40"]) == {}

@@ -73,6 +73,25 @@ export function NucleiSettings({ enabled }: NucleiSettingsProps) {
               </p>
             )}
           </div>
+          <div className="col-span-2 mt-1">
+            <label className="flex items-start gap-2 text-sm font-emphasis">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-border/50 bg-background"
+                {...register("nuclei_sni_enabled")}
+              />
+              <span>
+                SNI fan-out: scan every cached vhost on each IP
+                <p className="mt-0.5 text-[11px] font-normal text-muted-foreground">
+                  When enabled, the scanner queries the backend hostname
+                  cache for each open-port host and expands nuclei targets
+                  to <code>https://vhost:port</code> per known vhost. Only
+                  useful when the hostnames resolve correctly from the
+                  scanner's network. Capped at 50 vhosts per IP.
+                </p>
+              </span>
+            </label>
+          </div>
         </div>
       )}
     </div>

@@ -127,6 +127,7 @@ export interface Network {
   nuclei_tags: string | null;
   nuclei_severity: string | null;
   nuclei_timeout: number | null;
+  nuclei_sni_enabled: boolean;
   is_ipv6: boolean;
   created_at: string;
   updated_at: string;

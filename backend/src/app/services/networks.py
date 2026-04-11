@@ -67,6 +67,7 @@ async def create_network(
     nuclei_tags: str | None = None,
     nuclei_severity: str | None = None,
     nuclei_timeout: int | None = None,
+    nuclei_sni_enabled: bool = False,
 ) -> Network:
     """Create a new network."""
     return await NetworkRepository(db).create(
@@ -92,6 +93,7 @@ async def create_network(
         nuclei_tags=nuclei_tags,
         nuclei_severity=nuclei_severity,
         nuclei_timeout=nuclei_timeout,
+        nuclei_sni_enabled=nuclei_sni_enabled,
     )
 
 
@@ -129,6 +131,7 @@ async def update_network(
     clear_nuclei_severity: bool = False,
     nuclei_timeout: int | None = None,
     clear_nuclei_timeout: bool = False,
+    nuclei_sni_enabled: bool | None = None,
 ) -> Network:
     """Update an existing network.
 
@@ -205,6 +208,8 @@ async def update_network(
         network.nuclei_severity = nuclei_severity
     if nuclei_timeout is not None or clear_nuclei_timeout:
         network.nuclei_timeout = nuclei_timeout
+    if nuclei_sni_enabled is not None:
+        network.nuclei_sni_enabled = nuclei_sni_enabled
 
     # Guard against incompatible combos introduced by a partial update:
     # if the network now has a non-eligible scanner_type but nuclei_enabled
@@ -215,6 +220,9 @@ async def update_network(
         and network.scanner_type not in ("masscan", "nmap")
     ):
         network.nuclei_enabled = False
+    # SNI fan-out only makes sense when nuclei is actually enabled.
+    if network.nuclei_sni_enabled and not network.nuclei_enabled:
+        network.nuclei_sni_enabled = False
 
     return await NetworkRepository(db).flush_and_refresh(network)
 

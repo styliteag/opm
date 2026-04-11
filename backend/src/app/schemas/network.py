@@ -169,6 +169,7 @@ class NetworkCreateRequest(BaseModel):
     nuclei_tags: str | None = None
     nuclei_severity: str | None = None
     nuclei_timeout: int | None = None
+    nuclei_sni_enabled: bool = False
 
     @field_validator("cidr")
     @classmethod
@@ -263,6 +264,7 @@ class NetworkUpdateRequest(BaseModel):
     nuclei_tags: str | None = None
     nuclei_severity: str | None = None
     nuclei_timeout: int | None = None
+    nuclei_sni_enabled: bool | None = None
 
     @field_validator("cidr")
     @classmethod
@@ -377,6 +379,7 @@ class NetworkResponse(BaseModel):
     nuclei_tags: str | None = None
     nuclei_severity: str | None = None
     nuclei_timeout: int | None = None
+    nuclei_sni_enabled: bool = False
     is_ipv6: bool
     created_at: datetime
     updated_at: datetime

@@ -109,6 +109,7 @@ async def create_network(
         nuclei_tags=request.nuclei_tags,
         nuclei_severity=request.nuclei_severity,
         nuclei_timeout=request.nuclei_timeout,
+        nuclei_sni_enabled=request.nuclei_sni_enabled,
     )
     await db.commit()
 
@@ -232,6 +233,7 @@ async def update_network(
         nuclei_timeout=request.nuclei_timeout,
         clear_nuclei_timeout="nuclei_timeout" in request.model_fields_set
         and request.nuclei_timeout is None,
+        nuclei_sni_enabled=request.nuclei_sni_enabled,
     )
     await db.commit()
     return NetworkResponse.model_validate(updated_network)

@@ -41,6 +41,20 @@ COMMON_WEB_PORTS: frozenset[int] = frozenset(
     {80, 443, 8000, 8008, 8080, 8081, 8088, 8443, 8888, 9000, 9443}
 )
 
+# Ports that nuclei should address with an explicit `https://` scheme
+# when building SNI fan-out targets. Everything else gets `http://`.
+# For nmap networks we *also* honour `service_guess` containing "ssl"
+# or "https" via `_port_is_https()`.
+_TLS_DEFAULT_PORTS: frozenset[int] = frozenset(
+    {443, 8443, 9443, 2083, 2087, 8089}
+)
+
+# Hard cap on SNI fan-out: a single IP with 500 vhosts × 3 open ports
+# × 6000 templates would be 9 million requests per scan. Default 50
+# per IP keeps the worst case manageable and matches the plan's
+# "bounded by operator-set max_vhosts" requirement.
+SNI_MAX_VHOSTS_PER_IP = 50
+
 # Ordered severity ladder — used to build the `-severity a,b,c` nuclei flag
 # that means "threshold and above".
 _SEVERITY_LADDER: tuple[str, ...] = ("info", "low", "medium", "high", "critical")
@@ -63,18 +77,34 @@ _NUCLEI_TEMPLATES_DIR_ENV = "NUCLEI_TEMPLATES_DIR"
 def build_targets(
     open_ports: Sequence[OpenPortResult],
     scanner_type: str,
+    known_hostnames: dict[str, list[str]] | None = None,
+    max_vhosts_per_ip: int = SNI_MAX_VHOSTS_PER_IP,
 ) -> list[str]:
-    """Build a list of `IP:PORT` targets for nuclei from discovered ports.
+    """Build a list of nuclei targets from discovered open ports.
+
+    Two modes:
+
+    - **IP mode (default / no SNI)**: returns ``"IP:PORT"`` strings
+      and relies on nuclei's httpx pre-stage to probe http/https on
+      the port. This is what we do when ``known_hostnames`` is
+      ``None`` or ``{}``.
+
+    - **SNI fan-out mode**: when ``known_hostnames`` maps an IP to
+      a non-empty vhost list, the function expands targets to
+      ``"https://vhost:PORT"`` or ``"http://vhost:PORT"`` (scheme
+      chosen per-port) for each cached vhost, capped at
+      ``max_vhosts_per_ip`` entries per IP. IPs without cached
+      hostnames still fall back to bare ``IP:PORT``.
 
     Args:
         open_ports: the port_scan phase output.
-        scanner_type: `masscan` or `nmap`; any other value returns an empty
-            list because nuclei is only authorized for those two types.
-
-    Returns:
-        Deduplicated sorted list of `"IP:PORT"` strings. Nuclei's built-in
-        HTTP detection handles scheme probing internally, so targets are
-        passed without a scheme prefix.
+        scanner_type: ``masscan`` or ``nmap``; anything else returns
+            an empty list (nuclei is only authorised for those two).
+        known_hostnames: optional mapping ``ip -> [hostname, ...]``
+            from the backend hostname cache. Pass ``None`` to disable
+            SNI fan-out entirely.
+        max_vhosts_per_ip: safety cap on fan-out width. Default
+            ``SNI_MAX_VHOSTS_PER_IP`` (50).
     """
     if scanner_type not in ("masscan", "nmap"):
         return []
@@ -86,12 +116,44 @@ def build_targets(
     else:  # nmap
         candidates = (p for p in open_ports if _service_guess_is_web(p.service_guess))
 
-    # Deduplicate — dict preserves insertion order, sorted output is stable.
-    seen: dict[str, None] = {}
+    # Group by IP so the SNI fan-out cap applies per-host, not globally.
+    per_ip_ports: dict[str, list[OpenPortResult]] = {}
     for port in candidates:
-        key = f"{port.ip}:{port.port}"
-        seen[key] = None
+        per_ip_ports.setdefault(port.ip, []).append(port)
+
+    hostnames_map = known_hostnames or {}
+    seen: dict[str, None] = {}  # preserve insertion order, dedupe
+
+    for ip, ports in per_ip_ports.items():
+        vhosts = hostnames_map.get(ip) or []
+        if not vhosts:
+            # No cached hostnames for this IP → bare IP:PORT fallback.
+            for port in ports:
+                seen.setdefault(f"{port.ip}:{port.port}", None)
+            continue
+
+        # SNI fan-out: prefix scheme per-port, iterate capped vhost list.
+        capped = vhosts[:max_vhosts_per_ip]
+        for port in ports:
+            scheme = "https" if _port_is_https(port) else "http"
+            for vhost in capped:
+                seen.setdefault(f"{scheme}://{vhost}:{port.port}", None)
+
     return sorted(seen.keys())
+
+
+def _port_is_https(port: OpenPortResult) -> bool:
+    """Pick ``https://`` when the port looks TLS-served.
+
+    Combines a well-known TLS port list with the nmap service_guess so
+    `443`, `8443`, and `service_guess="ssl/http"` all get the correct
+    scheme. Masscan networks have no service_guess so the port list is
+    the only signal.
+    """
+    if port.port in _TLS_DEFAULT_PORTS:
+        return True
+    guess = (port.service_guess or "").lower()
+    return "ssl" in guess or "https" in guess
 
 
 def _service_guess_is_web(service_guess: str | None) -> bool:

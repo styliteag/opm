@@ -106,6 +106,14 @@ class Network(Base):
         comment="Wall-clock timeout for the nuclei subprocess in seconds "
         "(null = scanner default 1800)",
     )
+    nuclei_sni_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+        comment="SNI fan-out: expand nuclei targets per cached vhost via "
+        "hostname_lookup_cache. Only effective when nuclei_enabled is true.",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.utc_timestamp()
     )

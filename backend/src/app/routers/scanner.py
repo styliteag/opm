@@ -20,6 +20,7 @@ from app.schemas.scanner import (
     HostDiscoveryResultResponse,
     ScannerAuthRequest,
     ScannerAuthResponse,
+    ScannerHostnamesResponse,
     ScannerJobClaimResponse,
     ScannerJobListResponse,
     ScannerLogsRequest,
@@ -38,6 +39,7 @@ from app.services import gvm_library as gvm_library_service
 from app.services import gvm_metadata as gvm_metadata_service
 from app.services import host_discovery as host_discovery_service
 from app.services import hosts as hosts_service
+from app.services.hostname_lookup import get_hostnames_for_ips
 from app.services.scanner_auth import authenticate_scanner
 from app.services.scanner_jobs import claim_job, get_pending_jobs_for_scanner, is_job_running
 from app.services.scanner_logs import submit_scan_logs
@@ -324,6 +326,37 @@ async def get_scanner_scan_status(
         )
 
     return result
+
+
+@router.get("/hostnames", response_model=ScannerHostnamesResponse)
+async def get_scanner_hostnames(
+    db: DbSession,
+    scanner: CurrentScanner,  # noqa: ARG001 — DI gate for scanner JWT
+    ips: str = "",
+) -> ScannerHostnamesResponse:
+    """Bulk-return cached hostnames for the given IPs.
+
+    Called by the scanner between the port_scan phase and the nuclei
+    phase when the network has ``nuclei_sni_enabled=true``. The
+    scanner hands in the comma-separated list of IPs that had open
+    web ports; the backend replies with the hostname map from
+    ``hostname_lookup_cache`` so nuclei can fan out per-vhost via SNI.
+
+    IPs without fresh cached hostnames are silently omitted from the
+    response dict; the scanner falls back to ``IP:PORT`` for those.
+    """
+    ip_list = [ip.strip() for ip in ips.split(",") if ip.strip()]
+    if not ip_list:
+        return ScannerHostnamesResponse(hostnames={})
+
+    # Defensive cap — a 1000-IP query string would be suspicious and
+    # we don't want to build an unbounded IN-clause. Scanners should
+    # never need more than the hosts discovered in a single scan.
+    if len(ip_list) > 500:
+        ip_list = ip_list[:500]
+
+    mapping = await get_hostnames_for_ips(db, ip_list)
+    return ScannerHostnamesResponse(hostnames=mapping)
 
 
 # --- Host Discovery Endpoints ---

@@ -96,6 +96,7 @@ async def get_pending_jobs_for_scanner(
                 nuclei_tags=net.nuclei_tags,
                 nuclei_severity=net.nuclei_severity,
                 nuclei_timeout=net.nuclei_timeout,
+                nuclei_sni_enabled=net.nuclei_sni_enabled,
             )
         )
 

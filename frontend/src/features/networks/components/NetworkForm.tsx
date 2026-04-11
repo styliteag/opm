@@ -176,6 +176,7 @@ export function NetworkForm({
               | "critical"
               | null) ?? undefined,
           nuclei_timeout: source.nuclei_timeout ?? undefined,
+          nuclei_sni_enabled: source.nuclei_sni_enabled ?? false,
           email_recipients: (
             source.alert_config as Record<string, unknown> | null
           )?.email_recipients
@@ -198,6 +199,7 @@ export function NetworkForm({
           gvm_keep_reports: true,
           ssh_probe_enabled: true,
           nuclei_enabled: false,
+          nuclei_sni_enabled: false,
           ssh_override_insecure_auth: "inherit",
           ssh_override_weak_cipher: "inherit",
           ssh_override_weak_kex: "inherit",
@@ -314,6 +316,7 @@ export function NetworkForm({
         nucleiActive && rest.nuclei_severity ? rest.nuclei_severity : null,
       nuclei_timeout:
         nucleiActive && rest.nuclei_timeout ? rest.nuclei_timeout : null,
+      nuclei_sni_enabled: nucleiActive && (rest.nuclei_sni_enabled ?? false),
     };
 
     // Build alert_config from three layers, in order:

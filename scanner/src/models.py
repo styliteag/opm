@@ -60,6 +60,10 @@ class ScannerJob:
     nuclei_tags: str | None = None
     nuclei_severity: str | None = None
     nuclei_timeout: int | None = None
+    # SNI fan-out: when true, the scanner queries
+    # /api/scanner/hostnames for the discovered IPs before the nuclei
+    # phase and expands targets to https://vhost:port per cached vhost.
+    nuclei_sni_enabled: bool = False
 
 
 @dataclass(frozen=True)

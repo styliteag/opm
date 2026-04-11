@@ -163,6 +163,7 @@ class ScannerJobResponse(BaseModel):
     nuclei_tags: str | None = None
     nuclei_severity: str | None = None
     nuclei_timeout: int | None = None
+    nuclei_sni_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -181,6 +182,18 @@ class ScannerJobClaimResponse(BaseModel):
     network_id: int
     message: str = "Job claimed successfully"
     required_library_entries: list[RequiredLibraryEntry] = []
+
+
+class ScannerHostnamesResponse(BaseModel):
+    """Bulk hostname-cache read for the scanner's nuclei SNI fan-out.
+
+    Maps each IP the scanner asked about to its cached vhost list (only
+    present for IPs with a fresh, non-failed row that has at least one
+    hostname). IPs without cached hostnames are simply omitted — the
+    scanner falls back to ``IP:PORT`` for those.
+    """
+
+    hostnames: dict[str, list[str]]
 
 
 class OpenPortData(BaseModel):

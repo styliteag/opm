@@ -112,6 +112,130 @@ class TestBuildTargetsEligibility:
         ]
 
 
+# ── build_targets SNI fan-out ─────────────────────────────────────────────
+
+
+class TestBuildTargetsSniFanOut:
+    """known_hostnames=... expands targets to https://vhost:port per IP."""
+
+    def test_none_falls_back_to_ip_mode(self) -> None:
+        ports = [_mk_port("10.0.0.1", 80, "http")]
+        assert nuclei.build_targets(ports, "nmap", known_hostnames=None) == [
+            "10.0.0.1:80",
+        ]
+
+    def test_empty_dict_falls_back_to_ip_mode(self) -> None:
+        ports = [_mk_port("10.0.0.1", 80, "http")]
+        assert nuclei.build_targets(ports, "nmap", known_hostnames={}) == [
+            "10.0.0.1:80",
+        ]
+
+    def test_ip_without_hostnames_uses_ip_fallback(self) -> None:
+        ports = [
+            _mk_port("10.0.0.1", 80, "http"),
+            _mk_port("10.0.0.2", 80, "http"),
+        ]
+        hostnames = {"10.0.0.2": ["a.example", "b.example"]}
+        result = nuclei.build_targets(ports, "nmap", known_hostnames=hostnames)
+        # 10.0.0.1 has no vhosts → bare IP:PORT fallback
+        assert "10.0.0.1:80" in result
+        # 10.0.0.2 has vhosts → SNI fan-out
+        assert "http://a.example:80" in result
+        assert "http://b.example:80" in result
+        assert "10.0.0.2:80" not in result  # replaced by SNI targets
+
+    def test_scheme_chosen_per_port(self) -> None:
+        ports = [
+            _mk_port("10.0.0.1", 80, "http"),
+            _mk_port("10.0.0.1", 443, "ssl/http"),
+            _mk_port("10.0.0.1", 8443, "https"),
+        ]
+        hostnames = {"10.0.0.1": ["vh.example"]}
+        result = nuclei.build_targets(ports, "nmap", known_hostnames=hostnames)
+        assert "http://vh.example:80" in result
+        assert "https://vh.example:443" in result
+        assert "https://vh.example:8443" in result
+
+    def test_masscan_port_443_gets_https_without_service_guess(self) -> None:
+        """Masscan networks have no service_guess, so the scheme decision
+        falls back to the well-known TLS port list (443, 8443, ...)."""
+        ports = [
+            _mk_port("10.0.0.1", 80),  # no guess
+            _mk_port("10.0.0.1", 443),  # no guess
+        ]
+        hostnames = {"10.0.0.1": ["m.example"]}
+        result = nuclei.build_targets(
+            ports, "masscan", known_hostnames=hostnames
+        )
+        assert "http://m.example:80" in result
+        assert "https://m.example:443" in result
+
+    def test_fan_out_multiplies_vhosts_and_ports(self) -> None:
+        ports = [
+            _mk_port("10.0.0.1", 80, "http"),
+            _mk_port("10.0.0.1", 443, "ssl/http"),
+        ]
+        hostnames = {"10.0.0.1": ["a.example", "b.example", "c.example"]}
+        result = nuclei.build_targets(
+            ports, "nmap", known_hostnames=hostnames
+        )
+        # 2 ports × 3 vhosts = 6 targets
+        assert len(result) == 6
+        for vh in ("a.example", "b.example", "c.example"):
+            assert f"http://{vh}:80" in result
+            assert f"https://{vh}:443" in result
+
+    def test_max_vhosts_per_ip_caps_fan_out(self) -> None:
+        ports = [_mk_port("10.0.0.1", 80, "http")]
+        hostnames = {
+            "10.0.0.1": [f"vh{i}.example" for i in range(100)],
+        }
+        result = nuclei.build_targets(
+            ports,
+            "nmap",
+            known_hostnames=hostnames,
+            max_vhosts_per_ip=5,
+        )
+        assert len(result) == 5
+        # First 5 from the list.
+        for i in range(5):
+            assert f"http://vh{i}.example:80" in result
+        assert f"http://vh5.example:80" not in result
+
+    def test_hostname_list_filters_non_web_ports(self) -> None:
+        """Non-web ports (e.g. 22/ssh) are still dropped even with hostnames.
+        Filter is scanner_type-based, not hostname-presence-based."""
+        ports = [
+            _mk_port("10.0.0.1", 22, "ssh"),
+            _mk_port("10.0.0.1", 80, "http"),
+        ]
+        hostnames = {"10.0.0.1": ["v.example"]}
+        result = nuclei.build_targets(
+            ports, "nmap", known_hostnames=hostnames
+        )
+        assert result == ["http://v.example:80"]
+
+    def test_empty_vhost_list_for_ip_uses_ip_fallback(self) -> None:
+        """known_hostnames entry with empty list → IP fallback (not dropped)."""
+        ports = [_mk_port("10.0.0.1", 80, "http")]
+        hostnames: dict[str, list[str]] = {"10.0.0.1": []}
+        result = nuclei.build_targets(
+            ports, "nmap", known_hostnames=hostnames
+        )
+        assert result == ["10.0.0.1:80"]
+
+    def test_deduplicates_across_ip_and_sni_targets(self) -> None:
+        ports = [
+            _mk_port("10.0.0.1", 80, "http"),
+            _mk_port("10.0.0.1", 80, "http"),  # dupe
+        ]
+        hostnames = {"10.0.0.1": ["v.example", "v.example"]}  # dupe
+        result = nuclei.build_targets(
+            ports, "nmap", known_hostnames=hostnames
+        )
+        assert result == ["http://v.example:80"]
+
+
 # ── build_severity_flag ───────────────────────────────────────────────────
 
 

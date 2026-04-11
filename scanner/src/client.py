@@ -178,6 +178,9 @@ class ScannerClient:
                         nuclei_tags=job.get("nuclei_tags"),
                         nuclei_severity=job.get("nuclei_severity"),
                         nuclei_timeout=parse_int(job.get("nuclei_timeout")),
+                        nuclei_sni_enabled=bool(
+                            job.get("nuclei_sni_enabled", False)
+                        ),
                     )
                 )
             except (KeyError, TypeError, ValueError) as exc:
@@ -402,6 +405,51 @@ class ScannerClient:
         if not isinstance(status_value, str):
             raise RuntimeError("Invalid scan status response")
         return status_value
+
+    def get_hostnames_for_ips(self, ips: list[str]) -> dict[str, list[str]]:
+        """Bulk-read cached hostnames for the given IPs.
+
+        Called between the port_scan phase and the nuclei phase when
+        the network has ``nuclei_sni_enabled=true``. IPs without cached
+        hostnames are omitted from the returned dict; the caller falls
+        back to ``IP:PORT`` for those.
+
+        Returns an empty dict on empty input, non-200 responses, or
+        malformed payloads — nuclei SNI fan-out is best-effort, never
+        fatal to the surrounding scan.
+        """
+        if not ips:
+            return {}
+        ip_param = ",".join(ip for ip in ips if ip)
+        try:
+            response = self._request(
+                "GET",
+                f"/api/scanner/hostnames?ips={ip_param}",
+                auth_required=True,
+            )
+        except Exception as exc:  # pragma: no cover — transport error is non-fatal
+            self._logger.warning("hostname lookup request failed: %s", exc)
+            return {}
+        if response.status_code != 200:
+            self._logger.warning(
+                "hostname lookup returned HTTP %s — falling back to IP-only targets",
+                response.status_code,
+            )
+            return {}
+        try:
+            payload = response.json()
+            mapping = payload.get("hostnames") or {}
+        except (ValueError, AttributeError):
+            return {}
+        # Shape-check: dict[str, list[str]]
+        result: dict[str, list[str]] = {}
+        for ip, names in mapping.items():
+            if not isinstance(ip, str) or not isinstance(names, list):
+                continue
+            valid = [n for n in names if isinstance(n, str) and n]
+            if valid:
+                result[ip] = valid
+        return result
 
     def get_host_discovery_jobs(self) -> list[HostDiscoveryJob]:
         """Get pending host discovery jobs for this scanner."""
