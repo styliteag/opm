@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, Play, Copy } from "lucide-react";
+import { Plus, Play, Copy, X } from "lucide-react";
 import { toast } from "sonner";
 
 import type { Network } from "@/lib/types";
@@ -16,15 +16,32 @@ import {
 } from "@/features/dashboard/hooks/useDashboardData";
 import { useNetworkMutations } from "@/features/networks/hooks/useNetworkDetail";
 import { NetworkForm } from "@/features/networks/components/NetworkForm";
+import { SSH_ALERT_KEYS } from "@/features/admin/hooks/useAdmin";
 import { isOnline } from "@/lib/utils";
 
+type NetworksSearch = {
+  filter?: "ssh-override";
+};
+
 export const Route = createFileRoute("/_authenticated/networks/")({
+  validateSearch: (search: Record<string, unknown>): NetworksSearch => {
+    const raw = search.filter;
+    return raw === "ssh-override" ? { filter: "ssh-override" } : {};
+  },
   component: NetworksPage,
 });
+
+function networkOverridesSsh(network: Network): boolean {
+  const config = network.alert_config as Record<string, unknown> | null;
+  if (!config) return false;
+  return SSH_ALERT_KEYS.some((key) => key in config);
+}
 
 function NetworksPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [cloneSource, setCloneSource] = useState<Network | null>(null);
+  const navigate = Route.useNavigate();
+  const { filter } = Route.useSearch();
   const networks = useNetworks();
   const scanners = useScanners();
   const latestScans = useLatestScans();
@@ -54,14 +71,19 @@ function NetworksPage() {
       />
     );
 
-  const networkList = networks.data?.networks ?? [];
+  const allNetworks = networks.data?.networks ?? [];
+  const networkList =
+    filter === "ssh-override"
+      ? allNetworks.filter(networkOverridesSsh)
+      : allNetworks;
 
+  // Coverage stat reflects every network, regardless of any active filter.
   const totalCoverage =
-    networkList.length > 0
+    allNetworks.length > 0
       ? Math.round(
-          (networkList.filter((n) => scanMap.get(n.id)?.status === "completed")
+          (allNetworks.filter((n) => scanMap.get(n.id)?.status === "completed")
             .length /
-            networkList.length) *
+            allNetworks.length) *
             100,
         )
       : 0;
@@ -127,11 +149,40 @@ function NetworksPage() {
         </div>
       </div>
 
+      {/* Active filter chip */}
+      {filter === "ssh-override" && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+            Filter:
+          </span>
+          <button
+            type="button"
+            onClick={() => navigate({ search: {} })}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-emphasis text-primary hover:bg-primary/20 transition-colors"
+            title="Filter entfernen"
+          >
+            SSH-Override aktiv
+            <X className="h-3 w-3" />
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {networkList.length} von {allNetworks.length} Netzen
+          </span>
+        </div>
+      )}
+
       {/* Network Cards */}
       {networkList.length === 0 ? (
         <EmptyState
-          title="No networks"
-          message="Add a network to start scanning."
+          title={
+            filter === "ssh-override"
+              ? "Keine Netzwerke mit SSH-Override"
+              : "No networks"
+          }
+          message={
+            filter === "ssh-override"
+              ? "Kein Netzwerk überschreibt aktuell die globalen SSH-Defaults."
+              : "Add a network to start scanning."
+          }
         />
       ) : (
         <div className="space-y-4">

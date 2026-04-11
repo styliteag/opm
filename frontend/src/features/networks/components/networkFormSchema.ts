@@ -1,5 +1,7 @@
 import * as z from "zod/v4";
 
+const sshOverrideEnum = z.enum(["inherit", "on", "off"]).default("inherit");
+
 export const networkFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   cidr: z.string().min(1, "CIDR is required"),
@@ -36,6 +38,23 @@ export const networkFormSchema = z.object({
     z.number().min(60).max(7200).optional(),
   ),
   email_recipients: z.string().optional(),
+  // Per-network SSH alert overrides. "inherit" means: do not set the key in
+  // alert_config — global default applies. "on"/"off" force a specific value.
+  ssh_override_insecure_auth: sshOverrideEnum,
+  ssh_override_weak_cipher: sshOverrideEnum,
+  ssh_override_weak_kex: sshOverrideEnum,
+  ssh_override_outdated_version: sshOverrideEnum,
+  ssh_override_config_regression: sshOverrideEnum,
+  // Empty string = inherit. When set, must be a valid OpenSSH version.
+  ssh_override_version_threshold: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || /^\d+(\.\d+){1,2}$/.test(v),
+      "Format z. B. 8.0 oder 8.0.0",
+    ),
 });
 
 export type NetworkFormData = z.infer<typeof networkFormSchema>;
+
+export type SshOverrideValue = "inherit" | "on" | "off";

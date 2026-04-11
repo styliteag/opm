@@ -113,6 +113,36 @@ export interface SSHAlertDefaults {
   ssh_version_threshold: string;
 }
 
+/**
+ * Keys in a network's `alert_config` that override SSH alert defaults.
+ * Mirrors backend `services/global_settings.SSH_ALERT_KEYS`.
+ */
+export const SSH_ALERT_KEYS = [
+  "ssh_insecure_auth",
+  "ssh_weak_cipher",
+  "ssh_weak_kex",
+  "ssh_outdated_version",
+  "ssh_config_regression",
+  "ssh_version_threshold",
+] as const satisfies readonly (keyof SSHAlertDefaults)[];
+
+export type SSHAlertKey = (typeof SSH_ALERT_KEYS)[number];
+
+export interface OverridingNetwork {
+  id: number;
+  name: string;
+  overridden_keys: SSHAlertKey[];
+}
+
+interface OverridingNetworksResponse {
+  total_count: number;
+  networks: OverridingNetwork[];
+}
+
+interface ApplyToAllResponse {
+  cleared_count: number;
+}
+
 export function useSSHAlertDefaults() {
   return useQuery({
     queryKey: ["global-settings", "ssh-alert-defaults"],
@@ -131,5 +161,37 @@ export function useSSHAlertDefaultsMutation() {
       qc.invalidateQueries({
         queryKey: ["global-settings", "ssh-alert-defaults"],
       }),
+  });
+}
+
+export function useSSHOverridingNetworks() {
+  return useQuery({
+    queryKey: ["global-settings", "ssh-alert-defaults", "overriding-networks"],
+    queryFn: () =>
+      fetchApi<OverridingNetworksResponse>(
+        "/api/settings/ssh-alert-defaults/overriding-networks",
+      ),
+  });
+}
+
+export function useApplySSHDefaultsToAll() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      postApi<ApplyToAllResponse>(
+        "/api/settings/ssh-alert-defaults/apply-to-all",
+        {},
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: [
+          "global-settings",
+          "ssh-alert-defaults",
+          "overriding-networks",
+        ],
+      });
+      qc.invalidateQueries({ queryKey: ["networks"] });
+    },
   });
 }

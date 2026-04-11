@@ -23,10 +23,80 @@ import type { Network, ScanPhase } from "@/lib/types";
 import { GvmConfigSection } from "./GvmConfigSection";
 import { NucleiSettings } from "./NucleiSettings";
 import { PhaseCards } from "./PhaseCards";
+import { SshAlertOverrides } from "./SshAlertOverrides";
 import {
   networkFormSchema,
   type NetworkFormData,
+  type SshOverrideValue,
 } from "./networkFormSchema";
+
+/**
+ * Map an existing alert_config blob to the SSH override form fields. Boolean
+ * keys missing from the blob become "inherit". The version threshold maps to
+ * an empty string (= inherit) when absent.
+ */
+function readSshOverrides(
+  alertConfig: Record<string, unknown> | null | undefined,
+): {
+  ssh_override_insecure_auth: SshOverrideValue;
+  ssh_override_weak_cipher: SshOverrideValue;
+  ssh_override_weak_kex: SshOverrideValue;
+  ssh_override_outdated_version: SshOverrideValue;
+  ssh_override_config_regression: SshOverrideValue;
+  ssh_override_version_threshold: string;
+} {
+  const tri = (key: string): SshOverrideValue => {
+    const v = alertConfig?.[key];
+    if (v === true) return "on";
+    if (v === false) return "off";
+    return "inherit";
+  };
+  const threshold = alertConfig?.ssh_version_threshold;
+  return {
+    ssh_override_insecure_auth: tri("ssh_insecure_auth"),
+    ssh_override_weak_cipher: tri("ssh_weak_cipher"),
+    ssh_override_weak_kex: tri("ssh_weak_kex"),
+    ssh_override_outdated_version: tri("ssh_outdated_version"),
+    ssh_override_config_regression: tri("ssh_config_regression"),
+    ssh_override_version_threshold:
+      typeof threshold === "string" ? threshold : "",
+  };
+}
+
+/**
+ * Inverse of `readSshOverrides`. Builds the SSH-related slice of alert_config
+ * from form values, omitting any field set to "inherit" / empty.
+ */
+function buildSshOverridesPayload(
+  data: NetworkFormData,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const apply = (
+    field: SshOverrideValue,
+    key: string,
+  ) => {
+    if (field === "on") out[key] = true;
+    else if (field === "off") out[key] = false;
+  };
+  apply(data.ssh_override_insecure_auth, "ssh_insecure_auth");
+  apply(data.ssh_override_weak_cipher, "ssh_weak_cipher");
+  apply(data.ssh_override_weak_kex, "ssh_weak_kex");
+  apply(data.ssh_override_outdated_version, "ssh_outdated_version");
+  apply(data.ssh_override_config_regression, "ssh_config_regression");
+  if (data.ssh_override_version_threshold) {
+    out.ssh_version_threshold = data.ssh_override_version_threshold;
+  }
+  return out;
+}
+
+const SSH_ALERT_CONFIG_KEYS = [
+  "ssh_insecure_auth",
+  "ssh_weak_cipher",
+  "ssh_weak_kex",
+  "ssh_outdated_version",
+  "ssh_config_regression",
+  "ssh_version_threshold",
+] as const;
 
 const RATE_PRESETS = [
   { label: "Slow", value: 100, desc: "Safe for production" },
@@ -113,6 +183,9 @@ export function NetworkForm({
                   .email_recipients,
               )
             : "",
+          ...readSshOverrides(
+            source.alert_config as Record<string, unknown> | null,
+          ),
         }
       : {
           scanner_type: "masscan",
@@ -123,6 +196,12 @@ export function NetworkForm({
           port_timeout: 1500,
           gvm_keep_reports: true,
           nuclei_enabled: false,
+          ssh_override_insecure_auth: "inherit",
+          ssh_override_weak_cipher: "inherit",
+          ssh_override_weak_kex: "inherit",
+          ssh_override_outdated_version: "inherit",
+          ssh_override_config_regression: "inherit",
+          ssh_override_version_threshold: "",
         },
   });
 
@@ -175,7 +254,22 @@ export function NetworkForm({
   }
 
   const onSubmit = (data: NetworkFormData) => {
-    const { email_recipients, ...rest } = data;
+    const {
+      email_recipients,
+      ssh_override_insecure_auth: _a,
+      ssh_override_weak_cipher: _b,
+      ssh_override_weak_kex: _c,
+      ssh_override_outdated_version: _d,
+      ssh_override_config_regression: _e,
+      ssh_override_version_threshold: _f,
+      ...rest
+    } = data;
+    void _a;
+    void _b;
+    void _c;
+    void _d;
+    void _e;
+    void _f;
     // Nuclei is only meaningful for masscan/nmap. Force-clear config fields
     // when disabled or when scanner_type is greenbone so the backend gets a
     // consistent payload and the clear_nuclei_* flags fire in the router.
@@ -194,26 +288,38 @@ export function NetworkForm({
         nucleiActive && rest.nuclei_timeout ? rest.nuclei_timeout : null,
     };
 
-    // Build alert_config with email_recipients if provided. Clone mode reuses
-    // the source's alert_config so non-email keys (SMTP overrides, etc.) ride
-    // along with the copy.
-    if (email_recipients?.trim()) {
-      const recipients = email_recipients
-        .split(",")
-        .map((e) => e.trim())
-        .filter(Boolean);
-      const existingConfig =
-        (source?.alert_config as Record<string, unknown> | null) ?? {};
-      payload.alert_config = {
-        ...existingConfig,
-        email_recipients: recipients,
-      };
-    } else if (isEdit && network?.alert_config) {
-      // Clear email_recipients but keep other alert_config settings
-      const existing = { ...(network.alert_config as Record<string, unknown>) };
-      delete existing.email_recipients;
-      payload.alert_config = Object.keys(existing).length > 0 ? existing : null;
+    // Build alert_config from three layers, in order:
+    //   1) the existing config minus the keys we manage explicitly here
+    //      (email_recipients + the six SSH keys)
+    //   2) the form's email_recipients (if any)
+    //   3) the form's SSH overrides (only the keys NOT set to "inherit")
+    // Result: keys set to "inherit" are absent so the network falls back to
+    // the global SSH defaults; non-managed keys (e.g. SMTP overrides) ride
+    // along untouched.
+    const baseConfig =
+      (source?.alert_config as Record<string, unknown> | null) ?? {};
+    const carriedConfig: Record<string, unknown> = { ...baseConfig };
+    delete carriedConfig.email_recipients;
+    for (const key of SSH_ALERT_CONFIG_KEYS) {
+      delete carriedConfig[key];
     }
+
+    const sshOverrides = buildSshOverridesPayload(data);
+    const recipientsList = email_recipients
+      ?.split(",")
+      .map((e) => e.trim())
+      .filter(Boolean);
+
+    const mergedConfig: Record<string, unknown> = {
+      ...carriedConfig,
+      ...sshOverrides,
+    };
+    if (recipientsList && recipientsList.length > 0) {
+      mergedConfig.email_recipients = recipientsList;
+    }
+
+    payload.alert_config =
+      Object.keys(mergedConfig).length > 0 ? mergedConfig : null;
 
     if (isEdit && network) {
       update.mutate(
@@ -559,6 +665,8 @@ export function NetworkForm({
                 </p>
               </div>
             </div>
+
+            <SshAlertOverrides />
           </fieldset>
 
           <DialogFooter>
