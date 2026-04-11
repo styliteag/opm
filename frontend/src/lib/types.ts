@@ -300,6 +300,12 @@ export interface Host {
   user_comment: string | null;
   seen_by_networks: number[];
   open_port_count: number | null;
+  // Cached vhost projection from `hostname_lookup_cache` — populated
+  // by the list endpoint via a single batch JOIN. The detail endpoint
+  // leaves these as 0/null and the host detail page reads the full
+  // list via `useHostHostnames(id)` instead.
+  cached_hostname_count: number;
+  cached_display_hostname: string | null;
 }
 
 export interface HostListResponse {

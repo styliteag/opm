@@ -831,3 +831,125 @@ class TestHostHostnamesEndpoint:
     async def test_requires_auth(self, client: AsyncClient) -> None:
         response = await client.get("/api/hosts/1/hostnames")
         assert response.status_code in (401, 403)
+
+
+# --- GET /api/hosts list — cached_hostname_count + display fields ---
+
+
+class TestHostsListCachedHostnameProjection:
+    """Pin the contract for the new cached_hostname_count +
+    cached_display_hostname fields on the /api/hosts list response.
+
+    The hosts list endpoint joins ``hostname_lookup_cache`` per page in
+    a single batch query so the frontend can render the vhost chip
+    + display hostname without an extra round-trip per row. Tests
+    cover hosts with no cache row, success rows (count + first
+    hostname), no_results rows (count=0, no display), and
+    failed/expired rows (treated as cache miss).
+    """
+
+    async def test_no_cache_row_returns_zero_and_none(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        from app.models.host import Host
+
+        host = Host(ip="10.5.0.1", seen_by_networks=[])
+        db_session.add(host)
+        await db_session.commit()
+
+        response = await client.get("/api/hosts", headers=admin_headers)
+        assert response.status_code == 200
+        body = response.json()
+        match = next(h for h in body["hosts"] if h["ip"] == "10.5.0.1")
+        assert match["cached_hostname_count"] == 0
+        assert match["cached_display_hostname"] is None
+
+    async def test_success_row_populates_count_and_display(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        from app.models.host import Host
+
+        host = Host(ip="10.5.0.2", seen_by_networks=[])
+        db_session.add(host)
+        await db_session.commit()
+
+        await upsert_cache_row(
+            db_session,
+            "10.5.0.2",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["primary.example", "second.example", "third.example"],
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        response = await client.get("/api/hosts", headers=admin_headers)
+        body = response.json()
+        match = next(h for h in body["hosts"] if h["ip"] == "10.5.0.2")
+        assert match["cached_hostname_count"] == 3
+        assert match["cached_display_hostname"] == "primary.example"
+
+    async def test_no_results_row_count_zero_no_display(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        """A no_results cache row says 'we looked, found nothing' —
+        count is 0 (distinct from missing-row 0) and display is null."""
+        from app.models.host import Host
+
+        host = Host(ip="10.5.0.3", seen_by_networks=[])
+        db_session.add(host)
+        await db_session.commit()
+
+        await upsert_cache_row(
+            db_session,
+            "10.5.0.3",
+            HostnameLookupResult(status="no_results", hostnames=[]),
+            source="rapiddns",
+        )
+        await db_session.commit()
+
+        response = await client.get("/api/hosts", headers=admin_headers)
+        body = response.json()
+        match = next(h for h in body["hosts"] if h["ip"] == "10.5.0.3")
+        assert match["cached_hostname_count"] == 0
+        assert match["cached_display_hostname"] is None
+
+    async def test_failed_row_treated_as_cache_miss(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        from app.models.host import Host
+
+        host = Host(ip="10.5.0.4", seen_by_networks=[])
+        db_session.add(host)
+        await db_session.commit()
+
+        await upsert_cache_row(
+            db_session,
+            "10.5.0.4",
+            HostnameLookupResult(
+                status="failed",
+                hostnames=[],
+                error_message="HTTP 500",
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        response = await client.get("/api/hosts", headers=admin_headers)
+        body = response.json()
+        match = next(h for h in body["hosts"] if h["ip"] == "10.5.0.4")
+        assert match["cached_hostname_count"] == 0
+        assert match["cached_display_hostname"] is None

@@ -13,6 +13,8 @@ import { toast } from "sonner";
 
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { InlineTextCell } from "@/components/ui/inline-text-cell";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { CachedVhostsChip } from "@/features/hosts/components/CachedVhostsChip";
 import { patchApi } from "@/lib/api";
 import type { Host } from "@/lib/types";
 import { formatRelativeTime, parseUTC } from "@/lib/utils";
@@ -115,20 +117,39 @@ export function HostsTable({
         header: ({ column }) => (
           <SortableHeader label="Hostname" column={column} />
         ),
-        cell: ({ row }) => (
-          <InlineTextCell
-            value={row.original.hostname}
-            onSave={(val) =>
-              hostnameMutation.mutate({
-                hostId: row.original.id,
-                hostname: val,
-              })
-            }
-            saveLabel="Save hostname"
-            placeholder="-"
-            isPending={hostnameMutation.isPending}
-          />
-        ),
+        cell: ({ row }) => {
+          // Display value precedence: user-set host.hostname (still
+          // inline-editable) wins; otherwise fall back to the cached
+          // first vhost from the hostname_lookup_cache projection.
+          // The +N chip is only shown when there are multiple cached
+          // vhosts and reveals the full list on hover.
+          const displayValue =
+            row.original.hostname ?? row.original.cached_display_hostname;
+          return (
+            <div className="flex items-center gap-1 min-w-0">
+              <div className="flex-1 min-w-0">
+                <InlineTextCell
+                  value={displayValue}
+                  onSave={(val) =>
+                    hostnameMutation.mutate({
+                      hostId: row.original.id,
+                      hostname: val,
+                    })
+                  }
+                  saveLabel="Save hostname"
+                  placeholder="-"
+                  isPending={hostnameMutation.isPending}
+                />
+              </div>
+              {row.original.cached_hostname_count > 1 ? (
+                <CachedVhostsChip
+                  hostId={row.original.id}
+                  count={row.original.cached_hostname_count}
+                />
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         accessorKey: "user_comment",
@@ -224,6 +245,7 @@ export function HostsTable({
   };
 
   return (
+    <TooltipProvider>
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full">
         <thead>
@@ -285,5 +307,6 @@ export function HostsTable({
         </tbody>
       </table>
     </div>
+    </TooltipProvider>
   );
 }

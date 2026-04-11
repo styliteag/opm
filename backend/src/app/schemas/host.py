@@ -19,6 +19,12 @@ class HostResponse(BaseModel):
     user_comment: str | None
     seen_by_networks: list[int]
     open_port_count: int | None = None
+    # Cached vhost projection from ``hostname_lookup_cache``. Populated
+    # only on the list endpoint (single batch query) — left as the
+    # 0/None defaults on the per-host detail endpoint, where the host
+    # detail panel still has its own dedicated /hostnames endpoint.
+    cached_hostname_count: int = 0
+    cached_display_hostname: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -461,6 +461,60 @@ async def get_hostnames_for_ips(
     return result
 
 
+@dataclass(frozen=True)
+class CachedHostnameSummary:
+    """Per-IP summary used by the /api/hosts list response.
+
+    Lightweight projection of a fresh ``hostname_lookup_cache`` row:
+    just the count and a single display hostname (the first entry of
+    the stored list). The hosts list endpoint joins this map onto its
+    page in a single batch query so the table can render a vhost
+    chip without an extra round-trip per row.
+    """
+
+    count: int
+    display_hostname: str | None
+    source: str | None
+
+
+async def get_cached_hostname_summaries_for_ips(
+    db: AsyncSession, ips: list[str]
+) -> dict[str, CachedHostnameSummary]:
+    """Bulk projection — return ``{ip: CachedHostnameSummary}`` for IPs
+    with a fresh, non-failed cache row.
+
+    Skips expired rows and ``failed`` rows. Includes ``no_results``
+    rows with ``count=0`` so the UI can show "we looked, found
+    nothing" distinctly from "we haven't looked yet".
+    """
+    if not ips:
+        return {}
+
+    now = _now()
+    rows = (
+        (
+            await db.execute(
+                select(HostnameLookup).where(
+                    HostnameLookup.ip.in_(ips),
+                    HostnameLookup.expires_at > now,
+                    HostnameLookup.status != "failed",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    result: dict[str, CachedHostnameSummary] = {}
+    for row in rows:
+        names = list(row.hostnames_json or [])
+        result[row.ip] = CachedHostnameSummary(
+            count=len(names),
+            display_hostname=names[0] if names else None,
+            source=row.source,
+        )
+    return result
+
+
 async def get_cache_row_for_ip(
     db: AsyncSession, ip: str
 ) -> HostnameLookup | None:

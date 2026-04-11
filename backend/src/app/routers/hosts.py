@@ -47,6 +47,7 @@ from app.services import hosts as hosts_service
 from app.services.hostname_lookup import (
     enqueue_hostname_lookup,
     get_cache_row_for_ip,
+    get_cached_hostname_summaries_for_ips,
 )
 from app.services.vulnerability_results import get_vulnerabilities_for_host
 
@@ -103,14 +104,23 @@ async def list_hosts(
         ip_search=ip_search,
     )
 
-    # Build response with open port counts (single batch query)
+    # Build response with open port counts (single batch query) and
+    # the cached vhost projection so the table can render the chip +
+    # display hostname without an extra round-trip per row.
     port_counts = await hosts_service.get_open_port_counts_for_hosts(
         db, [host.id for host in hosts],
+    )
+    cached_summaries = await get_cached_hostname_summaries_for_ips(
+        db, [host.ip for host in hosts]
     )
     host_responses = []
     for host in hosts:
         response = HostResponse.model_validate(host)
         response.open_port_count = port_counts.get(host.id, 0)
+        summary = cached_summaries.get(host.ip)
+        if summary is not None:
+            response.cached_hostname_count = summary.count
+            response.cached_display_hostname = summary.display_hostname
         host_responses.append(response)
 
     return HostListResponse(
