@@ -155,6 +155,7 @@ class ScannerJobResponse(BaseModel):
     # GVM-specific fields (populated when scanner_type == "greenbone")
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
+    gvm_keep_reports: bool = True
     # Nuclei post-phase config (only meaningful for scanner_type in masscan/nmap)
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None

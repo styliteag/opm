@@ -520,6 +520,7 @@ def process_greenbone_job(
             progress_reporter=progress_reporter,
             gvm_port_list=job.gvm_port_list,
             required_library_entries=claimed.required_library_entries,
+            keep_reports=job.gvm_keep_reports,
         )
 
         # Submit vulnerabilities FIRST (before port results, which transitions

@@ -121,6 +121,7 @@ export interface Network {
   phases: ScanPhase[] | null;
   gvm_scan_config: string | null;
   gvm_port_list: string | null;
+  gvm_keep_reports: boolean;
   nuclei_enabled: boolean;
   nuclei_tags: string | null;
   nuclei_severity: string | null;

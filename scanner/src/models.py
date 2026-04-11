@@ -52,6 +52,7 @@ class ScannerJob:
     # GVM-specific fields
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
+    gvm_keep_reports: bool = True
     # Nuclei post-phase fields (only meaningful for scanner_type in masscan/nmap)
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None

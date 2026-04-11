@@ -68,6 +68,14 @@ class Network(Base):
         comment="GVM port list name for greenbone scanner type; when set, "
         "scanner uses port_list_id instead of raw port_range",
     )
+    gvm_keep_reports: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="1",
+        comment="Keep GVM task/target/report in the Greenbone instance after scan "
+        "(visible in GSA); when false, scanner deletes them post-scan",
+    )
     nuclei_enabled: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

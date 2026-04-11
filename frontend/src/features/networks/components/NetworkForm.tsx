@@ -51,6 +51,7 @@ const schema = z.object({
       val === "" || val === undefined || val === null ? undefined : Number(val),
     z.number().optional(),
   ),
+  gvm_keep_reports: z.boolean().default(true),
   nuclei_enabled: z.boolean().default(false),
   nuclei_tags: z.string().optional(),
   nuclei_severity: z
@@ -142,6 +143,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
           port_timeout: network.port_timeout ?? undefined,
           scan_schedule: network.scan_schedule ?? undefined,
           nse_profile_id: network.nse_profile_id ?? undefined,
+          gvm_keep_reports: network.gvm_keep_reports ?? true,
           nuclei_enabled: network.nuclei_enabled ?? false,
           nuclei_tags: network.nuclei_tags ?? undefined,
           nuclei_severity:
@@ -169,6 +171,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
           scan_rate: 1000,
           scan_timeout: 3600,
           port_timeout: 1500,
+          gvm_keep_reports: true,
           nuclei_enabled: false,
         },
   });
@@ -252,6 +255,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
       phases: isGreenbone ? null : phases,
       gvm_scan_config: isGreenbone ? gvmScanConfig : null,
       gvm_port_list: isGreenbone && gvmPortList ? gvmPortList : null,
+      gvm_keep_reports: isGreenbone ? rest.gvm_keep_reports : true,
       nuclei_enabled: nucleiActive,
       nuclei_tags: nucleiActive && rest.nuclei_tags ? rest.nuclei_tags : null,
       nuclei_severity:
@@ -513,6 +517,24 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
                       the top of the form. Pick a GVM port list to override.
                     </>
                   )}
+                </p>
+              </div>
+            )}
+            {isGreenbone && (
+              <div className="rounded-md border border-border/40 bg-card/40 p-3">
+                <label className="flex items-center gap-2 text-sm font-emphasis">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-border/50 bg-background"
+                    {...register("gvm_keep_reports")}
+                  />
+                  Keep GVM reports after scan
+                </label>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  When enabled (default), the scanner leaves task, target, and
+                  report in the Greenbone instance so you can inspect them in
+                  the GSA web UI. Uncheck to have the scanner delete them
+                  after each run.
                 </p>
               </div>
             )}

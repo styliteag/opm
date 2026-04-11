@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Greenbone (GVM)**: new per-network `gvm_keep_reports` flag (default `true`) controls whether the scanner deletes the GVM task/target/report after a scan completes. Previously the scanner always ran `delete_task(..., ultimate=True)` + `delete_target(..., ultimate=True)` in a `finally` block, which purged everything — including the report — from the Greenbone instance as soon as findings were submitted back to OPM. Default flips to keep so scans remain inspectable in the GSA web UI; users who want the old auto-cleanup can uncheck the new checkbox on the Greenbone block of the Network form. Migration `012_add_gvm_keep_reports.py` adds the column with `server_default='1'`; existing networks auto-upgrade to the new "keep" behavior. Wired through `NetworkCreate`/`NetworkUpdate` schemas, `networks` service, `/api/scanner/jobs` payload, scanner `ScannerJob` dataclass, and `GreenboneScanner.run_scan(keep_reports=...)`
 - **Networks**: Edit/Create Network form now hides the Protocol select when scanner type is Greenbone (GVM) — `scan_protocol` is only consumed by masscan/nmap/NSE; GVM derives TCP/UDP from the selected Port List (library/mirror) or from `port/tcp` tokens in the raw Port Specification, so exposing the dropdown was misleading. Rate, Scan Timeout, Port Timeout, Phases and NSE Profile were already hidden for Greenbone
 
 

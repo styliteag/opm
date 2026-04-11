@@ -172,6 +172,7 @@ class ScannerClient:
                         phases=_parse_phases(job.get("phases")),
                         gvm_scan_config=job.get("gvm_scan_config"),
                         gvm_port_list=job.get("gvm_port_list"),
+                        gvm_keep_reports=bool(job.get("gvm_keep_reports", True)),
                         nuclei_enabled=bool(job.get("nuclei_enabled", False)),
                         nuclei_tags=job.get("nuclei_tags"),
                         nuclei_severity=job.get("nuclei_severity"),

@@ -80,6 +80,7 @@ class GreenboneScanner:
         progress_reporter: ProgressReporter,
         gvm_port_list: str | None = None,
         required_library_entries: list[dict[str, str]] | None = None,
+        keep_reports: bool = True,
     ) -> tuple[list[OpenPortResult], list[VulnerabilityResult]]:
         """Run a full GVM scan: create target, start task, poll, fetch results.
 
@@ -89,6 +90,10 @@ class GreenboneScanner:
             required_library_entries: Library entries the scanner must have
                 installed before running. Passed through from the claim
                 response; drives the ensure_required self-check + import flow.
+            keep_reports: When True (default), leave the GVM task/target/report
+                in the Greenbone instance after the scan finishes so the user
+                can inspect them in GSA. When False, delete task + target via
+                ``ultimate=True`` (also purges the associated report).
 
         Returns:
             Tuple of (open_ports, vulnerabilities)
@@ -181,8 +186,16 @@ class GreenboneScanner:
                 return open_ports, vulnerabilities
 
             finally:
-                # Cleanup GVM objects
-                self._cleanup(gmp, task_id, target_id, logger)
+                # Cleanup GVM objects — optional per network config.
+                if keep_reports:
+                    logger.info(
+                        "Keeping GVM task %s / target %s (gvm_keep_reports=true) — "
+                        "visible in GSA",
+                        task_id,
+                        target_id,
+                    )
+                else:
+                    self._cleanup(gmp, task_id, target_id, logger)
 
     def _resolve_config_id(
         self, gmp: Any, config_name: str, logger: logging.Logger

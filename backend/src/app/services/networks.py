@@ -61,6 +61,7 @@ async def create_network(
     phases: list[dict[str, Any]] | None = None,
     gvm_scan_config: str | None = None,
     gvm_port_list: str | None = None,
+    gvm_keep_reports: bool = True,
     nuclei_enabled: bool = False,
     nuclei_tags: str | None = None,
     nuclei_severity: str | None = None,
@@ -84,6 +85,7 @@ async def create_network(
         phases=phases,
         gvm_scan_config=gvm_scan_config,
         gvm_port_list=gvm_port_list,
+        gvm_keep_reports=gvm_keep_reports,
         nuclei_enabled=nuclei_enabled,
         nuclei_tags=nuclei_tags,
         nuclei_severity=nuclei_severity,
@@ -116,6 +118,7 @@ async def update_network(
     clear_gvm_scan_config: bool = False,
     gvm_port_list: str | None = None,
     clear_gvm_port_list: bool = False,
+    gvm_keep_reports: bool | None = None,
     nuclei_enabled: bool | None = None,
     nuclei_tags: str | None = None,
     clear_nuclei_tags: bool = False,
@@ -174,6 +177,8 @@ async def update_network(
         network.gvm_scan_config = gvm_scan_config
     if gvm_port_list is not None or clear_gvm_port_list:
         network.gvm_port_list = gvm_port_list
+    if gvm_keep_reports is not None:
+        network.gvm_keep_reports = gvm_keep_reports
     if scanner_type is not None:
         network.scanner_type = scanner_type
         # Sync phases port_scan tool — must run AFTER phases assignment
