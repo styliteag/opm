@@ -37,6 +37,9 @@ class AlertType(str, Enum):
     # GVM (Greenbone) vulnerability alert types
     GVM_VULNERABILITY = "gvm_vulnerability"
     GVM_CVE_DETECTED = "gvm_cve_detected"
+    # Nuclei vulnerability alert types
+    NUCLEI_VULNERABILITY = "nuclei_vulnerability"
+    NUCLEI_CVE_DETECTED = "nuclei_cve_detected"
 
 
 class Alert(Base):

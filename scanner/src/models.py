@@ -52,6 +52,11 @@ class ScannerJob:
     # GVM-specific fields
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
+    # Nuclei post-phase fields (only meaningful for scanner_type in masscan/nmap)
+    nuclei_enabled: bool = False
+    nuclei_tags: str | None = None
+    nuclei_severity: str | None = None
+    nuclei_timeout: int | None = None
 
 
 @dataclass(frozen=True)
@@ -128,7 +133,12 @@ class ScanRunResult:
 
 @dataclass(frozen=True)
 class VulnerabilityResult:
-    """Individual vulnerability finding from a GVM/Greenbone scan."""
+    """Individual vulnerability finding from a vulnerability scanner.
+
+    `source` discriminates origin (GVM vs Nuclei) for backend alert dispatch.
+    For nuclei findings, `oid` is the composite `"template_id:matcher_name"`
+    so distinct matchers on the same template-target pair remain distinct.
+    """
 
     ip: str
     port: int | None
@@ -143,6 +153,7 @@ class VulnerabilityResult:
     solution: str | None
     solution_type: str | None
     qod: int | None
+    source: Literal["gvm", "nuclei"] = "gvm"
 
     def to_payload(self) -> dict[str, Any]:
         """Convert to JSON-serializable payload."""
@@ -160,6 +171,7 @@ class VulnerabilityResult:
             "solution": self.solution,
             "solution_type": self.solution_type,
             "qod": self.qod,
+            "source": self.source,
         }
 
 

@@ -25,6 +25,8 @@ const ALERT_TYPES: { value: AlertType; label: string; group: string }[] = [
   { value: "nse_cve_detected", label: "NSE CVE", group: "NSE" },
   { value: "gvm_vulnerability", label: "GVM Vulnerability", group: "GVM" },
   { value: "gvm_cve_detected", label: "GVM CVE", group: "GVM" },
+  { value: "nuclei_vulnerability", label: "Nuclei Vulnerability", group: "Nuclei" },
+  { value: "nuclei_cve_detected", label: "Nuclei CVE", group: "Nuclei" },
 ];
 
 const SEVERITIES: { value: Severity; label: string }[] = [

@@ -1,3 +1,8 @@
+# Pinned upstream nuclei image — used as a multi-stage source for the
+# statically-linked nuclei binary. Bump the tag to update nuclei.
+ARG NUCLEI_VERSION=v3.3.7
+FROM projectdiscovery/nuclei:${NUCLEI_VERSION} AS nuclei
+
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -18,7 +23,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     psmisc \
     socat \
     tzdata \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Nuclei binary (pinned via NUCLEI_VERSION arg above) + community templates.
+# Templates are refreshed at Docker build time via `nuclei -update-templates`;
+# runtime updates are disabled inside the scanner via `-disable-update-check`
+# so a running container never drifts.
+COPY --from=nuclei /usr/local/bin/nuclei /usr/local/bin/nuclei
+ENV NUCLEI_TEMPLATES_DIR=/opt/nuclei-templates
+RUN mkdir -p "${NUCLEI_TEMPLATES_DIR}" \
+    && nuclei -update-templates -ud "${NUCLEI_TEMPLATES_DIR}" -duc \
+    && chmod -R a+rX "${NUCLEI_TEMPLATES_DIR}"
 
 RUN mkdir -p /opt/opm/custom-scripts
 

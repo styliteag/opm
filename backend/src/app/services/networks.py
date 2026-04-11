@@ -61,6 +61,10 @@ async def create_network(
     phases: list[dict[str, Any]] | None = None,
     gvm_scan_config: str | None = None,
     gvm_port_list: str | None = None,
+    nuclei_enabled: bool = False,
+    nuclei_tags: str | None = None,
+    nuclei_severity: str | None = None,
+    nuclei_timeout: int | None = None,
 ) -> Network:
     """Create a new network."""
     return await NetworkRepository(db).create(
@@ -80,6 +84,10 @@ async def create_network(
         phases=phases,
         gvm_scan_config=gvm_scan_config,
         gvm_port_list=gvm_port_list,
+        nuclei_enabled=nuclei_enabled,
+        nuclei_tags=nuclei_tags,
+        nuclei_severity=nuclei_severity,
+        nuclei_timeout=nuclei_timeout,
     )
 
 
@@ -108,6 +116,13 @@ async def update_network(
     clear_gvm_scan_config: bool = False,
     gvm_port_list: str | None = None,
     clear_gvm_port_list: bool = False,
+    nuclei_enabled: bool | None = None,
+    nuclei_tags: str | None = None,
+    clear_nuclei_tags: bool = False,
+    nuclei_severity: str | None = None,
+    clear_nuclei_severity: bool = False,
+    nuclei_timeout: int | None = None,
+    clear_nuclei_timeout: bool = False,
 ) -> Network:
     """Update an existing network.
 
@@ -171,6 +186,25 @@ async def update_network(
                 for phase in network.phases
             ]
             network.phases = updated_phases
+
+    if nuclei_enabled is not None:
+        network.nuclei_enabled = nuclei_enabled
+    if nuclei_tags is not None or clear_nuclei_tags:
+        network.nuclei_tags = nuclei_tags
+    if nuclei_severity is not None or clear_nuclei_severity:
+        network.nuclei_severity = nuclei_severity
+    if nuclei_timeout is not None or clear_nuclei_timeout:
+        network.nuclei_timeout = nuclei_timeout
+
+    # Guard against incompatible combos introduced by a partial update:
+    # if the network now has a non-eligible scanner_type but nuclei_enabled
+    # is True, force it off. Mirrors the schema-level model_validator for
+    # the create path and protects against drift via partial PUTs.
+    if (
+        network.nuclei_enabled
+        and network.scanner_type not in ("masscan", "nmap")
+    ):
+        network.nuclei_enabled = False
 
     return await NetworkRepository(db).flush_and_refresh(network)
 

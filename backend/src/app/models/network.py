@@ -68,6 +68,29 @@ class Network(Base):
         comment="GVM port list name for greenbone scanner type; when set, "
         "scanner uses port_list_id instead of raw port_range",
     )
+    nuclei_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+        comment="Run nuclei as a post-phase after port scan (masscan/nmap only)",
+    )
+    nuclei_tags: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Comma-separated nuclei template tags (empty = all default tags)",
+    )
+    nuclei_severity: Mapped[str | None] = mapped_column(
+        String(16),
+        nullable=True,
+        comment="Minimum nuclei severity to report: info/low/medium/high/critical",
+    )
+    nuclei_timeout: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Wall-clock timeout for the nuclei subprocess in seconds "
+        "(null = scanner default 1800)",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.utc_timestamp()
     )

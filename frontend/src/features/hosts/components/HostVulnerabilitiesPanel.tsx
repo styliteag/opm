@@ -2,7 +2,12 @@ import { useId, useState } from "react";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
-import type { NseResult, Vulnerability, VulnerabilitySeverity } from "@/lib/types";
+import type {
+  NseResult,
+  Vulnerability,
+  VulnerabilitySeverity,
+  VulnerabilitySource,
+} from "@/lib/types";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
 const GVM_SEVERITY_STYLES: Record<VulnerabilitySeverity, string> = {
@@ -11,6 +16,17 @@ const GVM_SEVERITY_STYLES: Record<VulnerabilitySeverity, string> = {
   medium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   low: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   info: "bg-accent text-muted-foreground border-border",
+};
+
+const SOURCE_STYLES: Record<VulnerabilitySource, { label: string; className: string }> = {
+  gvm: {
+    label: "GVM",
+    className: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20",
+  },
+  nuclei: {
+    label: "Nuclei",
+    className: "bg-teal-500/10 text-teal-300 border-teal-500/20",
+  },
 };
 
 function GvmSeverityBadge({ label }: { label: VulnerabilitySeverity }) {
@@ -22,6 +38,20 @@ function GvmSeverityBadge({ label }: { label: VulnerabilitySeverity }) {
       )}
     >
       {label}
+    </span>
+  );
+}
+
+function SourceBadge({ source }: { source: VulnerabilitySource }) {
+  const style = SOURCE_STYLES[source] ?? SOURCE_STYLES.gvm;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-emphasis uppercase tracking-wider",
+        style.className,
+      )}
+    >
+      {style.label}
     </span>
   );
 }
@@ -41,6 +71,7 @@ function GvmVulnRow({ vuln }: { vuln: Vulnerability }) {
       >
         <div className="flex items-center gap-3">
           <GvmSeverityBadge label={vuln.severity_label} />
+          <SourceBadge source={vuln.source ?? "gvm"} />
           <div>
             <p className="text-sm font-emphasis text-foreground">{vuln.name}</p>
             <p className="text-xs text-muted-foreground">
@@ -134,7 +165,7 @@ export function HostVulnerabilitiesPanel({
       {gvmResults.length > 0 && (
         <div>
           <h4 className="mb-3 text-sm font-emphasis text-foreground">
-            GVM Findings ({gvmResults.length})
+            Vulnerability Findings ({gvmResults.length})
           </h4>
           <div className="rounded-lg border border-border">
             <div className="divide-y divide-border">

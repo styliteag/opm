@@ -1,5 +1,6 @@
 """Tests for network service and router."""
 
+import pytest
 from conftest import NetworkFactory, ScannerFactory
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -391,3 +392,107 @@ class TestNetworkRouter:
         data = response.json()
         assert "scans" in data
         assert len(data["scans"]) >= 1
+
+
+class TestNucleiValidation:
+    """Schema-level validation for the nuclei network config."""
+
+    def test_create_rejects_nuclei_with_greenbone(self) -> None:
+        """nuclei_enabled=True is rejected when scanner_type='greenbone'."""
+        from pydantic import ValidationError
+
+        from app.schemas.network import NetworkCreateRequest
+
+        with pytest.raises(ValidationError) as exc_info:
+            NetworkCreateRequest(
+                name="n",
+                cidr="10.0.0.0/24",
+                port_spec="1-1024",
+                scanner_id=1,
+                scanner_type="greenbone",
+                nuclei_enabled=True,
+            )
+        assert "nuclei_enabled" in str(exc_info.value)
+
+    def test_create_allows_nuclei_with_masscan(self) -> None:
+        """nuclei_enabled=True is allowed with masscan."""
+        from app.schemas.network import NetworkCreateRequest
+
+        req = NetworkCreateRequest(
+            name="n",
+            cidr="10.0.0.0/24",
+            port_spec="1-1024",
+            scanner_id=1,
+            scanner_type="masscan",
+            nuclei_enabled=True,
+            nuclei_tags="cves,exposures",
+            nuclei_severity="medium",
+            nuclei_timeout=600,
+        )
+        assert req.nuclei_enabled is True
+        assert req.nuclei_tags == "cves,exposures"
+
+    def test_create_allows_nuclei_with_nmap(self) -> None:
+        """nuclei_enabled=True is allowed with nmap."""
+        from app.schemas.network import NetworkCreateRequest
+
+        req = NetworkCreateRequest(
+            name="n",
+            cidr="10.0.0.0/24",
+            port_spec="1-1024",
+            scanner_id=1,
+            scanner_type="nmap",
+            nuclei_enabled=True,
+        )
+        assert req.nuclei_enabled is True
+
+    def test_nuclei_severity_validation(self) -> None:
+        """nuclei_severity must be one of the canonical labels."""
+        from pydantic import ValidationError
+
+        from app.schemas.network import NetworkCreateRequest
+
+        with pytest.raises(ValidationError):
+            NetworkCreateRequest(
+                name="n",
+                cidr="10.0.0.0/24",
+                port_spec="1-1024",
+                scanner_id=1,
+                scanner_type="nmap",
+                nuclei_enabled=True,
+                nuclei_severity="bogus",
+            )
+
+    def test_nuclei_timeout_range(self) -> None:
+        """nuclei_timeout must be within [60, 7200] seconds."""
+        from pydantic import ValidationError
+
+        from app.schemas.network import NetworkCreateRequest
+
+        with pytest.raises(ValidationError):
+            NetworkCreateRequest(
+                name="n",
+                cidr="10.0.0.0/24",
+                port_spec="1-1024",
+                scanner_id=1,
+                scanner_type="nmap",
+                nuclei_timeout=10,
+            )
+        with pytest.raises(ValidationError):
+            NetworkCreateRequest(
+                name="n",
+                cidr="10.0.0.0/24",
+                port_spec="1-1024",
+                scanner_id=1,
+                scanner_type="nmap",
+                nuclei_timeout=99999,
+            )
+        ok = NetworkCreateRequest(
+            name="n",
+            cidr="10.0.0.0/24",
+            port_spec="1-1024",
+            scanner_id=1,
+            scanner_type="nmap",
+            nuclei_timeout=1800,
+        )
+        assert ok.nuclei_timeout == 1800

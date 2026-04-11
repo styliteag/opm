@@ -93,14 +93,34 @@ def _format_phase_progress(
 
 
 def _build_legacy_phases(job: ScannerJob) -> list[ScanPhase]:
-    """Build phases from legacy scanner_type for backward compat."""
+    """Build phases from legacy scanner_type for backward compat.
+
+    Appends a nuclei post-phase when `job.nuclei_enabled` and the network's
+    scanner_type is masscan or nmap. Nuclei is intentionally mutually
+    exclusive with NSE (both are vulnerability scanners, pick one) and with
+    greenbone (different code path + different scanner container).
+    """
     if job.scanner_type == "nse":
         return [
             ScanPhase(name="vulnerability", enabled=True, tool="nmap_nse", config={}),
         ]
-    return [
+    phases: list[ScanPhase] = [
         ScanPhase(name="port_scan", enabled=True, tool=job.scanner_type, config={}),
     ]
+    if job.nuclei_enabled and job.scanner_type in ("masscan", "nmap"):
+        phases.append(
+            ScanPhase(
+                name="vulnerability",
+                enabled=True,
+                tool="nuclei",
+                config={
+                    "tags": job.nuclei_tags,
+                    "severity": job.nuclei_severity,
+                    "timeout": job.nuclei_timeout,
+                },
+            )
+        )
+    return phases
 
 
 class _CancelledError(Exception):
@@ -166,13 +186,92 @@ def _run_port_scan_phase(
     return {"open_ports": result.open_ports, "result": result}
 
 
+def _run_nuclei_phase(
+    phase: ScanPhase, job: ScannerJob, client: ScannerClient,
+    scan_id: int, logger: logging.Logger,
+    progress_reporter: ProgressReporter, completed: dict[str, Any],
+) -> dict[str, Any]:
+    """Run nuclei against HTTP-ish ports discovered by the port_scan phase.
+
+    Best-effort: any failure (missing binary, subprocess crash, parse
+    error, submission error) is caught and logged here so nuclei problems
+    can never turn a successful port scan into a failed scan notification.
+    """
+    logger.info("=== Vulnerability Scan Phase (Nuclei) ===")
+
+    try:
+        from src.scanners.nuclei import build_targets, run_nuclei
+    except Exception as exc:  # pragma: no cover — import safety net
+        logger.warning("nuclei: module import failed: %s", exc)
+        return {"nuclei_result": None}
+
+    ps = completed.get("port_scan")
+    open_ports = ps.get("open_ports", []) if ps else []
+    if not open_ports:
+        logger.info("nuclei: no open ports from port_scan phase, skipping")
+        return {"nuclei_result": None}
+
+    try:
+        targets = build_targets(open_ports, job.scanner_type)
+    except Exception as exc:
+        logger.warning("nuclei: build_targets failed: %s", exc)
+        return {"nuclei_result": None}
+
+    if not targets:
+        logger.info(
+            "nuclei: no web-like targets among %d open ports (scanner_type=%s), skipping",
+            len(open_ports),
+            job.scanner_type,
+        )
+        return {"nuclei_result": None}
+
+    progress_reporter.update(0, "Nuclei: starting")
+
+    try:
+        findings = run_nuclei(
+            targets=targets,
+            tags=phase.config.get("tags") or job.nuclei_tags,
+            severity_threshold=phase.config.get("severity") or job.nuclei_severity,
+            timeout_s=phase.config.get("timeout") or job.nuclei_timeout,
+            logger=logger,
+        )
+    except Exception:
+        logger.exception("nuclei: unexpected failure during run_nuclei")
+        return {"nuclei_result": None}
+
+    try:
+        client.submit_vulnerability_results(
+            scan_id=scan_id,
+            vulnerabilities=findings,
+            status="success",
+        )
+        logger.info("nuclei: submitted %d finding(s) for scan %s", len(findings), scan_id)
+    except Exception:
+        logger.exception("nuclei: failed to submit results for scan %s", scan_id)
+
+    progress_reporter.update(100, f"Nuclei: {len(findings)} finding(s)")
+    return {"nuclei_result": findings}
+
+
 def _run_vulnerability_phase(
     phase: ScanPhase, job: ScannerJob, client: ScannerClient,
     scan_id: int, logger: logging.Logger,
     progress_reporter: ProgressReporter, completed: dict[str, Any],
 ) -> dict[str, Any]:
-    """Run NSE vulnerability scan phase."""
-    logger.info("=== Vulnerability Scan Phase ===")
+    """Run a vulnerability scan phase.
+
+    Dispatches on `phase.tool`:
+    - `"nmap_nse"`: existing NSE code path.
+    - `"nuclei"`: runs nuclei against HTTP-ish open ports from the prior
+      port_scan phase. Failures are caught internally so a broken nuclei
+      run never fails the surrounding pipeline.
+    """
+    if phase.tool == "nuclei":
+        return _run_nuclei_phase(
+            phase, job, client, scan_id, logger, progress_reporter, completed
+        )
+
+    logger.info("=== Vulnerability Scan Phase (NSE) ===")
 
     # Determine target and ports from port_scan phase
     target = job.target_ip or job.cidr
@@ -457,7 +556,15 @@ def process_greenbone_job(
 
 
 def check_dependencies(logger: logging.Logger) -> None:
-    """Check if required external tools are available."""
+    """Check if required external tools are available.
+
+    masscan/nmap are required for the standard scanner image; missing them
+    yields a warning so scans using those tools will fail.
+
+    nuclei is optional — networks that don't enable the nuclei post-phase
+    don't need it. A missing nuclei binary logs a single info-level line
+    so operators can tell whether an old image is in play.
+    """
     for tool in ["masscan", "nmap"]:
         if not shutil.which(tool):
             logger.warning(
@@ -465,3 +572,8 @@ def check_dependencies(logger: logging.Logger) -> None:
                 "Scans using this tool will fail.",
                 tool,
             )
+    if not shutil.which("nuclei"):
+        logger.info(
+            "Optional tool 'nuclei' not found in PATH. "
+            "Networks with nuclei_enabled=true will skip the nuclei post-phase."
+        )

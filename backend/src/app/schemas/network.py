@@ -3,11 +3,16 @@
 import ipaddress
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, Self
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from app.core.scanner_types import get_valid_scanner_types
+
+NUCLEI_ELIGIBLE_SCANNER_TYPES = frozenset({"masscan", "nmap"})
+VALID_NUCLEI_SEVERITIES = ("info", "low", "medium", "high", "critical")
+NUCLEI_TIMEOUT_MIN = 60
+NUCLEI_TIMEOUT_MAX = 7200
 
 
 def validate_cidr(value: str) -> str:
@@ -115,6 +120,29 @@ def validate_scan_protocol(value: str) -> str:
     return value
 
 
+def validate_nuclei_severity(value: str | None) -> str | None:
+    """Validate nuclei_severity is one of the allowed labels."""
+    if value is None:
+        return None
+    if value not in VALID_NUCLEI_SEVERITIES:
+        raise ValueError(
+            f"Invalid nuclei_severity: must be one of {VALID_NUCLEI_SEVERITIES}"
+        )
+    return value
+
+
+def validate_nuclei_timeout(value: int | None) -> int | None:
+    """Validate nuclei_timeout is within the allowed range (seconds)."""
+    if value is None:
+        return None
+    if not (NUCLEI_TIMEOUT_MIN <= value <= NUCLEI_TIMEOUT_MAX):
+        raise ValueError(
+            f"nuclei_timeout must be between {NUCLEI_TIMEOUT_MIN} and "
+            f"{NUCLEI_TIMEOUT_MAX} seconds"
+        )
+    return value
+
+
 class NetworkCreateRequest(BaseModel):
     """Request schema for creating a new network."""
 
@@ -135,6 +163,10 @@ class NetworkCreateRequest(BaseModel):
     phases: list[dict[str, Any]] | None = None
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
+    nuclei_enabled: bool = False
+    nuclei_tags: str | None = None
+    nuclei_severity: str | None = None
+    nuclei_timeout: int | None = None
 
     @field_validator("cidr")
     @classmethod
@@ -182,6 +214,26 @@ class NetworkCreateRequest(BaseModel):
     def validate_scan_protocol_value(cls, v: str) -> str:
         return validate_scan_protocol(v)
 
+    @field_validator("nuclei_severity")
+    @classmethod
+    def validate_nuclei_severity_value(cls, v: str | None) -> str | None:
+        return validate_nuclei_severity(v)
+
+    @field_validator("nuclei_timeout")
+    @classmethod
+    def validate_nuclei_timeout_value(cls, v: int | None) -> int | None:
+        return validate_nuclei_timeout(v)
+
+    @model_validator(mode="after")
+    def validate_nuclei_scanner_compatibility(self) -> "Self":
+        """Reject nuclei_enabled=True unless scanner_type is masscan or nmap."""
+        if self.nuclei_enabled and self.scanner_type not in NUCLEI_ELIGIBLE_SCANNER_TYPES:
+            raise ValueError(
+                "nuclei_enabled is only supported for scanner_type "
+                f"in {sorted(NUCLEI_ELIGIBLE_SCANNER_TYPES)}"
+            )
+        return self
+
 
 class NetworkUpdateRequest(BaseModel):
     """Request schema for updating a network."""
@@ -203,6 +255,10 @@ class NetworkUpdateRequest(BaseModel):
     phases: list[dict[str, Any]] | None = None
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
+    nuclei_enabled: bool | None = None
+    nuclei_tags: str | None = None
+    nuclei_severity: str | None = None
+    nuclei_timeout: int | None = None
 
     @field_validator("cidr")
     @classmethod
@@ -258,6 +314,37 @@ class NetworkUpdateRequest(BaseModel):
             return v
         return validate_scan_protocol(v)
 
+    @field_validator("nuclei_severity")
+    @classmethod
+    def validate_nuclei_severity_value(cls, v: str | None) -> str | None:
+        return validate_nuclei_severity(v)
+
+    @field_validator("nuclei_timeout")
+    @classmethod
+    def validate_nuclei_timeout_value(cls, v: int | None) -> int | None:
+        return validate_nuclei_timeout(v)
+
+    @model_validator(mode="after")
+    def validate_nuclei_scanner_compatibility(self) -> "Self":
+        """Reject nuclei_enabled=True when updating with an incompatible scanner_type.
+
+        Partial updates (scanner_type not provided in request) skip this check —
+        the service layer is responsible for ensuring the effective post-merge
+        state is valid. This check runs only when both fields are present in
+        the same request or when the user is flipping nuclei_enabled on while
+        scanner_type is greenbone (explicitly set in this request).
+        """
+        if (
+            self.nuclei_enabled is True
+            and self.scanner_type is not None
+            and self.scanner_type not in NUCLEI_ELIGIBLE_SCANNER_TYPES
+        ):
+            raise ValueError(
+                "nuclei_enabled is only supported for scanner_type "
+                f"in {sorted(NUCLEI_ELIGIBLE_SCANNER_TYPES)}"
+            )
+        return self
+
 
 class NetworkResponse(BaseModel):
     """Network information response."""
@@ -280,6 +367,10 @@ class NetworkResponse(BaseModel):
     phases: list[dict[str, Any]] | None
     gvm_scan_config: str | None
     gvm_port_list: str | None
+    nuclei_enabled: bool = False
+    nuclei_tags: str | None = None
+    nuclei_severity: str | None = None
+    nuclei_timeout: int | None = None
     is_ipv6: bool
     created_at: datetime
     updated_at: datetime

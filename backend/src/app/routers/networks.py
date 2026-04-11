@@ -103,6 +103,10 @@ async def create_network(
         phases=request.phases,
         gvm_scan_config=request.gvm_scan_config,
         gvm_port_list=request.gvm_port_list,
+        nuclei_enabled=request.nuclei_enabled,
+        nuclei_tags=request.nuclei_tags,
+        nuclei_severity=request.nuclei_severity,
+        nuclei_timeout=request.nuclei_timeout,
     )
     await db.commit()
 
@@ -214,6 +218,16 @@ async def update_network(
         gvm_port_list=request.gvm_port_list,
         clear_gvm_port_list="gvm_port_list" in request.model_fields_set
         and request.gvm_port_list is None,
+        nuclei_enabled=request.nuclei_enabled,
+        nuclei_tags=request.nuclei_tags,
+        clear_nuclei_tags="nuclei_tags" in request.model_fields_set
+        and request.nuclei_tags is None,
+        nuclei_severity=request.nuclei_severity,
+        clear_nuclei_severity="nuclei_severity" in request.model_fields_set
+        and request.nuclei_severity is None,
+        nuclei_timeout=request.nuclei_timeout,
+        clear_nuclei_timeout="nuclei_timeout" in request.model_fields_set
+        and request.nuclei_timeout is None,
     )
     await db.commit()
     return NetworkResponse.model_validate(updated_network)

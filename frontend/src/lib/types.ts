@@ -13,7 +13,11 @@ export type AlertType =
   | "nse_vulnerability"
   | "nse_cve_detected"
   | "gvm_vulnerability"
-  | "gvm_cve_detected";
+  | "gvm_cve_detected"
+  | "nuclei_vulnerability"
+  | "nuclei_cve_detected";
+
+export type VulnerabilitySource = "gvm" | "nuclei";
 
 export type Severity = "critical" | "high" | "medium" | "info";
 export type VulnerabilitySeverity = Severity | "low";
@@ -117,6 +121,10 @@ export interface Network {
   phases: ScanPhase[] | null;
   gvm_scan_config: string | null;
   gvm_port_list: string | null;
+  nuclei_enabled: boolean;
+  nuclei_tags: string | null;
+  nuclei_severity: string | null;
+  nuclei_timeout: number | null;
   is_ipv6: boolean;
   created_at: string;
   updated_at: string;
@@ -402,6 +410,7 @@ export interface Vulnerability {
   solution: string | null;
   solution_type: string | null;
   qod: number | null;
+  source: VulnerabilitySource;
   created_at: string;
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod/v4";
@@ -50,6 +50,16 @@ const schema = z.object({
     (val) =>
       val === "" || val === undefined || val === null ? undefined : Number(val),
     z.number().optional(),
+  ),
+  nuclei_enabled: z.boolean().default(false),
+  nuclei_tags: z.string().optional(),
+  nuclei_severity: z
+    .enum(["info", "low", "medium", "high", "critical"])
+    .optional(),
+  nuclei_timeout: z.preprocess(
+    (val) =>
+      val === "" || val === undefined || val === null ? undefined : Number(val),
+    z.number().min(60).max(7200).optional(),
   ),
   email_recipients: z.string().optional(),
 });
@@ -132,6 +142,17 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
           port_timeout: network.port_timeout ?? undefined,
           scan_schedule: network.scan_schedule ?? undefined,
           nse_profile_id: network.nse_profile_id ?? undefined,
+          nuclei_enabled: network.nuclei_enabled ?? false,
+          nuclei_tags: network.nuclei_tags ?? undefined,
+          nuclei_severity:
+            (network.nuclei_severity as
+              | "info"
+              | "low"
+              | "medium"
+              | "high"
+              | "critical"
+              | null) ?? undefined,
+          nuclei_timeout: network.nuclei_timeout ?? undefined,
           email_recipients: (
             network.alert_config as Record<string, unknown> | null
           )?.email_recipients
@@ -148,6 +169,7 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
           scan_rate: 1000,
           scan_timeout: 3600,
           port_timeout: 1500,
+          nuclei_enabled: false,
         },
   });
 
@@ -158,7 +180,17 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
   const watchedNseProfileId = useWatch({ control, name: "nse_profile_id" });
   const watchedScannerType = useWatch({ control, name: "scanner_type" });
   const watchedScannerId = Number(useWatch({ control, name: "scanner_id" }) ?? 0);
+  const watchedNucleiEnabled = useWatch({ control, name: "nuclei_enabled" }) ?? false;
   const isGreenbone = watchedScannerType === "greenbone";
+
+  // Auto-disable nuclei when the user switches scanner_type to greenbone
+  // (nuclei is only supported for masscan/nmap). Toast once on the flip.
+  useEffect(() => {
+    if (isGreenbone && watchedNucleiEnabled) {
+      setValue("nuclei_enabled", false, { shouldDirty: true });
+      toast.info("Nuclei disabled — not supported for Greenbone scanners");
+    }
+  }, [isGreenbone, watchedNucleiEnabled, setValue]);
 
   // Populate GVM dropdowns: union of library entries + assigned scanner's mirror
   const libraryScanConfigs = useLibraryEntries(
@@ -211,11 +243,21 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
 
   const onSubmit = (data: FormData) => {
     const { email_recipients, ...rest } = data;
+    // Nuclei is only meaningful for masscan/nmap. Force-clear config fields
+    // when disabled or when scanner_type is greenbone so the backend gets a
+    // consistent payload and the clear_nuclei_* flags fire in the router.
+    const nucleiActive = !isGreenbone && rest.nuclei_enabled;
     const payload: Record<string, unknown> = {
       ...rest,
       phases: isGreenbone ? null : phases,
       gvm_scan_config: isGreenbone ? gvmScanConfig : null,
       gvm_port_list: isGreenbone && gvmPortList ? gvmPortList : null,
+      nuclei_enabled: nucleiActive,
+      nuclei_tags: nucleiActive && rest.nuclei_tags ? rest.nuclei_tags : null,
+      nuclei_severity:
+        nucleiActive && rest.nuclei_severity ? rest.nuclei_severity : null,
+      nuclei_timeout:
+        nucleiActive && rest.nuclei_timeout ? rest.nuclei_timeout : null,
     };
 
     // Build alert_config with email_recipients if provided
@@ -590,6 +632,71 @@ export function NetworkForm({ open, onOpenChange, network }: NetworkFormProps) {
                   default <span className="font-mono text-[11px]">vulners</span>{" "}
                   script will run.
                 </p>
+              )}
+            </div>
+
+            {/* ── Nuclei post-phase ── */}
+            <div className="rounded-md border border-border/40 bg-card/40 p-3">
+              <label className="flex items-center gap-2 text-sm font-emphasis">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-border/50 bg-background"
+                  {...register("nuclei_enabled")}
+                />
+                Vulnerability scanning (Nuclei)
+              </label>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Runs nuclei against HTTP/HTTPS services discovered by the port
+                scan. Available for masscan and nmap networks.
+              </p>
+              {watchedNucleiEnabled && (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <Label htmlFor="nuclei_tags">Template tags (optional)</Label>
+                    <Input
+                      id="nuclei_tags"
+                      {...register("nuclei_tags")}
+                      placeholder="cves,exposures,misconfiguration"
+                      className="font-mono"
+                    />
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      Comma-separated nuclei template tags. Leave empty to run
+                      all default tags.
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="nuclei_severity">Minimum severity</Label>
+                    <Select
+                      id="nuclei_severity"
+                      {...register("nuclei_severity")}
+                    >
+                      <option value="">Default (medium)</option>
+                      <option value="info">Info</option>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="nuclei_timeout">
+                      Timeout (seconds, optional)
+                    </Label>
+                    <Input
+                      id="nuclei_timeout"
+                      type="number"
+                      min={60}
+                      max={7200}
+                      {...register("nuclei_timeout")}
+                      placeholder="1800"
+                    />
+                    {errors.nuclei_timeout && (
+                      <p className="mt-1 text-xs text-destructive">
+                        {errors.nuclei_timeout.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </fieldset>

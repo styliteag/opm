@@ -172,6 +172,10 @@ class ScannerClient:
                         phases=_parse_phases(job.get("phases")),
                         gvm_scan_config=job.get("gvm_scan_config"),
                         gvm_port_list=job.get("gvm_port_list"),
+                        nuclei_enabled=bool(job.get("nuclei_enabled", False)),
+                        nuclei_tags=job.get("nuclei_tags"),
+                        nuclei_severity=job.get("nuclei_severity"),
+                        nuclei_timeout=parse_int(job.get("nuclei_timeout")),
                     )
                 )
             except (KeyError, TypeError, ValueError) as exc:
