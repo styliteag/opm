@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import socket
 import time
 
 from src.client import ScannerClient
@@ -21,6 +22,72 @@ from src.utils import configure_logging, get_version, load_config
 # (background pulse). An explicit refresh flag in the /jobs response
 # bypasses this throttle and forces an immediate push.
 GVM_METADATA_PULSE_INTERVAL = 300  # 5 minutes
+
+# How long to wait on startup for gvmd to begin accepting connections
+# on its Unix socket before giving up and entering the main loop anyway.
+# The shared `gvmd_socket_vol` means the socket file appears immediately
+# when the gvmd container mounts it, but gvmd itself may not be listening
+# yet — especially on cold boot when feed sync is running. Feed sync can
+# take hours, so we don't block the main loop forever; instead, we give
+# up after GVM_READY_MAX_ATTEMPTS * (avg backoff) seconds and let the
+# background pulse retry the push at its normal cadence.
+GVM_READY_MAX_ATTEMPTS = 60
+GVM_READY_BACKOFF_INITIAL = 2.0
+GVM_READY_BACKOFF_MAX = 10.0
+GVM_READY_CONNECT_TIMEOUT = 2.0
+
+
+def _wait_for_gvmd(logger: logging.Logger) -> bool:
+    """Poll the gvmd Unix socket until it accepts connections.
+
+    On cold boot the shared socket volume makes the socket file visible
+    immediately, but gvmd may take a while before it actually ``listen()``s
+    on it — during this window a connect attempt yields ``ECONNREFUSED``.
+    A raw ``socket.connect`` probe is cheap and avoids spamming the log
+    with full GMP-handshake tracebacks for something we know is a boot race.
+
+    Returns True when gvmd is ready. Returns False after
+    ``GVM_READY_MAX_ATTEMPTS`` — we deliberately do not block forever so
+    that a long-running feed sync (which can take hours on first boot) does
+    not starve the main poll loop of OPM job processing.
+    """
+    gvm_socket = os.environ.get("GVM_SOCKET", "/run/gvmd/gvmd.sock")
+    delay = GVM_READY_BACKOFF_INITIAL
+    announced = False
+    for attempt in range(1, GVM_READY_MAX_ATTEMPTS + 1):
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                probe.settimeout(GVM_READY_CONNECT_TIMEOUT)
+                probe.connect(gvm_socket)
+            logger.info(
+                "gvmd is accepting connections on %s (attempt %d)",
+                gvm_socket,
+                attempt,
+            )
+            return True
+        except (FileNotFoundError, ConnectionRefusedError, OSError) as exc:
+            if not announced:
+                logger.info(
+                    "Waiting for gvmd on %s (feed sync may be in progress)...",
+                    gvm_socket,
+                )
+                announced = True
+            elif attempt % 10 == 0:
+                logger.info(
+                    "Still waiting for gvmd (attempt %d/%d): %s",
+                    attempt,
+                    GVM_READY_MAX_ATTEMPTS,
+                    exc,
+                )
+            time.sleep(delay)
+            delay = min(delay * 1.2, GVM_READY_BACKOFF_MAX)
+
+    logger.warning(
+        "gvmd not ready after %d attempts — continuing without a cold-boot "
+        "metadata push; the background pulse will keep retrying",
+        GVM_READY_MAX_ATTEMPTS,
+    )
+    return False
 
 
 def _is_gvm_scanner() -> bool:
@@ -99,9 +166,24 @@ def main() -> None:
     last_gvm_metadata_push = 0.0
     if is_gvm:
         logger.info("Running as GVM scanner — will push metadata snapshots to backend")
-        # Best-effort cold-boot push; on failure, the main loop will retry
-        # on the next poll interval rather than waiting a full pulse window.
-        if _push_gvm_metadata(client, logger):
+        # Probe gvmd before attempting the first GMP handshake. On cold boot
+        # the socket file is visible via the shared volume long before gvmd
+        # is actually listening, so without this wait the cold-boot push
+        # would always race-fail with ECONNREFUSED + a noisy traceback.
+        if _wait_for_gvmd(logger):
+            if _push_gvm_metadata(client, logger):
+                last_gvm_metadata_push = time.monotonic()
+            else:
+                # Probe succeeded but the GMP handshake/push failed (auth,
+                # transient hiccup, etc.). Anchor the pulse window to "now"
+                # so the background pulse waits the full GVM_METADATA_PULSE_INTERVAL
+                # before retrying instead of firing on the very next loop tick.
+                last_gvm_metadata_push = time.monotonic()
+        else:
+            # Probe gave up. Same anchoring rule — don't double-fire on the
+            # first loop iteration. The background pulse will retry once
+            # GVM_METADATA_PULSE_INTERVAL has elapsed, by which point gvmd
+            # has had several more minutes to finish booting.
             last_gvm_metadata_push = time.monotonic()
 
     try:
@@ -147,8 +229,13 @@ def main() -> None:
             if is_gvm and (
                 time.monotonic() - last_gvm_metadata_push >= GVM_METADATA_PULSE_INTERVAL
             ):
-                if _push_gvm_metadata(client, logger):
-                    last_gvm_metadata_push = time.monotonic()
+                # Anchor the timer regardless of success — a failed push
+                # should not cause the pulse to retry on every poll cycle
+                # (which would otherwise spam the log every 60 s during a
+                # gvmd outage). The next attempt happens after the full
+                # pulse interval has elapsed.
+                _push_gvm_metadata(client, logger)
+                last_gvm_metadata_push = time.monotonic()
 
             if not has_work:
                 logger.debug("No pending jobs; sleeping")
