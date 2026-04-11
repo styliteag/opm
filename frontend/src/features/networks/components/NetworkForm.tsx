@@ -348,7 +348,7 @@ export function NetworkForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl lg:max-w-6xl max-h-[90vh] overflow-y-auto p-6">
         <DialogHeader>
           <DialogTitle>
             {isEdit

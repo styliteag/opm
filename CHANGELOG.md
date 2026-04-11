@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Network form dialog**: widened from `sm:max-w-3xl` (768 px) to `sm:max-w-4xl lg:max-w-6xl` (1152 px on desktop) and bumped inner padding from `p-4` to `p-6`. The form has grown over time — scanner type, phases, GVM config, nuclei settings, SSH overrides, alert recipients — and the previous 768 px cap forced a lot of vertical scrolling on otherwise empty screens. The new width gives fieldset content and the Name/CIDR two-column grid more breathing room on desktop while still respecting `max-w-[calc(100%-2rem)]` on narrow viewports
+
 - **Nuclei scanner**: nuclei's `-stats -stats-interval 15` progress output now streams live to the scanner logs (and therefore to the OPM scan-log UI) instead of being buffered until subprocess exit and then thrown away. `run_nuclei` switched from `subprocess.run(capture_output=True)` to `subprocess.Popen(stdout=PIPE, stderr=STDOUT, bufsize=1)` + the existing `ProcessTimeoutWatcher` pattern (same shape as `masscan.py`). Each non-empty line from nuclei is forwarded through `logger.info("nuclei: %s", line)` as it arrives, so operators can see "Templates: N / Hosts: N / RPS: N / Requests: X/Y (Z%)" every 15 s while a long nuclei run is executing. The last 20 output lines are still kept as a bounded tail for the non-zero-exit error log. Timeout handling moved from `subprocess.TimeoutExpired` to the watcher's `timed_out` flag; behavior on timeout unchanged (partial results discarded, empty list returned). Test suite updated to mock `subprocess.Popen` with a `_FakeProcess` stand-in plus a new `test_stats_lines_forwarded_to_logger` case asserting stdout lines reach the logger
 
 ### Fixed
