@@ -12,6 +12,7 @@ from app.models.gvm_library import GvmLibraryEntry
 from app.models.gvm_scanner_metadata import GvmScannerMetadata
 from app.models.host import Host
 from app.models.host_discovery_scan import HostDiscoveryScan
+from app.models.hostname_lookup import HostnameLookup, HostnameLookupBudget
 from app.models.network import Network
 from app.models.nse_result import NseResult
 from app.models.nse_script import NseScript
@@ -47,6 +48,8 @@ __all__ = [
     "GvmScannerMetadata",
     "Host",
     "HostDiscoveryScan",
+    "HostnameLookup",
+    "HostnameLookupBudget",
     "NseTemplate",
     "NseScript",
     "NseResult",
