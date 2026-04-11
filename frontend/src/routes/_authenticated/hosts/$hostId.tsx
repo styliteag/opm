@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InlineHostname } from "@/features/hosts/components/InlineHostname";
 import { HostComment } from "@/features/hosts/components/HostComment";
+import { HostKnownHostnames } from "@/features/hosts/components/HostKnownHostnames";
 import { HostPortsTab } from "@/features/hosts/components/HostPortsTab";
 import { HostAlertsTab } from "@/features/hosts/components/HostAlertsTab";
 import { HostScansTab } from "@/features/hosts/components/HostScansTab";
@@ -208,6 +209,9 @@ function HostDetailPage() {
 
       {/* Host Comment */}
       <HostComment hostId={id} comment={host.user_comment} />
+
+      {/* Cached reverse-IP hostnames (hidden when no cache row exists) */}
+      <HostKnownHostnames hostId={id} />
 
       {/* Tabbed Content */}
       <Tabs defaultValue="ports">

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchApi, postApi } from "@/lib/api";
+import { deleteApi, fetchApi, postApi, putApi } from "@/lib/api";
 
 /* Types mirror the backend Pydantic schemas in
  * backend/src/app/schemas/hostname_lookup.py. Any drift here and the
@@ -118,5 +118,57 @@ export function useImportHostnameCache() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hostname-lookup"] });
     },
+  });
+}
+
+/** Admin: hand-edit a cache row — full replacement of the vhost list. */
+export function useUpdateHostnameCacheEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ip, hostnames }: { ip: string; hostnames: string[] }) =>
+      putApi<HostnameLookupEntry>(
+        `/api/admin/hostname-lookup/entries/${encodeURIComponent(ip)}`,
+        { hostnames },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hostname-lookup"] });
+    },
+  });
+}
+
+/** Admin: delete a cache row. */
+export function useDeleteHostnameCacheEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ip: string) =>
+      deleteApi(
+        `/api/admin/hostname-lookup/entries/${encodeURIComponent(ip)}`,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hostname-lookup"] });
+    },
+  });
+}
+
+/* -------------------------------------------------------------------- */
+/* Host-scoped hook — used by the host detail page's "Known Hostnames"
+ * panel. Authenticated user, not admin-only. */
+
+export interface HostCachedHostnamesResponse {
+  ip: string;
+  hostnames: string[];
+  source: string | null;
+  queried_at: string | null;
+  expires_at: string | null;
+}
+
+export function useHostCachedHostnames(hostId: number | null) {
+  return useQuery({
+    queryKey: ["host-hostnames", hostId],
+    queryFn: () =>
+      fetchApi<HostCachedHostnamesResponse>(
+        `/api/hosts/${hostId}/hostnames`,
+      ),
+    enabled: hostId !== null,
   });
 }

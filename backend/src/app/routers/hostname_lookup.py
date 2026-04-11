@@ -21,17 +21,23 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 
 from app.core.deps import AdminUser, DbSession
 from app.schemas.hostname_lookup import (
+    CacheEntryUpdateRequest,
     CacheExportDocument,
     CacheFillerRunResponse,
     CacheImportRequest,
     CacheImportSummary,
     CacheStatusResponse,
+    HostnameLookupEntry,
 )
 from app.services import hostname_lookup_io
+from app.services.hostname_lookup import (
+    delete_cache_entry,
+    update_cache_entry_manual,
+)
 from app.services.hostname_lookup_filler import run_hostname_cache_filler
 
 logger = logging.getLogger(__name__)
@@ -126,3 +132,58 @@ async def trigger_hostname_cache_filler(
         status="started",
         message="Filler job queued; poll /status for progress.",
     )
+
+
+@router.put(
+    "/entries/{ip}",
+    response_model=HostnameLookupEntry,
+    status_code=status.HTTP_200_OK,
+)
+async def update_hostname_cache_entry(
+    user: AdminUser,  # noqa: ARG001 — DI gate for admin-only access
+    db: DbSession,
+    ip: str,
+    payload: CacheEntryUpdateRequest,
+) -> HostnameLookupEntry:
+    """Hand-edit a cache row — full replacement of the hostname list.
+
+    The service layer stamps ``source='manual'`` and an 8-week TTL so
+    the filler's next hourly pass skips the row. Empty hostname lists
+    are allowed and persist as a ``no_results`` marker — operators
+    use this to explicitly mute an IP.
+    """
+    row = await update_cache_entry_manual(db, ip=ip, hostnames=payload.hostnames)
+    await db.commit()
+    return HostnameLookupEntry(
+        ip=row.ip,
+        hostnames=list(row.hostnames_json or []),
+        source=row.source,
+        status=row.status,
+        queried_at=row.queried_at,
+        expires_at=row.expires_at,
+        error_message=row.error_message,
+    )
+
+
+@router.delete(
+    "/entries/{ip}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_hostname_cache_entry(
+    user: AdminUser,  # noqa: ARG001 — DI gate for admin-only access
+    db: DbSession,
+    ip: str,
+) -> None:
+    """Drop the cache row for ``ip``.
+
+    Used by the admin UI's delete action and for clearing junk
+    cached data (e.g. a rapiddns row that picked up wrong hostnames).
+    Returns 404 if no row exists.
+    """
+    deleted = await delete_cache_entry(db, ip=ip)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No cache entry for IP {ip}",
+        )
+    await db.commit()

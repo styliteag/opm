@@ -127,3 +127,30 @@ class CacheFillerRunResponse(BaseModel):
 
     status: str  # "started" | "skipped"
     message: str
+
+
+class CacheEntryUpdateRequest(BaseModel):
+    """Admin hand-edit payload for ``PUT /entries/{ip}``.
+
+    ``hostnames`` is the full replacement list — the service layer
+    strips whitespace, drops empties, and dedupes case-insensitively
+    before writing. An empty list is valid and produces a
+    ``no_results`` row so operators can explicitly mark an IP as
+    "nothing worth scanning here".
+    """
+
+    hostnames: list[str] = Field(default_factory=list)
+
+
+class CacheEntryHostnamesResponse(BaseModel):
+    """Response for ``GET /api/hosts/{host_id}/hostnames``.
+
+    Simple shape so the host detail page can render a "Known
+    Hostnames" panel without parsing the full cache row.
+    """
+
+    ip: str
+    hostnames: list[str]
+    source: str | None
+    queried_at: datetime | None
+    expires_at: datetime | None

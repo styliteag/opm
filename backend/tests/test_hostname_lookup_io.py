@@ -604,3 +604,230 @@ class TestRunFillerEndpoint:
         assert response.status_code == 202
         body = response.json()
         assert body["status"] == "started"
+
+
+# --- PUT /entries/{ip} — manual hand-edit --------------------------
+
+
+class TestManualEditEndpoint:
+    async def test_put_requires_admin(self, client: AsyncClient) -> None:
+        response = await client.put(
+            "/api/admin/hostname-lookup/entries/10.0.0.1",
+            json={"hostnames": ["a.example"]},
+        )
+        assert response.status_code in (401, 403)
+
+    async def test_put_creates_new_row(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        response = await client.put(
+            "/api/admin/hostname-lookup/entries/10.0.0.77",
+            headers=admin_headers,
+            json={"hostnames": ["manual.example", "www.manual.example"]},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["ip"] == "10.0.0.77"
+        assert body["hostnames"] == ["manual.example", "www.manual.example"]
+        assert body["source"] == "manual"
+        assert body["status"] == "success"
+
+    async def test_put_overwrites_existing_row(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.78",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["from.hackertarget"],
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        response = await client.put(
+            "/api/admin/hostname-lookup/entries/10.0.0.78",
+            headers=admin_headers,
+            json={"hostnames": ["hand.example"]},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["source"] == "manual"
+        assert body["hostnames"] == ["hand.example"]
+
+    async def test_put_empty_list_creates_no_results_row(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        response = await client.put(
+            "/api/admin/hostname-lookup/entries/10.0.0.79",
+            headers=admin_headers,
+            json={"hostnames": []},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "no_results"
+        assert body["hostnames"] == []
+
+    async def test_put_uses_8_week_ttl(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+    ) -> None:
+        """Manual edits get a long TTL so the filler doesn't overwrite."""
+        response = await client.put(
+            "/api/admin/hostname-lookup/entries/10.0.0.80",
+            headers=admin_headers,
+            json={"hostnames": ["stable.example"]},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        queried_at = datetime.fromisoformat(body["queried_at"])
+        expires_at = datetime.fromisoformat(body["expires_at"])
+        delta_days = (expires_at - queried_at).days
+        # 8 weeks = 56 days; allow ±1 day for the clock boundary.
+        assert 55 <= delta_days <= 56
+
+    async def test_put_dedupes_and_strips(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        response = await client.put(
+            "/api/admin/hostname-lookup/entries/10.0.0.81",
+            headers=admin_headers,
+            json={
+                "hostnames": [
+                    "  a.example  ",
+                    "a.example",
+                    "A.Example",
+                    "",
+                    "b.example",
+                ],
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["hostnames"] == ["a.example", "b.example"]
+
+
+# --- DELETE /entries/{ip} -------------------------------------------
+
+
+class TestDeleteEntryEndpoint:
+    async def test_delete_requires_admin(self, client: AsyncClient) -> None:
+        response = await client.delete(
+            "/api/admin/hostname-lookup/entries/10.0.0.90"
+        )
+        assert response.status_code in (401, 403)
+
+    async def test_delete_removes_existing_row(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        await upsert_cache_row(
+            db_session,
+            "10.0.0.91",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["gone.example"],
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        response = await client.delete(
+            "/api/admin/hostname-lookup/entries/10.0.0.91",
+            headers=admin_headers,
+        )
+        assert response.status_code == 204
+
+        remaining = (
+            await db_session.execute(
+                select(HostnameLookup).where(HostnameLookup.ip == "10.0.0.91")
+            )
+        ).scalar_one_or_none()
+        assert remaining is None
+
+    async def test_delete_missing_row_returns_404(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        response = await client.delete(
+            "/api/admin/hostname-lookup/entries/10.0.0.99",
+            headers=admin_headers,
+        )
+        assert response.status_code == 404
+
+
+# --- GET /api/hosts/{host_id}/hostnames -----------------------------
+
+
+class TestHostHostnamesEndpoint:
+    async def test_returns_empty_for_uncached_host(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        from app.models.host import Host
+
+        host = Host(ip="10.0.1.1", seen_by_networks=[])
+        db_session.add(host)
+        await db_session.commit()
+        await db_session.refresh(host)
+
+        response = await client.get(
+            f"/api/hosts/{host.id}/hostnames", headers=admin_headers
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["ip"] == "10.0.1.1"
+        assert body["hostnames"] == []
+        assert body["source"] is None
+
+    async def test_returns_cached_hostnames(
+        self,
+        client: AsyncClient,
+        admin_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        from app.models.host import Host
+
+        host = Host(ip="10.0.1.2", seen_by_networks=[])
+        db_session.add(host)
+        await db_session.commit()
+        await db_session.refresh(host)
+
+        await upsert_cache_row(
+            db_session,
+            "10.0.1.2",
+            HostnameLookupResult(
+                status="success",
+                hostnames=["host.example", "www.host.example"],
+            ),
+            source="hackertarget",
+        )
+        await db_session.commit()
+
+        response = await client.get(
+            f"/api/hosts/{host.id}/hostnames", headers=admin_headers
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["hostnames"] == ["host.example", "www.host.example"]
+        assert body["source"] == "hackertarget"
+        assert body["queried_at"] is not None
+
+    async def test_unknown_host_returns_404(
+        self, client: AsyncClient, admin_headers: dict[str, str]
+    ) -> None:
+        response = await client.get(
+            "/api/hosts/99999/hostnames", headers=admin_headers
+        )
+        assert response.status_code == 404
+
+    async def test_requires_auth(self, client: AsyncClient) -> None:
+        response = await client.get("/api/hosts/1/hostnames")
+        assert response.status_code in (401, 403)

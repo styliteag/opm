@@ -3,9 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   Download,
   Globe,
+  Pencil,
   PlayCircle,
   RefreshCw,
   Search,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -18,15 +20,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import {
+  useDeleteHostnameCacheEntry,
   useHostnameLookupExport,
   useHostnameLookupStatus,
   useImportHostnameCache,
   useRunHostnameCacheFiller,
+  useUpdateHostnameCacheEntry,
   type CacheExportDocument,
   type HostnameLookupEntry,
   type HostnameLookupStatus,
@@ -48,6 +62,14 @@ const STATUS_COLORS: Record<HostnameLookupStatus, string> = {
   failed: "bg-rose-500/15 text-rose-300 border-rose-500/30",
 };
 
+// Source badge accents in the entries table — "manual" gets a distinct
+// amber tone so hand-edited rows are visually obvious in long tables.
+const SOURCE_BADGE_CLASSES: Record<string, string> = {
+  manual: "text-amber-300 font-emphasis",
+  hackertarget: "text-muted-foreground",
+  rapiddns: "text-muted-foreground",
+};
+
 function HostnameLookupPage() {
   const {
     data: status,
@@ -62,6 +84,8 @@ function HostnameLookupPage() {
   } = useHostnameLookupExport();
   const runFiller = useRunHostnameCacheFiller();
   const importCache = useImportHostnameCache();
+  const updateEntry = useUpdateHostnameCacheEntry();
+  const deleteEntry = useDeleteHostnameCacheEntry();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | HostnameLookupStatus>(
@@ -71,6 +95,8 @@ function HostnameLookupPage() {
     "skip",
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editing, setEditing] = useState<HostnameLookupEntry | null>(null);
+  const [editText, setEditText] = useState("");
 
   const filteredEntries = useMemo(() => {
     const entries = cache?.entries ?? [];
@@ -140,6 +166,55 @@ function HostnameLookupPage() {
       toast.success("Filler job queued — poll /status for progress");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Run failed");
+    }
+  }
+
+  function openEditDialog(entry: HostnameLookupEntry) {
+    setEditing(entry);
+    setEditText(entry.hostnames.join("\n"));
+  }
+
+  function closeEditDialog() {
+    setEditing(null);
+    setEditText("");
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    const hostnames = editText
+      .split(/\r?\n/)
+      .map((h) => h.trim())
+      .filter((h) => h.length > 0);
+    try {
+      await updateEntry.mutateAsync({ ip: editing.ip, hostnames });
+      toast.success(
+        hostnames.length === 0
+          ? `Cleared cache row for ${editing.ip}`
+          : `Saved ${hostnames.length} hostname${hostnames.length === 1 ? "" : "s"} for ${editing.ip}`,
+      );
+      closeEditDialog();
+      await refetchCache();
+      await refetchStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed");
+    }
+  }
+
+  async function deleteEntryByIp(ip: string) {
+    if (
+      !window.confirm(
+        `Delete hostname cache row for ${ip}? The next filler run will re-query this IP.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteEntry.mutateAsync(ip);
+      toast.success(`Deleted cache row for ${ip}`);
+      await refetchCache();
+      await refetchStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
     }
   }
 
@@ -277,10 +352,63 @@ function HostnameLookupPage() {
               No entries match the current filter.
             </p>
           ) : (
-            <EntriesTable entries={filteredEntries} />
+            <EntriesTable
+              entries={filteredEntries}
+              onEdit={openEditDialog}
+              onDelete={deleteEntryByIp}
+            />
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(open) => !open && closeEditDialog()}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit hostname cache for {editing?.ip}</DialogTitle>
+            <DialogDescription>
+              One hostname per line. Whitespace and duplicates are stripped.
+              Saving marks the row as <code>source=manual</code> with an
+              8-week TTL so the filler won&apos;t overwrite it. Leave empty
+              to mark this IP as &quot;nothing to scan&quot; (stored as
+              no_results).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="hostname-edit">Hostnames</Label>
+            <Textarea
+              id="hostname-edit"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              rows={10}
+              placeholder="example.com&#10;www.example.com&#10;..."
+              className="font-mono text-xs"
+              disabled={updateEntry.isPending}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {editText.split(/\r?\n/).filter((h) => h.trim().length > 0).length}{" "}
+              non-empty line(s)
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closeEditDialog}
+              disabled={updateEntry.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={saveEdit}
+              disabled={updateEntry.isPending}
+            >
+              {updateEntry.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -357,7 +485,13 @@ function StatCard({
   );
 }
 
-function EntriesTable({ entries }: { entries: HostnameLookupEntry[] }) {
+interface EntriesTableProps {
+  entries: HostnameLookupEntry[];
+  onEdit: (entry: HostnameLookupEntry) => void;
+  onDelete: (ip: string) => void;
+}
+
+function EntriesTable({ entries, onEdit, onDelete }: EntriesTableProps) {
   return (
     <div className="overflow-x-auto rounded-md border border-border/40">
       <table className="w-full text-sm">
@@ -369,11 +503,17 @@ function EntriesTable({ entries }: { entries: HostnameLookupEntry[] }) {
             <th className="px-3 py-2">Source</th>
             <th className="px-3 py-2">Queried</th>
             <th className="px-3 py-2">Expires</th>
+            <th className="px-3 py-2 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => (
-            <EntryRow key={entry.ip} entry={entry} />
+            <EntryRow
+              key={entry.ip}
+              entry={entry}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
           ))}
         </tbody>
       </table>
@@ -381,9 +521,17 @@ function EntriesTable({ entries }: { entries: HostnameLookupEntry[] }) {
   );
 }
 
-function EntryRow({ entry }: { entry: HostnameLookupEntry }) {
+interface EntryRowProps {
+  entry: HostnameLookupEntry;
+  onEdit: (entry: HostnameLookupEntry) => void;
+  onDelete: (ip: string) => void;
+}
+
+function EntryRow({ entry, onEdit, onDelete }: EntryRowProps) {
   const [expanded, setExpanded] = useState(false);
   const canExpand = entry.hostnames.length > 0;
+  const sourceClass =
+    SOURCE_BADGE_CLASSES[entry.source] ?? "text-muted-foreground";
 
   return (
     <>
@@ -404,9 +552,7 @@ function EntryRow({ entry }: { entry: HostnameLookupEntry }) {
         <td className="px-3 py-2 text-right font-mono text-xs">
           {entry.hostnames.length}
         </td>
-        <td className="px-3 py-2 text-xs text-muted-foreground">
-          {entry.source}
-        </td>
+        <td className={`px-3 py-2 text-xs ${sourceClass}`}>{entry.source}</td>
         <td className="px-3 py-2 text-xs text-muted-foreground">
           {entry.queried_at
             ? new Date(entry.queried_at).toLocaleString()
@@ -417,10 +563,38 @@ function EntryRow({ entry }: { entry: HostnameLookupEntry }) {
             ? new Date(entry.expires_at).toLocaleDateString()
             : "—"}
         </td>
+        <td className="px-3 py-2 text-right">
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              className="rounded p-1 text-muted-foreground hover:bg-card/60 hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(entry);
+              }}
+              aria-label={`Edit ${entry.ip}`}
+              title="Edit hostnames"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="rounded p-1 text-muted-foreground hover:bg-rose-500/15 hover:text-rose-300"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(entry.ip);
+              }}
+              aria-label={`Delete ${entry.ip}`}
+              title="Delete cache row"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </td>
       </tr>
       {expanded && canExpand && (
         <tr className="border-t border-border/40 bg-card/20">
-          <td colSpan={6} className="px-3 py-3">
+          <td colSpan={7} className="px-3 py-3">
             <p className="mb-1.5 text-xs font-emphasis text-muted-foreground">
               {entry.hostnames.length} hostname
               {entry.hostnames.length === 1 ? "" : "s"}:

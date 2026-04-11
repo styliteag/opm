@@ -56,6 +56,17 @@ TTL_SUCCESS_DAYS = 30
 TTL_NO_RESULTS_DAYS = 7
 TTL_FAILED_DAYS = 3
 
+# Manual edits (admin UI → PUT /entries/{ip}) use a long TTL so the
+# filler doesn't immediately overwrite a hand-curated list on the next
+# hourly pass. 8 weeks is long enough to survive many automatic
+# refresh cycles but still expires eventually so stale hand-edits
+# don't pin a row forever — operator can always re-edit if they want.
+MANUAL_EDIT_TTL_DAYS = 56
+
+# Source name reserved for admin-edited rows. Kept distinct from the
+# reverse-IP source names so the UI can render a "MANUAL" badge.
+MANUAL_SOURCE_NAME = "manual"
+
 # HackerTarget /reverseiplookup/ free-tier rate limits (from the
 # provider's docs, 2026-04): 50 req/day for anonymous free users,
 # throttled to max 2 req/s, returns HTTP 429 when either limit is
@@ -431,6 +442,94 @@ async def get_hostnames_for_ips(
         if names:
             result[row.ip] = names
     return result
+
+
+async def get_cache_row_for_ip(
+    db: AsyncSession, ip: str
+) -> HostnameLookup | None:
+    """Return the raw cache row for an IP, or ``None`` if no row exists.
+
+    Unlike :func:`get_cached_hostnames`, this returns the full row
+    (including expired or failed) so callers can display row metadata
+    like source and ``queried_at`` — for the host detail page's
+    "Known Hostnames" panel, stale rows should still be visible so
+    the operator knows a refresh is due. Caller decides how to handle
+    expiry.
+    """
+    return (
+        await db.execute(select(HostnameLookup).where(HostnameLookup.ip == ip))
+    ).scalar_one_or_none()
+
+
+async def update_cache_entry_manual(
+    db: AsyncSession,
+    ip: str,
+    hostnames: list[str],
+) -> HostnameLookup:
+    """Admin hand-edit of a cache row — upsert with ``source='manual'``.
+
+    Writes (or replaces) the row for ``ip`` using a long 8-week TTL so
+    the filler won't overwrite it on its next hourly pass. The status
+    is derived from the hostname list: non-empty → ``success``, empty
+    → ``no_results`` (operator explicitly asserting "this IP serves
+    nothing worth scanning").
+
+    Hostnames are trimmed + deduped case-insensitively before storage.
+    """
+    now = _now()
+    normalized: dict[str, None] = {}
+    for entry in hostnames:
+        stripped = entry.strip()
+        if stripped:
+            normalized.setdefault(stripped.lower(), None)
+    clean = list(normalized.keys())
+
+    status: LookupStatus = "success" if clean else "no_results"
+    expires = now + timedelta(days=MANUAL_EDIT_TTL_DAYS)
+
+    existing = (
+        await db.execute(select(HostnameLookup).where(HostnameLookup.ip == ip))
+    ).scalar_one_or_none()
+
+    if existing is None:
+        row = HostnameLookup(
+            ip=ip,
+            hostnames_json=clean,
+            source=MANUAL_SOURCE_NAME,
+            status=status,
+            queried_at=now,
+            expires_at=expires,
+            error_message=None,
+        )
+        db.add(row)
+        await db.flush()
+        return row
+
+    existing.hostnames_json = clean
+    existing.source = MANUAL_SOURCE_NAME
+    existing.status = status
+    existing.queried_at = now
+    existing.expires_at = expires
+    existing.error_message = None
+    await db.flush()
+    return existing
+
+
+async def delete_cache_entry(db: AsyncSession, ip: str) -> bool:
+    """Drop the cache row for ``ip`` if it exists.
+
+    Returns ``True`` when a row was deleted, ``False`` on miss. Used
+    by the admin UI's delete action and for clearing junk cached data
+    (e.g. a bad rapiddns row).
+    """
+    existing = (
+        await db.execute(select(HostnameLookup).where(HostnameLookup.ip == ip))
+    ).scalar_one_or_none()
+    if existing is None:
+        return False
+    await db.delete(existing)
+    await db.flush()
+    return True
 
 
 async def upsert_cache_row(

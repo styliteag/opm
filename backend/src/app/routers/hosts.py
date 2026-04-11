@@ -35,10 +35,12 @@ from app.schemas.host import (
     HostUpdateRequest,
     PortRuleMatch,
 )
+from app.schemas.hostname_lookup import CacheEntryHostnamesResponse
 from app.schemas.scan import HostRescanRequest, ScanTriggerResponse
 from app.schemas.vulnerability import VulnerabilityListResponse, VulnerabilitySeverityLabel
 from app.services import global_open_ports as global_ports_service
 from app.services import hosts as hosts_service
+from app.services.hostname_lookup import get_cache_row_for_ip
 from app.services.vulnerability_results import get_vulnerabilities_for_host
 
 router = APIRouter(prefix="/api/hosts", tags=["hosts"])
@@ -128,6 +130,52 @@ async def get_host(
     response = HostResponse.model_validate(host)
     response.open_port_count = port_count
     return response
+
+
+@router.get(
+    "/{host_id}/hostnames",
+    response_model=CacheEntryHostnamesResponse,
+)
+async def get_host_hostnames(
+    user: CurrentUser,  # noqa: ARG001 — auth gate, any user can read
+    db: DbSession,
+    host_id: int,
+) -> CacheEntryHostnamesResponse:
+    """Return cached vhost list for a host's IP.
+
+    Reads the ``hostname_lookup_cache`` row for this host's IP and
+    returns the stored hostname list plus row metadata (source,
+    queried_at, expires_at). The host detail page uses this to render
+    the "Known Hostnames" panel — shows the vhosts nuclei will fan
+    out over if SNI fan-out is enabled on the network.
+
+    Returns an empty list (not 404) when the host has no cache row
+    yet — the filler hasn't reached it — so the UI can distinguish
+    "not enriched yet" from "no such host".
+    """
+    host = await hosts_service.get_host_by_id(db, host_id)
+    if host is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Host not found",
+        )
+
+    row = await get_cache_row_for_ip(db, host.ip)
+    if row is None:
+        return CacheEntryHostnamesResponse(
+            ip=host.ip,
+            hostnames=[],
+            source=None,
+            queried_at=None,
+            expires_at=None,
+        )
+    return CacheEntryHostnamesResponse(
+        ip=host.ip,
+        hostnames=list(row.hostnames_json or []),
+        source=row.source,
+        queried_at=row.queried_at,
+        expires_at=row.expires_at,
+    )
 
 
 @router.get("/{host_id}/ports", response_model=HostOpenPortListResponse)
