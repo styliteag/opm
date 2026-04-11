@@ -164,6 +164,7 @@ export function NetworkForm({
           scan_schedule: source.scan_schedule ?? undefined,
           nse_profile_id: source.nse_profile_id ?? undefined,
           gvm_keep_reports: source.gvm_keep_reports ?? true,
+          ssh_probe_enabled: source.ssh_probe_enabled ?? true,
           nuclei_enabled: source.nuclei_enabled ?? false,
           nuclei_tags: source.nuclei_tags ?? undefined,
           nuclei_severity:
@@ -195,6 +196,7 @@ export function NetworkForm({
           scan_timeout: 3600,
           port_timeout: 1500,
           gvm_keep_reports: true,
+          ssh_probe_enabled: true,
           nuclei_enabled: false,
           ssh_override_insecure_auth: "inherit",
           ssh_override_weak_cipher: "inherit",
@@ -664,6 +666,24 @@ export function NetworkForm({
                   Comma-separated emails
                 </p>
               </div>
+            </div>
+
+            <div className="rounded-md border border-border/40 bg-card/40 p-3">
+              <label className="flex items-center gap-2 text-sm font-emphasis">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-border/50 bg-background"
+                  {...register("ssh_probe_enabled")}
+                />
+                Run SSH probe on open ports
+              </label>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                When enabled (default), the scanner runs ssh-audit and nmap
+                ssh-auth-methods against any discovered SSH service after the
+                port scan. Uncheck to skip all SSH probing for this network —
+                no SSH findings, banners, or cipher data will be recorded and
+                no SSH alerts will fire.
+              </p>
             </div>
 
             <SshAlertOverrides />

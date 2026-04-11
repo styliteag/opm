@@ -91,6 +91,7 @@ async def get_pending_jobs_for_scanner(
                 gvm_scan_config=net.gvm_scan_config,
                 gvm_port_list=net.gvm_port_list,
                 gvm_keep_reports=net.gvm_keep_reports,
+                ssh_probe_enabled=net.ssh_probe_enabled,
                 nuclei_enabled=net.nuclei_enabled,
                 nuclei_tags=net.nuclei_tags,
                 nuclei_severity=net.nuclei_severity,

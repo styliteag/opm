@@ -104,6 +104,7 @@ async def create_network(
         gvm_scan_config=request.gvm_scan_config,
         gvm_port_list=request.gvm_port_list,
         gvm_keep_reports=request.gvm_keep_reports,
+        ssh_probe_enabled=request.ssh_probe_enabled,
         nuclei_enabled=request.nuclei_enabled,
         nuclei_tags=request.nuclei_tags,
         nuclei_severity=request.nuclei_severity,
@@ -220,6 +221,7 @@ async def update_network(
         clear_gvm_port_list="gvm_port_list" in request.model_fields_set
         and request.gvm_port_list is None,
         gvm_keep_reports=request.gvm_keep_reports,
+        ssh_probe_enabled=request.ssh_probe_enabled,
         nuclei_enabled=request.nuclei_enabled,
         nuclei_tags=request.nuclei_tags,
         clear_nuclei_tags="nuclei_tags" in request.model_fields_set

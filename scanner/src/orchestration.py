@@ -368,6 +368,7 @@ def _run_phase_pipeline(
                 _submit_pipeline_results(
                     client, scan_id, completed, logger,
                     status="failed", error="Cancelled by user",
+                    ssh_probe_enabled=job.ssh_probe_enabled,
                 )
                 return
         except Exception:
@@ -389,6 +390,7 @@ def _run_phase_pipeline(
             _submit_pipeline_results(
                 client, scan_id, completed, logger,
                 status="failed", error="Cancelled by user",
+                ssh_probe_enabled=job.ssh_probe_enabled,
             )
             return
         except Exception as exc:
@@ -396,6 +398,7 @@ def _run_phase_pipeline(
             _submit_pipeline_results(
                 client, scan_id, completed, logger,
                 status="failed", error=f"Phase {phase.name} failed: {exc}",
+                ssh_probe_enabled=job.ssh_probe_enabled,
             )
             return
 
@@ -403,20 +406,24 @@ def _run_phase_pipeline(
         progress_reporter.update((num / total) * 100, msg)
 
     progress_reporter.update(100, "Scan complete")
-    _submit_pipeline_results(client, scan_id, completed, logger, status="success")
+    _submit_pipeline_results(
+        client, scan_id, completed, logger, status="success",
+        ssh_probe_enabled=job.ssh_probe_enabled,
+    )
 
 
 def _submit_pipeline_results(
     client: ScannerClient, scan_id: int, completed: dict[str, Any],
     logger: logging.Logger, status: str = "success", error: str | None = None,
+    ssh_probe_enabled: bool = True,
 ) -> None:
     """Submit results from completed phases."""
     ps = completed.get("port_scan")
     open_ports = ps["open_ports"] if ps else []
 
-    # SSH probing on port scan results
+    # SSH probing on port scan results — opt-out per network via ssh_probe_enabled
     ssh_results: list[SSHProbeResult] = []
-    if open_ports and status == "success":
+    if open_ports and status == "success" and ssh_probe_enabled:
         ssh_targets = detect_ssh_services(open_ports)
         if ssh_targets:
             logger.info("Running SSH probes on %d targets", len(ssh_targets))
@@ -425,6 +432,8 @@ def _submit_pipeline_results(
                 concurrency=DEFAULT_SSH_PROBE_CONCURRENCY,
                 timeout=DEFAULT_SSH_PROBE_TIMEOUT,
             )
+    elif open_ports and status == "success" and not ssh_probe_enabled:
+        logger.info("SSH probing disabled for this network, skipping")
 
     vuln = completed.get("vulnerability")
 

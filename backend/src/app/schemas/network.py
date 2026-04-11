@@ -164,6 +164,7 @@ class NetworkCreateRequest(BaseModel):
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
     gvm_keep_reports: bool = True
+    ssh_probe_enabled: bool = True
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None
     nuclei_severity: str | None = None
@@ -257,6 +258,7 @@ class NetworkUpdateRequest(BaseModel):
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
     gvm_keep_reports: bool | None = None
+    ssh_probe_enabled: bool | None = None
     nuclei_enabled: bool | None = None
     nuclei_tags: str | None = None
     nuclei_severity: str | None = None
@@ -370,6 +372,7 @@ class NetworkResponse(BaseModel):
     gvm_scan_config: str | None
     gvm_port_list: str | None
     gvm_keep_reports: bool = True
+    ssh_probe_enabled: bool = True
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None
     nuclei_severity: str | None = None

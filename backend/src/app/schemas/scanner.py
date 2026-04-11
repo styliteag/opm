@@ -156,6 +156,8 @@ class ScannerJobResponse(BaseModel):
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
     gvm_keep_reports: bool = True
+    # SSH probe gate (applies to any scanner_type that produces open_ports)
+    ssh_probe_enabled: bool = True
     # Nuclei post-phase config (only meaningful for scanner_type in masscan/nmap)
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None

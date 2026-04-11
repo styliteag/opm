@@ -173,6 +173,7 @@ class ScannerClient:
                         gvm_scan_config=job.get("gvm_scan_config"),
                         gvm_port_list=job.get("gvm_port_list"),
                         gvm_keep_reports=bool(job.get("gvm_keep_reports", True)),
+                        ssh_probe_enabled=bool(job.get("ssh_probe_enabled", True)),
                         nuclei_enabled=bool(job.get("nuclei_enabled", False)),
                         nuclei_tags=job.get("nuclei_tags"),
                         nuclei_severity=job.get("nuclei_severity"),

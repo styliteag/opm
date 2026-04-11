@@ -76,6 +76,13 @@ class Network(Base):
         comment="Keep GVM task/target/report in the Greenbone instance after scan "
         "(visible in GSA); when false, scanner deletes them post-scan",
     )
+    ssh_probe_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="1",
+        comment="Run SSH probe (ssh-audit + auth methods) on open ports after port scan",
+    )
     nuclei_enabled: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

@@ -27,6 +27,7 @@ export const networkFormSchema = z.object({
     z.number().optional(),
   ),
   gvm_keep_reports: z.boolean().default(true),
+  ssh_probe_enabled: z.boolean().default(true),
   nuclei_enabled: z.boolean().default(false),
   nuclei_tags: z.string().optional(),
   nuclei_severity: z.preprocess(
