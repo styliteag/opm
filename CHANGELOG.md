@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-04-11
+
 ### Added
 
 - **SSH Alert Defaults**: dedicated admin page at `/admin/ssh-alert-defaults` (sidebar entry "SSH Defaults", `KeyRound` icon, admin-only). Replaces the embedded section on the Organization page. Toggles are grouped by topic (Anmeldung / Verschlüsselung / OpenSSH-Version / Änderungsüberwachung) with German help text under each switch. The version threshold input is labeled "Mindest-Version (nur OpenSSH)" and validates against `^\d+(\.\d+){1,2}$` both client- and server-side; non-OpenSSH implementations (Dropbear, libssh) are explicitly called out as not version-checked. New override banner shows "X Netzwerke überschreiben diese Defaults" with a link to a filtered networks list, plus a "Auf alle anwenden" button (with confirmation dialog) that strips the six SSH keys from every network's `alert_config` while preserving non-SSH keys like `email_recipients`. Two new admin endpoints back the page: `GET /api/settings/ssh-alert-defaults/overriding-networks` and `POST /api/settings/ssh-alert-defaults/apply-to-all`
