@@ -95,32 +95,58 @@ def _format_phase_progress(
 def _build_legacy_phases(job: ScannerJob) -> list[ScanPhase]:
     """Build phases from legacy scanner_type for backward compat.
 
-    Appends a nuclei post-phase when `job.nuclei_enabled` and the network's
-    scanner_type is masscan or nmap. Nuclei is intentionally mutually
-    exclusive with NSE (both are vulnerability scanners, pick one) and with
-    greenbone (different code path + different scanner container).
+    Nuclei post-phase appending is handled centrally by
+    ``_ensure_nuclei_phase`` so both legacy and pre-built pipelines pick up
+    ``job.nuclei_enabled`` identically.
     """
     if job.scanner_type == "nse":
         return [
             ScanPhase(name="vulnerability", enabled=True, tool="nmap_nse", config={}),
         ]
-    phases: list[ScanPhase] = [
+    return [
         ScanPhase(name="port_scan", enabled=True, tool=job.scanner_type, config={}),
     ]
-    if job.nuclei_enabled and job.scanner_type in ("masscan", "nmap"):
-        phases.append(
-            ScanPhase(
-                name="vulnerability",
-                enabled=True,
-                tool="nuclei",
-                config={
-                    "tags": job.nuclei_tags,
-                    "severity": job.nuclei_severity,
-                    "timeout": job.nuclei_timeout,
-                },
-            )
-        )
-    return phases
+
+
+_NUCLEI_ELIGIBLE_SCANNER_TYPES = ("masscan", "nmap")
+
+
+def _ensure_nuclei_phase(
+    phases: list[ScanPhase], job: ScannerJob
+) -> list[ScanPhase]:
+    """Ensure a nuclei vulnerability phase is present when eligible.
+
+    Appends a ``ScanPhase(name="vulnerability", tool="nuclei", ...)`` when
+    all of the following hold:
+
+    * ``job.nuclei_enabled`` is true,
+    * ``job.scanner_type`` is masscan or nmap (nuclei is mutually exclusive
+      with NSE and with greenbone by design), and
+    * ``phases`` does not already contain an enabled nuclei phase.
+
+    This runs for *both* legacy-built pipelines and pre-built ``job.phases``
+    coming from the backend, so networks with a stored ``phases`` column
+    that only lists ``host_discovery`` + ``port_scan`` + a disabled
+    ``nmap_nse`` vulnerability phase still get nuclei when the user has
+    flipped ``nuclei_enabled`` on at the network level.
+    """
+    if not job.nuclei_enabled or job.scanner_type not in _NUCLEI_ELIGIBLE_SCANNER_TYPES:
+        return phases
+    if any(p.enabled and p.tool == "nuclei" for p in phases):
+        return phases
+    return [
+        *phases,
+        ScanPhase(
+            name="vulnerability",
+            enabled=True,
+            tool="nuclei",
+            config={
+                "tags": job.nuclei_tags,
+                "severity": job.nuclei_severity,
+                "timeout": job.nuclei_timeout,
+            },
+        ),
+    ]
 
 
 class _CancelledError(Exception):
@@ -461,8 +487,13 @@ def process_job(
             if not check_ipv6_connectivity(logger):
                 raise RuntimeError("IPv6 connectivity not available")
 
-        # Use phase pipeline when phases are available
-        phases = job.phases or _build_legacy_phases(job)
+        # Use phase pipeline when phases are available. Nuclei eligibility
+        # is applied uniformly to both legacy and pre-built phases so that
+        # networks with a stored `phases` column still honor
+        # `nuclei_enabled`.
+        phases = _ensure_nuclei_phase(
+            job.phases or _build_legacy_phases(job), job
+        )
         _run_phase_pipeline(phases, job, client, scan_id, logger, progress_reporter)
 
     except Exception as exc:

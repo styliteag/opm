@@ -30,10 +30,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Templates are refreshed at Docker build time via `nuclei -update-templates`;
 # runtime updates are disabled inside the scanner via `-disable-update-check`
 # so a running container never drifts.
+# NOTE: do NOT pass `-duc` to `-update-templates` — it short-circuits the
+# update and leaves the directory empty, which nuclei then rejects at scan
+# time with "no templates provided for scan".
 COPY --from=nuclei /usr/local/bin/nuclei /usr/local/bin/nuclei
 ENV NUCLEI_TEMPLATES_DIR=/opt/nuclei-templates
 RUN mkdir -p "${NUCLEI_TEMPLATES_DIR}" \
-    && nuclei -update-templates -ud "${NUCLEI_TEMPLATES_DIR}" -duc \
+    && nuclei -update-templates -ud "${NUCLEI_TEMPLATES_DIR}" \
     && chmod -R a+rX "${NUCLEI_TEMPLATES_DIR}"
 
 RUN mkdir -p /opt/opm/custom-scripts
