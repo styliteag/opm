@@ -210,3 +210,88 @@ class HostnameLookupRefreshResponse(BaseModel):
 
     status: Literal["queued"] = "queued"
     queue_entry: HostnameLookupQueueEntryResponse
+
+
+# --- Scanner-facing results + budget ---------------------------------
+
+
+# Source names accepted by the scanner-facing /hostname-results endpoint.
+# Only vhost-list providers belong here — ssl-cert / PTR / ip-api results
+# are display names, not vhost lists, and continue to flow via the
+# host-discovery endpoint instead.
+ScannerHostnameSource = Literal["hackertarget", "rapiddns", "crt_sh"]
+
+
+class HostnameLookupResultSubmission(BaseModel):
+    """One enrichment outcome posted by the scanner.
+
+    Mirrors the service-layer ``HostnameLookupResult`` shape so the
+    backend can construct one and call ``upsert_cache_row`` directly.
+    The hostname list is normalised (trim, dedupe) by the field
+    validator before being persisted.
+    """
+
+    ip: str = Field(..., max_length=45)
+    source: ScannerHostnameSource
+    status: Literal["success", "no_results", "failed"]
+    hostnames: list[str] = Field(default_factory=list)
+    error_message: str | None = Field(default=None, max_length=500)
+
+    @field_validator("hostnames")
+    @classmethod
+    def _strip_and_dedupe(cls, value: list[str]) -> list[str]:
+        seen: dict[str, None] = {}
+        for h in value:
+            stripped = h.strip()
+            if stripped:
+                seen.setdefault(stripped, None)
+        return list(seen.keys())
+
+
+class HostnameLookupResultsRequest(BaseModel):
+    """Bulk enrichment payload from scanner.
+
+    A scanner posts one of these per enrichment cycle. The list may
+    contain a mix of sources and statuses; each entry is processed
+    independently and the response reports aggregate counts.
+    """
+
+    results: list[HostnameLookupResultSubmission]
+
+
+class HostnameLookupResultsResponse(BaseModel):
+    """Per-batch outcome counters returned to the scanner.
+
+    The scanner uses these for log lines and self-throttling. The
+    backend never rejects valid results — even when the budget counter
+    is over, the cache write still happens because the data is
+    valuable; ``budget_pinned_sources`` simply tells the scanner which
+    sources to stop calling for the rest of the day.
+    """
+
+    accepted: int
+    rejected: int
+    cache_rows_written: int
+    hosts_synced: int
+    budget_pinned_sources: list[str] = Field(default_factory=list)
+
+
+class HostnameLookupBudgetEntry(BaseModel):
+    """Per-source daily budget snapshot for the scanner pre-flight check."""
+
+    source: str
+    used: int
+    limit: int
+    remaining: int
+
+
+class HostnameLookupBudgetResponse(BaseModel):
+    """Wrapper for ``GET /api/scanner/hostname-budget``.
+
+    Returns one entry per known reverse-IP source so the scanner can
+    decide whether to attempt a lookup before burning a request slot.
+    The ``remaining`` field clamps to zero so the scanner never has
+    to deal with negative numbers.
+    """
+
+    budgets: list[HostnameLookupBudgetEntry]

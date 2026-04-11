@@ -13,9 +13,13 @@ from app.schemas.gvm_library import (
     GvmMetadataSnapshotResponse,
 )
 from app.schemas.hostname_lookup import (
+    HostnameLookupBudgetEntry,
+    HostnameLookupBudgetResponse,
     HostnameLookupQueueCompleteRequest,
     HostnameLookupQueueEntryResponse,
     HostnameLookupQueueListResponse,
+    HostnameLookupResultsRequest,
+    HostnameLookupResultsResponse,
 )
 from app.schemas.scanner import (
     HostDiscoveryJobClaimResponse,
@@ -45,8 +49,10 @@ from app.services import gvm_metadata as gvm_metadata_service
 from app.services import host_discovery as host_discovery_service
 from app.services import hosts as hosts_service
 from app.services.hostname_lookup import (
+    apply_scanner_hostname_results,
     claim_pending_lookup_jobs,
     get_hostnames_for_ips,
+    get_scanner_budget_snapshot,
     mark_queue_entry_completed,
 )
 from app.services.scanner_auth import authenticate_scanner
@@ -366,6 +372,89 @@ async def get_scanner_hostnames(
 
     mapping = await get_hostnames_for_ips(db, ip_list)
     return ScannerHostnamesResponse(hostnames=mapping)
+
+
+@router.get(
+    "/hostname-budget",
+    response_model=HostnameLookupBudgetResponse,
+)
+async def get_hostname_budget(
+    db: DbSession,
+    scanner: CurrentScanner,  # noqa: ARG001 — DI gate for scanner JWT
+) -> HostnameLookupBudgetResponse:
+    """Return today's per-source daily budget for the scanner pre-flight.
+
+    The scanner consults this before calling HackerTarget / RapidDNS so
+    it can skip a source whose ``remaining`` is zero. Limits are
+    sourced from the backend's settings during the 2.3.0 transition;
+    after Commit 10 deletes the legacy filler, the source-of-truth for
+    HT API key + RapidDNS toggle moves scanner-side and this endpoint
+    falls back to anonymous defaults.
+    """
+    snapshot = await get_scanner_budget_snapshot(db)
+    return HostnameLookupBudgetResponse(
+        budgets=[
+            HostnameLookupBudgetEntry(
+                source=entry.source,
+                used=entry.used,
+                limit=entry.limit,
+                remaining=entry.remaining,
+            )
+            for entry in snapshot
+        ]
+    )
+
+
+@router.post(
+    "/hostname-results",
+    response_model=HostnameLookupResultsResponse,
+)
+async def submit_hostname_results(
+    request: HostnameLookupResultsRequest,
+    db: DbSession,
+    scanner: CurrentScanner,  # noqa: ARG001 — DI gate for scanner JWT
+) -> HostnameLookupResultsResponse:
+    """Persist a batch of scanner-side enrichment outcomes.
+
+    Each entry is processed independently:
+
+    - The per-source daily budget counter is incremented post-fact
+      (the scanner has already called the upstream API).
+    - The cache row is upserted via the standard service path with
+      the per-status TTL (30d / 7d / 3d).
+    - On ``success`` with non-empty hostnames, the host's
+      ``hostname`` column is backfilled to the first vhost iff the
+      host exists and does not already have a hostname (existing
+      manual / discovery hostnames are preserved).
+    - If a result carries the well-known ``"api count exceeded"``
+      error marker, today's budget for that source is pinned so the
+      scanner stops calling for the rest of the day.
+
+    Unknown source names land in ``rejected`` and are skipped — the
+    backend never accepts data from sources outside the configured
+    allow-list (HackerTarget, RapidDNS for now).
+    """
+    outcome = await apply_scanner_hostname_results(
+        db,
+        results=[
+            (
+                entry.ip,
+                entry.source,
+                entry.status,
+                entry.hostnames,
+                entry.error_message,
+            )
+            for entry in request.results
+        ],
+    )
+    await db.commit()
+    return HostnameLookupResultsResponse(
+        accepted=outcome.accepted,
+        rejected=outcome.rejected,
+        cache_rows_written=outcome.cache_rows_written,
+        hosts_synced=outcome.hosts_synced,
+        budget_pinned_sources=outcome.budget_pinned_sources,
+    )
 
 
 @router.get(

@@ -639,6 +639,22 @@ async def consume_budget(
     return True
 
 
+async def increment_budget_used(db: AsyncSession, source: str) -> int:
+    """Post-fact +1 budget tick — used by the scanner-results endpoint.
+
+    Unlike :func:`consume_budget`, this never refuses: the scanner has
+    already made the upstream API call by the time it posts results,
+    so the data is sunk-cost. We still want the counter to advance so
+    the next ``GET /hostname-budget`` reflects reality and the rest of
+    today's enrichment respects the cap. Returns the new ``used``
+    value for logging.
+    """
+    row = await _get_or_create_budget_row(db, source)
+    row.used += 1
+    await db.flush()
+    return int(row.used)
+
+
 async def pin_budget_exhausted(
     db: AsyncSession, source: str, daily_limit: int
 ) -> None:
@@ -871,3 +887,162 @@ async def get_pending_queue_count(db: AsyncSession) -> int:
         )
     ).all()
     return len(rows)
+
+
+# --- Scanner-facing budget snapshot + bulk results write -------------
+
+# Sources tracked by the scanner-facing budget endpoint. Order matches
+# the scanner's source-priority chain (HT first, RapidDNS as fallback)
+# so the budget response renders predictably in the UI.
+SCANNER_BUDGET_SOURCES: tuple[str, ...] = ("hackertarget", "rapiddns")
+
+
+def _scanner_source_limit(source: str) -> int:
+    """Resolve the per-day cap for a scanner-facing source.
+
+    Pulls from ``app.core.config.settings`` so the legacy backend
+    filler and the new scanner-results path share the same configured
+    limits during the 2.3.0 transition. Once the filler is deleted in
+    Commit 10, these settings move scanner-side and this helper either
+    becomes scanner-config aware or hardcodes the anonymous defaults.
+    """
+    # Local import to avoid circular dependency between core.config
+    # and the service module at import time.
+    from app.core.config import settings
+
+    if source == "hackertarget":
+        return (
+            HACKERTARGET_DAILY_LIMIT_WITH_KEY
+            if settings.hackertarget_api_key
+            else HACKERTARGET_DAILY_LIMIT_ANON
+        )
+    if source == "rapiddns":
+        if not settings.rapiddns_enabled:
+            return 0
+        return int(settings.rapiddns_daily_limit)
+    return 0
+
+
+@dataclass(frozen=True)
+class BudgetSnapshotEntry:
+    """One source's daily budget state for the scanner pre-flight check."""
+
+    source: str
+    used: int
+    limit: int
+    remaining: int
+
+
+async def get_scanner_budget_snapshot(
+    db: AsyncSession,
+) -> list[BudgetSnapshotEntry]:
+    """Return today's budget state for every scanner-tracked source.
+
+    Each entry is independent; the scanner reads ``remaining`` and
+    decides per-source whether to attempt a lookup. ``remaining``
+    clamps to zero so callers never see negative values when the
+    counter has been pinned past the limit by an upstream rate-limit
+    signal.
+    """
+    snapshot: list[BudgetSnapshotEntry] = []
+    for source in SCANNER_BUDGET_SOURCES:
+        used = await get_budget_used(db, source)
+        limit = _scanner_source_limit(source)
+        remaining = max(limit - used, 0)
+        snapshot.append(
+            BudgetSnapshotEntry(
+                source=source,
+                used=used,
+                limit=limit,
+                remaining=remaining,
+            )
+        )
+    return snapshot
+
+
+@dataclass(frozen=True)
+class ScannerResultsOutcome:
+    """Aggregate counters returned to the scanner after a bulk write."""
+
+    accepted: int
+    rejected: int
+    cache_rows_written: int
+    hosts_synced: int
+    budget_pinned_sources: list[str]
+
+
+async def apply_scanner_hostname_results(
+    db: AsyncSession,
+    results: list[tuple[str, str, LookupStatus, list[str], str | None]],
+) -> ScannerResultsOutcome:
+    """Persist a batch of scanner-side enrichment outcomes.
+
+    Per result tuple ``(ip, source, status, hostnames, error_message)``:
+
+    1. Increment the daily budget counter for the source (post-fact —
+       the scanner has already burned its API quota by the time it
+       posts the result).
+    2. Upsert the cache row via :func:`upsert_cache_row`. The TTL is
+       chosen by the result status as usual.
+    3. On ``success`` with non-empty hostnames: backfill the host's
+       ``hostname`` column to the first vhost iff the host exists and
+       does not yet have a hostname set. Existing hostnames (manual
+       edits, ssl-cert / PTR / ip-api enrichment) are preserved.
+    4. If the source's error message contains the well-known
+       ``"api count exceeded"`` marker, pin today's budget so future
+       calls to ``get_scanner_budget_snapshot`` short-circuit the
+       scanner before it burns more quota.
+
+    Caller is responsible for the transaction commit. Returns the
+    aggregate outcome counters for the response payload.
+    """
+    # Local import — keeps the hostname_lookup service free of a
+    # hard dependency on the hosts service module at import time.
+    from app.services.hosts import get_host_by_ip
+
+    accepted = 0
+    rejected = 0
+    cache_rows_written = 0
+    hosts_synced = 0
+    pinned: set[str] = set()
+
+    for ip, source, status, hostnames, error_message in results:
+        if source not in SCANNER_BUDGET_SOURCES:
+            rejected += 1
+            continue
+
+        await increment_budget_used(db, source)
+
+        result = HostnameLookupResult(
+            status=status,
+            hostnames=list(hostnames),
+            error_message=error_message,
+        )
+        await upsert_cache_row(db, ip, result, source)
+        cache_rows_written += 1
+        accepted += 1
+
+        if (
+            error_message is not None
+            and "api count exceeded" in error_message.lower()
+            and source not in pinned
+        ):
+            await pin_budget_exhausted(db, source, _scanner_source_limit(source))
+            pinned.add(source)
+
+        if status == "success" and hostnames:
+            host = await get_host_by_ip(db, ip)
+            if host is not None and not host.hostname:
+                host.hostname = hostnames[0]
+                hosts_synced += 1
+
+    if cache_rows_written or rejected:
+        await db.flush()
+
+    return ScannerResultsOutcome(
+        accepted=accepted,
+        rejected=rejected,
+        cache_rows_written=cache_rows_written,
+        hosts_synced=hosts_synced,
+        budget_pinned_sources=sorted(pinned),
+    )
