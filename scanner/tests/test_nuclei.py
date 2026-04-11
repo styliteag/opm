@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import subprocess
 from typing import Any
 from unittest.mock import patch
 
@@ -274,10 +273,34 @@ class TestParseJsonl:
 # ── run_nuclei ────────────────────────────────────────────────────────────
 
 
-class _FakeCompleted:
-    def __init__(self, returncode: int = 0, stderr: str = "") -> None:
-        self.returncode = returncode
-        self.stderr = stderr
+class _FakeProcess:
+    """Minimal Popen stand-in for nuclei tests.
+
+    The production code line-iterates `process.stdout`, calls `process.wait()`,
+    and hands the process off to `ProcessTimeoutWatcher` which may call
+    `poll() / terminate() / kill()`. This fake satisfies all of those while
+    letting the test drive the output lines and exit code.
+    """
+
+    def __init__(self, returncode: int = 0, stdout_text: str = "") -> None:
+        self._returncode = returncode
+        # keepends preserves the `\n` boundaries the real Popen text stream has.
+        lines = stdout_text.splitlines(keepends=True) if stdout_text else []
+        self.stdout = iter(lines)
+
+    def wait(self, timeout: float | None = None) -> int:
+        return self._returncode
+
+    def poll(self) -> int | None:
+        # Returning the exit code means "already done" — the timeout watcher
+        # won't try to terminate us.
+        return self._returncode
+
+    def terminate(self) -> None:  # pragma: no cover — timeout path only
+        pass
+
+    def kill(self) -> None:  # pragma: no cover — timeout path only
+        pass
 
 
 class TestRunNuclei:
@@ -293,11 +316,49 @@ class TestRunNuclei:
             )
         assert result == []
 
-    def test_subprocess_timeout_returns_empty(self, tmp_path: Any) -> None:
+    def test_subprocess_start_failure_returns_empty(self, tmp_path: Any) -> None:
         logger = logging.getLogger("test")
-        with patch("src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"), patch(
-            "src.scanners.nuclei.subprocess.run",
-            side_effect=subprocess.TimeoutExpired("nuclei", 60),
+        with patch(
+            "src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"
+        ), patch(
+            "src.scanners.nuclei.subprocess.Popen",
+            side_effect=FileNotFoundError("nuclei"),
+        ):
+            result = nuclei.run_nuclei(
+                ["10.0.0.1:80"], "cves", "medium", 60, logger
+            )
+        assert result == []
+
+    def test_subprocess_timeout_returns_empty(self, tmp_path: Any) -> None:
+        """When the timeout watcher fires, run_nuclei returns []."""
+        logger = logging.getLogger("test")
+
+        class _TimedOutProcess(_FakeProcess):
+            pass
+
+        def fake_popen(cmd: list[str], **kwargs: Any) -> _FakeProcess:
+            return _TimedOutProcess(returncode=-15, stdout_text="")
+
+        # Patch the watcher to always report timed_out=True without sleeping.
+        class _InstantTimeoutWatcher:
+            def __init__(self, **_: Any) -> None:
+                self.timed_out = True
+
+            def start(self) -> None:
+                pass
+
+            def stop(self) -> None:
+                pass
+
+            def join(self) -> None:
+                pass
+
+        with patch(
+            "src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"
+        ), patch(
+            "src.scanners.nuclei.subprocess.Popen", side_effect=fake_popen
+        ), patch(
+            "src.scanners.nuclei.ProcessTimeoutWatcher", _InstantTimeoutWatcher
         ):
             result = nuclei.run_nuclei(
                 ["10.0.0.1:80"], "cves", "medium", 60, logger
@@ -321,17 +382,24 @@ class TestRunNuclei:
             ]
         )
 
-        def fake_run(cmd: list[str], **kwargs: Any) -> _FakeCompleted:
+        stats_stream = (
+            "[INF] | Templates: 9000 | Hosts: 1 | RPS: 150 | Matched: 0 | "
+            "Requests: 100/9000 (1%)\n"
+            "[INF] | Templates: 9000 | Hosts: 1 | RPS: 180 | Matched: 1 | "
+            "Requests: 9000/9000 (100%)\n"
+        )
+
+        def fake_popen(cmd: list[str], **kwargs: Any) -> _FakeProcess:
             # Find the output path from the command and write the fake JSONL to it.
             out_idx = cmd.index("-o") + 1
             out_path = cmd[out_idx]
             with open(out_path, "w") as fh:
                 fh.write(jsonl_output)
-            return _FakeCompleted(returncode=2)  # nuclei returns 2 when findings exist
+            return _FakeProcess(returncode=2, stdout_text=stats_stream)
 
-        with patch("src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"), patch(
-            "src.scanners.nuclei.subprocess.run", side_effect=fake_run
-        ):
+        with patch(
+            "src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"
+        ), patch("src.scanners.nuclei.subprocess.Popen", side_effect=fake_popen):
             results = nuclei.run_nuclei(
                 ["10.0.0.1:80"], "exposures", "medium", 300, logger
             )
@@ -340,12 +408,39 @@ class TestRunNuclei:
         assert results[0].oid == "exposures/configs/git-config:body"
         assert results[0].source == "nuclei"
 
+    def test_stats_lines_forwarded_to_logger(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Live `-stats` output on stderr/stdout should hit the logger."""
+        logger = logging.getLogger("test_nuclei_stats")
+        stats_stream = (
+            "[INF] progress line one\n"
+            "[INF] progress line two\n"
+        )
+
+        def fake_popen(cmd: list[str], **kwargs: Any) -> _FakeProcess:
+            out_idx = cmd.index("-o") + 1
+            with open(cmd[out_idx], "w") as fh:
+                fh.write("")  # no findings
+            return _FakeProcess(returncode=0, stdout_text=stats_stream)
+
+        with caplog.at_level(logging.INFO, logger="test_nuclei_stats"), patch(
+            "src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"
+        ), patch("src.scanners.nuclei.subprocess.Popen", side_effect=fake_popen):
+            nuclei.run_nuclei(["10.0.0.1:80"], None, "medium", 300, logger)
+
+        forwarded = [rec.message for rec in caplog.records if "progress line" in rec.message]
+        assert any("progress line one" in m for m in forwarded)
+        assert any("progress line two" in m for m in forwarded)
+
     def test_no_output_file_returns_empty(self) -> None:
         logger = logging.getLogger("test")
-        with patch("src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"), patch(
-            "src.scanners.nuclei.subprocess.run",
-            return_value=_FakeCompleted(returncode=0),
-        ):
+
+        def fake_popen(cmd: list[str], **kwargs: Any) -> _FakeProcess:
+            # Do NOT write the output file.
+            return _FakeProcess(returncode=0, stdout_text="")
+
+        with patch(
+            "src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"
+        ), patch("src.scanners.nuclei.subprocess.Popen", side_effect=fake_popen):
             result = nuclei.run_nuclei(
                 ["10.0.0.1:80"], None, "medium", 300, logger
             )

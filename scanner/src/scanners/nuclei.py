@@ -30,6 +30,7 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 from src.models import OpenPortResult, VulnerabilityResult
+from src.threading_utils import ProcessTimeoutWatcher
 
 # Default wall-clock ceiling for the nuclei subprocess, in seconds.
 # Overridden per-network via `Network.nuclei_timeout`.
@@ -391,30 +392,56 @@ def run_nuclei(
             resolved_timeout,
         )
         try:
-            completed = subprocess.run(  # noqa: S603 — trusted command
+            process = subprocess.Popen(  # noqa: S603 — trusted command
                 cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=resolved_timeout,
-                check=False,
+                bufsize=1,  # line-buffered so `-stats` lines surface in real time
             )
-        except subprocess.TimeoutExpired:
+        except (FileNotFoundError, OSError) as exc:
+            logger.warning("nuclei: subprocess failed to start: %s", exc)
+            return []
+
+        timeout_watcher = ProcessTimeoutWatcher(
+            process=process,
+            timeout_seconds=resolved_timeout,
+            logger=logger,
+            label="Nuclei",
+        )
+        timeout_watcher.start()
+
+        output_tail: list[str] = []
+        try:
+            if process.stdout is not None:
+                for raw_line in process.stdout:
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    logger.info("nuclei: %s", line)
+                    output_tail.append(line)
+                    # Keep the tail bounded — only used for error diagnostics.
+                    if len(output_tail) > 20:
+                        output_tail.pop(0)
+            returncode = process.wait()
+        finally:
+            timeout_watcher.stop()
+            timeout_watcher.join()
+
+        if timeout_watcher.timed_out:
             logger.warning(
                 "nuclei: subprocess timed out after %ds — partial results (if any) discarded",
                 resolved_timeout,
             )
             return []
-        except (FileNotFoundError, OSError) as exc:
-            logger.warning("nuclei: subprocess failed to start: %s", exc)
-            return []
 
-        if completed.returncode not in (0, 2):
+        if returncode not in (0, 2):
             # Exit 0 = no findings, exit 2 = findings present. Anything else is
             # a real error but we still try to parse whatever was written.
             logger.warning(
-                "nuclei: non-zero exit %s; stderr: %s",
-                completed.returncode,
-                (completed.stderr or "").strip()[:500],
+                "nuclei: non-zero exit %s; last output: %s",
+                returncode,
+                "\n".join(output_tail)[:500],
             )
 
         try:
