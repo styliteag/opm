@@ -19,6 +19,7 @@ from src.hostname_enrichment import (
     enrich_hostnames_ip_api,
     enrich_hostnames_ssl_cert,
 )
+from src.hostname_sources import HostnameLookupResult
 from src.models import HostResult
 
 
@@ -178,7 +179,10 @@ class TestEnrichIpApi:
         mock_client_cls.return_value = mock_client
 
         result = enrich_hostnames_ip_api(["1.1.1.1", "8.8.8.8"], logger)
-        assert result == {"1.1.1.1": "one.one.one.one", "8.8.8.8": "dns.google"}
+        assert result == {
+            "1.1.1.1": ["one.one.one.one"],
+            "8.8.8.8": ["dns.google"],
+        }
 
     @patch("src.hostname_enrichment.httpx.Client")
     def test_partial_results(self, mock_client_cls: MagicMock, logger: logging.Logger) -> None:
@@ -196,7 +200,7 @@ class TestEnrichIpApi:
         mock_client_cls.return_value = mock_client
 
         result = enrich_hostnames_ip_api(["1.1.1.1", "10.0.0.1"], logger)
-        assert result == {"1.1.1.1": "one.one.one.one"}
+        assert result == {"1.1.1.1": ["one.one.one.one"]}
 
     @patch("src.hostname_enrichment.httpx.Client")
     def test_http_error(self, mock_client_cls: MagicMock, logger: logging.Logger) -> None:
@@ -215,79 +219,98 @@ class TestEnrichIpApi:
 # =============================================================================
 
 
+class _StubHackerTargetSource:
+    """In-memory stand-in for HackerTargetSource — no httpx."""
+
+    name = "hackertarget"
+
+    def __init__(self, results: dict[str, HostnameLookupResult]) -> None:
+        self._results = results
+        self.calls: list[str] = []
+
+    def fetch(self, ip: str) -> HostnameLookupResult:
+        self.calls.append(ip)
+        return self._results.get(
+            ip, HostnameLookupResult(status="no_results", hostnames=[])
+        )
+
+
 class TestEnrichHackerTarget:
     def test_empty_list(self, logger: logging.Logger) -> None:
         result = enrich_hostnames_hackertarget([], logger)
         assert result == {}
 
     @patch("src.hostname_enrichment.time.sleep")
-    @patch("src.hostname_enrichment.httpx.Client")
-    def test_successful_lookup(
-        self, mock_client_cls: MagicMock, mock_sleep: MagicMock, logger: logging.Logger
+    def test_successful_lookup_keeps_all_hostnames(
+        self, mock_sleep: MagicMock, logger: logging.Logger
     ) -> None:
-        mock_response = MagicMock()
-        mock_response.text = "web-prod.stylite.eu\nmail.stylite.eu\n"
-        mock_response.raise_for_status = MagicMock()
-
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.return_value = mock_response
-        mock_client_cls.return_value = mock_client
-
-        result = enrich_hostnames_hackertarget(["213.183.76.103"], logger)
-        assert result == {"213.183.76.103": "web-prod.stylite.eu"}
+        stub = _StubHackerTargetSource(
+            {
+                "192.0.2.103": HostnameLookupResult(
+                    status="success",
+                    hostnames=["web-prod.example.com", "mail.example.com"],
+                )
+            }
+        )
+        result = enrich_hostnames_hackertarget(
+            ["192.0.2.103"], logger, source=stub
+        )
+        assert result == {
+            "192.0.2.103": ["web-prod.example.com", "mail.example.com"]
+        }
 
     @patch("src.hostname_enrichment.time.sleep")
-    @patch("src.hostname_enrichment.httpx.Client")
-    def test_no_results(
-        self, mock_client_cls: MagicMock, mock_sleep: MagicMock, logger: logging.Logger
-    ) -> None:
-        mock_response = MagicMock()
-        mock_response.text = "error check your search parameter"
-        mock_response.raise_for_status = MagicMock()
-
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.return_value = mock_response
-        mock_client_cls.return_value = mock_client
-
-        result = enrich_hostnames_hackertarget(["10.0.0.1"], logger)
+    def test_no_results(self, mock_sleep: MagicMock, logger: logging.Logger) -> None:
+        stub = _StubHackerTargetSource(
+            {
+                "10.0.0.1": HostnameLookupResult(
+                    status="failed",
+                    hostnames=[],
+                    error_message="error check your search parameter",
+                )
+            }
+        )
+        result = enrich_hostnames_hackertarget(["10.0.0.1"], logger, source=stub)
         assert result == {}
 
     @patch("src.hostname_enrichment.time.sleep")
-    @patch("src.hostname_enrichment.httpx.Client")
     def test_api_limit_stops_remaining(
-        self, mock_client_cls: MagicMock, mock_sleep: MagicMock, logger: logging.Logger
+        self, mock_sleep: MagicMock, logger: logging.Logger
     ) -> None:
-        mock_response = MagicMock()
-        mock_response.text = "API count exceeded - Bandwidth limit exceeded"
-        mock_response.raise_for_status = MagicMock()
-
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.return_value = mock_response
-        mock_client_cls.return_value = mock_client
-
-        result = enrich_hostnames_hackertarget(["1.1.1.1", "8.8.8.8"], logger)
+        stub = _StubHackerTargetSource(
+            {
+                "1.1.1.1": HostnameLookupResult(
+                    status="failed",
+                    hostnames=[],
+                    error_message="API count exceeded - Bandwidth limit exceeded",
+                ),
+                "8.8.8.8": HostnameLookupResult(
+                    status="success",
+                    hostnames=["should.not.see.example"],
+                ),
+            }
+        )
+        result = enrich_hostnames_hackertarget(
+            ["1.1.1.1", "8.8.8.8"], logger, source=stub
+        )
         assert result == {}
-        # Should have stopped after first IP hit the limit
-        assert mock_client.get.call_count == 1
+        # Should have bailed out after the first IP hit the rate limit
+        assert stub.calls == ["1.1.1.1"]
 
     @patch("src.hostname_enrichment.time.sleep")
-    @patch("src.hostname_enrichment.httpx.Client")
-    def test_http_error(
-        self, mock_client_cls: MagicMock, mock_sleep: MagicMock, logger: logging.Logger
+    def test_http_error_returns_empty(
+        self, mock_sleep: MagicMock, logger: logging.Logger
     ) -> None:
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
-        mock_client_cls.return_value = mock_client
-
-        result = enrich_hostnames_hackertarget(["1.1.1.1"], logger)
+        stub = _StubHackerTargetSource(
+            {
+                "1.1.1.1": HostnameLookupResult(
+                    status="failed",
+                    hostnames=[],
+                    error_message="HTTP error: Connection refused",
+                )
+            }
+        )
+        result = enrich_hostnames_hackertarget(["1.1.1.1"], logger, source=stub)
         assert result == {}
 
 
@@ -318,8 +341,8 @@ class TestEnrichCrtSh:
         mock_client.get.return_value = mock_response
         mock_client_cls.return_value = mock_client
 
-        result = enrich_hostnames_crt_sh(["213.183.76.103"], logger)
-        assert result == {"213.183.76.103": "server.example.com"}
+        result = enrich_hostnames_crt_sh(["192.0.2.103"], logger)
+        assert result == {"192.0.2.103": ["server.example.com"]}
 
     @patch("src.hostname_enrichment.time.sleep")
     @patch("src.hostname_enrichment.httpx.Client")
@@ -329,7 +352,7 @@ class TestEnrichCrtSh:
         """If crt.sh returns an IP as common_name, it should be skipped."""
         mock_response = MagicMock()
         mock_response.json.return_value = [
-            {"common_name": "213.183.76.103", "name_value": "213.183.76.103"},
+            {"common_name": "192.0.2.103", "name_value": "192.0.2.103"},
         ]
         mock_response.raise_for_status = MagicMock()
 
@@ -339,7 +362,7 @@ class TestEnrichCrtSh:
         mock_client.get.return_value = mock_response
         mock_client_cls.return_value = mock_client
 
-        result = enrich_hostnames_crt_sh(["213.183.76.103"], logger)
+        result = enrich_hostnames_crt_sh(["192.0.2.103"], logger)
         assert result == {}
 
     @patch("src.hostname_enrichment.time.sleep")
@@ -390,7 +413,7 @@ class TestEnrichGoogleDns:
         mock_client_cls.return_value = mock_client
 
         result = enrich_hostnames_google_dns(["8.8.8.8"], logger)
-        assert result == {"8.8.8.8": "dns.google"}
+        assert result == {"8.8.8.8": ["dns.google"]}
 
     @patch("src.hostname_enrichment.time.sleep")
     @patch("src.hostname_enrichment.httpx.Client")
@@ -489,6 +512,7 @@ class TestEnrichHostResults:
         assert result[0].hostname == "one.one.one.one"
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
     @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
@@ -499,14 +523,16 @@ class TestEnrichHostResults:
         mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
+        mock_rd: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
         """SSL cert is queried first; later providers skip resolved IPs."""
-        mock_ssl.return_value = {"1.1.1.1": "one.one.one.one"}
+        mock_ssl.return_value = {"1.1.1.1": ["one.one.one.one"]}
         mock_google_dns.return_value = {}
         mock_ip_api.return_value = {}
         mock_ht.return_value = {}
+        mock_rd.return_value = {}
         mock_crt_sh.return_value = {}
 
         hosts = [
@@ -521,6 +547,7 @@ class TestEnrichHostResults:
         mock_crt_sh.assert_not_called()
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
     @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
@@ -531,26 +558,32 @@ class TestEnrichHostResults:
         mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
+        mock_rd: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
         """Google DNS is queried for IPs not resolved by SSL cert."""
+        # Use a clearly-public IP — TEST-NET-1 (192.0.2.0/24) is treated
+        # as private by Python's ``ipaddress.is_private`` and would be
+        # filtered out by the orchestrator before mocks could run.
         mock_ssl.return_value = {}
-        mock_google_dns.return_value = {"213.183.76.103": "web-prod.stylite.eu"}
+        mock_google_dns.return_value = {"8.8.4.4": ["web-prod.example.com"]}
         mock_ip_api.return_value = {}
         mock_ht.return_value = {}
+        mock_rd.return_value = {}
         mock_crt_sh.return_value = {}
 
         hosts = [
-            HostResult(ip="213.183.76.103", hostname=None, is_pingable=True, mac_address=None, mac_vendor=None),
+            HostResult(ip="8.8.4.4", hostname=None, is_pingable=True, mac_address=None, mac_vendor=None),
         ]
 
         result = enrich_host_results(hosts, logger)
-        assert result[0].hostname == "web-prod.stylite.eu"
+        assert result[0].hostname == "web-prod.example.com"
         mock_ht.assert_not_called()
         mock_crt_sh.assert_not_called()
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
     @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
@@ -561,25 +594,31 @@ class TestEnrichHostResults:
         mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
+        mock_rd: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
         """HackerTarget is queried for IPs not resolved by earlier steps."""
+        # Use a clearly-public IP — TEST-NET-1 (192.0.2.0/24) is treated
+        # as private by Python's ``ipaddress.is_private`` and would be
+        # filtered out by the orchestrator before mocks could run.
         mock_ssl.return_value = {}
         mock_google_dns.return_value = {}
         mock_ip_api.return_value = {}
-        mock_ht.return_value = {"213.183.76.103": "web-prod.stylite.eu"}
+        mock_ht.return_value = {"8.8.4.4": ["web-prod.example.com"]}
+        mock_rd.return_value = {}
         mock_crt_sh.return_value = {}
 
         hosts = [
-            HostResult(ip="213.183.76.103", hostname=None, is_pingable=True, mac_address=None, mac_vendor=None),
+            HostResult(ip="8.8.4.4", hostname=None, is_pingable=True, mac_address=None, mac_vendor=None),
         ]
 
         result = enrich_host_results(hosts, logger)
-        assert result[0].hostname == "web-prod.stylite.eu"
+        assert result[0].hostname == "web-prod.example.com"
         mock_crt_sh.assert_not_called()
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
     @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
@@ -590,15 +629,16 @@ class TestEnrichHostResults:
         mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
+        mock_rd: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
         """crt.sh is only queried for IPs not resolved by any earlier provider."""
-        mock_ssl.return_value = {"1.1.1.1": "one.one.one.one"}
+        mock_ssl.return_value = {"1.1.1.1": ["one.one.one.one"]}
         mock_google_dns.return_value = {}
         mock_ip_api.return_value = {}
         mock_ht.return_value = {}
-        mock_crt_sh.return_value = {"93.184.216.34": "server.example.com"}
+        mock_crt_sh.return_value = {"93.184.216.34": ["server.example.com"]}
 
         hosts = [
             HostResult(ip="1.1.1.1", hostname=None, is_pingable=True, mac_address=None, mac_vendor=None),
@@ -614,6 +654,7 @@ class TestEnrichHostResults:
         assert call_args[0][0] == ["93.184.216.34"]
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
     @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
@@ -624,14 +665,16 @@ class TestEnrichHostResults:
         mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
+        mock_rd: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
         """Existing nmap hostnames should never be overwritten by API results."""
         mock_ssl.return_value = {}
-        mock_google_dns.return_value = {"1.1.1.1": "different.name.com"}
+        mock_google_dns.return_value = {"1.1.1.1": ["different.name.com"]}
         mock_ip_api.return_value = {}
         mock_ht.return_value = {}
+        mock_rd.return_value = {}
         mock_crt_sh.return_value = {}
 
         hosts = [
@@ -643,6 +686,7 @@ class TestEnrichHostResults:
         mock_ssl.assert_not_called()
 
     @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
     @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
     @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
     @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
@@ -653,6 +697,7 @@ class TestEnrichHostResults:
         mock_google_dns: MagicMock,
         mock_ip_api: MagicMock,
         mock_ht: MagicMock,
+        mock_rd: MagicMock,
         mock_crt_sh: MagicMock,
         logger: logging.Logger,
     ) -> None:
@@ -661,6 +706,7 @@ class TestEnrichHostResults:
         mock_google_dns.return_value = {}
         mock_ip_api.return_value = {}
         mock_ht.return_value = {}
+        mock_rd.return_value = {}
         mock_crt_sh.return_value = {}
 
         hosts = [
@@ -670,3 +716,383 @@ class TestEnrichHostResults:
         result = enrich_host_results(hosts, logger)
         assert result[0].hostname is None
         mock_ssl.assert_not_called()
+
+
+# =============================================================================
+# enrich_hostnames_rapiddns
+# =============================================================================
+
+
+class _StubRapidDnsSource:
+    """In-memory stand-in for RapidDnsSource — no httpx."""
+
+    name = "rapiddns"
+
+    def __init__(self, results: dict[str, HostnameLookupResult]) -> None:
+        self._results = results
+        self.calls: list[str] = []
+
+    def fetch(self, ip: str) -> HostnameLookupResult:
+        self.calls.append(ip)
+        return self._results.get(
+            ip, HostnameLookupResult(status="no_results", hostnames=[])
+        )
+
+
+class TestEnrichRapidDns:
+    def test_empty_list(self, logger: logging.Logger) -> None:
+        from src.hostname_enrichment import enrich_hostnames_rapiddns
+
+        assert enrich_hostnames_rapiddns([], logger) == {}
+
+    @patch("src.hostname_enrichment.time.sleep")
+    def test_successful_lookup_keeps_all_hostnames(
+        self, mock_sleep: MagicMock, logger: logging.Logger
+    ) -> None:
+        from src.hostname_enrichment import enrich_hostnames_rapiddns
+        stub = _StubRapidDnsSource(
+            {
+                "1.2.3.4": HostnameLookupResult(
+                    status="success",
+                    hostnames=["a.example", "b.example", "c.example"],
+                )
+            }
+        )
+        result = enrich_hostnames_rapiddns(["1.2.3.4"], logger, source=stub)
+        assert result == {"1.2.3.4": ["a.example", "b.example", "c.example"]}
+
+    @patch("src.hostname_enrichment.time.sleep")
+    def test_rate_limit_stops_remaining(
+        self, mock_sleep: MagicMock, logger: logging.Logger
+    ) -> None:
+        from src.hostname_enrichment import enrich_hostnames_rapiddns
+        stub = _StubRapidDnsSource(
+            {
+                "1.2.3.4": HostnameLookupResult(
+                    status="failed",
+                    hostnames=[],
+                    error_message="rapiddns: Cloudflare challenge - API count exceeded",
+                ),
+                "5.6.7.8": HostnameLookupResult(
+                    status="success",
+                    hostnames=["should.not.see.example"],
+                ),
+            }
+        )
+        result = enrich_hostnames_rapiddns(
+            ["1.2.3.4", "5.6.7.8"], logger, source=stub
+        )
+        assert result == {}
+        assert stub.calls == ["1.2.3.4"]
+
+
+# =============================================================================
+# enrich_host_results — budget pre-flight + backend post-back
+# =============================================================================
+
+
+class _StubScannerClient:
+    """Minimal scanner client stand-in for budget + post-back tests."""
+
+    def __init__(self, budget: dict[str, int] | None = None) -> None:
+        self._budget = budget or {}
+        self.posted: list[dict[str, object]] = []
+        self.budget_calls = 0
+
+    def get_hostname_budget(self) -> dict[str, int]:
+        self.budget_calls += 1
+        return dict(self._budget)
+
+    def post_hostname_results(self, results: list[dict[str, object]]) -> None:
+        self.posted.extend(results)
+
+
+class TestEnrichHostResultsBudgetAwareness:
+    @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
+    @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
+    @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_skips_hackertarget_when_budget_zero(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        mock_ssl.return_value = {}
+        mock_google_dns.return_value = {}
+        mock_ip_api.return_value = {}
+        mock_ht.return_value = {"1.2.3.4": ["should.not.appear.example"]}
+        mock_rd.return_value = {}
+        mock_crt_sh.return_value = {}
+
+        client = _StubScannerClient(budget={"hackertarget": 0, "rapiddns": 100})
+
+        hosts = [
+            HostResult(
+                ip="1.2.3.4",
+                hostname=None,
+                is_pingable=True,
+                mac_address=None,
+                mac_vendor=None,
+            ),
+        ]
+        result = enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        assert result[0].hostname is None
+        # Budget pre-flight happened, HT was skipped, RapidDNS still ran
+        assert client.budget_calls == 1
+        mock_ht.assert_not_called()
+        mock_rd.assert_called_once()
+
+    @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
+    @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
+    @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_skips_rapiddns_when_budget_zero(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        mock_ssl.return_value = {}
+        mock_google_dns.return_value = {}
+        mock_ip_api.return_value = {}
+        mock_ht.return_value = {}
+        mock_rd.return_value = {"1.2.3.4": ["should.not.appear.example"]}
+        mock_crt_sh.return_value = {}
+
+        client = _StubScannerClient(budget={"hackertarget": 50, "rapiddns": 0})
+
+        hosts = [
+            HostResult(
+                ip="1.2.3.4",
+                hostname=None,
+                is_pingable=True,
+                mac_address=None,
+                mac_vendor=None,
+            ),
+        ]
+        enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        mock_ht.assert_called_once()
+        mock_rd.assert_not_called()
+
+    @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
+    @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
+    @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_posts_vhost_results_to_backend(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        mock_ssl.return_value = {}
+        mock_google_dns.return_value = {}
+        mock_ip_api.return_value = {}
+        mock_ht.return_value = {"1.2.3.4": ["a.example", "b.example"]}
+        mock_rd.return_value = {"5.6.7.8": ["c.example"]}
+        mock_crt_sh.return_value = {}
+
+        client = _StubScannerClient(budget={"hackertarget": 50, "rapiddns": 100})
+
+        hosts = [
+            HostResult(
+                ip="1.2.3.4",
+                hostname=None,
+                is_pingable=True,
+                mac_address=None,
+                mac_vendor=None,
+            ),
+            HostResult(
+                ip="5.6.7.8",
+                hostname=None,
+                is_pingable=True,
+                mac_address=None,
+                mac_vendor=None,
+            ),
+        ]
+        enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        # Two results should be posted: one HT, one RapidDNS
+        assert len(client.posted) == 2
+        sources = sorted(r["source"] for r in client.posted)
+        assert sources == ["hackertarget", "rapiddns"]
+        for entry in client.posted:
+            assert entry["status"] == "success"
+            assert entry["ip"] in {"1.2.3.4", "5.6.7.8"}
+
+    @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
+    @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
+    @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_does_not_post_display_name_sources(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """SSL / Google DNS / ip-api results never go to the cache."""
+        mock_ssl.return_value = {"1.2.3.4": ["ssl.example"]}
+        mock_google_dns.return_value = {}
+        mock_ip_api.return_value = {}
+        mock_ht.return_value = {}
+        mock_rd.return_value = {}
+        mock_crt_sh.return_value = {}
+
+        client = _StubScannerClient(budget={"hackertarget": 50, "rapiddns": 100})
+
+        hosts = [
+            HostResult(
+                ip="1.2.3.4",
+                hostname=None,
+                is_pingable=True,
+                mac_address=None,
+                mac_vendor=None,
+            ),
+        ]
+        enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        # SSL result resolved the host, but nothing should be posted.
+        assert client.posted == []
+
+    @patch("src.hostname_enrichment.enrich_hostnames_crt_sh")
+    @patch("src.hostname_enrichment.enrich_hostnames_rapiddns")
+    @patch("src.hostname_enrichment.enrich_hostnames_hackertarget")
+    @patch("src.hostname_enrichment.enrich_hostnames_ip_api")
+    @patch("src.hostname_enrichment.enrich_hostnames_google_dns")
+    @patch("src.hostname_enrichment.enrich_hostnames_ssl_cert")
+    def test_no_client_means_no_budget_call(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """Legacy path: client=None preserves the no-budget no-post-back behaviour."""
+        mock_ssl.return_value = {}
+        mock_google_dns.return_value = {}
+        mock_ip_api.return_value = {}
+        mock_ht.return_value = {"1.2.3.4": ["a.example"]}
+        mock_rd.return_value = {}
+        mock_crt_sh.return_value = {}
+
+        hosts = [
+            HostResult(
+                ip="1.2.3.4",
+                hostname=None,
+                is_pingable=True,
+                mac_address=None,
+                mac_vendor=None,
+            ),
+        ]
+        result = enrich_host_results(hosts, logger)
+        # HT still ran, host got the first hostname
+        assert result[0].hostname == "a.example"
+        mock_ht.assert_called_once()
+
+
+# =============================================================================
+# post_hostname_results_to_backend
+# =============================================================================
+
+
+class TestPostHostnameResultsToBackend:
+    def test_filters_display_name_sources(self, logger: logging.Logger) -> None:
+        from src.hostname_enrichment import post_hostname_results_to_backend
+
+        client = _StubScannerClient()
+        results = [
+            {
+                "ip": "1.2.3.4",
+                "source": "hackertarget",
+                "status": "success",
+                "hostnames": ["a.example"],
+            },
+            {
+                "ip": "1.2.3.4",
+                "source": "ssl_cert",
+                "status": "success",
+                "hostnames": ["b.example"],
+            },
+            {
+                "ip": "5.6.7.8",
+                "source": "rapiddns",
+                "status": "success",
+                "hostnames": ["c.example"],
+            },
+            {
+                "ip": "9.10.11.12",
+                "source": "ip_api",
+                "status": "success",
+                "hostnames": ["d.example"],
+            },
+            {
+                "ip": "13.14.15.16",
+                "source": "crt_sh",
+                "status": "success",
+                "hostnames": ["e.example"],
+            },
+        ]
+        post_hostname_results_to_backend(client, results, logger)  # type: ignore[arg-type]
+
+        sources = sorted(r["source"] for r in client.posted)
+        assert sources == ["crt_sh", "hackertarget", "rapiddns"]
+
+    def test_empty_results_no_call(self, logger: logging.Logger) -> None:
+        from src.hostname_enrichment import post_hostname_results_to_backend
+
+        client = _StubScannerClient()
+        post_hostname_results_to_backend(client, [], logger)  # type: ignore[arg-type]
+        assert client.posted == []
+
+    def test_only_display_sources_no_call(self, logger: logging.Logger) -> None:
+        from src.hostname_enrichment import post_hostname_results_to_backend
+
+        client = _StubScannerClient()
+        post_hostname_results_to_backend(  # type: ignore[arg-type]
+            client,
+            [
+                {
+                    "ip": "1.2.3.4",
+                    "source": "ssl_cert",
+                    "status": "success",
+                    "hostnames": ["a.example"],
+                },
+                {
+                    "ip": "5.6.7.8",
+                    "source": "google_dns",
+                    "status": "success",
+                    "hostnames": ["b.example"],
+                },
+            ],
+            logger,
+        )
+        assert client.posted == []

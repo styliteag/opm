@@ -17,6 +17,7 @@ from src.ssh_probe import SSHProbeResult, probe_ssh
 from src.utils import format_command, sanitize_cidr
 
 if TYPE_CHECKING:
+    from src.client import ScannerClient
     from src.threading_utils import ProgressReporter
 
 # Constants
@@ -90,6 +91,7 @@ def run_host_discovery(
     logger: logging.Logger,
     timeout: int = 300,
     known_hostnames: dict[str, str] | None = None,
+    client: ScannerClient | None = None,
 ) -> list[HostResult]:
     """
     Run host discovery using nmap ping scan with reverse DNS.
@@ -175,8 +177,11 @@ def run_host_discovery(
                     "Skipping enrichment for %d IPs with known hostnames", applied
                 )
 
-        # Enrich hostnames via external APIs for hosts without reverse DNS
-        hosts = enrich_host_results(hosts, logger)
+        # Enrich hostnames via external APIs for hosts without reverse DNS.
+        # When a client is provided, the orchestrator pre-flights the
+        # backend hostname budget and posts vhost-list results back so
+        # the cache + per-source counters update.
+        hosts = enrich_host_results(hosts, logger, client=client)
 
         return hosts
 

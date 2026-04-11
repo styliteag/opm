@@ -1,0 +1,165 @@
+"""Tests for the ScannerClient methods that talk to the hostname API.
+
+Pin the contract for the two new methods added in Commit 5 of the
+scanner-centric hostname cache refactor (Plan C, 2.3.0):
+
+- ``ScannerClient.get_hostname_budget()`` — pre-flight read against
+  ``GET /api/scanner/hostname-budget`` returning
+  ``{source: remaining}``.
+- ``ScannerClient.post_hostname_results()`` — bulk POST against
+  ``POST /api/scanner/hostname-results`` with
+  ``{"results": [...]}``.
+
+Both methods are best-effort: transport errors and non-2xx responses
+must never propagate to the surrounding scan. Tests cover happy
+paths plus the failure modes that the orchestrator relies on.
+"""
+
+from __future__ import annotations
+
+import logging
+from unittest.mock import MagicMock
+
+from src.client import ScannerClient
+
+
+def _make_client(monkeypatched_request: MagicMock) -> ScannerClient:
+    """Build a ScannerClient with a mocked _request method."""
+    client = ScannerClient(
+        base_url="http://test",
+        api_key="test-key",
+        logger=logging.getLogger("test"),
+    )
+    client._request = monkeypatched_request  # type: ignore[method-assign]
+    return client
+
+
+# --- get_hostname_budget --------------------------------------------
+
+
+class TestGetHostnameBudget:
+    def test_returns_remaining_per_source(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "budgets": [
+                {"source": "hackertarget", "used": 5, "limit": 50, "remaining": 45},
+                {"source": "rapiddns", "used": 0, "limit": 100, "remaining": 100},
+            ]
+        }
+        client = _make_client(MagicMock(return_value=mock_response))
+
+        result = client.get_hostname_budget()
+        assert result == {"hackertarget": 45, "rapiddns": 100}
+
+    def test_returns_empty_on_non_200(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        client = _make_client(MagicMock(return_value=mock_response))
+
+        assert client.get_hostname_budget() == {}
+
+    def test_returns_empty_on_transport_error(self) -> None:
+        client = _make_client(MagicMock(side_effect=RuntimeError("network down")))
+        # Best-effort: must not raise
+        assert client.get_hostname_budget() == {}
+
+    def test_returns_empty_on_malformed_payload(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"unexpected": True}
+        client = _make_client(MagicMock(return_value=mock_response))
+
+        assert client.get_hostname_budget() == {}
+
+    def test_skips_invalid_entries_in_payload(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "budgets": [
+                {"source": "hackertarget", "remaining": 30},  # ok
+                {"source": 123, "remaining": 0},  # bad source type
+                {"source": "rapiddns", "remaining": "100"},  # bad remaining type
+                "not a dict",
+            ]
+        }
+        client = _make_client(MagicMock(return_value=mock_response))
+
+        # Only the well-formed entry survives.
+        assert client.get_hostname_budget() == {"hackertarget": 30}
+
+
+# --- post_hostname_results -----------------------------------------
+
+
+class TestPostHostnameResults:
+    def test_empty_results_short_circuits(self) -> None:
+        request_mock = MagicMock()
+        client = _make_client(request_mock)
+
+        client.post_hostname_results([])
+        request_mock.assert_not_called()
+
+    def test_posts_results_under_results_key(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "accepted": 1,
+            "rejected": 0,
+            "cache_rows_written": 1,
+            "hosts_synced": 0,
+            "budget_pinned_sources": [],
+        }
+        request_mock = MagicMock(return_value=mock_response)
+        client = _make_client(request_mock)
+
+        results = [
+            {
+                "ip": "1.2.3.4",
+                "source": "hackertarget",
+                "status": "success",
+                "hostnames": ["a.example"],
+            }
+        ]
+        client.post_hostname_results(results)
+
+        request_mock.assert_called_once()
+        args, kwargs = request_mock.call_args
+        assert args[0] == "POST"
+        assert args[1] == "/api/scanner/hostname-results"
+        assert kwargs["json"] == {"results": results}
+        assert kwargs["auth_required"] is True
+
+    def test_non_200_is_swallowed(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "internal server error"
+        request_mock = MagicMock(return_value=mock_response)
+        client = _make_client(request_mock)
+
+        # Must not raise
+        client.post_hostname_results(
+            [
+                {
+                    "ip": "1.2.3.4",
+                    "source": "hackertarget",
+                    "status": "success",
+                    "hostnames": ["a.example"],
+                }
+            ]
+        )
+        request_mock.assert_called_once()
+
+    def test_transport_error_is_swallowed(self) -> None:
+        client = _make_client(MagicMock(side_effect=RuntimeError("connection refused")))
+        client.post_hostname_results(
+            [
+                {
+                    "ip": "1.2.3.4",
+                    "source": "hackertarget",
+                    "status": "success",
+                    "hostnames": ["a.example"],
+                }
+            ]
+        )
+        # No assertion needed — just that we didn't raise.

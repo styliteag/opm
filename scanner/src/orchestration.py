@@ -57,6 +57,7 @@ def process_host_discovery_job(
             claimed_job.is_ipv6,
             logger,
             known_hostnames=claimed_job.known_hostnames,
+            client=client,
         )
 
         logger.info("Host discovery completed, found %s hosts", len(hosts))

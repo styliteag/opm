@@ -451,6 +451,90 @@ class ScannerClient:
                 result[ip] = valid
         return result
 
+    def get_hostname_budget(self) -> dict[str, int]:
+        """Pre-flight read of today's per-source daily budget remaining.
+
+        Returns ``{source: remaining}`` for every reverse-IP source the
+        backend tracks (currently hackertarget + rapiddns). Used by the
+        enrichment orchestrator to skip sources whose budget has been
+        exhausted before burning a request slot.
+
+        Best-effort: a transport error or non-200 response returns
+        ``{}`` so the caller falls through to "no budget info, assume
+        available". Network failures here should never block a scan.
+        """
+        try:
+            response = self._request(
+                "GET", "/api/scanner/hostname-budget", auth_required=True
+            )
+        except Exception as exc:  # pragma: no cover — transport error is non-fatal
+            self._logger.warning("hostname budget request failed: %s", exc)
+            return {}
+        if response.status_code != 200:
+            self._logger.warning(
+                "hostname budget returned HTTP %s", response.status_code
+            )
+            return {}
+        try:
+            payload = response.json()
+        except ValueError:
+            return {}
+        budgets = payload.get("budgets") or []
+        result: dict[str, int] = {}
+        for entry in budgets:
+            if not isinstance(entry, dict):
+                continue
+            source = entry.get("source")
+            remaining = entry.get("remaining")
+            if isinstance(source, str) and isinstance(remaining, int):
+                result[source] = remaining
+        return result
+
+    def post_hostname_results(self, results: list[dict[str, Any]]) -> None:
+        """Submit a batch of reverse-IP enrichment outcomes to the backend.
+
+        ``results`` is a list of dicts shaped per
+        ``HostnameLookupResultSubmission`` on the backend:
+        ``{ip, source, status, hostnames, error_message}``. The backend
+        upserts cache rows, post-fact-increments the per-source
+        budget counter, backfills ``host.hostname`` for empty hosts,
+        and pins the budget when an error message contains
+        ``"api count exceeded"``.
+
+        Empty input short-circuits without a request. Transport errors
+        and non-2xx responses are logged and swallowed — enrichment is
+        best-effort and must never fail the surrounding scan.
+        """
+        if not results:
+            return
+        try:
+            response = self._request(
+                "POST",
+                "/api/scanner/hostname-results",
+                json={"results": results},
+                auth_required=True,
+            )
+        except Exception as exc:  # pragma: no cover — transport error is non-fatal
+            self._logger.warning("hostname results post failed: %s", exc)
+            return
+        if response.status_code != 200:
+            self._logger.warning(
+                "hostname results returned HTTP %s: %s",
+                response.status_code,
+                response.text[:200],
+            )
+            return
+        try:
+            payload = response.json()
+            self._logger.info(
+                "hostname-results: accepted=%s rejected=%s pinned=%s",
+                payload.get("accepted"),
+                payload.get("rejected"),
+                payload.get("budget_pinned_sources"),
+            )
+        except ValueError:
+            pass
+
     def get_host_discovery_jobs(self) -> list[HostDiscoveryJob]:
         """Get pending host discovery jobs for this scanner."""
         response = self._request("GET", "/api/scanner/host-discovery-jobs", auth_required=True)
