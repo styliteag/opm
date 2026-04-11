@@ -195,6 +195,23 @@ class HostDiscoveryJob:
 
 
 @dataclass(frozen=True)
+class HostnameLookupJob:
+    """A claimed manual hostname lookup queue entry from the backend.
+
+    Returned by ``GET /api/scanner/hostname-lookup-jobs`` after the
+    backend atomically transitions the row from ``pending`` to
+    ``claimed``. The scanner runs the HackerTarget / RapidDNS chain
+    against ``ip``, posts results via ``POST /api/scanner/
+    hostname-results``, then closes the loop by calling
+    ``POST /api/scanner/hostname-lookup-jobs/{id}/complete``.
+    """
+
+    id: int
+    ip: str
+    requested_by_user_id: int | None = None
+
+
+@dataclass(frozen=True)
 class NseScriptResult:
     """Individual NSE script finding from a vulnerability scan."""
 

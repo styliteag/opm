@@ -12,6 +12,7 @@ import httpx
 from src.models import (
     ClaimedJob,
     HostDiscoveryJob,
+    HostnameLookupJob,
     HostResult,
     LogEntry,
     NseScriptResult,
@@ -534,6 +535,103 @@ class ScannerClient:
             )
         except ValueError:
             pass
+
+    def get_hostname_lookup_jobs(
+        self, limit: int = 10
+    ) -> list[HostnameLookupJob]:
+        """Atomically claim pending manual hostname lookup jobs.
+
+        Calls ``GET /api/scanner/hostname-lookup-jobs?limit=N``. The
+        backend transitions matching ``pending`` rows to ``claimed``
+        in a single transaction and returns them; this method then
+        decodes the response into ``HostnameLookupJob`` instances so
+        the queue poller can dispatch them per IP.
+
+        Best-effort: a transport error or non-200 response returns an
+        empty list so a flaky network or backend restart never throws
+        out of the main poll loop.
+        """
+        try:
+            response = self._request(
+                "GET",
+                "/api/scanner/hostname-lookup-jobs",
+                params={"limit": str(limit)},
+                auth_required=True,
+            )
+        except Exception as exc:  # pragma: no cover — non-fatal
+            self._logger.warning("hostname-lookup-jobs request failed: %s", exc)
+            return []
+        if response.status_code != 200:
+            self._logger.warning(
+                "hostname-lookup-jobs returned HTTP %s", response.status_code
+            )
+            return []
+        try:
+            payload = response.json()
+        except ValueError:
+            return []
+        jobs: list[HostnameLookupJob] = []
+        for entry in payload.get("jobs", []) or []:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                jobs.append(
+                    HostnameLookupJob(
+                        id=int(entry["id"]),
+                        ip=str(entry["ip"]),
+                        requested_by_user_id=(
+                            int(entry["requested_by_user_id"])
+                            if entry.get("requested_by_user_id") is not None
+                            else None
+                        ),
+                    )
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                self._logger.warning(
+                    "Skipping invalid hostname-lookup-job payload: %s", exc
+                )
+        return jobs
+
+    def complete_hostname_lookup_job(
+        self,
+        job_id: int,
+        *,
+        status: str = "completed",
+        error: str | None = None,
+    ) -> None:
+        """Mark a claimed hostname lookup job as terminal.
+
+        Calls ``POST /api/scanner/hostname-lookup-jobs/{id}/complete``
+        with ``{status, error?}``. Used by the queue poller after the
+        per-IP enrichment chain finishes — successful enrichments
+        report ``completed``, transport errors report ``failed`` with
+        a short error message (server bounds it to 500 chars).
+
+        Best-effort: never raises. A failed ``/complete`` leaves the
+        row in ``claimed`` state, which the backend's lazy stuck-claim
+        sweep will recover after 1 hour.
+        """
+        body: dict[str, Any] = {"status": status}
+        if error:
+            body["error"] = error[:500]
+        try:
+            response = self._request(
+                "POST",
+                f"/api/scanner/hostname-lookup-jobs/{job_id}/complete",
+                json=body,
+                auth_required=True,
+            )
+        except Exception as exc:  # pragma: no cover — non-fatal
+            self._logger.warning(
+                "hostname-lookup-job %s complete failed: %s", job_id, exc
+            )
+            return
+        if response.status_code != 200:
+            self._logger.warning(
+                "hostname-lookup-job %s complete returned HTTP %s",
+                job_id,
+                response.status_code,
+            )
 
     def get_host_discovery_jobs(self) -> list[HostDiscoveryJob]:
         """Get pending host discovery jobs for this scanner."""

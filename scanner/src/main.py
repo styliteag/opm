@@ -9,6 +9,7 @@ import socket
 import time
 
 from src.client import ScannerClient
+from src.hostname_enrichment import process_hostname_lookup_queue
 from src.orchestration import (
     check_dependencies,
     process_greenbone_job,
@@ -224,6 +225,20 @@ def main() -> None:
                             process_host_discovery_job(hd_job, client, logger)
                 except Exception:
                     logger.exception("Failed to fetch host discovery jobs")
+
+            # Drain the manual hostname lookup queue. Cheap (one GET when
+            # the queue is empty) and shares the per-poll cadence so a
+            # user-clicked Refresh resolves within ~poll_interval seconds.
+            # Skip on GVM-only containers — they don't ship the HT/RapidDNS
+            # source classes' transport stack and aren't the egress point
+            # for hostname enrichment in the new architecture.
+            if not is_gvm:
+                try:
+                    processed = process_hostname_lookup_queue(client, logger)
+                    if processed:
+                        has_work = True
+                except Exception:
+                    logger.exception("Failed to drain hostname lookup queue")
 
             # Background GVM metadata pulse
             if is_gvm and (

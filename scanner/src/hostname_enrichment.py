@@ -54,7 +54,7 @@ from src.hostname_sources import (
     HostnameLookupResult,
     RapidDnsSource,
 )
-from src.models import HostResult
+from src.models import HostnameLookupJob, HostResult
 
 if TYPE_CHECKING:
     from src.client import ScannerClient
@@ -509,6 +509,168 @@ def _is_private_ip(ip: str) -> bool:
         return ipaddress.ip_address(ip).is_private
     except ValueError:
         return False
+
+
+def process_hostname_lookup_queue(
+    client: ScannerClient,
+    logger: logging.Logger,
+    limit: int = 10,
+) -> int:
+    """Drain pending manual hostname lookups from the backend queue.
+
+    Called from the scanner's main poll loop alongside scan-job and
+    host-discovery polling. Each cycle:
+
+    1. ``GET /api/scanner/hostname-lookup-jobs?limit=N`` —
+       atomically claims up to N pending rows.
+    2. Pre-flight ``GET /api/scanner/hostname-budget`` once for the
+       whole batch so HT / RapidDNS skip when ``remaining=0``.
+    3. For each claimed job: run the HackerTarget chain (then
+       RapidDNS as fallback) against the single IP, post the
+       outcome via ``POST /api/scanner/hostname-results``, and call
+       ``POST /hostname-lookup-jobs/{id}/complete``.
+    4. Errors are logged and the job is marked ``failed`` so the
+       UI can surface "we tried, here's why it didn't work".
+
+    Returns the number of jobs processed (0 when the queue is
+    empty). Fire-and-forget: any unhandled exception is logged and
+    swallowed so the surrounding poll loop never crashes on a
+    transient queue error.
+    """
+    try:
+        jobs = client.get_hostname_lookup_jobs(limit=limit)
+    except Exception:
+        logger.exception("Failed to claim hostname-lookup jobs")
+        return 0
+
+    if not jobs:
+        return 0
+
+    logger.info("Processing %d manual hostname lookup job(s)", len(jobs))
+
+    # Pre-flight the budget once per batch — both sources are
+    # sticky for the day, so a per-job re-check would just waste
+    # an HTTP round-trip.
+    budget = client.get_hostname_budget()
+
+    ht_source = HackerTargetSource()
+    rd_source = RapidDnsSource()
+
+    for job in jobs:
+        try:
+            _process_one_lookup_job(
+                client, job, logger, budget, ht_source, rd_source
+            )
+        except Exception as exc:  # noqa: BLE001 — fire-and-forget
+            logger.exception(
+                "Hostname lookup job %d (ip=%s) failed unexpectedly",
+                job.id,
+                job.ip,
+            )
+            try:
+                client.complete_hostname_lookup_job(
+                    job.id, status="failed", error=str(exc)[:500]
+                )
+            except Exception:  # pragma: no cover — best-effort
+                logger.exception(
+                    "Failed to mark hostname lookup job %d as failed", job.id
+                )
+
+    return len(jobs)
+
+
+def _process_one_lookup_job(
+    client: ScannerClient,
+    job: HostnameLookupJob,
+    logger: logging.Logger,
+    budget: dict[str, int],
+    ht_source: HackerTargetSource,
+    rd_source: RapidDnsSource,
+) -> None:
+    """Run the HT → RapidDNS chain for one queued IP and report back.
+
+    Posts the per-source outcomes to ``/hostname-results`` (so the
+    cache + budget counters update) before marking the queue job
+    complete. The first source that returns a ``success`` short-
+    circuits the chain — RapidDNS only runs when HT is exhausted or
+    returned a non-success outcome.
+    """
+    ip = job.ip
+    logger.info("Hostname lookup job %d: enriching %s", job.id, ip)
+
+    posted: list[dict[str, Any]] = []
+    succeeded = False
+
+    # HackerTarget first, if budget allows.
+    if budget.get("hackertarget", 1) > 0:
+        ht_result = ht_source.fetch(ip)
+        posted.append(_result_to_payload(ip, "hackertarget", ht_result))
+        if ht_result.status == "success":
+            succeeded = True
+        elif _is_rate_limit_signal(ht_result):
+            # Pin our local view so the next source skips honestly.
+            budget["hackertarget"] = 0
+    else:
+        logger.info(
+            "Hostname lookup job %d: HackerTarget budget exhausted, skipping",
+            job.id,
+        )
+
+    # RapidDNS as fallback when HT didn't resolve.
+    if not succeeded and budget.get("rapiddns", 1) > 0:
+        rd_result = rd_source.fetch(ip)
+        posted.append(_result_to_payload(ip, "rapiddns", rd_result))
+        if rd_result.status == "success":
+            succeeded = True
+        elif _is_rate_limit_signal(rd_result):
+            budget["rapiddns"] = 0
+    elif not succeeded:
+        logger.info(
+            "Hostname lookup job %d: RapidDNS budget exhausted, skipping",
+            job.id,
+        )
+
+    if posted:
+        client.post_hostname_results(posted)
+
+    if succeeded:
+        client.complete_hostname_lookup_job(job.id, status="completed")
+        logger.info("Hostname lookup job %d: completed for %s", job.id, ip)
+    else:
+        # Use the most informative error from the source chain — pick
+        # the last failed result that has an error_message, otherwise
+        # fall back to a generic "no results" string.
+        error_message: str | None = None
+        for entry in reversed(posted):
+            if entry.get("status") == "failed" and entry.get("error_message"):
+                msg = entry["error_message"]
+                if isinstance(msg, str):
+                    error_message = msg
+                    break
+        client.complete_hostname_lookup_job(
+            job.id,
+            status="failed",
+            error=error_message or "no results from any source",
+        )
+        logger.info(
+            "Hostname lookup job %d: marked failed for %s (%s)",
+            job.id,
+            ip,
+            error_message or "no results",
+        )
+
+
+def _result_to_payload(
+    ip: str, source: str, result: HostnameLookupResult
+) -> dict[str, Any]:
+    """Build a /hostname-results POST entry from a source-class result."""
+    return {
+        "ip": ip,
+        "source": source,
+        "status": result.status,
+        "hostnames": list(result.hostnames),
+        "error_message": result.error_message,
+    }
 
 
 def post_hostname_results_to_backend(
