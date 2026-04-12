@@ -23,10 +23,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
 from src.models import OpenPortResult, VulnerabilityResult
@@ -35,6 +36,10 @@ from src.threading_utils import ProcessTimeoutWatcher
 # Default wall-clock ceiling for the nuclei subprocess, in seconds.
 # Overridden per-network via `Network.nuclei_timeout`.
 DEFAULT_NUCLEI_TIMEOUT_S = 1800
+
+# Regex to extract host-level progress from nuclei `-stats` output.
+# Example: "Hosts: 3/10 (30.00%)" — we capture the percentage.
+_NUCLEI_HOSTS_PROGRESS_RE = re.compile(r"Hosts:\s*\d+/\d+\s*\((\d+(?:\.\d+)?)%\)")
 
 # Hardcoded web ports used on masscan networks (no service detection).
 COMMON_WEB_PORTS: frozenset[int] = frozenset(
@@ -392,6 +397,7 @@ def run_nuclei(
     timeout_s: int | None,
     logger: logging.Logger,
     templates_dir: str | None = None,
+    on_progress: Callable[[float, str], None] | None = None,
 ) -> list[VulnerabilityResult]:
     """Invoke nuclei against the given targets and return parsed findings.
 
@@ -485,6 +491,12 @@ def run_nuclei(
                     # Keep the tail bounded — only used for error diagnostics.
                     if len(output_tail) > 20:
                         output_tail.pop(0)
+                    # Parse host-level progress from stats lines.
+                    if on_progress is not None:
+                        m = _NUCLEI_HOSTS_PROGRESS_RE.search(line)
+                        if m:
+                            pct = float(m.group(1))
+                            on_progress(pct, f"Nuclei: {pct:.0f}% of hosts scanned")
             returncode = process.wait()
         finally:
             timeout_watcher.stop()

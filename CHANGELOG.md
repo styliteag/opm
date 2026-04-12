@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Nuclei scan phase now reports progress to the UI by parsing `-stats` output (previously stuck at ~66% until completion)
+
 ### Improved
 
 - Hostname lookup cache admin page: all columns are now sortable (IP, status, vhosts, source, queried, expires)

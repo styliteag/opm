@@ -295,6 +295,7 @@ def _run_nuclei_phase(
             severity_threshold=phase.config.get("severity") or job.nuclei_severity,
             timeout_s=phase.config.get("timeout") or job.nuclei_timeout,
             logger=logger,
+            on_progress=lambda pct, msg: progress_reporter.update(pct, msg),
         )
     except Exception:
         logger.exception("nuclei: unexpected failure during run_nuclei")
