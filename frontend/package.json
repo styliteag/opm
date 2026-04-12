@@ -53,6 +53,12 @@
     },
     "@typescript-eslint/typescript-estree": {
       "brace-expansion": "5.0.5"
+    },
+    "eslint-plugin-react-hooks": {
+      "eslint": "$eslint"
+    },
+    "openapi-typescript": {
+      "typescript": "$typescript"
     }
   },
   "devDependencies": {
