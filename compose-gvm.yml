@@ -314,15 +314,21 @@ services:
       gsad:
         condition: service_started
 
-  # ── OPM GVM Scanner Agent ──────────────────────────────────────────────
+  # ── OPM Unified Scanner Agent (standard + GVM) ─────────────────────────
+  # Uses Dockerfile.unified which bundles masscan/nmap/nuclei AND python-gvm.
+  # Auto-detects as "unified" when the GVM socket is mounted, handling both
+  # standard port-scan and Greenbone vulnerability-assessment jobs.
   opm-scanner-gvm:
     build:
       context: ./scanner
-      dockerfile: Dockerfile.gvm
+      dockerfile: Dockerfile.unified
     # Or use a pre-built image (production):
-    # image: styliteag/opm-scanner-gvm:latest
-    # image: ghcr.io/styliteag/opm-scanner-gvm:latest
+    # image: styliteag/opm-scanner-unified:latest
+    # image: ghcr.io/styliteag/opm-scanner-unified:latest
     restart: unless-stopped
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
     environment:
       BACKEND_URL: ${GVM_BACKEND_URL:-http://backend:8000}
       API_KEY: ${GVM_SCANNER_API_KEY:?Set GVM_SCANNER_API_KEY to the scanner API key from OPM}
@@ -333,10 +339,8 @@ services:
       GVM_PASSWORD: ${GVM_PASSWORD:-admin}
     volumes:
       - gvmd_socket_vol:/run/gvmd
-      # Mount the repo VERSION file so get_version() reports the real version
-      # instead of falling back to "unknown". Matches how compose-dev.yml wires
-      # up the standard opm-scanner.
       - ./VERSION:/app/VERSION:ro
+      - scanner-custom-scripts:/opt/opm/custom-scripts
     depends_on:
       gvmd:
         condition: service_started
@@ -358,6 +362,7 @@ volumes:
   psql_socket_vol:
   gvmd_socket_vol:
   ospd_openvas_socket_vol:
+  scanner-custom-scripts:
   redis_socket_vol:
   openvas_data_vol:
   openvas_log_data_vol:

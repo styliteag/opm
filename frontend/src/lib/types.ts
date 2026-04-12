@@ -196,7 +196,7 @@ export interface LatestScansByNetworkResponse {
   latest_scans: LatestScanEntry[];
 }
 
-export type ScannerKind = "standard" | "gvm";
+export type ScannerKind = "standard" | "gvm" | "unified";
 export type GvmKind = "scan_config" | "port_list";
 
 export interface Scanner {

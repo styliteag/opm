@@ -121,12 +121,24 @@ docker buildx build \
     --push \
     scanner
 
+# Unified Scanner (standard + GVM)
+echo "📦 Building unified scanner..."
+docker buildx build \
+    --platform $PLATFORMS \
+    --build-arg VERSION=${VERSION} \
+    --tag ${REGISTRY_URL}/${NAMESPACE}/opm-scanner-unified:${VERSION_TAG} \
+    --tag ${REGISTRY_URL}/${NAMESPACE}/opm-scanner-unified:latest \
+    --file scanner/Dockerfile.unified \
+    --push \
+    scanner
+
 echo ""
 echo "✅ Images built and pushed successfully!"
 echo ""
 echo "📋 Image URLs:"
-echo "   App:     ${REGISTRY_URL}/${NAMESPACE}/opm:${VERSION_TAG}"
-echo "   Scanner: ${REGISTRY_URL}/${NAMESPACE}/opm-scanner:${VERSION_TAG}"
+echo "   App:             ${REGISTRY_URL}/${NAMESPACE}/opm:${VERSION_TAG}"
+echo "   Scanner:         ${REGISTRY_URL}/${NAMESPACE}/opm-scanner:${VERSION_TAG}"
+echo "   Scanner Unified: ${REGISTRY_URL}/${NAMESPACE}/opm-scanner-unified:${VERSION_TAG}"
 echo ""
 echo "🏗️  Built architectures:"
 case "$PLATFORMS" in

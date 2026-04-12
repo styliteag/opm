@@ -183,8 +183,8 @@ function ScannerDetailPage() {
               dot
             />
             <StatusBadge
-              label={s.kind === "gvm" ? "GVM" : "Standard"}
-              variant={s.kind === "gvm" ? "warning" : "neutral"}
+              label={s.kind === "gvm" ? "GVM" : s.kind === "unified" ? "Unified" : "Standard"}
+              variant={s.kind === "gvm" ? "warning" : s.kind === "unified" ? "info" : "neutral"}
             />
             {s.location && (
               <span className="text-xs text-muted-foreground">
@@ -256,7 +256,7 @@ function ScannerDetailPage() {
           <TabsTrigger value="scans">
             Recent Scans ({data.recent_scans.length})
           </TabsTrigger>
-          {s.kind === "gvm" && (
+          {(s.kind === "gvm" || s.kind === "unified") && (
             <>
               <TabsTrigger value="gvm_scan_configs">GVM Scan Configs</TabsTrigger>
               <TabsTrigger value="gvm_port_lists">GVM Port Lists</TabsTrigger>
@@ -292,7 +292,7 @@ function ScannerDetailPage() {
           )}
         </TabsContent>
 
-        {s.kind === "gvm" && (
+        {(s.kind === "gvm" || s.kind === "unified") && (
           <>
             <TabsContent value="gvm_scan_configs" className="pt-4">
               <GvmMirrorTab scannerId={id} kind="scan_config" />

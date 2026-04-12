@@ -23,7 +23,7 @@ const schema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   location: z.string().optional(),
-  kind: z.enum(["standard", "gvm"]),
+  kind: z.enum(["standard", "gvm", "unified"]),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -120,11 +120,12 @@ export function EditScannerModal({
             <Label htmlFor="edit-kind">Kind</Label>
             <Select id="edit-kind" {...register("kind")}>
               <option value="standard">Standard (masscan / nmap / nse)</option>
-              <option value="gvm">GVM (Greenbone bridge)</option>
+              <option value="gvm">GVM (Greenbone bridge only)</option>
+              <option value="unified">Unified (standard + GVM)</option>
             </Select>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Changing kind should match the actual scanner image deployed
-              (opm-scanner vs opm-scanner-gvm).
+              Kind should match the actual scanner image deployed
+              (opm-scanner / opm-scanner-gvm / opm-scanner-unified).
             </p>
           </div>
           <DialogFooter>

@@ -1,6 +1,7 @@
-# Pinned upstream nuclei image — multi-stage source for the statically
-# linked nuclei binary. Keep this in sync with scanner/Dockerfile so the
-# dev environment can run nuclei phases identically to prod.
+# Unified scanner image — standard tools (masscan, nmap, nuclei) PLUS
+# python-gvm for Greenbone integration. At runtime, if a GVM socket is
+# mounted the scanner auto-detects as "unified" and handles both
+# standard port-scan and Greenbone vulnerability-assessment jobs.
 ARG NUCLEI_VERSION=v3.7.1
 FROM projectdiscovery/nuclei:${NUCLEI_VERSION} AS nuclei
 
@@ -8,7 +9,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install masscan, networking tools, and tzdata for timezone support
 RUN apt-get update && apt-get install -y --no-install-recommends \
     masscan \
     nmap \
@@ -28,9 +28,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Nuclei binary + community templates (mirrors scanner/Dockerfile). Templates
-# are baked at build time; runtime updates are disabled inside the scanner
-# via `-disable-update-check` so a running container never drifts.
+# Nuclei binary (pinned via NUCLEI_VERSION arg above) + community templates.
+# Templates are refreshed at Docker build time via `nuclei -update-templates`;
+# runtime updates are disabled inside the scanner via `-disable-update-check`
+# so a running container never drifts.
 # NOTE: do NOT pass `-duc` to `-update-templates` — it short-circuits the
 # update and leaves the directory empty, which nuclei then rejects at scan
 # time with "no templates provided for scan".
@@ -44,19 +45,19 @@ RUN mkdir -p /opt/opm/custom-scripts
 
 ENV TZ=UTC
 
-# Install uv for fast Python package management
-# Install ssh-audit for SSH security probing
 RUN pip install uv ssh-audit
 
-# Copy project configuration
 COPY pyproject.toml ./
 COPY uv.lock* ./
 
-# Install dependencies (include gvm extra so dev image supports unified mode)
 RUN uv sync --frozen --extra gvm || uv sync --extra gvm
 
-# Copy source (will be overridden by bind mount in dev)
 COPY src ./src
 
-# Run the scanner agent
+ARG VERSION=unknown
+ENV APP_VERSION=${VERSION}
+# Create VERSION file from build arg (baked at build time) - LAST STEP for better caching
+# Scanner code reads version from /app/VERSION file
+RUN echo "${VERSION:-unknown}" > /app/VERSION
+
 CMD ["uv", "run", "python", "-m", "src.main"]

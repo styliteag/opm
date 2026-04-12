@@ -39,6 +39,7 @@ from app.schemas.scanner import (
     ScannerResultRequest,
     ScannerResultResponse,
     ScannerScanStatusResponse,
+    has_gvm_capability,
 )
 from app.schemas.vulnerability import (
     VulnerabilityResultRequest,
@@ -187,7 +188,7 @@ async def get_scanner_jobs(
     Requires valid scanner JWT token.
     """
     jobs = await get_pending_jobs_for_scanner(db, scanner)
-    gvm_refresh = scanner.kind == "gvm" and scanner.gvm_refresh_requested
+    gvm_refresh = has_gvm_capability(scanner.kind) and scanner.gvm_refresh_requested
     return ScannerJobListResponse(jobs=jobs, gvm_refresh=gvm_refresh)
 
 
@@ -678,10 +679,10 @@ async def ingest_gvm_metadata_snapshot(
     all existing mirror rows for this scanner in a single transaction and
     clears the refresh flag.
     """
-    if scanner.kind != "gvm":
+    if not has_gvm_capability(scanner.kind):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="gvm-metadata can only be posted by GVM scanners",
+            detail="gvm-metadata can only be posted by GVM or unified scanners",
         )
 
     count = await gvm_metadata_service.ingest_snapshot(db, scanner, request.entries)
@@ -703,10 +704,10 @@ async def fetch_gvm_library_xml(
     Called by the scanner agent during auto-push (Flow C) when a claimed
     scan references a library entry that is missing or drifted.
     """
-    if scanner.kind != "gvm":
+    if not has_gvm_capability(scanner.kind):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="gvm-library is only available to GVM scanners",
+            detail="gvm-library is only available to GVM or unified scanners",
         )
 
     if kind not in {"scan_config", "port_list"}:

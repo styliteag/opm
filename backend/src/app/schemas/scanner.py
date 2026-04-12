@@ -7,7 +7,12 @@ from pydantic import BaseModel, field_validator
 
 from app.schemas.gvm_library import RequiredLibraryEntry
 
-ScannerKind = Literal["standard", "gvm"]
+ScannerKind = Literal["standard", "gvm", "unified"]
+
+
+def has_gvm_capability(kind: str) -> bool:
+    """Return True when the scanner kind supports GVM operations."""
+    return kind in ("gvm", "unified")
 
 # --- Admin/CRUD Schemas ---
 

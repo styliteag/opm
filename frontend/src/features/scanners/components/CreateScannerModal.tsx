@@ -15,7 +15,7 @@ const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   location: z.string().optional(),
-  kind: z.enum(['standard', 'gvm']).default('standard'),
+  kind: z.enum(['standard', 'gvm', 'unified']).default('standard'),
 })
 
 type FormData = z.infer<typeof schema>
@@ -69,11 +69,12 @@ export function CreateScannerModal({ open, onOpenChange, onCreated }: CreateScan
             <Label htmlFor="kind">Kind</Label>
             <Select id="kind" {...register('kind')}>
               <option value="standard">Standard (masscan / nmap / nse)</option>
-              <option value="gvm">GVM (Greenbone bridge)</option>
+              <option value="gvm">GVM (Greenbone bridge only)</option>
+              <option value="unified">Unified (standard + GVM)</option>
             </Select>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Pick GVM if this scanner runs the opm-scanner-gvm image with a
-              gvmd socket mount.
+              Pick Unified for opm-scanner-unified (standard tools + GVM socket).
+              Pick GVM for the lightweight opm-scanner-gvm bridge image.
             </p>
           </div>
           <DialogFooter>

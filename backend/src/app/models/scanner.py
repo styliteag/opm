@@ -31,7 +31,7 @@ class Scanner(Base):
         String(20),
         nullable=False,
         server_default="standard",
-        comment="Scanner kind: 'standard' (masscan/nmap/nse) or 'gvm' (greenbone bridge)",
+        comment="Scanner kind: 'standard', 'gvm', or 'unified' (standard + gvm)",
     )
     gvm_refresh_requested: Mapped[bool] = mapped_column(
         Boolean,

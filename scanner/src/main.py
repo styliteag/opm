@@ -91,15 +91,22 @@ def _wait_for_gvmd(logger: logging.Logger) -> bool:
     return False
 
 
-def _is_gvm_scanner() -> bool:
-    """Return True when this container is the GVM-specialised image.
+def _detect_scanner_kind() -> str:
+    """Detect scanner kind from available binaries and environment.
 
-    The GVM image ships without masscan, so the absence of masscan is a
-    reliable signal that we should be running the GVM metadata loop.
+    Returns ``"unified"`` when both masscan and a GVM socket are present,
+    ``"gvm"`` when only GVM is available (lightweight bridge image), and
+    ``"standard"`` otherwise.
     """
-    return shutil.which("masscan") is None and bool(
+    has_masscan = shutil.which("masscan") is not None
+    has_gvm = bool(
         os.environ.get("GVM_SOCKET") or os.path.exists("/run/gvmd/gvmd.sock")
     )
+    if has_masscan and has_gvm:
+        return "unified"
+    if has_gvm:
+        return "gvm"
+    return "standard"
 
 
 def _push_gvm_metadata(client: ScannerClient, logger: logging.Logger) -> bool:
@@ -143,8 +150,9 @@ def main() -> None:
     check_dependencies(logger)
 
     version = get_version()
-    is_gvm = _is_gvm_scanner()
-    kind = "gvm" if is_gvm else "standard"
+    kind = _detect_scanner_kind()
+    can_gvm = kind in ("gvm", "unified")
+    can_standard = kind in ("standard", "unified")
     logger.info(
         "STYLiTE Orbit Monitor Scanner v%s (%s) starting...",
         version,
@@ -165,7 +173,7 @@ def main() -> None:
     client.wait_for_backend()
 
     last_gvm_metadata_push = 0.0
-    if is_gvm:
+    if can_gvm:
         logger.info("Running as GVM scanner — will push metadata snapshots to backend")
         # Probe gvmd before attempting the first GMP handshake. On cold boot
         # the socket file is visible via the shared volume long before gvmd
@@ -204,7 +212,7 @@ def main() -> None:
                             process_job(job, client, logger, log_buffer)
 
                 # Handle on-demand metadata refresh trigger
-                if is_gvm and result.gvm_refresh:
+                if can_gvm and result.gvm_refresh:
                     logger.info("Admin requested GVM metadata refresh")
                     if _push_gvm_metadata(client, logger):
                         last_gvm_metadata_push = time.monotonic()
@@ -232,7 +240,7 @@ def main() -> None:
             # Skip on GVM-only containers — they don't ship the HT/RapidDNS
             # source classes' transport stack and aren't the egress point
             # for hostname enrichment in the new architecture.
-            if not is_gvm:
+            if can_standard:
                 try:
                     processed = process_hostname_lookup_queue(client, logger)
                     if processed:
@@ -241,7 +249,7 @@ def main() -> None:
                     logger.exception("Failed to drain hostname lookup queue")
 
             # Background GVM metadata pulse
-            if is_gvm and (
+            if can_gvm and (
                 time.monotonic() - last_gvm_metadata_push >= GVM_METADATA_PULSE_INTERVAL
             ):
                 # Anchor the timer regardless of success — a failed push

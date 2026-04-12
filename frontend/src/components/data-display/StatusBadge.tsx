@@ -1,12 +1,13 @@
 import { cn } from "@/lib/utils";
 
-type StatusVariant = "success" | "warning" | "danger" | "neutral";
+type StatusVariant = "success" | "warning" | "danger" | "neutral" | "info";
 
 const variantStyles: Record<StatusVariant, string> = {
   success: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   warning: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   danger: "bg-red-500/10 text-red-400 border-red-500/20",
   neutral: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+  info: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
 };
 
 interface StatusBadgeProps {
@@ -38,6 +39,7 @@ export function StatusBadge({
             variant === "warning" && "bg-yellow-400",
             variant === "danger" && "bg-red-400",
             variant === "neutral" && "bg-slate-400",
+            variant === "info" && "bg-indigo-400",
           )}
         />
       )}

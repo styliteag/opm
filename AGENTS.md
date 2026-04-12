@@ -83,7 +83,7 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 - Separate compose stack: `compose-gvm.yml` (runs alongside main OPM stack via shared `opm-network`)
 - `opm-scanner-gvm` container bridges OPM ↔ GVM via `python-gvm` over Unix socket (`/run/gvmd/gvmd.sock`)
 - Docker image: `Dockerfile.gvm` (no masscan/nmap — lightweight Python-only)
-- `Scanner.kind` column (`"standard"` / `"gvm"`) — set by admin at scanner creation; existing scanners default to `"standard"` on migration 010 and must be edited to `"gvm"` after upgrade
+- `Scanner.kind` column (`"standard"` / `"gvm"` / `"unified"`) — set by admin at scanner creation or auto-detected by the scanner image on auth. `"unified"` means the scanner has both standard tools (masscan/nmap/nuclei) and a GVM socket, handling both job types. Existing scanners default to `"standard"` on migration 010
 - Network `scanner_type` must be `"greenbone"` with a `gvm_scan_config` (and optional `gvm_port_list`) — both are **names** of library/built-in entries, never UUIDs
 - Vulnerability results submitted to `POST /api/scanner/vulnerability-results` → stored in `vulnerabilities` table
 - Alerts generated for medium+ severity findings: `gvm_vulnerability` (no CVEs) and `gvm_cve_detected` (has CVEs)

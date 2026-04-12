@@ -148,8 +148,8 @@ function ScannersPage() {
                 header: "Type",
                 render: (scanner) => (
                   <StatusBadge
-                    label={scanner.kind === "gvm" ? "GVM" : "Standard"}
-                    variant={scanner.kind === "gvm" ? "warning" : "neutral"}
+                    label={scanner.kind === "gvm" ? "GVM" : scanner.kind === "unified" ? "Unified" : "Standard"}
+                    variant={scanner.kind === "gvm" ? "warning" : scanner.kind === "unified" ? "info" : "neutral"}
                   />
                 ),
               },

@@ -12,6 +12,7 @@ from app.schemas.gvm_library import (
     GvmScannerMirrorResponse,
     GvmScannerRefreshResponse,
 )
+from app.schemas.scanner import has_gvm_capability
 from app.services import gvm_library as library_service
 from app.services import gvm_metadata as metadata_service
 from app.services import scanners as scanners_service
@@ -204,10 +205,10 @@ async def request_scanner_refresh(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Scanner not found"
         )
-    if scanner.kind != "gvm":
+    if not has_gvm_capability(scanner.kind):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Refresh is only available for GVM scanners",
+            detail="Refresh is only available for GVM or unified scanners",
         )
     await metadata_service.request_refresh(db, scanner)
     await db.commit()
