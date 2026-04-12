@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Upgrade all frontend dependencies: TypeScript 5.9→6.0, ESLint 9→10, lucide-react 0.577→1.8, @types/node 24→25, plus all semver-compatible bumps (React 19.2.5, TanStack Query 5.99, Vite 8.0.8, Vitest 4.1.4, etc.)
+- Remove deprecated `baseUrl` from tsconfig (unnecessary with bundler module resolution)
+
 ## [2.2.0] - 2026-04-12
 
 ### Upgrade Notes
