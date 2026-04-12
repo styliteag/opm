@@ -42,13 +42,14 @@ const STATUS_OPTIONS: { value: boolean | undefined; label: string }[] = [
   { value: true, label: "Dismissed" },
 ];
 
-type AlertSource = "port" | "ssh" | "nse" | "gvm";
+type AlertSource = "port" | "ssh" | "nse" | "gvm" | "nuclei";
 
 const ALERT_SOURCES: { value: AlertSource; label: string }[] = [
   { value: "port", label: "Port" },
   { value: "ssh", label: "SSH" },
   { value: "nse", label: "NSE" },
   { value: "gvm", label: "GVM" },
+  { value: "nuclei", label: "Nuclei" },
 ];
 
 interface AlertFilterValues {
@@ -186,7 +187,7 @@ export function AlertFilters({
     !!filters.search ||
     !!filters.port;
 
-  const groups = ["Port", "SSH", "NSE", "GVM"] as const;
+  const groups = ["Port", "SSH", "NSE", "GVM", "Nuclei"] as const;
 
   return (
     <div

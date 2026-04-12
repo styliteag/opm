@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nuclei settings UI: clickable tag chips for include/exclude tags with template counts and descriptions
 - Include tags default to `cve,exposure,misconfig,tech` (~7.5k templates vs 12.4k all)
 - Exclude tags default to `fuzz,dos,intrusive` for new and existing networks
+- Nuclei source filter in Alert Triage Center dropdown
 
 ### Fixed
 
