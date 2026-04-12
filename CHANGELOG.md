@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.4] - 2026-04-13
+
 ### Added
 
 - Unified scanner kind: single scanner image handles both standard port scanning (masscan/nmap/nuclei) and GVM vulnerability assessment, auto-detected at runtime based on GVM socket presence
