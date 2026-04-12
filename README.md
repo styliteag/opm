@@ -64,8 +64,7 @@ Distributed network port scanning and monitoring system for security purposes wi
 | frontend | 5173 | React + Vite web dashboard           |
 | backend  | 8000 | FastAPI REST API                     |
 | db       | 3306 | MariaDB database                     |
-| scanner  | -    | Network scanner agent (Masscan, Nmap, NSE, SSH probe) |
-| scanner-gvm | - | GVM scanner bridge (optional, via `compose-gvm.yml`) |
+| scanner  | -    | Network scanner agent (Masscan, Nmap, NSE, Nuclei, SSH probe, GVM) |
 
 ### Development
 
@@ -223,9 +222,21 @@ The scanner will automatically connect to your main server and start processing 
 
 **Note:** The scanner requires `NET_RAW` and `NET_ADMIN` capabilities to perform network scans. These are automatically configured in the compose file.
 
-## Running the Greenbone (GVM) Scanner (Optional)
+## Adding Greenbone (GVM) Vulnerability Assessment (Optional)
 
-The GVM scanner adds full vulnerability assessment powered by the [Greenbone Community Edition](https://greenbone.github.io/docs/latest/). It runs as a separate compose stack alongside the main OPM deployment.
+GVM adds full vulnerability assessment powered by the [Greenbone Community Edition](https://greenbone.github.io/docs/latest/). The scanner image includes GVM support — when a GVM socket is mounted, the scanner auto-detects as **unified** and handles both standard port scanning and Greenbone vulnerability assessment jobs.
+
+### Scanner Kinds
+
+The scanner auto-detects its capabilities at startup:
+
+| Kind | When | Capabilities |
+|---|---|---|
+| **standard** | No GVM socket present | Masscan, Nmap, NSE, Nuclei, SSH probe |
+| **unified** | GVM socket mounted + masscan present | All standard tools + GVM vulnerability scanning |
+| **gvm** | GVM socket mounted, no masscan (`Dockerfile.gvm`) | GVM vulnerability scanning only (lightweight bridge) |
+
+A single `Dockerfile` produces both standard and unified scanners — the difference is purely runtime (whether a GVM socket is mounted).
 
 ### Prerequisites
 
@@ -289,7 +300,7 @@ The GSA port can be changed via the `GVM_GSA_PORT` environment variable.
 For production, edit `compose-gvm.yml` and swap the build/image lines on `opm-scanner-gvm`:
 
 ```yaml
-# image: styliteag/opm-scanner-gvm:latest   # uncomment this
+# image: styliteag/opm-scanner:latest       # uncomment this (same image, unified via socket)
 # build: ...                                  # comment out
 ```
 
@@ -297,10 +308,10 @@ Then set `GVM_BACKEND_URL=http://app:80` (the prod service name).
 
 ### Architecture
 
-The GVM scanner bridge (`opm-scanner-gvm`) communicates with GVM via a Unix socket and with OPM via REST API. It does **not** include masscan or nmap — it is a lightweight Python container that translates between OPM scan jobs and GVM tasks.
+The scanner in `compose-gvm.yml` uses the same image as the standard scanner but with a GVM socket mounted. It communicates with GVM via Unix socket and with OPM via REST API.
 
 ```
-OPM Backend  <──REST──>  opm-scanner-gvm  <──Unix socket──>  gvmd  ──>  ospd-openvas
+OPM Backend  <──REST──>  opm-scanner (unified)  <──Unix socket──>  gvmd  ──>  ospd-openvas
 ```
 
 ## Architecture
@@ -312,15 +323,16 @@ OPM Backend  <──REST──>  opm-scanner-gvm  <──Unix socket──>  gvm
 +-------------+     +---------+     +----------+
                          ^
                          |
-              +----------+----------+-----------+
-              |          |          |           |
-         +--------+ +--------+ +--------+ +----------+
-         |Scanner1| |Scanner2| |Scanner3| |GVM Bridge|
-         +--------+ +--------+ +--------+ +----------+
-              (Distributed scanners)            |
-                                          +----------+
-                                          |  gvmd    |
-                                          +----------+
+              +----------+----------+----------+
+              |          |          |          |
+         +--------+ +--------+ +--------+ +--------+
+         |Scanner1| |Scanner2| |Scanner3| |Scanner4|
+         |  (std) |  | (std) | |(unified)| | (gvm) |
+         +--------+ +--------+ +--------+ +--------+
+              (Distributed scanners)     |          |
+                                    +----------+    |
+                                    |  gvmd    |<---+
+                                    +----------+
 ```
 
 ## Documentation
