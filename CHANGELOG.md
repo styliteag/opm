@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improved
+
+- Hostname lookup cache admin page: all columns are now sortable (IP, status, vhosts, source, queried, expires)
+- Hostname search shows the first matching domain name next to the IP in the results
+
 ## [2.2.2] - 2026-04-12
 
 ## [2.2.1] - 2026-04-12

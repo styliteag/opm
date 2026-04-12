@@ -1,6 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Download,
   Globe,
   Pencil,
@@ -69,6 +72,9 @@ const SOURCE_BADGE_CLASSES: Record<string, string> = {
   rapiddns: "text-muted-foreground",
 };
 
+type SortKey = "ip" | "status" | "vhosts" | "source" | "queried" | "expires";
+type SortDir = "asc" | "desc";
+
 function HostnameLookupPage() {
   const {
     data: status,
@@ -96,11 +102,26 @@ function HostnameLookupPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState<HostnameLookupEntry | null>(null);
   const [editText, setEditText] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("ip");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey === key) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      } else {
+        setSortKey(key);
+        setSortDir("asc");
+      }
+    },
+    [sortKey],
+  );
 
   const filteredEntries = useMemo(() => {
     const entries = cache?.entries ?? [];
     const term = search.trim().toLowerCase();
-    return entries.filter((entry) => {
+
+    const filtered = entries.filter((entry) => {
       if (statusFilter !== "all" && entry.status !== statusFilter) {
         return false;
       }
@@ -108,7 +129,29 @@ function HostnameLookupPage() {
       if (entry.ip.toLowerCase().includes(term)) return true;
       return entry.hostnames.some((h) => h.toLowerCase().includes(term));
     });
-  }, [cache?.entries, search, statusFilter]);
+
+    const sorted = [...filtered].sort((a, b) => {
+      const mul = sortDir === "asc" ? 1 : -1;
+      switch (sortKey) {
+        case "ip":
+          return mul * a.ip.localeCompare(b.ip);
+        case "status":
+          return mul * a.status.localeCompare(b.status);
+        case "vhosts":
+          return mul * (a.hostnames.length - b.hostnames.length);
+        case "source":
+          return mul * a.source.localeCompare(b.source);
+        case "queried":
+          return mul * ((a.queried_at ?? "").localeCompare(b.queried_at ?? ""));
+        case "expires":
+          return mul * ((a.expires_at ?? "").localeCompare(b.expires_at ?? ""));
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [cache?.entries, search, statusFilter, sortKey, sortDir]);
 
   function handleExport() {
     if (!cache) return;
@@ -351,6 +394,10 @@ function HostnameLookupPage() {
               onEdit={openEditDialog}
               onDelete={deleteEntryByIp}
               onRefresh={refreshEntryByIp}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onToggleSort={toggleSort}
+              searchTerm={search.trim().toLowerCase()}
             />
           )}
         </CardContent>
@@ -481,6 +528,46 @@ interface EntriesTableProps {
   onEdit: (entry: HostnameLookupEntry) => void;
   onDelete: (ip: string) => void;
   onRefresh: (ip: string) => void;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onToggleSort: (key: SortKey) => void;
+  searchTerm: string;
+}
+
+function SortHeader({
+  label,
+  field,
+  sortKey,
+  sortDir,
+  onToggleSort,
+  align,
+}: {
+  label: string;
+  field: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onToggleSort: (key: SortKey) => void;
+  align?: "right";
+}) {
+  const active = sortKey === field;
+  const Icon = active
+    ? sortDir === "asc"
+      ? ArrowUp
+      : ArrowDown
+    : ArrowUpDown;
+  return (
+    <th className={`px-3 py-2 ${align === "right" ? "text-right" : ""}`}>
+      <button
+        type="button"
+        onClick={() => onToggleSort(field)}
+        className={`inline-flex items-center gap-1 text-xs cursor-pointer ${
+          active ? "text-foreground" : ""
+        }`}
+      >
+        {label} <Icon className="h-3 w-3" aria-hidden />
+      </button>
+    </th>
+  );
 }
 
 function EntriesTable({
@@ -488,18 +575,22 @@ function EntriesTable({
   onEdit,
   onDelete,
   onRefresh,
+  sortKey,
+  sortDir,
+  onToggleSort,
+  searchTerm,
 }: EntriesTableProps) {
   return (
     <div className="overflow-x-auto rounded-md border border-border/40">
       <table className="w-full text-sm">
         <thead className="bg-card/60 text-left text-xs font-emphasis uppercase tracking-wider text-muted-foreground">
           <tr>
-            <th className="px-3 py-2">IP</th>
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2 text-right">Vhosts</th>
-            <th className="px-3 py-2">Source</th>
-            <th className="px-3 py-2">Queried</th>
-            <th className="px-3 py-2">Expires</th>
+            <SortHeader label="IP" field="ip" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
+            <SortHeader label="Status" field="status" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
+            <SortHeader label="Vhosts" field="vhosts" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} align="right" />
+            <SortHeader label="Source" field="source" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
+            <SortHeader label="Queried" field="queried" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
+            <SortHeader label="Expires" field="expires" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
             <th className="px-3 py-2 text-right">Actions</th>
           </tr>
         </thead>
@@ -511,6 +602,7 @@ function EntriesTable({
               onEdit={onEdit}
               onDelete={onDelete}
               onRefresh={onRefresh}
+              searchTerm={searchTerm}
             />
           ))}
         </tbody>
@@ -524,13 +616,21 @@ interface EntryRowProps {
   onEdit: (entry: HostnameLookupEntry) => void;
   onDelete: (ip: string) => void;
   onRefresh: (ip: string) => void;
+  searchTerm: string;
 }
 
-function EntryRow({ entry, onEdit, onDelete, onRefresh }: EntryRowProps) {
+function EntryRow({ entry, onEdit, onDelete, onRefresh, searchTerm }: EntryRowProps) {
   const [expanded, setExpanded] = useState(false);
   const canExpand = entry.hostnames.length > 0;
   const sourceClass =
     SOURCE_BADGE_CLASSES[entry.source] ?? "text-muted-foreground";
+
+  // When searching by hostname (not IP), show the first matching domain inline
+  const matchedHostname = useMemo(() => {
+    if (!searchTerm) return null;
+    if (entry.ip.toLowerCase().includes(searchTerm)) return null;
+    return entry.hostnames.find((h) => h.toLowerCase().includes(searchTerm)) ?? null;
+  }, [searchTerm, entry.ip, entry.hostnames]);
 
   return (
     <>
@@ -540,7 +640,14 @@ function EntryRow({ entry, onEdit, onDelete, onRefresh }: EntryRowProps) {
         }`}
         onClick={() => canExpand && setExpanded((v) => !v)}
       >
-        <td className="px-3 py-2 font-mono text-xs">{entry.ip}</td>
+        <td className="px-3 py-2">
+          <span className="font-mono text-xs">{entry.ip}</span>
+          {matchedHostname && (
+            <span className="ml-2 text-[11px] text-primary/80">
+              {matchedHostname}
+            </span>
+          )}
+        </td>
         <td className="px-3 py-2">
           <span
             className={`inline-block rounded-md border px-1.5 py-0.5 text-[10px] font-emphasis uppercase tracking-wider ${STATUS_COLORS[entry.status]}`}
