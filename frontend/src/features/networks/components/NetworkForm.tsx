@@ -166,7 +166,7 @@ export function NetworkForm({
           gvm_keep_reports: source.gvm_keep_reports ?? true,
           ssh_probe_enabled: source.ssh_probe_enabled ?? true,
           nuclei_enabled: source.nuclei_enabled ?? false,
-          nuclei_tags: source.nuclei_tags ?? undefined,
+          nuclei_tags: source.nuclei_tags || "cve,exposure,misconfig,tech",
           nuclei_exclude_tags: source.nuclei_exclude_tags || "fuzz,dos,intrusive",
           nuclei_severity:
             (source.nuclei_severity as

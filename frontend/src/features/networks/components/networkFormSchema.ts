@@ -29,7 +29,7 @@ export const networkFormSchema = z.object({
   gvm_keep_reports: z.boolean().default(true),
   ssh_probe_enabled: z.boolean().default(true),
   nuclei_enabled: z.boolean().default(false),
-  nuclei_tags: z.string().optional(),
+  nuclei_tags: z.string().default("cve,exposure,misconfig,tech"),
   nuclei_exclude_tags: z.string().default("fuzz,dos,intrusive"),
   nuclei_severity: z.preprocess(
     (val) => (val === "" || val === null ? undefined : val),
