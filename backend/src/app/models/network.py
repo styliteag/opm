@@ -103,7 +103,7 @@ class Network(Base):
     nuclei_severity: Mapped[str | None] = mapped_column(
         String(16),
         nullable=True,
-        comment="Minimum nuclei severity to report: info/low/medium/high/critical",
+        comment="Minimum nuclei severity for alert generation: info/low/medium/high/critical",
     )
     nuclei_timeout: Mapped[int | None] = mapped_column(
         Integer,

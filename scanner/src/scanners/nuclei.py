@@ -399,7 +399,6 @@ _DEFAULT_EXCLUDE_TAGS = "fuzz,dos,intrusive"
 def run_nuclei(
     targets: Sequence[str],
     tags: str | None,
-    severity_threshold: str | None,
     timeout_s: int | None,
     logger: logging.Logger,
     templates_dir: str | None = None,
@@ -427,7 +426,7 @@ def run_nuclei(
     templates_path = templates_dir or os.environ.get(
         _NUCLEI_TEMPLATES_DIR_ENV, "/opt/nuclei-templates"
     )
-    severity_flag = build_severity_flag(severity_threshold)
+    severity_flag = build_severity_flag("info")
 
     with tempfile.TemporaryDirectory(prefix="nuclei-") as tmpdir:
         targets_file = os.path.join(tmpdir, "targets.txt")
@@ -463,9 +462,8 @@ def run_nuclei(
             cmd.extend(["-exclude-tags", resolved_exclude])
 
         logger.info(
-            "nuclei: running against %d target(s), severity>=%s, tags=%s, timeout=%ds",
+            "nuclei: running against %d target(s), all severities, tags=%s, timeout=%ds",
             len(targets),
-            severity_threshold or "medium",
             tags or "(default)",
             resolved_timeout,
         )

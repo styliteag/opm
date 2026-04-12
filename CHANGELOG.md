@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Nuclei scanner always scans all severity levels (info through critical) — complete tech-stack inventory stored in DB regardless of alert threshold
+- `nuclei_severity` network setting now controls alert generation only, not scan scope (relabeled to "Alert threshold" in UI)
 - Consolidated scanner Dockerfiles: single `Dockerfile` now includes `python-gvm` by default (removed `Dockerfile.unified`)
 - Per-network `nuclei_exclude_tags` setting to skip slow/dangerous template categories (default: `fuzz,dos,intrusive`)
 

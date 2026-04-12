@@ -292,7 +292,6 @@ def _run_nuclei_phase(
         findings = run_nuclei(
             targets=targets,
             tags=phase.config.get("tags") or job.nuclei_tags,
-            severity_threshold=phase.config.get("severity") or job.nuclei_severity,
             timeout_s=phase.config.get("timeout") or job.nuclei_timeout,
             logger=logger,
             on_progress=lambda pct, msg: progress_reporter.update(pct, msg),

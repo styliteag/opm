@@ -161,7 +161,7 @@ export function NucleiSettings({ enabled }: NucleiSettingsProps) {
 
           {/* ── Severity + Timeout ── */}
           <div>
-            <Label htmlFor="nuclei_severity">Minimum severity</Label>
+            <Label htmlFor="nuclei_severity">Alert threshold</Label>
             <Select id="nuclei_severity" {...register("nuclei_severity")}>
               <option value="">Default (medium)</option>
               <option value="info">Info</option>
@@ -171,8 +171,8 @@ export function NucleiSettings({ enabled }: NucleiSettingsProps) {
               <option value="critical">Critical</option>
             </Select>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              Only report findings at or above this severity. Default skips
-              info/low noise.
+              All findings are stored. Only findings at or above this severity
+              generate alerts.
             </p>
           </div>
           <div>
