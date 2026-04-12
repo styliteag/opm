@@ -27,32 +27,32 @@ const TOGGLES: SshOverrideToggle[] = [
   {
     field: "ssh_override_insecure_auth",
     defaultsKey: "ssh_insecure_auth",
-    label: "Unsichere Authentifizierung",
-    help: "Passwort / keyboard-interactive zugelassen.",
+    label: "Insecure Authentication",
+    help: "Password / keyboard-interactive allowed.",
   },
   {
     field: "ssh_override_weak_cipher",
     defaultsKey: "ssh_weak_cipher",
-    label: "Schwache Ciphers",
-    help: "3DES, RC4, CBC-Modi etc.",
+    label: "Weak Ciphers",
+    help: "3DES, RC4, CBC modes, etc.",
   },
   {
     field: "ssh_override_weak_kex",
     defaultsKey: "ssh_weak_kex",
-    label: "Schwache Key Exchange",
-    help: "diffie-hellman-group1-sha1 und ähnliches.",
+    label: "Weak Key Exchange",
+    help: "diffie-hellman-group1-sha1 and similar.",
   },
   {
     field: "ssh_override_outdated_version",
     defaultsKey: "ssh_outdated_version",
-    label: "Veraltete OpenSSH-Version",
-    help: "Greift gegen die Mindestversion unten.",
+    label: "Outdated OpenSSH Version",
+    help: "Checked against the minimum version below.",
   },
   {
     field: "ssh_override_config_regression",
     defaultsKey: "ssh_config_regression",
     label: "Configuration Regression",
-    help: "Verschlechterung gegenüber dem letzten Scan.",
+    help: "Degradation compared to the last scan.",
   },
 ];
 
@@ -108,21 +108,21 @@ export function SshAlertOverrides() {
         <span>SSH Alert Overrides</span>
         {hasAnyOverride && (
           <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-emphasis text-primary">
-            aktiv
+            active
           </span>
         )}
         <span className="ml-auto text-[11px] text-muted-foreground">
-          {expanded ? "" : "Globale SSH-Defaults gelten"}
+          {expanded ? "" : "Global SSH defaults apply"}
         </span>
       </button>
 
       {expanded && (
         <div className="space-y-2 border-t border-border/40 p-3">
           <p className="text-[11px] text-muted-foreground">
-            Pro Schalter: <em>Vererben</em> = globaler Default greift,{" "}
-            <em>An</em>/<em>Aus</em> erzwingt einen netzwerkspezifischen Wert.
-            Diese Einstellungen überschreiben die SSH Alert Defaults für{" "}
-            <strong>dieses</strong> Netzwerk.
+            Per toggle: <em>Inherit</em> = global default applies,{" "}
+            <em>On</em>/<em>Off</em> forces a network-specific value.
+            These settings override the SSH Alert Defaults for{" "}
+            <strong>this</strong> network.
           </p>
           <div className="space-y-2">
             {TOGGLES.map((toggle) => {
@@ -149,12 +149,12 @@ export function SshAlertOverrides() {
                     className="w-44"
                   >
                     <option value="inherit">
-                      Vererben{" "}
+                      Inherit{" "}
                       {inherited !== undefined &&
-                        `(global: ${inherited ? "An" : "Aus"})`}
+                        `(global: ${inherited ? "On" : "Off"})`}
                     </option>
-                    <option value="on">Erzwungen: An</option>
-                    <option value="off">Erzwungen: Aus</option>
+                    <option value="on">Force: On</option>
+                    <option value="off">Force: Off</option>
                   </Select>
                 </div>
               );
@@ -166,7 +166,7 @@ export function SshAlertOverrides() {
               htmlFor="ssh_override_version_threshold"
               className="text-sm font-normal text-foreground"
             >
-              OpenSSH Mindest-Version (Override)
+              OpenSSH Minimum Version (Override)
             </Label>
             <div className="mt-1 flex items-center gap-2">
               <Input
@@ -175,15 +175,15 @@ export function SshAlertOverrides() {
                 {...register("ssh_override_version_threshold")}
                 placeholder={
                   defaults
-                    ? `Vererben (global: ${defaults.ssh_version_threshold})`
-                    : "Vererben (leer lassen)"
+                    ? `Inherit (global: ${defaults.ssh_version_threshold})`
+                    : "Inherit (leave empty)"
                 }
                 className="w-48 font-mono"
               />
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Leer lassen = globaler Default. Nur OpenSSH; Dropbear / libssh
-              werden nicht versionsgeprüft.
+              Leave empty = global default. OpenSSH only; Dropbear / libssh
+              are not version-checked.
             </p>
           </div>
         </div>

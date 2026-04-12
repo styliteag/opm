@@ -59,46 +59,46 @@ interface ToggleGroup {
 
 const TOGGLE_GROUPS: ToggleGroup[] = [
   {
-    title: "Anmeldung",
-    description: "Wie sich Clients am SSH-Server anmelden dürfen.",
+    title: "Authentication",
+    description: "How clients are allowed to authenticate with the SSH server.",
     items: [
       {
         key: "ssh_insecure_auth",
-        label: "Unsichere Authentifizierung",
+        label: "Insecure Authentication",
         help:
-          "Warnt, wenn der Server Passwort- oder Keyboard-Interactive-Login akzeptiert. Empfohlen ist ausschließlich Public-Key-Authentifizierung.",
+          "Alerts when the server accepts password or keyboard-interactive login. Public-key authentication only is recommended.",
       },
     ],
   },
   {
-    title: "Verschlüsselung",
+    title: "Encryption",
     description:
-      "Schwache Algorithmen, die nicht mehr als sicher gelten.",
+      "Weak algorithms that are no longer considered secure.",
     items: [
       {
         key: "ssh_weak_cipher",
-        label: "Schwache Ciphers",
+        label: "Weak Ciphers",
         help:
-          "Warnt, wenn der Server symmetrische Verschlüsselungsverfahren wie 3DES, RC4 oder CBC-Modi anbietet.",
+          "Alerts when the server offers symmetric ciphers such as 3DES, RC4, or CBC modes.",
       },
       {
         key: "ssh_weak_kex",
-        label: "Schwache Key Exchange",
+        label: "Weak Key Exchange",
         help:
-          "Warnt bei veralteten Schlüsselaustauschverfahren wie diffie-hellman-group1-sha1 oder MD5-basierten Varianten.",
+          "Alerts on deprecated key exchange methods such as diffie-hellman-group1-sha1 or MD5-based variants.",
       },
     ],
   },
   {
-    title: "Änderungsüberwachung",
+    title: "Change Monitoring",
     description:
-      "Erkennt Verschlechterungen der SSH-Konfiguration zwischen zwei Scans.",
+      "Detects SSH configuration regressions between two scans.",
     items: [
       {
         key: "ssh_config_regression",
         label: "Configuration Regression",
         help:
-          "Warnt, wenn ein Host gegenüber dem letzten Scan eine schwächere Konfiguration zeigt — z. B. ein neu erlaubter schwacher Cipher oder eine herabgestufte SSH-Version.",
+          "Alerts when a host shows a weaker configuration compared to the last scan — e.g. a newly allowed weak cipher or a downgraded SSH version.",
       },
     ],
   },
@@ -116,8 +116,8 @@ function SshAlertDefaultsPage() {
             SSH Alert Defaults
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Globale Vorgaben für SSH-Sicherheits-Alerts. Greifen für jedes
-            Netzwerk, das in seinem Alert-Profil keinen eigenen Wert setzt.
+            Global defaults for SSH security alerts. Applied to every network
+            that does not define its own values in its alert profile.
           </p>
         </div>
       </div>
@@ -153,8 +153,8 @@ function OverridesBanner() {
       <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
         <p className="text-muted-foreground">
-          Kein Netzwerk überschreibt aktuell die SSH-Defaults. Alle Netze
-          verwenden die Werte unten.
+          No network currently overrides the SSH defaults. All networks
+          use the values below.
         </p>
       </div>
     );
@@ -165,8 +165,8 @@ function OverridesBanner() {
       onSuccess: (res) => {
         toast.success(
           res.cleared_count === 1
-            ? "1 Netzwerk zurückgesetzt"
-            : `${res.cleared_count} Netzwerke zurückgesetzt`,
+            ? "1 network reset"
+            : `${res.cleared_count} networks reset`,
         );
         setConfirmOpen(false);
       },
@@ -181,20 +181,19 @@ function OverridesBanner() {
         <div className="flex-1">
           <p className="text-foreground">
             <span className="font-emphasis">{count}</span>{" "}
-            {count === 1 ? "Netzwerk überschreibt" : "Netzwerke überschreiben"}{" "}
-            diese Defaults.{" "}
+            {count === 1 ? "network overrides" : "networks override"}{" "}
+            these defaults.{" "}
             <Link
               to="/networks"
               search={{ filter: "ssh-override" }}
               className="text-primary underline-offset-2 hover:underline"
             >
-              Zu den betroffenen Netzwerken →
+              View affected networks →
             </Link>
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Mit „Auf alle anwenden" werden die SSH-Schlüssel aus jedem
-            Alert-Profil entfernt; andere Einstellungen wie E-Mail-Empfänger
-            bleiben erhalten.
+            &ldquo;Apply to all&rdquo; removes the SSH keys from every alert
+            profile; other settings such as email recipients are kept.
           </p>
         </div>
         <Button
@@ -205,7 +204,7 @@ function OverridesBanner() {
           className="gap-1.5"
         >
           <RotateCcw className="h-3.5 w-3.5" />
-          Auf alle anwenden
+          Apply to all
         </Button>
       </div>
 
@@ -215,24 +214,23 @@ function OverridesBanner() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>SSH-Overrides entfernen?</AlertDialogTitle>
+            <AlertDialogTitle>Remove SSH overrides?</AlertDialogTitle>
             <AlertDialogDescription>
-              Aus {count}{" "}
-              {count === 1 ? "Netzwerk" : "Netzwerken"} werden die SSH-Keys aus
-              dem Alert-Profil entfernt. Danach gelten überall die globalen
-              Defaults. E-Mail-Empfänger und andere Einstellungen bleiben
-              unverändert. Aktion ist nicht rückgängig zu machen.
+              SSH keys will be removed from the alert profile of {count}{" "}
+              {count === 1 ? "network" : "networks"}. Afterwards all networks
+              will use the global defaults. Email recipients and other settings
+              remain unchanged. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={applyAll.isPending}>
-              Abbrechen
+              Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirm}
               disabled={applyAll.isPending}
             >
-              {applyAll.isPending ? "Wird angewendet..." : "Ja, anwenden"}
+              {applyAll.isPending ? "Applying..." : "Yes, apply"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -260,7 +258,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
     mutation.mutate(
       { [key]: updated[key] },
       {
-        onSuccess: () => toast.success("SSH-Default aktualisiert"),
+        onSuccess: () => toast.success("SSH default updated"),
         onError: (e) => {
           toast.error(e.message);
           setForm(form); // revert
@@ -272,7 +270,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
   const validateVersion = (value: string): boolean => {
     if (!VERSION_REGEX.test(value)) {
       setVersionError(
-        "Format z. B. 8.0 oder 8.0.0 — nur Ziffern und Punkte erlaubt.",
+        "Format e.g. 8.0 or 8.0.0 — digits and dots only.",
       );
       return false;
     }
@@ -293,7 +291,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
       {
         onSuccess: () => {
           setForm({ ...form, ssh_version_threshold: versionDraft });
-          toast.success("SSH-Mindestversion aktualisiert");
+          toast.success("SSH minimum version updated");
         },
         onError: (e) => toast.error(e.message),
       },
@@ -326,23 +324,23 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">OpenSSH-Version</CardTitle>
+          <CardTitle className="text-sm">OpenSSH Version</CardTitle>
           <CardDescription className="text-xs">
-            Mindest-Version, unter der ein Alert ausgelöst wird.{" "}
+            Minimum version below which an alert is triggered.{" "}
             <span className="text-yellow-400">
-              Gilt nur für OpenSSH-Server.
+              Applies to OpenSSH servers only.
             </span>{" "}
-            Dropbear, libssh und andere Implementierungen werden nicht
-            versionsgeprüft.
+            Dropbear, libssh, and other implementations are not
+            version-checked.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <ToggleRow
             item={{
               key: "ssh_outdated_version",
-              label: "Veraltete OpenSSH-Version melden",
+              label: "Report Outdated OpenSSH Version",
               help:
-                "Wenn aktiv, wird ein Alert erzeugt sobald die OpenSSH-Version unter dem unten gesetzten Mindestwert liegt.",
+                "When enabled, an alert is generated whenever the OpenSSH version falls below the minimum threshold set below.",
             }}
             checked={form.ssh_outdated_version}
             disabled={mutation.isPending}
@@ -354,7 +352,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
               htmlFor="ssh-min-version"
               className="text-sm font-normal text-foreground"
             >
-              Mindest-Version (nur OpenSSH)
+              Minimum Version (OpenSSH only)
             </Label>
             <div className="mt-2 flex items-start gap-2">
               <div className="flex-1">
@@ -381,7 +379,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
                 )}
                 {!versionError && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Beispiel: <code className="font-mono">9.6</code> oder{" "}
+                    Example: <code className="font-mono">9.6</code> or{" "}
                     <code className="font-mono">9.6.1</code>
                   </p>
                 )}
@@ -397,7 +395,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
                 className="gap-1.5"
               >
                 <Save className="h-3.5 w-3.5" />
-                Speichern
+                Save
               </Button>
             </div>
           </div>

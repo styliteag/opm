@@ -159,13 +159,13 @@ function NetworksPage() {
             type="button"
             onClick={() => navigate({ search: {} })}
             className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-emphasis text-primary hover:bg-primary/20 transition-colors"
-            title="Filter entfernen"
+            title="Remove filter"
           >
-            SSH-Override aktiv
+            SSH override active
             <X className="h-3 w-3" />
           </button>
           <span className="text-xs text-muted-foreground">
-            {networkList.length} von {allNetworks.length} Netzen
+            {networkList.length} of {allNetworks.length} networks
           </span>
         </div>
       )}
@@ -175,12 +175,12 @@ function NetworksPage() {
         <EmptyState
           title={
             filter === "ssh-override"
-              ? "Keine Netzwerke mit SSH-Override"
+              ? "No networks with SSH override"
               : "No networks"
           }
           message={
             filter === "ssh-override"
-              ? "Kein Netzwerk überschreibt aktuell die globalen SSH-Defaults."
+              ? "No network currently overrides the global SSH defaults."
               : "Add a network to start scanning."
           }
         />
