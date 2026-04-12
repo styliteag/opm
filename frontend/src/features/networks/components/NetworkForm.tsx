@@ -167,7 +167,7 @@ export function NetworkForm({
           ssh_probe_enabled: source.ssh_probe_enabled ?? true,
           nuclei_enabled: source.nuclei_enabled ?? false,
           nuclei_tags: source.nuclei_tags ?? undefined,
-          nuclei_exclude_tags: source.nuclei_exclude_tags ?? undefined,
+          nuclei_exclude_tags: source.nuclei_exclude_tags || "fuzz,dos,intrusive",
           nuclei_severity:
             (source.nuclei_severity as
               | "info"
