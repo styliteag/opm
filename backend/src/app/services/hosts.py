@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from typing import Any, cast
 
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import and_, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
@@ -12,7 +12,26 @@ from app.lib.ip_utils import IPRange
 from app.models.alert import Alert
 from app.models.global_open_port import GlobalOpenPort
 from app.models.host import Host
+from app.models.hostname_lookup import HostnameLookup
 from app.repositories.base import BaseRepository
+
+
+def _build_search_filter(term: str) -> ColumnElement[bool]:
+    """Build an OR filter matching hosts by IP, hostname, comment, or cached vhosts."""
+    like_term = f"%{term}%"
+    return or_(
+        Host.ip.ilike(like_term),
+        Host.hostname.ilike(like_term),
+        Host.user_comment.ilike(like_term),
+        exists(
+            select(HostnameLookup.id).where(
+                HostnameLookup.ip == Host.ip,
+                func.json_search(
+                    HostnameLookup.hostnames_json, "one", like_term
+                ).isnot(None),
+            )
+        ),
+    )
 
 
 class HostRepository(BaseRepository[Host]):
@@ -148,7 +167,7 @@ async def get_hosts(
         filters.append(Host.is_pingable == is_pingable)
 
     if ip_search:
-        filters.append(Host.ip.ilike(f"%{ip_search}%"))
+        filters.append(_build_search_filter(ip_search))
 
     if ip_range is not None:
         version, start_ip, end_ip = ip_range
@@ -243,7 +262,7 @@ async def get_host_counts(
         filters.append(func.json_contains(Host.seen_by_networks, str(network_id)))
 
     if ip_search:
-        filters.append(Host.ip.ilike(f"%{ip_search}%"))
+        filters.append(_build_search_filter(ip_search))
 
     if ip_range is not None:
         version, start_ip, end_ip = ip_range

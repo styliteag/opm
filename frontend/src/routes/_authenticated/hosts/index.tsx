@@ -147,7 +147,7 @@ function HostsPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search hosts, IPs, or services..."
+            placeholder="Search IPs, hostnames, comments, aliases..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
