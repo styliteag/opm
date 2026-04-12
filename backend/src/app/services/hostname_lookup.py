@@ -1,15 +1,11 @@
-"""Hostname lookup cache service — reverse-IP hostname discovery.
+"""Hostname lookup cache service — storage + budget accounting.
 
-Cache-first reverse-IP hostname discovery for SNI-aware nuclei scans.
-The service layer owns three concerns:
+Backs the SNI-aware reverse-IP hostname discovery pipeline. Post-2.3.0
+the backend is storage-only — all external hostname API egress lives
+in the scanner (``scanner/src/hostname_sources.py``) and reaches the
+backend via ``POST /api/scanner/hostname-results``. This module owns:
 
-1. **Pluggable sources** — ``HostnameLookupSource`` is a ``Protocol``
-   so Commit 5 can add RapidDNS / Shodan paid / ViewDNS backends
-   without touching the cache or budget code. ``HackerTargetSource`` is
-   the only shipped implementation today and exactly mirrors the URL
-   already used by ``scanner/src/hostname_enrichment.py``.
-
-2. **Cache** — ``get_cached_hostnames`` / ``upsert_cache_row`` read and
+1. **Cache** — ``get_cached_hostnames`` / ``upsert_cache_row`` read and
    write the ``hostname_lookup_cache`` table from migration 014. Rows
    carry a per-outcome TTL (long for success, medium for no_results,
    short for failed) so a flaky source retries relatively soon while
@@ -17,29 +13,34 @@ The service layer owns three concerns:
    ``None`` for failed rows so callers retry instead of cache-blocking
    on a transient outage.
 
-3. **Daily budget** — ``consume_budget`` atomically increments a per
-   source/day counter backed by ``hostname_lookup_budget``. ``pin_budget_
-   exhausted`` is called when the source itself reports its rate limit
-   exceeded (``"API count exceeded"`` from HackerTarget) so a clock-skew
-   or backend restart can't cause us to burn through the source's real
-   limit. The filler job is single-instance (``APScheduler
-   max_instances=1``) so naive read-modify-write is race-free; if we
-   ever parallelise the filler we'll need a row lock.
+2. **Daily budget** — ``consume_budget`` / ``increment_budget_used``
+   atomically update a per-source/day counter backed by
+   ``hostname_lookup_budget``. ``pin_budget_exhausted`` is called when
+   the scanner reports the upstream source's rate limit via the
+   ``"API count exceeded"`` marker in a POST-ed result so a backend
+   restart or clock-skew can't cause future scanner polls to burn the
+   source's real daily cap.
 
-The top-level ``lookup_with_cache(db, source, ip, daily_limit)`` glues
-all three together. It never raises on source failure — errors are
-persisted with a short TTL and an empty list is returned.
+3. **On-demand queue** — ``enqueue_hostname_lookup`` /
+   ``claim_pending_lookup_jobs`` / ``mark_queue_entry_completed`` drive
+   the ``hostname_lookup_queue`` table from migration 016. The queue
+   is the handoff between UI-triggered manual refresh requests and
+   the scanner's polling loop.
+
+4. **Scanner I/O** — ``apply_scanner_hostname_results`` persists a
+   batch of outcomes posted by the scanner, and
+   ``get_scanner_budget_snapshot`` returns the per-source
+   ``{source, used, limit, remaining}`` projection consumed by the
+   pre-flight budget endpoint.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal, Protocol
+from typing import Literal
 
-import httpx
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -85,39 +86,11 @@ MANUAL_EDIT_TTL_DAYS = 56
 MANUAL_SOURCE_NAME = "manual"
 
 # HackerTarget /reverseiplookup/ free-tier rate limits (from the
-# provider's docs, 2026-04): 50 req/day for anonymous free users,
-# throttled to max 2 req/s, returns HTTP 429 when either limit is
-# exceeded. The caller passes the desired cap to the service; we just
-# enforce the count and detect 429 as a "pin budget" signal.
+# provider's docs): 50 req/day for anonymous free users, 100 req/day
+# with a free API key. Used by the scanner-facing budget endpoint to
+# report daily caps; actual enforcement lives in the scanner now.
 HACKERTARGET_DAILY_LIMIT_ANON = 50
 HACKERTARGET_DAILY_LIMIT_WITH_KEY = 100
-HACKERTARGET_MIN_REQUEST_INTERVAL_S = 0.6  # stay under 2 req/s with headroom
-HACKERTARGET_URL = "https://api.hackertarget.com/reverseiplookup/"
-HACKERTARGET_TIMEOUT_S = 15.0
-
-# RapidDNS /sameip/ — fallback source when HackerTarget is exhausted
-# or fails. Rate limit is not publicly documented; the default 100/day
-# is a conservative guess and can be overridden via settings. Interval
-# throttle matches HackerTarget's conservative 2 req/s ceiling.
-RAPIDDNS_DEFAULT_DAILY_LIMIT = 100
-RAPIDDNS_MIN_REQUEST_INTERVAL_S = 0.6
-RAPIDDNS_URL_TEMPLATE = "https://rapiddns.io/sameip/{ip}"
-RAPIDDNS_TIMEOUT_S = 20.0
-# Plain browser UA — rapiddns serves the same HTML either way in
-# practice, but some CDN rules will flag missing UAs as bots.
-RAPIDDNS_USER_AGENT = (
-    "Mozilla/5.0 (OPM Hostname Cache) AppleWebKit/537.36 (KHTML, like Gecko)"
-)
-# Regex to pluck hostname strings out of the results table cells. The
-# page structure is `<td>hostname</td><td>A-record</td><td>...</td>`
-# repeated per row; we extract candidates then filter to valid-looking
-# FQDNs. Intentionally greedy + validated downstream rather than
-# pulling in BeautifulSoup for a single parser.
-_RAPIDDNS_TD_RE = re.compile(r"<td>([^<]{1,253})</td>", re.IGNORECASE)
-_FQDN_RE = re.compile(
-    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$",
-    re.IGNORECASE,
-)
 
 LookupStatus = Literal["success", "no_results", "failed"]
 
@@ -131,250 +104,14 @@ class HostnameLookupResult:
 
     ``hostnames`` is always a list (empty on no_results / failed) so the
     caller never has to deal with Optional semantics. ``error_message``
-    is bounded to 500 chars by the source so we can persist it to the
-    ``error_message`` TEXT column without worrying about bloat.
+    is bounded to 500 chars by the scanner before it arrives here so
+    we can persist it to the ``error_message`` TEXT column without
+    worrying about bloat.
     """
 
     status: LookupStatus
     hostnames: list[str]
     error_message: str | None = None
-
-
-class HostnameLookupSource(Protocol):
-    """Pluggable reverse-IP hostname discovery source.
-
-    Implementations should catch all transport errors and return a
-    ``failed`` result rather than raising — the service layer assumes
-    ``fetch`` is exception-free to keep cache bookkeeping simple.
-    """
-
-    name: str
-
-    async def fetch(self, ip: str) -> HostnameLookupResult: ...
-
-
-# --- HackerTarget implementation -------------------------------------
-
-
-class HackerTargetSource:
-    """Reverse-IP lookup via HackerTarget's ``/reverseiplookup/`` endpoint.
-
-    Free tier: 20 req/day anonymous, 100 req/day with a free API key.
-    The budget counter lives outside this class in the service layer;
-    this source only reports success/no_results/failed per call.
-
-    Parsing rules (determined empirically against the real endpoint):
-    - Empty body → ``no_results``
-    - Body starts with ``error`` → ``failed`` (transient API issue)
-    - Body contains ``API count exceeded`` → ``failed`` with a
-      recognisable error_message so the caller can pin the budget
-    - Body starts with ``No DNS`` or ``No records`` → ``no_results``
-    - Otherwise: newline-split list of hostnames, stripped, deduped
-      (preserving order), IP-literal lines filtered out
-    """
-
-    name = "hackertarget"
-
-    def __init__(
-        self,
-        api_key: str | None = None,
-        timeout: float = HACKERTARGET_TIMEOUT_S,
-    ) -> None:
-        self._api_key = api_key
-        self._timeout = timeout
-
-    async def fetch(self, ip: str) -> HostnameLookupResult:
-        try:
-            text = await self._fetch_text(ip)
-        except httpx.HTTPStatusError as exc:
-            # HackerTarget returns 429 when the daily-50 or 2-req/s
-            # limits are exceeded. Signal this with the same marker
-            # that the 200-body "API count exceeded" path uses so the
-            # service layer's budget-pinning logic can catch both.
-            if exc.response.status_code == 429:
-                return HostnameLookupResult(
-                    status="failed",
-                    hostnames=[],
-                    error_message="HTTP 429: API count exceeded",
-                )
-            return HostnameLookupResult(
-                status="failed",
-                hostnames=[],
-                error_message=f"HTTP {exc.response.status_code}: {exc}"[:500],
-            )
-        except httpx.HTTPError as exc:
-            return HostnameLookupResult(
-                status="failed",
-                hostnames=[],
-                error_message=f"HTTP error: {exc}"[:500],
-            )
-        return self.parse(text)
-
-    async def _fetch_text(self, ip: str) -> str:
-        """Perform the HTTP call and return the raw body text.
-
-        Split out as a separate method so tests can subclass the source
-        and override just the transport without having to mock httpx.
-        Raises ``httpx.HTTPStatusError`` on non-2xx responses so the
-        ``fetch`` wrapper can pick out 429 as a rate-limit signal.
-        """
-        params: dict[str, str] = {"q": ip}
-        if self._api_key:
-            params["apikey"] = self._api_key
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.get(HACKERTARGET_URL, params=params)
-            response.raise_for_status()
-            return response.text
-
-    @staticmethod
-    def parse(text: str) -> HostnameLookupResult:
-        """Classify a HackerTarget response body into a lookup result."""
-        stripped = text.strip()
-        if not stripped:
-            return HostnameLookupResult(status="no_results", hostnames=[])
-
-        lowered = stripped.lower()
-        if "api count exceeded" in lowered:
-            return HostnameLookupResult(
-                status="failed",
-                hostnames=[],
-                error_message=stripped[:500],
-            )
-        if lowered.startswith("error"):
-            return HostnameLookupResult(
-                status="failed",
-                hostnames=[],
-                error_message=stripped[:500],
-            )
-        if lowered.startswith("no dns") or "no records" in lowered:
-            return HostnameLookupResult(status="no_results", hostnames=[])
-
-        seen: dict[str, None] = {}  # preserves insertion order, dedupe
-        for line in stripped.splitlines():
-            candidate = line.strip()
-            if not candidate or _is_probably_ipv4(candidate):
-                continue
-            seen.setdefault(candidate, None)
-
-        if not seen:
-            return HostnameLookupResult(status="no_results", hostnames=[])
-        return HostnameLookupResult(
-            status="success",
-            hostnames=list(seen.keys()),
-        )
-
-
-def _is_probably_ipv4(value: str) -> bool:
-    """Cheap IPv4 literal check — skip lines that are the IP echoed back."""
-    parts = value.split(".")
-    if len(parts) != 4:
-        return False
-    try:
-        return all(0 <= int(p) <= 255 for p in parts)
-    except ValueError:
-        return False
-
-
-class RapidDnsSource:
-    """Reverse-IP lookup via rapiddns.io's ``/sameip/<ip>`` HTML page.
-
-    Used as the fallback source when HackerTarget's daily budget is
-    exhausted or it throws 429. Parsing is regex-based — rapiddns's
-    layout is a plain ``<td>hostname</td>`` table with deterministic
-    structure, so pulling in BeautifulSoup for a single call site
-    would be overkill.
-
-    Rate limit policy: rapiddns doesn't publish one. We default to 100
-    req/day and a 2 req/s throttle (same shape as HackerTarget) and
-    treat HTTP 429 or an obviously-blocked response (very short body
-    or Cloudflare challenge markers) as a pin-budget signal.
-    """
-
-    name = "rapiddns"
-
-    def __init__(self, timeout: float = RAPIDDNS_TIMEOUT_S) -> None:
-        self._timeout = timeout
-
-    async def fetch(self, ip: str) -> HostnameLookupResult:
-        try:
-            text = await self._fetch_text(ip)
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == 429:
-                return HostnameLookupResult(
-                    status="failed",
-                    hostnames=[],
-                    error_message="HTTP 429: API count exceeded",
-                )
-            return HostnameLookupResult(
-                status="failed",
-                hostnames=[],
-                error_message=f"HTTP {exc.response.status_code}: {exc}"[:500],
-            )
-        except httpx.HTTPError as exc:
-            return HostnameLookupResult(
-                status="failed",
-                hostnames=[],
-                error_message=f"HTTP error: {exc}"[:500],
-            )
-        return self.parse(text)
-
-    async def _fetch_text(self, ip: str) -> str:
-        """HTTP GET against rapiddns.io; split out for easy test stubs."""
-        url = RAPIDDNS_URL_TEMPLATE.format(ip=ip)
-        async with httpx.AsyncClient(
-            timeout=self._timeout,
-            headers={"User-Agent": RAPIDDNS_USER_AGENT},
-            follow_redirects=True,
-        ) as client:
-            response = await client.get(url, params={"full": "1"})
-            response.raise_for_status()
-            return response.text
-
-    @staticmethod
-    def parse(text: str) -> HostnameLookupResult:
-        """Classify a rapiddns HTML body into a lookup result.
-
-        Signals we distinguish:
-        - Empty / tiny body → ``no_results`` (rapiddns returned a stub)
-        - Body contains a Cloudflare challenge marker → ``failed`` with
-          a recognisable API-count-exceeded error message so the caller
-          pins the budget
-        - Otherwise: extract ``<td>...</td>`` cells, filter to valid
-          FQDNs, dedupe. Empty list → ``no_results``. Non-empty →
-          ``success``.
-        """
-        if not text or len(text) < 100:
-            return HostnameLookupResult(status="no_results", hostnames=[])
-
-        lowered = text.lower()
-        if "challenge-platform" in lowered or "cf-browser-verification" in lowered:
-            return HostnameLookupResult(
-                status="failed",
-                hostnames=[],
-                error_message="rapiddns: Cloudflare challenge — API count exceeded",
-            )
-        if "captcha" in lowered and "<td>" not in lowered:
-            return HostnameLookupResult(
-                status="failed",
-                hostnames=[],
-                error_message="rapiddns: captcha page — API count exceeded",
-            )
-
-        seen: dict[str, None] = {}
-        for candidate in _RAPIDDNS_TD_RE.findall(text):
-            stripped = candidate.strip()
-            if not stripped or _is_probably_ipv4(stripped):
-                continue
-            if not _FQDN_RE.match(stripped):
-                continue
-            seen.setdefault(stripped.lower(), None)
-
-        if not seen:
-            return HostnameLookupResult(status="no_results", hostnames=[])
-        return HostnameLookupResult(
-            status="success",
-            hostnames=list(seen.keys()),
-        )
 
 
 # --- Cache read/write ------------------------------------------------
@@ -408,8 +145,9 @@ async def get_cached_hostnames(db: AsyncSession, ip: str) -> list[str] | None:
     - ``None`` → cache miss, expired row, or stored ``failed`` (retry)
 
     Failed rows map to ``None`` instead of ``[]`` so callers treat them
-    as a miss and retry via ``lookup_with_cache``; we don't want a
-    single bad day to hide every IP's real hostnames for a full TTL.
+    as a miss and retry on the next scanner enrichment pass; we don't
+    want a single bad day to hide every IP's real hostnames for a
+    full TTL.
     """
     row = (
         await db.execute(select(HostnameLookup).where(HostnameLookup.ip == ip))
@@ -725,68 +463,6 @@ async def pin_budget_exhausted(
     if row.used < daily_limit:
         row.used = daily_limit
         await db.flush()
-
-
-# --- High-level cache-first lookup -----------------------------------
-
-
-async def lookup_with_cache(
-    db: AsyncSession,
-    source: HostnameLookupSource,
-    ip: str,
-    daily_limit: int,
-) -> list[str]:
-    """Cache-first reverse-IP hostname lookup for a single IP.
-
-    Flow:
-    1. Read cache. Fresh ``success`` / ``no_results`` row → return stored
-       list (may be empty) without touching the source.
-    2. Cache miss or expired → try to consume one budget unit. Exhausted
-       → return ``[]`` without calling the source (cache unchanged).
-    3. Budget available → call the source. Write the result (regardless
-       of status) to the cache with the appropriate TTL. If the source
-       reports its own rate-limit hit, pin the budget to the daily cap
-       so the remainder of the filler run skips this source.
-
-    Returns the hostnames list on ``success``, ``[]`` otherwise. Never
-    raises — source errors are absorbed and cached.
-    """
-    cached = await get_cached_hostnames(db, ip)
-    if cached is not None:
-        logger.debug(
-            "hostname-lookup: cache hit for %s (%d hostnames)", ip, len(cached)
-        )
-        return cached
-
-    if not await consume_budget(db, source.name, daily_limit):
-        logger.info(
-            "hostname-lookup: daily budget exhausted for source=%s, skipping %s",
-            source.name,
-            ip,
-        )
-        return []
-
-    result = await source.fetch(ip)
-
-    # Source reports its own rate limit exceeded → pin our counter so
-    # the rest of this filler run skips further calls to this source.
-    if (
-        result.status == "failed"
-        and result.error_message is not None
-        and "api count exceeded" in result.error_message.lower()
-    ):
-        await pin_budget_exhausted(db, source.name, daily_limit)
-
-    await upsert_cache_row(db, ip, result, source.name)
-
-    logger.info(
-        "hostname-lookup: source=%s ip=%s status=%s hostnames=%d",
-        source.name,
-        ip,
-        result.status,
-        len(result.hostnames),
-    )
-    return list(result.hostnames) if result.status == "success" else []
 
 
 # --- On-demand queue (manual lookup handoff to scanner) --------------

@@ -336,8 +336,6 @@ async def get_cache_status(db: AsyncSession) -> CacheStatusResponse:
     pending_queue_count = await get_pending_queue_count(db)
 
     return CacheStatusResponse(
-        filler_enabled=settings.hostname_lookup_enabled,
-        filler_interval_minutes=settings.hostname_lookup_interval_minutes,
         total_entries=total_entries,
         entries_by_status=by_status,
         total_vhosts=total_vhosts,

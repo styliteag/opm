@@ -41,8 +41,6 @@ export interface CacheBudgetStatus {
 }
 
 export interface CacheStatusResponse {
-  filler_enabled: boolean;
-  filler_interval_minutes: number;
   total_entries: number;
   entries_by_status: CacheStatusByStatus;
   total_vhosts: number;

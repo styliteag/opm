@@ -46,25 +46,24 @@ class Settings(BaseSettings):
     schedule_timezone: str = ""
 
     # --- Hostname lookup cache (reverse-IP vhost discovery) ------------
-    # Controls the background filler job that populates
-    # `hostname_lookup_cache` from multiple reverse-IP sources. The
-    # cache powers the SNI-aware nuclei fan-out.
-    hostname_lookup_enabled: bool = True
+    # Reported to the scanner via GET /api/scanner/hostname-budget and
+    # used by the admin /status dashboard to label per-source limits.
+    # Enrichment itself lives in the scanner now — the 2.2.0 backend
+    # filler was removed in 2.3.0 (Plan C scanner-centric refactor).
+    #
     # Free-tier API key from https://hackertarget.com/ (optional). When
-    # set the filler uses the 100/day limit instead of the 50/day anon
-    # limit. Empty string means anonymous mode.
+    # set the budget endpoint reports 100/day instead of the 50/day
+    # anonymous limit. Empty string means anonymous mode. Ultimately
+    # this moves to scanner config; for now the backend is the source
+    # of truth so a single admin can tune both budget endpoints and
+    # status dashboard from one env file.
     hackertarget_api_key: str = ""
-    # RapidDNS fallback: runs after HackerTarget in the source priority
-    # list. The filler's candidate selector skips IPs that already got
-    # a fresh row from any source, so rapiddns only fills the gaps HT
-    # couldn't. Daily limit is undocumented by rapiddns; default 100 is
-    # conservative. Set to 0 to disable without toggling the bool flag.
+    # RapidDNS fallback: budget cap reported to the scanner. Daily
+    # limit is undocumented by rapiddns; default 100 is conservative.
+    # Set rapiddns_enabled=false to surface a zero budget so the
+    # scanner skips the source entirely.
     rapiddns_enabled: bool = True
     rapiddns_daily_limit: int = 100
-    # How often the filler job runs (minutes). Lower = more responsive
-    # to newly-discovered hosts, but no point going below a few minutes
-    # because the daily budget is the real bottleneck.
-    hostname_lookup_interval_minutes: int = 60
 
 
 settings = Settings()

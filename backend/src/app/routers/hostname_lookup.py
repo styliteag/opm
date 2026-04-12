@@ -21,13 +21,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import AdminUser, DbSession
 from app.schemas.hostname_lookup import (
     CacheEntryUpdateRequest,
     CacheExportDocument,
-    CacheFillerRunResponse,
     CacheImportRequest,
     CacheImportSummary,
     CacheStatusResponse,
@@ -41,7 +40,6 @@ from app.services.hostname_lookup import (
     enqueue_hostname_lookup,
     update_cache_entry_manual,
 )
-from app.services.hostname_lookup_filler import run_hostname_cache_filler
 
 logger = logging.getLogger(__name__)
 
@@ -106,35 +104,11 @@ async def get_hostname_cache_status(
 ) -> CacheStatusResponse:
     """Status dashboard for the admin UI.
 
-    Aggregates filler config, cache row counts by status, vhost totals,
-    host-inventory coverage, most recent query timestamp, and per-source
-    daily budget state in a single round-trip.
+    Aggregates cache row counts by status, vhost totals, host-inventory
+    coverage, most recent query timestamp, per-source daily budget
+    state, and the pending-queue count in a single round-trip.
     """
     return await hostname_lookup_io.get_cache_status(db)
-
-
-@router.post(
-    "/run-filler",
-    response_model=CacheFillerRunResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def trigger_hostname_cache_filler(
-    user: AdminUser,  # noqa: ARG001 — DI gate for admin-only access
-    background: BackgroundTasks,
-) -> CacheFillerRunResponse:
-    """Trigger the filler job immediately, outside its scheduled slot.
-
-    Runs asynchronously via ``BackgroundTasks`` so the HTTP response
-    returns immediately; the operator polls ``/status`` to watch the
-    budget counter tick up in real time. The standard APScheduler slot
-    continues running independently on its own interval.
-    """
-    logger.info("hostname-filler: manual trigger via API")
-    background.add_task(run_hostname_cache_filler)
-    return CacheFillerRunResponse(
-        status="started",
-        message="Filler job queued; poll /status for progress.",
-    )
 
 
 @router.put(

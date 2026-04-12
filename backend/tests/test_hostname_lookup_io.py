@@ -547,8 +547,9 @@ class TestGetCacheStatus:
     async def test_expired_success_row_not_counted_as_enriched(
         self, db_session: AsyncSession
     ) -> None:
-        from app.models.host import Host
         from datetime import datetime, timedelta
+
+        from app.models.host import Host
 
         host = Host(ip="10.0.0.200", seen_by_networks=[])
         db_session.add(host)
@@ -577,33 +578,21 @@ class TestGetCacheStatus:
         )
         assert response.status_code == 200
         body = response.json()
-        assert "filler_enabled" in body
+        # The filler_enabled / filler_interval_minutes fields were
+        # removed in the 2.3.0 scanner-centric refactor (Plan C) —
+        # pin that they really are gone so nothing accidentally
+        # re-adds them.
+        assert "filler_enabled" not in body
+        assert "filler_interval_minutes" not in body
         assert "coverage_percent" in body
         assert "budgets" in body
+        assert "pending_queue_count" in body
 
     async def test_status_endpoint_requires_admin(
         self, client: AsyncClient
     ) -> None:
         response = await client.get("/api/admin/hostname-lookup/status")
         assert response.status_code in (401, 403)
-
-
-class TestRunFillerEndpoint:
-    async def test_run_filler_requires_admin(
-        self, client: AsyncClient
-    ) -> None:
-        response = await client.post("/api/admin/hostname-lookup/run-filler")
-        assert response.status_code in (401, 403)
-
-    async def test_run_filler_returns_202(
-        self, client: AsyncClient, admin_headers: dict[str, str]
-    ) -> None:
-        response = await client.post(
-            "/api/admin/hostname-lookup/run-filler", headers=admin_headers
-        )
-        assert response.status_code == 202
-        body = response.json()
-        assert body["status"] == "started"
 
 
 # --- PUT /entries/{ip} — manual hand-edit --------------------------
