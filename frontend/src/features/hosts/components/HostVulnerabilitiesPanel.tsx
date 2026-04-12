@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useMemo, useId, useState } from "react";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
@@ -53,6 +53,106 @@ function SourceBadge({ source }: { source: VulnerabilitySource }) {
     >
       {style.label}
     </span>
+  );
+}
+
+function parseNucleiOid(oid: string): { templateId: string; matcher: string | null } {
+  const lastColon = oid.lastIndexOf(":");
+  if (lastColon <= 0) return { templateId: oid, matcher: null };
+  return {
+    templateId: oid.slice(0, lastColon),
+    matcher: oid.slice(lastColon + 1),
+  };
+}
+
+function NucleiVulnRow({ vuln }: { vuln: Vulnerability }) {
+  const [expanded, setExpanded] = useState(true);
+  const detailsId = useId();
+  const { templateId, matcher } = parseNucleiOid(vuln.oid);
+  const target =
+    vuln.port != null ? `${vuln.ip}:${vuln.port}/${vuln.protocol}` : vuln.ip;
+
+  return (
+    <div className="px-5 py-4">
+      <button
+        type="button"
+        className="flex w-full items-start justify-between gap-4 rounded-md text-left transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        onClick={() => setExpanded((p) => !p)}
+      >
+        <div className="flex items-center gap-3">
+          <GvmSeverityBadge label={vuln.severity_label} />
+          <div>
+            <p className="text-sm font-emphasis text-foreground">{vuln.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {target}
+              {" · CVSS "}
+              {vuln.severity.toFixed(1)}
+              {" · "}
+              {formatRelativeTime(vuln.created_at)}
+            </p>
+          </div>
+        </div>
+        {vuln.cve_ids.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {vuln.cve_ids.slice(0, 5).map((cve) => (
+              <span
+                key={cve}
+                className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-mono text-destructive"
+              >
+                {cve}
+              </span>
+            ))}
+            {vuln.cve_ids.length > 5 && (
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                +{vuln.cve_ids.length - 5}
+              </span>
+            )}
+          </div>
+        )}
+      </button>
+      {expanded && (
+        <div id={detailsId} className="mt-3 space-y-2 text-sm">
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="rounded bg-teal-500/10 px-1.5 py-0.5 font-mono text-teal-300">
+              {templateId}
+            </span>
+            {matcher && (
+              <span className="rounded bg-card px-1.5 py-0.5 font-mono text-muted-foreground">
+                {matcher}
+              </span>
+            )}
+          </div>
+          {vuln.description && (
+            <div>
+              <span className="text-muted-foreground text-xs uppercase">
+                Description
+              </span>
+              <p className="mt-0.5 whitespace-pre-line text-secondary-foreground">
+                {vuln.description}
+              </p>
+            </div>
+          )}
+          {vuln.solution && (
+            <div>
+              <span className="text-muted-foreground text-xs uppercase">
+                Solution
+                {vuln.solution_type ? ` (${vuln.solution_type})` : ""}
+              </span>
+              <p className="mt-0.5 whitespace-pre-line text-secondary-foreground">
+                {vuln.solution}
+              </p>
+            </div>
+          )}
+          {vuln.cvss_base_vector && (
+            <p className="text-xs text-muted-foreground">
+              CVSS: {vuln.cvss_base_vector}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -148,28 +248,58 @@ export function HostVulnerabilitiesPanel({
   gvmResults: Vulnerability[];
   isLoading: boolean;
 }) {
+  const nucleiFindings = useMemo(
+    () => gvmResults.filter((v) => v.source === "nuclei"),
+    [gvmResults],
+  );
+  const gvmFindings = useMemo(
+    () => gvmResults.filter((v) => v.source !== "nuclei"),
+    [gvmResults],
+  );
+
   if (isLoading) {
     return <LoadingState rows={4} />;
   }
 
-  if (nseResults.length === 0 && gvmResults.length === 0) {
-    return (
-      <div className="rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
-        No vulnerabilities detected
-      </div>
-    );
-  }
+  const hasAny =
+    nucleiFindings.length > 0 ||
+    gvmFindings.length > 0 ||
+    nseResults.length > 0;
 
   return (
     <div className="space-y-6">
-      {gvmResults.length > 0 && (
+      {/* ── Nuclei Web Findings (always shown) ── */}
+      <div>
+        <h4 className="mb-3 flex items-center gap-2 text-sm font-emphasis text-foreground">
+          <SourceBadge source="nuclei" />
+          Nuclei Web Findings ({nucleiFindings.length})
+        </h4>
+        {nucleiFindings.length === 0 ? (
+          <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
+            No nuclei findings for this host. Nuclei scans target HTTP/HTTPS
+            services on discovered ports.
+          </div>
+        ) : (
+          <div className="rounded-lg border border-border">
+            <div className="divide-y divide-border">
+              {nucleiFindings.map((vuln) => (
+                <NucleiVulnRow key={vuln.id} vuln={vuln} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── GVM Findings ── */}
+      {gvmFindings.length > 0 && (
         <div>
-          <h4 className="mb-3 text-sm font-emphasis text-foreground">
-            Vulnerability Findings ({gvmResults.length})
+          <h4 className="mb-3 flex items-center gap-2 text-sm font-emphasis text-foreground">
+            <SourceBadge source="gvm" />
+            GVM Findings ({gvmFindings.length})
           </h4>
           <div className="rounded-lg border border-border">
             <div className="divide-y divide-border">
-              {gvmResults.map((vuln) => (
+              {gvmFindings.map((vuln) => (
                 <GvmVulnRow key={vuln.id} vuln={vuln} />
               ))}
             </div>
@@ -177,6 +307,7 @@ export function HostVulnerabilitiesPanel({
         </div>
       )}
 
+      {/* ── NSE Findings ── */}
       {nseResults.length > 0 && (
         <div>
           <h4 className="mb-3 text-sm font-emphasis text-foreground">
@@ -221,6 +352,13 @@ export function HostVulnerabilitiesPanel({
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── All empty (no nuclei section either) ── */}
+      {!hasAny && nucleiFindings.length === 0 && (
+        <div className="rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
+          No vulnerabilities detected
         </div>
       )}
     </div>

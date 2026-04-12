@@ -10,6 +10,7 @@ import {
   useScanLogs,
   useScanMutations,
 } from "@/features/scans/hooks/useScans";
+import { NucleiSummaryCard } from "@/features/scans/components/NucleiSummaryCard";
 import { ScanDiffView } from "@/features/scans/components/ScanDiffView";
 import { VulnerabilitiesTable } from "@/features/scans/components/VulnerabilitiesTable";
 import {
@@ -145,6 +146,11 @@ function ScanDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* Nuclei Summary */}
+      {data.nuclei_summary && (
+        <NucleiSummaryCard summary={data.nuclei_summary} />
+      )}
 
       {/* Port Discovery */}
       {data.open_ports && data.open_ports.length > 0 && (

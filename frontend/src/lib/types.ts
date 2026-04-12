@@ -166,6 +166,8 @@ export interface NetworkOverviewResponse {
   last_scan: LastScanSummary | null;
   scanner_name: string;
   scanner_online: boolean;
+  nuclei_findings_count: number;
+  last_nuclei_scan_id: number | null;
 }
 
 export interface ScanSummary {

@@ -105,11 +105,21 @@ class ScanSummaryResponse(ScanResponse):
     port_count: int
 
 
+class NucleiPhaseSummary(BaseModel):
+    """Summary of nuclei phase results for a scan."""
+
+    ran: bool
+    findings_count: int = 0
+    hosts_scanned: int = 0
+    severity_counts: dict[str, int] = {}
+
+
 class ScanDetailResponse(ScanResponse):
     """Scan detail with open ports."""
 
     open_ports: list[OpenPortResponse]
     ssh_scan_results: list[SSHScanResultSummary] = []
+    nuclei_summary: NucleiPhaseSummary | None = None
 
 
 class ScanListResponse(BaseModel):

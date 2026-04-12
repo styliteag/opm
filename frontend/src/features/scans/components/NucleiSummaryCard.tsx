@@ -1,0 +1,67 @@
+import { Shield } from "lucide-react";
+
+const SEVERITY_STYLES: Record<string, string> = {
+  critical: "bg-red-500/10 text-red-400 border-red-500/20",
+  high: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  medium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  low: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  info: "bg-accent text-muted-foreground border-border",
+};
+
+const SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"];
+
+interface NucleiSummaryCardProps {
+  summary: {
+    ran: boolean;
+    findings_count: number;
+    hosts_scanned: number;
+    severity_counts: Record<string, number>;
+  };
+}
+
+export function NucleiSummaryCard({ summary }: NucleiSummaryCardProps) {
+  if (!summary.ran) return null;
+
+  const hasSeverities = Object.keys(summary.severity_counts).length > 0;
+
+  return (
+    <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 p-4">
+      <div className="flex items-center gap-2 text-sm font-emphasis text-teal-300">
+        <Shield className="h-4 w-4" />
+        Nuclei Scan
+      </div>
+      <div className="mt-3 flex items-baseline gap-6">
+        <div>
+          <p className="text-2xl font-strong text-foreground">
+            {summary.findings_count}
+          </p>
+          <p className="text-xs text-muted-foreground">findings</p>
+        </div>
+        <div>
+          <p className="text-2xl font-strong text-foreground">
+            {summary.hosts_scanned}
+          </p>
+          <p className="text-xs text-muted-foreground">hosts scanned</p>
+        </div>
+      </div>
+      {hasSeverities ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {SEVERITY_ORDER.filter((s) => summary.severity_counts[s]).map(
+            (sev) => (
+              <span
+                key={sev}
+                className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-emphasis uppercase tracking-wide ${SEVERITY_STYLES[sev] ?? ""}`}
+              >
+                {summary.severity_counts[sev]} {sev}
+              </span>
+            ),
+          )}
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Scan completed — no findings
+        </p>
+      )}
+    </div>
+  );
+}

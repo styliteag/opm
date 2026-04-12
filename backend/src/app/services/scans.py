@@ -133,6 +133,7 @@ async def get_scan_with_ports(db: AsyncSession, scan_id: int) -> Scan | None:
             selectinload(Scan.open_ports),
             selectinload(Scan.ssh_scan_results),
             selectinload(Scan.cancelled_by_user),
+            selectinload(Scan.network),
         )
         .where(Scan.id == scan_id)
     )

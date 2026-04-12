@@ -7,6 +7,13 @@ interface ScanListResponse {
   scans: ScanSummary[];
 }
 
+interface NucleiPhaseSummary {
+  ran: boolean;
+  findings_count: number;
+  hosts_scanned: number;
+  severity_counts: Record<string, number>;
+}
+
 interface ScanDetail extends ScanSummary {
   network_name: string | null;
   scanner_name: string | null;
@@ -17,6 +24,7 @@ interface ScanDetail extends ScanSummary {
     banner: string | null;
     service_guess: string | null;
   }[];
+  nuclei_summary: NucleiPhaseSummary | null;
 }
 
 interface ScanLogEntry {

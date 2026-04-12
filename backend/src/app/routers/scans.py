@@ -20,6 +20,7 @@ from app.schemas.scan import (
     AllScansListResponse,
     LatestScanByNetwork,
     LatestScansByNetworkResponse,
+    NucleiPhaseSummary,
     OpenPortResponse,
     ScanCancelResponse,
     ScanDetailResponse,
@@ -33,7 +34,10 @@ from app.schemas.scan import (
 )
 from app.schemas.vulnerability import VulnerabilityListResponse, VulnerabilitySeverityLabel
 from app.services import scans as scans_service
-from app.services.vulnerability_results import get_vulnerabilities_by_scan
+from app.services.vulnerability_results import (
+    get_nuclei_summary_for_scan,
+    get_vulnerabilities_by_scan,
+)
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
 
@@ -150,7 +154,15 @@ async def get_scan_detail(
             detail="Scan not found",
         )
 
-    return ScanDetailResponse.model_validate(scan)
+    response = ScanDetailResponse.model_validate(scan)
+
+    # Attach nuclei phase summary when the network has nuclei enabled.
+    network = scan.network
+    if network is not None and network.nuclei_enabled:
+        summary = await get_nuclei_summary_for_scan(db, scan_id)
+        response.nuclei_summary = NucleiPhaseSummary(ran=True, **summary)
+
+    return response
 
 
 @router.get("/{scan_id}/vulnerabilities", response_model=VulnerabilityListResponse)

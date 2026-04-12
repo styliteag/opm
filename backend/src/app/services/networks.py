@@ -11,6 +11,7 @@ from app.models.network import Network
 from app.models.open_port import OpenPort
 from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
+from app.models.vulnerability import Vulnerability
 from app.repositories.base import BaseRepository
 
 
@@ -354,6 +355,19 @@ async def get_network_overview(db: AsyncSession, network_id: int) -> dict[str, A
     )
     host_count = host_count_result.scalar() or 0 if host_count_result else 0
 
+    # Nuclei findings from latest completed scan
+    nuclei_findings_count = 0
+    last_nuclei_scan_id = None
+    if latest_scan and network.nuclei_enabled:
+        nuclei_count_result = await db.execute(
+            select(func.count(Vulnerability.id)).where(
+                Vulnerability.scan_id == latest_scan.id,
+                Vulnerability.source == "nuclei",
+            )
+        )
+        nuclei_findings_count = nuclei_count_result.scalar() or 0
+        last_nuclei_scan_id = latest_scan.id
+
     return {
         "network": network,
         "host_count": host_count,
@@ -366,6 +380,8 @@ async def get_network_overview(db: AsyncSession, network_id: int) -> dict[str, A
         "last_scan": last_scan_summary,
         "scanner_name": scanner_name,
         "scanner_online": scanner_online,
+        "nuclei_findings_count": nuclei_findings_count,
+        "last_nuclei_scan_id": last_nuclei_scan_id,
     }
 
 

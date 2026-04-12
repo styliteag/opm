@@ -421,3 +421,5 @@ class NetworkOverviewResponse(BaseModel):
     last_scan: LastScanSummary | None
     scanner_name: str
     scanner_online: bool
+    nuclei_findings_count: int = 0
+    last_nuclei_scan_id: int | None = None

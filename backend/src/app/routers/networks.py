@@ -158,6 +158,8 @@ async def get_network_overview(
         last_scan=overview["last_scan"],
         scanner_name=overview["scanner_name"],
         scanner_online=overview["scanner_online"],
+        nuclei_findings_count=overview["nuclei_findings_count"],
+        last_nuclei_scan_id=overview["last_nuclei_scan_id"],
     )
 
 
