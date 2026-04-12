@@ -37,6 +37,7 @@ Guides for deploying and operating scanner agents.
 - [Deployment Guide](scanner/deployment.md) - Docker deployment and configuration
 - [Architecture](scanner/architecture.md) - How the scanner agent works internally
 - [Troubleshooting](scanner/troubleshooting.md) - Common issues and solutions
+- [Hostname Cache](scanner/hostname-cache.md) - Hostname enrichment, cache TTL, and Nuclei SNI fan-out
 
 ### Development
 

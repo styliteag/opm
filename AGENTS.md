@@ -76,6 +76,7 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 - Logs batched via `threading_utils.py`, sent to `/api/scanner/logs` every ~5s
 - IPv6: checks connectivity first, fails fast if unreachable
 - Host discovery polls `/api/scanner/host-discovery-jobs` separately from scan jobs
+- Hostname cache & enrichment architecture: see `docs/scanner/hostname-cache.md`
 
 ### Greenbone (GVM) Scanner
 
