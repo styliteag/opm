@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Unified scanner kind: single scanner image that handles both standard port scanning (masscan/nmap/nuclei) and GVM vulnerability assessment, auto-detected at runtime via `Dockerfile.unified`
 - `StatusBadge` "info" variant (indigo) for unified scanner display
+
+### Fixed
+
+- Nuclei progress not updating in UI when nuclei emits JSON stats format (`"percent":"14"`) instead of text format (`Hosts: 3/10 (30%)`)
 - Per-network `nuclei_exclude_tags` setting to skip slow/dangerous template categories (default: `fuzz,dos,intrusive`)
 
 ## [2.2.3] - 2026-04-12

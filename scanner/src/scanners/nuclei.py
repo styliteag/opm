@@ -41,6 +41,10 @@ DEFAULT_NUCLEI_TIMEOUT_S = 1800
 # Example: "Hosts: 3/10 (30.00%)" — we capture the percentage.
 _NUCLEI_HOSTS_PROGRESS_RE = re.compile(r"Hosts:\s*\d+/\d+\s*\((\d+(?:\.\d+)?)%\)")
 
+# Regex for nuclei JSON stats output (`-stats-json`).
+# Example: {"percent":"14","requests":"31093",...}
+_NUCLEI_JSON_PERCENT_RE = re.compile(r'"percent"\s*:\s*"(\d+(?:\.\d+)?)"')
+
 # Hardcoded web ports used on masscan networks (no service detection).
 COMMON_WEB_PORTS: frozenset[int] = frozenset(
     {80, 443, 8000, 8008, 8080, 8081, 8088, 8443, 8888, 9000, 9443}
@@ -498,11 +502,15 @@ def run_nuclei(
                     if len(output_tail) > 20:
                         output_tail.pop(0)
                     # Parse host-level progress from stats lines.
+                    # Supports both text format ("Hosts: 3/10 (30%)") and
+                    # JSON format ({"percent":"14",...}).
                     if on_progress is not None:
                         m = _NUCLEI_HOSTS_PROGRESS_RE.search(line)
+                        if not m:
+                            m = _NUCLEI_JSON_PERCENT_RE.search(line)
                         if m:
                             pct = float(m.group(1))
-                            on_progress(pct, f"Nuclei: {pct:.0f}% of hosts scanned")
+                            on_progress(pct, f"Nuclei: {pct:.0f}% scanned")
             returncode = process.wait()
         finally:
             timeout_watcher.stop()
