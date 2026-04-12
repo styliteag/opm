@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.5] - 2026-04-13
+
 ### Fixed
 
 - Translated all remaining German UI text to English in SSH alert defaults, SSH alert overrides, and networks filter
