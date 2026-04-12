@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Unified scanner kind: single scanner image that handles both standard port scanning (masscan/nmap/nuclei) and GVM vulnerability assessment, auto-detected at runtime via `Dockerfile.unified`
+- Unified scanner kind: single scanner image that handles both standard port scanning (masscan/nmap/nuclei) and GVM vulnerability assessment, auto-detected at runtime
 - `StatusBadge` "info" variant (indigo) for unified scanner display
 
 ### Fixed

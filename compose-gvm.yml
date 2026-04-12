@@ -321,7 +321,7 @@ services:
   opm-scanner-gvm:
     build:
       context: ./scanner
-      dockerfile: Dockerfile.unified
+      dockerfile: Dockerfile
     # Or use a pre-built image (production):
     # image: styliteag/opm-scanner-unified:latest
     # image: ghcr.io/styliteag/opm-scanner-unified:latest

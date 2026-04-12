@@ -48,7 +48,7 @@ RUN pip install uv ssh-audit
 COPY pyproject.toml ./
 COPY uv.lock* ./
 
-RUN uv sync --frozen || uv sync
+RUN uv sync --frozen --extra gvm || uv sync --extra gvm
 
 COPY src ./src
 
