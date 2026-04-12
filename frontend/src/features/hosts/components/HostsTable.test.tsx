@@ -99,21 +99,4 @@ describe("HostsTable", () => {
     expect(screen.getByText("10.0.0.3")).toBeInTheDocument();
   });
 
-  it("shows Online status for recently seen hosts", () => {
-    renderWithQuery(
-      <HostsTable
-        hosts={[makeHost({ last_seen_at: "2026-03-22T11:30:00Z" })]}
-      />,
-    );
-    expect(screen.getByText("Online")).toBeInTheDocument();
-  });
-
-  it("shows Offline status for old hosts", () => {
-    renderWithQuery(
-      <HostsTable
-        hosts={[makeHost({ last_seen_at: "2026-03-19T10:00:00Z" })]}
-      />,
-    );
-    expect(screen.getByText("Offline")).toBeInTheDocument();
-  });
 });

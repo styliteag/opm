@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StatusBadge` "info" variant (indigo) for unified scanner display
 - Hosts page search now matches hostnames, comments, and cached aliases (not just IPs)
 
+### Removed
+
+- Online/Offline status column from hosts table (unreliable 24h heuristic)
+
 ### Improved
 
 - Host detail: dedicated Nuclei Web Findings section with template ID, target, severity — always visible even when 0 findings

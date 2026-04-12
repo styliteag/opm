@@ -11,13 +11,12 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 
-import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { InlineTextCell } from "@/components/ui/inline-text-cell";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CachedVhostsChip } from "@/features/hosts/components/CachedVhostsChip";
 import { patchApi } from "@/lib/api";
 import type { Host } from "@/lib/types";
-import { formatRelativeTime, parseUTC } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/utils";
 
 function SortableHeader({
   label,
@@ -169,23 +168,6 @@ export function HostsTable({
           />
         ),
         size: 200,
-      },
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => {
-          const diff =
-            Date.now() - parseUTC(row.original.last_seen_at).getTime();
-          const isRecent = diff < 24 * 60 * 60 * 1000;
-          return (
-            <StatusBadge
-              label={isRecent ? "Online" : "Offline"}
-              variant={isRecent ? "success" : "neutral"}
-              dot
-            />
-          );
-        },
-        size: 100,
       },
       {
         accessorKey: "open_port_count",
