@@ -4,7 +4,6 @@ import {
   Download,
   Globe,
   Pencil,
-  PlayCircle,
   RefreshCw,
   Search,
   Trash2,
@@ -39,7 +38,7 @@ import {
   useHostnameLookupExport,
   useHostnameLookupStatus,
   useImportHostnameCache,
-  useRunHostnameCacheFiller,
+  useRefreshCacheEntry,
   useUpdateHostnameCacheEntry,
   type CacheExportDocument,
   type HostnameLookupEntry,
@@ -82,10 +81,10 @@ function HostnameLookupPage() {
     isLoading: cacheLoading,
     refetch: refetchCache,
   } = useHostnameLookupExport();
-  const runFiller = useRunHostnameCacheFiller();
   const importCache = useImportHostnameCache();
   const updateEntry = useUpdateHostnameCacheEntry();
   const deleteEntry = useDeleteHostnameCacheEntry();
+  const refreshEntry = useRefreshCacheEntry();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | HostnameLookupStatus>(
@@ -160,12 +159,14 @@ function HostnameLookupPage() {
     }
   }
 
-  async function handleRunFiller() {
+  async function refreshEntryByIp(ip: string) {
     try {
-      await runFiller.mutateAsync();
-      toast.success("Filler job queued — poll /status for progress");
+      await refreshEntry.mutateAsync(ip);
+      toast.success(
+        `Hostname lookup queued for ${ip} — results appear on next scanner poll (~10 s)`,
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Run failed");
+      toast.error(err instanceof Error ? err.message : "Refresh failed");
     }
   }
 
@@ -229,7 +230,8 @@ function HostnameLookupPage() {
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Cached reverse-IP vhost lists for nuclei SNI fan-out. Populated
-              from HackerTarget by the hourly filler job.
+              by the scanner via HackerTarget / RapidDNS. Use per-row
+              Refresh to enqueue a manual re-lookup.
             </p>
           </div>
         </div>
@@ -245,14 +247,6 @@ function HostnameLookupPage() {
           >
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
             Refresh
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleRunFiller}
-            disabled={runFiller.isPending}
-          >
-            <PlayCircle className="mr-1.5 h-3.5 w-3.5" />
-            {runFiller.isPending ? "Queuing..." : "Run filler now"}
           </Button>
         </div>
       </div>
@@ -356,6 +350,7 @@ function HostnameLookupPage() {
               entries={filteredEntries}
               onEdit={openEditDialog}
               onDelete={deleteEntryByIp}
+              onRefresh={refreshEntryByIp}
             />
           )}
         </CardContent>
@@ -449,16 +444,12 @@ function StatusOverview({ status }: StatusOverviewProps) {
         }
       />
       <StatCard
-        title="Filler schedule"
-        primary={
-          status.filler_enabled
-            ? `every ${status.filler_interval_minutes} min`
-            : "disabled"
-        }
+        title="Pending lookups"
+        primary={status.pending_queue_count.toLocaleString()}
         secondary={
-          status.last_queried_at
-            ? `last lookup: ${new Date(status.last_queried_at).toLocaleString()}`
-            : "no lookups yet"
+          status.pending_queue_count === 0
+            ? "queue empty — scanner is idle"
+            : `awaiting scanner poll (~10 s)`
         }
       />
     </div>
@@ -489,9 +480,15 @@ interface EntriesTableProps {
   entries: HostnameLookupEntry[];
   onEdit: (entry: HostnameLookupEntry) => void;
   onDelete: (ip: string) => void;
+  onRefresh: (ip: string) => void;
 }
 
-function EntriesTable({ entries, onEdit, onDelete }: EntriesTableProps) {
+function EntriesTable({
+  entries,
+  onEdit,
+  onDelete,
+  onRefresh,
+}: EntriesTableProps) {
   return (
     <div className="overflow-x-auto rounded-md border border-border/40">
       <table className="w-full text-sm">
@@ -513,6 +510,7 @@ function EntriesTable({ entries, onEdit, onDelete }: EntriesTableProps) {
               entry={entry}
               onEdit={onEdit}
               onDelete={onDelete}
+              onRefresh={onRefresh}
             />
           ))}
         </tbody>
@@ -525,9 +523,10 @@ interface EntryRowProps {
   entry: HostnameLookupEntry;
   onEdit: (entry: HostnameLookupEntry) => void;
   onDelete: (ip: string) => void;
+  onRefresh: (ip: string) => void;
 }
 
-function EntryRow({ entry, onEdit, onDelete }: EntryRowProps) {
+function EntryRow({ entry, onEdit, onDelete, onRefresh }: EntryRowProps) {
   const [expanded, setExpanded] = useState(false);
   const canExpand = entry.hostnames.length > 0;
   const sourceClass =
@@ -576,6 +575,18 @@ function EntryRow({ entry, onEdit, onDelete }: EntryRowProps) {
               title="Edit hostnames"
             >
               <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="rounded p-1 text-muted-foreground hover:bg-card/60 hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefresh(entry.ip);
+              }}
+              aria-label={`Refresh ${entry.ip}`}
+              title="Enqueue reverse-IP lookup"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"

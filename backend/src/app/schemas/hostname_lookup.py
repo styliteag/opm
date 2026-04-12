@@ -108,6 +108,12 @@ class CacheStatusResponse(BaseModel):
     Answers "is the cache healthy and how much of the host inventory has
     been enriched yet?" in one round-trip so the UI can render its
     overview cards without per-metric requests.
+
+    ``pending_queue_count`` surfaces outstanding work in the new
+    on-demand queue (rows in ``pending`` or ``claimed`` state). The
+    legacy ``filler_*`` fields remain during the 2.3.0 transition
+    while the background filler is still present; Commit 10 strips
+    them out alongside the filler itself.
     """
 
     filler_enabled: bool
@@ -120,6 +126,7 @@ class CacheStatusResponse(BaseModel):
     coverage_percent: float
     last_queried_at: datetime | None
     budgets: list[CacheBudgetStatus]
+    pending_queue_count: int = 0
 
 
 class CacheFillerRunResponse(BaseModel):

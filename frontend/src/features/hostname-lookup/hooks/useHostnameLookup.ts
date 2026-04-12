@@ -51,6 +51,9 @@ export interface CacheStatusResponse {
   coverage_percent: number;
   last_queried_at: string | null;
   budgets: CacheBudgetStatus[];
+  // Rows in ``pending`` or ``claimed`` state in
+  // ``hostname_lookup_queue`` — outstanding manual refresh requests.
+  pending_queue_count: number;
 }
 
 export interface CacheImportSummary {
@@ -80,23 +83,6 @@ export function useHostnameLookupExport() {
     queryKey: ["hostname-lookup", "export"],
     queryFn: () =>
       fetchApi<CacheExportDocument>("/api/admin/hostname-lookup/export"),
-  });
-}
-
-/** Manually trigger the filler job outside its scheduled slot. */
-export function useRunHostnameCacheFiller() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () =>
-      postApi<{ status: string; message: string }>(
-        "/api/admin/hostname-lookup/run-filler",
-        {},
-      ),
-    onSuccess: () => {
-      // The filler runs in the background — poll status/export to
-      // pick up freshly-cached rows as they land.
-      qc.invalidateQueries({ queryKey: ["hostname-lookup"] });
-    },
   });
 }
 
@@ -146,6 +132,37 @@ export function useDeleteHostnameCacheEntry() {
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hostname-lookup"] });
+    },
+  });
+}
+
+/**
+ * Admin: enqueue a manual hostname lookup for an arbitrary IP.
+ *
+ * Counterpart to ``useRefreshHostHostnames`` but keyed by IP
+ * instead of host id — used by the admin cache table's per-row
+ * Refresh button so operators can re-run enrichment without
+ * navigating to a specific host detail page.
+ *
+ * Schedules a 10-second delayed invalidation of the
+ * ``hostname-lookup`` query key so the status cards + entries
+ * table refetch after the scanner has drained the queue.
+ */
+export function useRefreshCacheEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ip: string) =>
+      postApi<{
+        status: "queued";
+        queue_entry: { id: number; ip: string; status: string };
+      }>(
+        `/api/admin/hostname-lookup/entries/${encodeURIComponent(ip)}/refresh`,
+        {},
+      ),
+    onSuccess: () => {
+      window.setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["hostname-lookup"] });
+      }, 10_000);
     },
   });
 }

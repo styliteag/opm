@@ -51,6 +51,7 @@ from app.services.hostname_lookup import (
     HACKERTARGET_DAILY_LIMIT_WITH_KEY,
     _now,
     _ttl_for_status,
+    get_pending_queue_count,
 )
 
 logger = logging.getLogger(__name__)
@@ -332,6 +333,8 @@ async def get_cache_status(db: AsyncSession) -> CacheStatusResponse:
             )
         )
 
+    pending_queue_count = await get_pending_queue_count(db)
+
     return CacheStatusResponse(
         filler_enabled=settings.hostname_lookup_enabled,
         filler_interval_minutes=settings.hostname_lookup_interval_minutes,
@@ -343,6 +346,7 @@ async def get_cache_status(db: AsyncSession) -> CacheStatusResponse:
         coverage_percent=coverage_percent,
         last_queried_at=last_queried_at,
         budgets=budgets,
+        pending_queue_count=pending_queue_count,
     )
 
 
