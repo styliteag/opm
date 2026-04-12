@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-04-12
+
 ### Fixed
 
 - Networks configured for nmap incorrectly used masscan for port scanning when phases were auto-generated or not manually edited
