@@ -188,10 +188,8 @@ async def get_referencing_networks(
     """Return networks whose ``gvm_scan_config`` or ``gvm_port_list`` equals ``name``."""
     if kind == "scan_config":
         field = Network.gvm_scan_config
-    elif kind == "port_list":
+    else:
         field = Network.gvm_port_list
-    else:  # pragma: no cover
-        return []
     result = await db.execute(select(Network).where(field == name))
     return list(result.scalars().all())
 

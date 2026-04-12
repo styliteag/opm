@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Networks configured for nmap incorrectly used masscan for port scanning when phases were auto-generated or not manually edited
 - Nuclei scan phase now reports progress to the UI by parsing `-stats` output (previously stuck at ~66% until completion)
+- Remove unreachable code branch in GVM library network reference lookup
 
 ### Improved
 
