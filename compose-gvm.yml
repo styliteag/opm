@@ -315,7 +315,7 @@ services:
         condition: service_started
 
   # ── OPM Unified Scanner Agent (standard + GVM) ─────────────────────────
-  # Uses Dockerfile.unified which bundles masscan/nmap/nuclei AND python-gvm.
+  # Same Dockerfile as the standard scanner — includes python-gvm by default.
   # Auto-detects as "unified" when the GVM socket is mounted, handling both
   # standard port-scan and Greenbone vulnerability-assessment jobs.
   opm-scanner-gvm:
@@ -323,8 +323,8 @@ services:
       context: ./scanner
       dockerfile: Dockerfile
     # Or use a pre-built image (production):
-    # image: styliteag/opm-scanner-unified:latest
-    # image: ghcr.io/styliteag/opm-scanner-unified:latest
+    # image: styliteag/opm-scanner:latest
+    # image: ghcr.io/styliteag/opm-scanner:latest
     restart: unless-stopped
     cap_add:
       - NET_RAW
