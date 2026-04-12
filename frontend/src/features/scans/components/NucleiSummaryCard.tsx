@@ -17,10 +17,13 @@ interface NucleiSummaryCardProps {
     hosts_scanned: number;
     severity_counts: Record<string, number>;
   };
+  scanStatus?: string;
 }
 
-export function NucleiSummaryCard({ summary }: NucleiSummaryCardProps) {
+export function NucleiSummaryCard({ summary, scanStatus }: NucleiSummaryCardProps) {
   if (!summary.ran) return null;
+
+  const isActive = scanStatus === "running" || scanStatus === "planned";
 
   const hasSeverities = Object.keys(summary.severity_counts).length > 0;
 
@@ -59,7 +62,7 @@ export function NucleiSummaryCard({ summary }: NucleiSummaryCardProps) {
         </div>
       ) : (
         <p className="mt-2 text-xs text-muted-foreground">
-          Scan completed — no findings
+          {isActive ? "Scanning…" : "No findings"}
         </p>
       )}
     </div>

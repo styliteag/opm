@@ -149,7 +149,7 @@ function ScanDetailPage() {
 
       {/* Nuclei Summary */}
       {data.nuclei_summary && (
-        <NucleiSummaryCard summary={data.nuclei_summary} />
+        <NucleiSummaryCard summary={data.nuclei_summary} scanStatus={data.status} />
       )}
 
       {/* Port Discovery */}

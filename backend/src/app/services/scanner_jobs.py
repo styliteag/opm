@@ -92,11 +92,12 @@ async def get_pending_jobs_for_scanner(
                 gvm_port_list=net.gvm_port_list,
                 gvm_keep_reports=net.gvm_keep_reports,
                 ssh_probe_enabled=net.ssh_probe_enabled,
-                nuclei_enabled=net.nuclei_enabled,
-                nuclei_tags=net.nuclei_tags,
-                nuclei_severity=net.nuclei_severity,
-                nuclei_timeout=net.nuclei_timeout,
-                nuclei_sni_enabled=net.nuclei_sni_enabled,
+                nuclei_enabled=overrides.get("nuclei_enabled", net.nuclei_enabled),
+                nuclei_tags=overrides.get("nuclei_tags", net.nuclei_tags),
+                nuclei_exclude_tags=overrides.get("nuclei_exclude_tags", net.nuclei_exclude_tags),
+                nuclei_severity=overrides.get("nuclei_severity", net.nuclei_severity),
+                nuclei_timeout=overrides.get("nuclei_timeout", net.nuclei_timeout),
+                nuclei_sni_enabled=overrides.get("nuclei_sni_enabled", net.nuclei_sni_enabled),
             )
         )
 

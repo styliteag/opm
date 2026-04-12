@@ -4,7 +4,15 @@ import { useFormContext } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import type { NetworkFormData } from "./networkFormSchema";
+/** Minimal form shape required by NucleiSettings — works with any form that has these fields. */
+export interface NucleiFormFields {
+  nuclei_enabled: boolean;
+  nuclei_tags: string;
+  nuclei_exclude_tags: string;
+  nuclei_severity?: string;
+  nuclei_timeout?: number;
+  nuclei_sni_enabled: boolean;
+}
 
 interface TagDef {
   tag: string;
@@ -81,7 +89,7 @@ function ControlledTagInput({
   helpText: React.ReactNode;
   chipDefs: TagDef[];
 }) {
-  const { watch, setValue, getValues } = useFormContext<NetworkFormData>();
+  const { watch, setValue, getValues } = useFormContext<NucleiFormFields>();
   const watched = watch(field);
   const raw = watched ?? getValues(field) ?? "";
   const active = parseTags(raw);
@@ -120,7 +128,7 @@ export function NucleiSettings({ enabled }: NucleiSettingsProps) {
   const {
     register,
     formState: { errors },
-  } = useFormContext<NetworkFormData>();
+  } = useFormContext<NucleiFormFields>();
 
   return (
     <div className="rounded-md border border-border/40 bg-card/40 p-3">

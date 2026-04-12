@@ -54,6 +54,13 @@ class HostRescanRequest(BaseModel):
     scan_timeout: int | None = None
     port_timeout: int | None = None
     nse_profile_id: int | None = None
+    # Nuclei overrides (None = use network defaults)
+    nuclei_enabled: bool | None = None
+    nuclei_tags: str | None = None
+    nuclei_exclude_tags: str | None = None
+    nuclei_severity: str | None = None
+    nuclei_timeout: int | None = None
+    nuclei_sni_enabled: bool | None = None
 
 
 class ScanTriggerResponse(BaseModel):

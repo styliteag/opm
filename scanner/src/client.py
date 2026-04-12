@@ -177,6 +177,7 @@ class ScannerClient:
                         ssh_probe_enabled=bool(job.get("ssh_probe_enabled", True)),
                         nuclei_enabled=bool(job.get("nuclei_enabled", False)),
                         nuclei_tags=job.get("nuclei_tags"),
+                        nuclei_exclude_tags=job.get("nuclei_exclude_tags"),
                         nuclei_severity=job.get("nuclei_severity"),
                         nuclei_timeout=parse_int(job.get("nuclei_timeout")),
                         nuclei_sni_enabled=bool(

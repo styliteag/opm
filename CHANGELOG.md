@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified scanner kind: single scanner image handles both standard port scanning (masscan/nmap/nuclei) and GVM vulnerability assessment, auto-detected at runtime based on GVM socket presence
 - `StatusBadge` "info" variant (indigo) for unified scanner display
 - Hosts page search now matches hostnames, comments, and cached aliases (not just IPs)
+- Custom Scan dialog on host detail now shows full Nuclei settings (tags, exclude tags, alert threshold, timeout, SNI) pre-filled from network defaults
 
 ### Removed
 
@@ -30,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Nuclei progress not updating in UI when nuclei emits JSON stats format (`"percent":"14"`) instead of text format (`Hosts: 3/10 (30%)`)
+- NucleiSummaryCard showing "Scan completed" while scan is still running — now shows "Scanning…" for active scans
+- `nuclei_exclude_tags` not being sent from backend to scanner (was silently falling back to default)
 
 ### Changed
 
