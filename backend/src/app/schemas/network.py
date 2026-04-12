@@ -167,6 +167,7 @@ class NetworkCreateRequest(BaseModel):
     ssh_probe_enabled: bool = True
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None
+    nuclei_exclude_tags: str | None = None
     nuclei_severity: str | None = None
     nuclei_timeout: int | None = None
     nuclei_sni_enabled: bool = False
@@ -262,6 +263,7 @@ class NetworkUpdateRequest(BaseModel):
     ssh_probe_enabled: bool | None = None
     nuclei_enabled: bool | None = None
     nuclei_tags: str | None = None
+    nuclei_exclude_tags: str | None = None
     nuclei_severity: str | None = None
     nuclei_timeout: int | None = None
     nuclei_sni_enabled: bool | None = None
@@ -377,6 +379,7 @@ class NetworkResponse(BaseModel):
     ssh_probe_enabled: bool = True
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None
+    nuclei_exclude_tags: str | None = None
     nuclei_severity: str | None = None
     nuclei_timeout: int | None = None
     nuclei_sni_enabled: bool = False

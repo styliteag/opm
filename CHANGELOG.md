@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Per-network `nuclei_exclude_tags` setting to skip slow/dangerous template categories (default: `fuzz,dos,intrusive`)
+
 ## [2.2.3] - 2026-04-12
 
 ### Fixed

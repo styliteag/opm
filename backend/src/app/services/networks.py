@@ -65,6 +65,7 @@ async def create_network(
     ssh_probe_enabled: bool = True,
     nuclei_enabled: bool = False,
     nuclei_tags: str | None = None,
+    nuclei_exclude_tags: str | None = None,
     nuclei_severity: str | None = None,
     nuclei_timeout: int | None = None,
     nuclei_sni_enabled: bool = False,
@@ -99,6 +100,7 @@ async def create_network(
         ssh_probe_enabled=ssh_probe_enabled,
         nuclei_enabled=nuclei_enabled,
         nuclei_tags=nuclei_tags,
+        nuclei_exclude_tags=nuclei_exclude_tags,
         nuclei_severity=nuclei_severity,
         nuclei_timeout=nuclei_timeout,
         nuclei_sni_enabled=nuclei_sni_enabled,
@@ -135,6 +137,8 @@ async def update_network(
     nuclei_enabled: bool | None = None,
     nuclei_tags: str | None = None,
     clear_nuclei_tags: bool = False,
+    nuclei_exclude_tags: str | None = None,
+    clear_nuclei_exclude_tags: bool = False,
     nuclei_severity: str | None = None,
     clear_nuclei_severity: bool = False,
     nuclei_timeout: int | None = None,
@@ -212,6 +216,8 @@ async def update_network(
         network.nuclei_enabled = nuclei_enabled
     if nuclei_tags is not None or clear_nuclei_tags:
         network.nuclei_tags = nuclei_tags
+    if nuclei_exclude_tags is not None or clear_nuclei_exclude_tags:
+        network.nuclei_exclude_tags = nuclei_exclude_tags
     if nuclei_severity is not None or clear_nuclei_severity:
         network.nuclei_severity = nuclei_severity
     if nuclei_timeout is not None or clear_nuclei_timeout:

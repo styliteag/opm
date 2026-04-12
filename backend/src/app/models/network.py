@@ -95,6 +95,11 @@ class Network(Base):
         nullable=True,
         comment="Comma-separated nuclei template tags (empty = all default tags)",
     )
+    nuclei_exclude_tags: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Comma-separated nuclei template tags to exclude (empty = scanner default)",
+    )
     nuclei_severity: Mapped[str | None] = mapped_column(
         String(16),
         nullable=True,

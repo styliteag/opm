@@ -44,6 +44,21 @@ export function NucleiSettings({ enabled }: NucleiSettingsProps) {
               default tags.
             </p>
           </div>
+          <div className="col-span-2">
+            <Label htmlFor="nuclei_exclude_tags">
+              Exclude tags (optional)
+            </Label>
+            <Input
+              id="nuclei_exclude_tags"
+              {...register("nuclei_exclude_tags")}
+              placeholder="fuzz,dos,intrusive"
+              className="font-mono"
+            />
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              Comma-separated tags to exclude. Default:{" "}
+              <code>fuzz,dos,intrusive</code>. Clear to run all templates.
+            </p>
+          </div>
           <div>
             <Label htmlFor="nuclei_severity">Minimum severity</Label>
             <Select id="nuclei_severity" {...register("nuclei_severity")}>

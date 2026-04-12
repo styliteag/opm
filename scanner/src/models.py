@@ -58,6 +58,7 @@ class ScannerJob:
     # Nuclei post-phase fields (only meaningful for scanner_type in masscan/nmap)
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None
+    nuclei_exclude_tags: str | None = None
     nuclei_severity: str | None = None
     nuclei_timeout: int | None = None
     # SNI fan-out: when true, the scanner queries

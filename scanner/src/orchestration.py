@@ -296,6 +296,7 @@ def _run_nuclei_phase(
             timeout_s=phase.config.get("timeout") or job.nuclei_timeout,
             logger=logger,
             on_progress=lambda pct, msg: progress_reporter.update(pct, msg),
+            exclude_tags=job.nuclei_exclude_tags,
         )
     except Exception:
         logger.exception("nuclei: unexpected failure during run_nuclei")

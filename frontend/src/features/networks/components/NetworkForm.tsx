@@ -167,6 +167,7 @@ export function NetworkForm({
           ssh_probe_enabled: source.ssh_probe_enabled ?? true,
           nuclei_enabled: source.nuclei_enabled ?? false,
           nuclei_tags: source.nuclei_tags ?? undefined,
+          nuclei_exclude_tags: source.nuclei_exclude_tags ?? undefined,
           nuclei_severity:
             (source.nuclei_severity as
               | "info"
@@ -256,6 +257,7 @@ export function NetworkForm({
     nse_profile_id: "phases",
     nuclei_enabled: "phases",
     nuclei_tags: "phases",
+    nuclei_exclude_tags: "phases",
     nuclei_severity: "phases",
     nuclei_timeout: "phases",
     scan_schedule: "alerts",
@@ -317,6 +319,10 @@ export function NetworkForm({
       gvm_keep_reports: isGreenbone ? rest.gvm_keep_reports : true,
       nuclei_enabled: nucleiActive,
       nuclei_tags: nucleiActive && rest.nuclei_tags ? rest.nuclei_tags : null,
+      nuclei_exclude_tags:
+        nucleiActive && rest.nuclei_exclude_tags
+          ? rest.nuclei_exclude_tags
+          : null,
       nuclei_severity:
         nucleiActive && rest.nuclei_severity ? rest.nuclei_severity : null,
       nuclei_timeout:

@@ -390,6 +390,8 @@ def _build_solution(info: dict[str, Any]) -> str | None:
     return None
 
 
+_DEFAULT_EXCLUDE_TAGS = "fuzz,dos,intrusive"
+
 def run_nuclei(
     targets: Sequence[str],
     tags: str | None,
@@ -398,6 +400,7 @@ def run_nuclei(
     logger: logging.Logger,
     templates_dir: str | None = None,
     on_progress: Callable[[float, str], None] | None = None,
+    exclude_tags: str | None = None,
 ) -> list[VulnerabilityResult]:
     """Invoke nuclei against the given targets and return parsed findings.
 
@@ -451,6 +454,9 @@ def run_nuclei(
         ]
         if tags:
             cmd.extend(["-tags", tags])
+        resolved_exclude = exclude_tags if exclude_tags is not None else _DEFAULT_EXCLUDE_TAGS
+        if resolved_exclude:
+            cmd.extend(["-exclude-tags", resolved_exclude])
 
         logger.info(
             "nuclei: running against %d target(s), severity>=%s, tags=%s, timeout=%ds",

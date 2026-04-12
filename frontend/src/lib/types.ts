@@ -125,6 +125,7 @@ export interface Network {
   ssh_probe_enabled: boolean;
   nuclei_enabled: boolean;
   nuclei_tags: string | null;
+  nuclei_exclude_tags: string | null;
   nuclei_severity: string | null;
   nuclei_timeout: number | null;
   nuclei_sni_enabled: boolean;

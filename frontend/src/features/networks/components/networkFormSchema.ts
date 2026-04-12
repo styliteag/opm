@@ -30,6 +30,7 @@ export const networkFormSchema = z.object({
   ssh_probe_enabled: z.boolean().default(true),
   nuclei_enabled: z.boolean().default(false),
   nuclei_tags: z.string().optional(),
+  nuclei_exclude_tags: z.string().optional(),
   nuclei_severity: z.preprocess(
     (val) => (val === "" || val === null ? undefined : val),
     z.enum(["info", "low", "medium", "high", "critical"]).optional(),

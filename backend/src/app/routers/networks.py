@@ -107,6 +107,7 @@ async def create_network(
         ssh_probe_enabled=request.ssh_probe_enabled,
         nuclei_enabled=request.nuclei_enabled,
         nuclei_tags=request.nuclei_tags,
+        nuclei_exclude_tags=request.nuclei_exclude_tags,
         nuclei_severity=request.nuclei_severity,
         nuclei_timeout=request.nuclei_timeout,
         nuclei_sni_enabled=request.nuclei_sni_enabled,
@@ -227,6 +228,9 @@ async def update_network(
         nuclei_tags=request.nuclei_tags,
         clear_nuclei_tags="nuclei_tags" in request.model_fields_set
         and request.nuclei_tags is None,
+        nuclei_exclude_tags=request.nuclei_exclude_tags,
+        clear_nuclei_exclude_tags="nuclei_exclude_tags" in request.model_fields_set
+        and request.nuclei_exclude_tags is None,
         nuclei_severity=request.nuclei_severity,
         clear_nuclei_severity="nuclei_severity" in request.model_fields_set
         and request.nuclei_severity is None,
