@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-04-12
+
 ### Upgrade Notes
 
 **Scanner-centric hostname cache refactor.** The scanner is now the sole egress point for external hostname API calls (HackerTarget, RapidDNS). The backend filler job that shipped in earlier dev builds has been removed atomically in this release.
