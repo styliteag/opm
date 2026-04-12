@@ -70,6 +70,14 @@ async def create_network(
     nuclei_sni_enabled: bool = False,
 ) -> Network:
     """Create a new network."""
+    # Sync port_scan phase tool with scanner_type (mirrors update_network logic)
+    if phases is not None:
+        phases = [
+            {**phase, "tool": scanner_type}
+            if phase.get("name") == "port_scan"
+            else phase
+            for phase in phases
+        ]
     return await NetworkRepository(db).create(
         name=name,
         cidr=cidr,

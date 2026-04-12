@@ -67,10 +67,14 @@ const PHASE_ORDER = ["host_discovery", "port_scan", "vulnerability"];
 interface PhaseCardsProps {
   phases: ScanPhase[] | null;
   onChange: (phases: ScanPhase[]) => void;
+  scannerType?: "masscan" | "nmap" | "greenbone";
 }
 
-export function PhaseCards({ phases, onChange }: PhaseCardsProps) {
-  const current = phases && phases.length > 0 ? phases : DEFAULT_PHASES;
+export function PhaseCards({ phases, onChange, scannerType = "masscan" }: PhaseCardsProps) {
+  const defaults = DEFAULT_PHASES.map((p) =>
+    p.name === "port_scan" ? { ...p, tool: scannerType } : p,
+  );
+  const current = phases && phases.length > 0 ? phases : defaults;
 
   const updatePhase = useCallback(
     (name: string, updates: Partial<ScanPhase>) => {

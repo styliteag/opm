@@ -249,6 +249,7 @@ export function NetworkForm({
     }
   }, [isGreenbone, watchedNucleiEnabled, setValue]);
 
+
   // Map a field name to the tab that contains it, so we can auto-switch on
   // validation error. Fields not listed here live in "general".
   const fieldToTab: Record<string, TabKey> = {
@@ -306,7 +307,11 @@ export function NetworkForm({
     const nucleiActive = !isGreenbone && rest.nuclei_enabled;
     const payload: Record<string, unknown> = {
       ...rest,
-      phases: isGreenbone ? null : phases,
+      phases: isGreenbone
+        ? null
+        : phases?.map((p) =>
+            p.name === "port_scan" ? { ...p, tool: rest.scanner_type } : p,
+          ) ?? null,
       gvm_scan_config: isGreenbone ? gvmScanConfig : null,
       gvm_port_list: isGreenbone && gvmPortList ? gvmPortList : null,
       gvm_keep_reports: isGreenbone ? rest.gvm_keep_reports : true,
@@ -685,7 +690,7 @@ export function NetworkForm({
                 <legend className="text-xs font-strong uppercase tracking-wider text-muted-foreground">
                   Phases
                 </legend>
-                <PhaseCards phases={phases} onChange={setPhases} />
+                <PhaseCards phases={phases} onChange={setPhases} scannerType={watchedScannerType as "masscan" | "nmap" | "greenbone"} />
                 <div
                   className={`rounded-md transition-colors ${
                     nseProfileMissing
