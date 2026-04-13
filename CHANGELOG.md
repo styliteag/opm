@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Scanners**: indexed API key authentication for new and regenerated scanner keys. Scanner keys now use an `api_key_id.secret` format, backed by migration `018_add_scanner_api_key_id`; legacy pre-index keys still authenticate via a temporary fallback path and should be rotated
+
+### Changed
+
+- **Backend**: request-scoped database sessions no longer auto-commit on dependency teardown; write endpoints now rely on explicit transaction boundaries only
+- **Backend**: login and scanner auth rate limiting now trusts `X-Forwarded-For` / `X-Real-IP` only when `TRUST_PROXY_HEADERS=true`; default remains direct client IP to avoid spoofable header bypasses
+- **Config**: normalized SMTP sender env var to `SMTP_FROM_ADDRESS` across backend settings, compose, and example env files
+- **Config**: checked-in example env files no longer ship with ready-to-use admin / scanner / GVM passwords; initial admin creation is skipped when `ADMIN_PASSWORD` is unset
+
+### Fixed
+
+- **Auth**: inactive users are now rejected during login instead of receiving a token and failing only on later authenticated requests
+- **Migrations**: Alembic revision chain corrected for scanner API key migration `018` (`down_revision="017"`)
+
 ## [2.2.5] - 2026-04-13
 
 ### Fixed
