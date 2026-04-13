@@ -156,67 +156,176 @@ function NetworkDetailPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 pt-4">
-          {/* Alert Settings */}
+          {/* Scan Pipeline */}
           <div className="rounded-lg border border-border bg-card p-5">
             <h3 className="text-sm font-strong text-foreground mb-3">
-              Alert Settings
+              Scan Pipeline
             </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  SSH Security Scanning
-                </p>
-                <p className="mt-0.5 text-sm text-foreground">
-                  {n.alert_config?.ssh_enabled !== false
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              {n.scanner_type === "nse" ? (
+                <PhasePill label="NSE" active />
+              ) : (
+                <>
+                  {n.host_discovery_enabled && (
+                    <>
+                      <PhasePill label="Host Discovery" active />
+                      <span className="text-quaternary">&rarr;</span>
+                    </>
+                  )}
+                  <PhasePill
+                    label={n.scanner_type === "masscan" ? "Masscan" : "Nmap"}
+                    active
+                  />
+                  {n.ssh_probe_enabled && (
+                    <>
+                      <span className="text-quaternary">&rarr;</span>
+                      <PhasePill label="SSH Probe" active />
+                    </>
+                  )}
+                  {n.nuclei_enabled && (
+                    <>
+                      <span className="text-quaternary">&rarr;</span>
+                      <PhasePill label="Nuclei" active />
+                    </>
+                  )}
+                </>
+              )}
+              {n.scanner_type === "greenbone" && (
+                <PhasePill label="Greenbone / GVM" active />
+              )}
+            </div>
+          </div>
+
+          {/* Alert & Feature Settings */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h3 className="text-sm font-strong text-foreground mb-3">
+              Features &amp; Alerts
+            </h3>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              <ConfigField
+                label="SSH Scanning"
+                value={
+                  n.alert_config?.ssh_enabled !== false
                     ? "Enabled"
-                    : "Disabled"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Host Discovery</p>
-                <p className="mt-0.5 text-sm text-foreground">
-                  {n.host_discovery_enabled ? "Enabled" : "Disabled"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">NSE Profile</p>
-                <p className="mt-0.5 text-sm text-foreground">
-                  {n.nse_profile_id ? `Profile #${n.nse_profile_id}` : "None"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">IPv6</p>
-                <p className="mt-0.5 text-sm text-foreground">
-                  {n.is_ipv6 ? "Yes" : "No"}
-                </p>
-              </div>
+                    : "Disabled"
+                }
+              />
+              <ConfigField
+                label="Host Discovery"
+                value={n.host_discovery_enabled ? "Enabled" : "Disabled"}
+              />
+              <ConfigField
+                label="NSE Profile"
+                value={
+                  n.nse_profile_id ? `Profile #${n.nse_profile_id}` : "None"
+                }
+              />
+              <ConfigField label="IPv6" value={n.is_ipv6 ? "Yes" : "No"} />
+              {n.scanner_type === "greenbone" && (
+                <>
+                  <ConfigField
+                    label="GVM Scan Config"
+                    value={n.gvm_scan_config ?? "Full and fast"}
+                  />
+                  {n.gvm_port_list && (
+                    <ConfigField
+                      label="GVM Port List"
+                      value={n.gvm_port_list}
+                    />
+                  )}
+                  <ConfigField
+                    label="Keep GVM Reports"
+                    value={n.gvm_keep_reports ? "Yes" : "No"}
+                  />
+                </>
+              )}
             </div>
           </div>
         </TabsContent>
 
         <TabsContent value="configuration" className="space-y-6 pt-4">
-          {/* Config Cards */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { label: "Port Spec", value: n.port_spec },
-              { label: "Scan Rate", value: `${n.scan_rate ?? "-"} pps` },
-              { label: "Protocol", value: n.scan_protocol.toUpperCase() },
-              {
-                label: "Schedule",
-                value: n.scan_schedule ?? "Manual only",
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg border border-border bg-card p-4"
-              >
-                <p className="text-xs text-muted-foreground">{item.label}</p>
-                <p className="mt-1 text-sm font-medium text-foreground">
-                  {item.value}
-                </p>
-              </div>
-            ))}
+          {/* Core Scan Config */}
+          <div className="rounded-lg border border-border bg-card p-5">
+            <h3 className="text-sm font-strong text-foreground mb-3">
+              Scan Configuration
+            </h3>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              <ConfigField label="Port Spec" value={n.port_spec} mono />
+              <ConfigField
+                label="Scan Rate"
+                value={n.scan_rate != null ? `${n.scan_rate} pps` : "Default"}
+              />
+              <ConfigField
+                label="Protocol"
+                value={n.scan_protocol.toUpperCase()}
+              />
+              <ConfigField
+                label="Schedule"
+                value={n.scan_schedule ?? "Manual only"}
+              />
+              <ConfigField
+                label="Schedule Active"
+                value={n.scan_schedule_enabled ? "Yes" : "No"}
+              />
+              <ConfigField
+                label="Scanner Type"
+                value={n.scanner_type}
+              />
+              <ConfigField
+                label="Scan Timeout"
+                value={
+                  n.scan_timeout != null
+                    ? formatSeconds(n.scan_timeout)
+                    : "Default"
+                }
+              />
+              <ConfigField
+                label="Port Timeout"
+                value={
+                  n.port_timeout != null
+                    ? `${n.port_timeout} ms`
+                    : "Default"
+                }
+              />
+            </div>
           </div>
+
+          {/* Nuclei Config (when enabled) */}
+          {n.nuclei_enabled && (
+            <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 p-5">
+              <h3 className="text-sm font-strong text-foreground mb-3">
+                Nuclei Configuration
+              </h3>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                <ConfigField
+                  label="Timeout"
+                  value={
+                    n.nuclei_timeout != null
+                      ? formatSeconds(n.nuclei_timeout)
+                      : "Default (30m)"
+                  }
+                />
+                <ConfigField
+                  label="Min Severity"
+                  value={n.nuclei_severity ?? "All"}
+                />
+                <ConfigField
+                  label="Tags"
+                  value={n.nuclei_tags ?? "Default"}
+                  mono
+                />
+                <ConfigField
+                  label="Exclude Tags"
+                  value={n.nuclei_exclude_tags ?? "None"}
+                  mono
+                />
+                <ConfigField
+                  label="SNI Fan-out"
+                  value={n.nuclei_sni_enabled ? "Enabled" : "Disabled"}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Port Rules */}
           <PortRulesEditor networkId={id} rules={ruleList} />
@@ -331,6 +440,51 @@ function NetworkDetailPage() {
       </Tabs>
 
       <NetworkForm open={editOpen} onOpenChange={setEditOpen} network={n} />
+    </div>
+  );
+}
+
+function formatSeconds(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  const rem = seconds % 60;
+  if (seconds < 3600) return rem > 0 ? `${mins}m ${rem}s` : `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins > 0 ? `${hrs}h ${remMins}m` : `${hrs}h`;
+}
+
+function PhasePill({ label, active }: { label: string; active: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-emphasis ${
+        active
+          ? "border-primary/30 bg-primary/10 text-primary"
+          : "border-border bg-card text-muted-foreground"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function ConfigField({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p
+        className={`mt-0.5 text-sm text-foreground ${mono ? "font-mono" : ""}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
