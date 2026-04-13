@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.15] - 2026-04-14
+
 ### Added
 
 - **Backend/Frontend**: structured schedule builder replacing raw cron input — supports daily, weekly, monthly (date), monthly (nth weekday like "3rd Sunday"), every N hours, and custom cron as escape hatch
