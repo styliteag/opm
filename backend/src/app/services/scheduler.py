@@ -1,6 +1,7 @@
 """Background scheduler for creating planned scans based on cron schedules."""
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
 
@@ -36,6 +37,11 @@ def _get_schedule_timezone() -> timezone | ZoneInfo | tzinfo:
         return timezone.utc
 
 
+def _normalize_day_of_week(expr: str) -> str:
+    """Normalize day_of_week: standard cron allows 7 for Sunday, APScheduler only accepts 0-6."""
+    return re.sub(r"\b7\b", "0", expr)
+
+
 def _build_cron_trigger(schedule: str) -> CronTrigger | None:
     """Build a CronTrigger from 5 or 6-field cron syntax."""
     schedule_tz = _get_schedule_timezone()
@@ -47,7 +53,7 @@ def _build_cron_trigger(schedule: str) -> CronTrigger | None:
             hour=hour,
             day=day,
             month=month,
-            day_of_week=day_of_week,
+            day_of_week=_normalize_day_of_week(day_of_week),
             timezone=schedule_tz,
         )
     if len(fields) == 6:
@@ -58,7 +64,7 @@ def _build_cron_trigger(schedule: str) -> CronTrigger | None:
             hour=hour,
             day=day,
             month=month,
-            day_of_week=day_of_week,
+            day_of_week=_normalize_day_of_week(day_of_week),
             timezone=schedule_tz,
         )
     return None
@@ -96,41 +102,48 @@ async def evaluate_schedules() -> None:
         networks = result.scalars().all()
 
         for network in networks:
-            if not network.scan_schedule:
-                continue
-            if not _is_schedule_due(network.scan_schedule, now):
-                continue
+            try:
+                if not network.scan_schedule:
+                    continue
+                if not _is_schedule_due(network.scan_schedule, now):
+                    continue
 
-            # Lock this network row - other workers will skip it
-            lock_result = await db.execute(
-                select(Network)
-                .where(Network.id == network.id)
-                .with_for_update(skip_locked=True)
-            )
-            locked_network = lock_result.scalar_one_or_none()
-            if locked_network is None:
-                # Another worker has the lock, skip
-                continue
+                # Lock this network row - other workers will skip it
+                lock_result = await db.execute(
+                    select(Network)
+                    .where(Network.id == network.id)
+                    .with_for_update(skip_locked=True)
+                )
+                locked_network = lock_result.scalar_one_or_none()
+                if locked_network is None:
+                    # Another worker has the lock, skip
+                    continue
 
-            # Double-check for active scan after acquiring lock
-            if await _has_active_scan(db, network.id):
-                continue
+                # Double-check for active scan after acquiring lock
+                if await _has_active_scan(db, network.id):
+                    continue
 
-            # For NSE scanner type, attach the network's default profile
-            nse_template_id = None
-            if network.scanner_type == "nse" and network.nse_profile_id is not None:
-                nse_template_id = network.nse_profile_id
+                # For NSE scanner type, attach the network's default profile
+                nse_template_id = None
+                if network.scanner_type == "nse" and network.nse_profile_id is not None:
+                    nse_template_id = network.nse_profile_id
 
-            scan = Scan(
-                network_id=network.id,
-                scanner_id=network.scanner_id,
-                status=ScanStatus.PLANNED,
-                trigger_type=TriggerType.SCHEDULED,
-                nse_template_id=nse_template_id,
-            )
-            db.add(scan)
-            await db.flush()
-            logger.info("Scheduled scan for network %s (%s)", network.name, network.id)
+                scan = Scan(
+                    network_id=network.id,
+                    scanner_id=network.scanner_id,
+                    status=ScanStatus.PLANNED,
+                    trigger_type=TriggerType.SCHEDULED,
+                    nse_template_id=nse_template_id,
+                )
+                db.add(scan)
+                await db.flush()
+                logger.info("Scheduled scan for network %s (%s)", network.name, network.id)
+            except Exception:
+                logger.exception(
+                    "Failed to evaluate schedule for network %s (%s)",
+                    network.name,
+                    network.id,
+                )
 
         await db.commit()
 

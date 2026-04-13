@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Backend**: cron schedule with day_of_week=7 (standard cron Sunday) crashed APScheduler which only accepts 0-6 — now normalized automatically
+- **Backend**: a single invalid cron schedule blocked all schedule evaluations — now caught per-network with error logging
+
 ## [2.2.13] - 2026-04-13
 
 ### Changed
