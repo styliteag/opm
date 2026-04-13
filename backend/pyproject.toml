@@ -38,6 +38,11 @@ dev = [
     "types-defusedxml>=0.7.0",
 ]
 
+[tool.uv]
+constraint-dependencies = [
+    "pygments>=2.20.0",  # CVE fix: ReDoS in AdlLexer (< 2.20.0)
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
