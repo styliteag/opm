@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Plus, Play, Copy, X } from "lucide-react";
 import { toast } from "sonner";
 
-import type { Network } from "@/lib/types";
+import type { Network, ScanSummary } from "@/lib/types";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
@@ -17,7 +17,12 @@ import {
 import { useNetworkMutations } from "@/features/networks/hooks/useNetworkDetail";
 import { NetworkForm } from "@/features/networks/components/NetworkForm";
 import { SSH_ALERT_KEYS } from "@/features/admin/hooks/useAdmin";
-import { isOnline } from "@/lib/utils";
+import {
+  formatRelativeTime,
+  isOnline,
+  parseUTC,
+  scanStatusVariant,
+} from "@/lib/utils";
 
 type NetworksSearch = {
   filter?: "ssh-override";
@@ -30,6 +35,35 @@ export const Route = createFileRoute("/_authenticated/networks/")({
   },
   component: NetworksPage,
 });
+
+function formatDuration(startedAt: string | null, completedAt: string | null): string {
+  if (!startedAt || !completedAt) return "-";
+  const ms = parseUTC(completedAt).getTime() - parseUTC(startedAt).getTime();
+  if (ms < 0) return "-";
+  const secs = Math.round(ms / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  const rem = secs % 60;
+  return rem > 0 ? `${mins}m ${rem}s` : `${mins}m`;
+}
+
+function buildPhaseList(network: Network): string[] {
+  const phases: string[] = [];
+  if (network.scanner_type === "nse") {
+    phases.push("NSE");
+  } else {
+    phases.push(network.scanner_type === "masscan" ? "Masscan" : "Nmap");
+    if (network.ssh_probe_enabled) phases.push("SSH");
+    if (network.nuclei_enabled) phases.push("Nuclei");
+  }
+  return phases;
+}
+
+function formatTimeout(seconds: number | null): string {
+  if (seconds == null) return "-";
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.round(seconds / 60)}m`;
+}
 
 function networkOverridesSsh(network: Network): boolean {
   const config = network.alert_config as Record<string, unknown> | null;
@@ -187,8 +221,9 @@ function NetworksPage() {
       ) : (
         <div className="space-y-4">
           {networkList.map((network) => {
-            const scan = scanMap.get(network.id);
+            const scan = scanMap.get(network.id) as ScanSummary | undefined;
             const scanner = scannerMap.get(network.scanner_id);
+            const phases = buildPhaseList(network);
 
             return (
               <Link
@@ -237,7 +272,44 @@ function NetworksPage() {
                     </button>
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+
+                {/* Phases + Config */}
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    <span className="text-quaternary">Phases:</span>{" "}
+                    {phases.map((p, i) => (
+                      <span key={p}>
+                        {i > 0 && (
+                          <span className="text-quaternary mx-0.5">&rarr;</span>
+                        )}
+                        <span className="text-foreground">{p}</span>
+                      </span>
+                    ))}
+                  </span>
+                  <span>
+                    <span className="text-quaternary">Scan timeout:</span>{" "}
+                    <span className="text-foreground">
+                      {formatTimeout(network.scan_timeout)}
+                    </span>
+                  </span>
+                  {network.nuclei_enabled && network.nuclei_timeout != null && (
+                    <span>
+                      <span className="text-quaternary">Nuclei timeout:</span>{" "}
+                      <span className="text-foreground">
+                        {formatTimeout(network.nuclei_timeout)}
+                      </span>
+                    </span>
+                  )}
+                  <span>
+                    <span className="text-quaternary">Scanner:</span>{" "}
+                    <span className="text-foreground">
+                      {scanner?.name ?? "-"}
+                    </span>
+                  </span>
+                </div>
+
+                {/* Last Run Info */}
+                <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-5">
                   <div>
                     <p className="text-xs text-muted-foreground">Port Spec</p>
                     <p className="text-sm text-foreground">
@@ -251,17 +323,37 @@ function NetworksPage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Scanner</p>
-                    <p className="text-sm text-foreground">
-                      {scanner?.name ?? "-"}
+                    <p className="text-xs text-muted-foreground">Last Status</p>
+                    <p className="text-sm">
+                      {scan ? (
+                        <StatusBadge
+                          label={scan.status}
+                          variant={scanStatusVariant(scan.status)}
+                          dot
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">Never</span>
+                      )}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Last Scan</p>
+                    <p className="text-xs text-muted-foreground">Last Run</p>
+                    <p className="text-sm text-foreground">
+                      {scan?.completed_at
+                        ? formatRelativeTime(scan.completed_at)
+                        : scan?.started_at
+                          ? formatRelativeTime(scan.started_at)
+                          : "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Duration / Ports
+                    </p>
                     <p className="text-sm text-foreground">
                       {scan?.status === "completed"
-                        ? `${scan.port_count} ports`
-                        : (scan?.status ?? "Never")}
+                        ? `${formatDuration(scan.started_at, scan.completed_at)} · ${scan.port_count} ports`
+                        : "-"}
                     </p>
                   </div>
                 </div>

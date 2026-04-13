@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Docs**: documented `TRUST_PROXY_HEADERS` setting — usage, security implications, per-deployment recommendations, and verification steps
 
+### Changed
+
+- **Frontend**: network list cards now show scan phases (e.g. Masscan → SSH → Nuclei), timeouts, last run time, duration, and port count
+- **Scanner**: SSH probes now run as a proper pipeline phase between port scan and nuclei, instead of post-pipeline
+- **Scanner**: phase timing logged for each pipeline phase (elapsed seconds)
+- **Frontend**: scan log panel fetches up to 500 entries (was 50) with taller scrollable container
+- **Frontend**: NucleiSummaryCard shows timeout/error warnings when nuclei phase did not complete cleanly
+
+### Fixed
+
+- **Scanner**: nuclei timeout now surfaces in the WebUI via `nuclei_status` on scans (migration `019`), instead of silently showing "No findings"
+
 ## [2.2.6] - 2026-04-13
 
 ### Added
