@@ -22,6 +22,9 @@ class Scanner(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    api_key_id: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, unique=True, index=True
+    )
     api_key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)

@@ -19,9 +19,29 @@ class ScannerRepository(BaseRepository[Scanner]):
     model = Scanner
 
 
-def generate_api_key() -> str:
-    """Generate a secure 32+ character API key."""
+def generate_api_key_secret() -> str:
+    """Generate the secret portion of a scanner API key."""
     return secrets.token_hex(32)
+
+
+def generate_api_key_id() -> str:
+    """Generate a public identifier for indexed scanner API key lookup."""
+    return f"scn_{secrets.token_hex(8)}"
+
+
+def build_api_key(api_key_id: str, api_key_secret: str) -> str:
+    """Build the scanner API key returned to the user."""
+    return f"{api_key_id}.{api_key_secret}"
+
+
+def split_api_key(api_key: str) -> tuple[str | None, str]:
+    """Split scanner API key into id and secret parts."""
+    api_key_id, sep, secret = api_key.partition(".")
+    if not sep:
+        return None, api_key
+    if not api_key_id or not secret:
+        return None, api_key
+    return api_key_id, secret
 
 
 async def get_all_scanners(db: AsyncSession) -> list[Scanner]:
@@ -39,6 +59,11 @@ async def get_scanner_by_name(db: AsyncSession, name: str) -> Scanner | None:
     return await ScannerRepository(db).get_by_field(Scanner.name, name)
 
 
+async def get_scanner_by_api_key_id(db: AsyncSession, api_key_id: str) -> Scanner | None:
+    """Get a scanner by API key identifier."""
+    return await ScannerRepository(db).get_by_field(Scanner.api_key_id, api_key_id)
+
+
 async def create_scanner(
     db: AsyncSession,
     name: str,
@@ -47,16 +72,18 @@ async def create_scanner(
     kind: str = "standard",
 ) -> tuple[Scanner, str]:
     """Create a new scanner and return it with the plain API key."""
-    api_key = generate_api_key()
-    api_key_hash = hash_password(api_key)
+    api_key_id = generate_api_key_id()
+    api_key_secret = generate_api_key_secret()
+    api_key_hash = hash_password(api_key_secret)
     scanner = await ScannerRepository(db).create(
         name=name,
+        api_key_id=api_key_id,
         api_key_hash=api_key_hash,
         description=description,
         location=location,
         kind=kind,
     )
-    return scanner, api_key
+    return scanner, build_api_key(api_key_id, api_key_secret)
 
 
 async def update_scanner(
@@ -82,10 +109,12 @@ async def update_scanner(
 
 async def regenerate_api_key(db: AsyncSession, scanner: Scanner) -> tuple[Scanner, str]:
     """Regenerate the API key for a scanner."""
-    api_key = generate_api_key()
-    scanner.api_key_hash = hash_password(api_key)
+    api_key_id = generate_api_key_id()
+    api_key_secret = generate_api_key_secret()
+    scanner.api_key_id = api_key_id
+    scanner.api_key_hash = hash_password(api_key_secret)
     scanner = await ScannerRepository(db).flush_and_refresh(scanner)
-    return scanner, api_key
+    return scanner, build_api_key(api_key_id, api_key_secret)
 
 
 async def get_scanner_overview(db: AsyncSession, scanner_id: int) -> dict[str, Any] | None:
@@ -212,4 +241,5 @@ async def delete_scanner(db: AsyncSession, scanner: Scanner) -> None:
 
 async def verify_scanner_api_key(scanner: Scanner, api_key: str) -> bool:
     """Verify an API key against a scanner's stored hash."""
-    return verify_password(api_key, scanner.api_key_hash)
+    _, api_key_secret = split_api_key(api_key)
+    return verify_password(api_key_secret, scanner.api_key_hash)
