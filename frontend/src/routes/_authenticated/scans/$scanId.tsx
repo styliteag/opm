@@ -224,7 +224,7 @@ function ScanDetailPage() {
         <div className="border-b border-border bg-card px-5 py-3">
           <h3 className="text-sm font-strong text-foreground">Engine Logs</h3>
         </div>
-        <div className="max-h-96 overflow-y-auto p-4 font-mono text-xs">
+        <div className="max-h-[40rem] overflow-y-auto p-4 font-mono text-xs">
           {(logs.data?.logs ?? []).length === 0 ? (
             <p className="text-muted-foreground">No logs available</p>
           ) : (

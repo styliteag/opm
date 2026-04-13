@@ -180,3 +180,14 @@ class PaginationParams:
 
 
 Pagination = Annotated[PaginationParams, Depends(PaginationParams)]
+
+
+@dataclass
+class LogPaginationParams:
+    """Pagination for log endpoints — higher limit for verbose scan logs."""
+
+    offset: int = Query(0, ge=0, description="Number of items to skip")
+    limit: int = Query(500, ge=1, le=5000, description="Maximum number of log entries to return")
+
+
+LogPagination = Annotated[LogPaginationParams, Depends(LogPaginationParams)]
