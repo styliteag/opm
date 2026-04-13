@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Scanner**: default nuclei timeout increased from 30 minutes to 120 minutes
+- **Frontend**: nuclei timeout placeholder and help text updated to reflect new default
 
 ### Fixed
 
