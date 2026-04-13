@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, Play, Copy, X } from "lucide-react";
+import { Plus, Play, Copy, X, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 
 import type { Network, ScanSummary } from "@/lib/types";
@@ -65,6 +65,30 @@ function formatTimeout(seconds: number | null): string {
   return `${Math.round(seconds / 60)}m`;
 }
 
+function formatTimeUntil(iso: string | null): string {
+  if (!iso) return "—";
+  const diffMs = new Date(iso).getTime() - Date.now();
+  if (diffMs < 0) return "now";
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "<1m";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  if (hours < 24) return rem > 0 ? `${hours}h ${rem}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+type SortField = "name" | "next_run" | "last_run" | "scanner";
+type SortDir = "asc" | "desc";
+
+const SORT_OPTIONS: { field: SortField; label: string }[] = [
+  { field: "name", label: "Name" },
+  { field: "next_run", label: "Next Run" },
+  { field: "last_run", label: "Last Run" },
+  { field: "scanner", label: "Scanner" },
+];
+
 function networkOverridesSsh(network: Network): boolean {
   const config = network.alert_config as Record<string, unknown> | null;
   if (!config) return false;
@@ -74,12 +98,14 @@ function networkOverridesSsh(network: Network): boolean {
 function NetworksPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [cloneSource, setCloneSource] = useState<Network | null>(null);
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const navigate = Route.useNavigate();
   const { filter } = Route.useSearch();
   const networks = useNetworks();
   const scanners = useScanners();
   const latestScans = useLatestScans();
-  const { triggerScan } = useNetworkMutations();
+  const { triggerScan, update } = useNetworkMutations();
 
   const scannerMap = useMemo(
     () => new Map((scanners.data?.scanners ?? []).map((s) => [s.id, s])),
@@ -117,6 +143,52 @@ function NetworksPage() {
     }).length;
     return { total: allNetworks.length, scheduled, lastCompleted, failing };
   }, [allNetworks, scanMap]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedList = useMemo(() => {
+    const list = [...networkList];
+    const dir = sortDir === "asc" ? 1 : -1;
+    list.sort((a, b) => {
+      switch (sortField) {
+        case "name":
+          return dir * a.name.localeCompare(b.name);
+        case "next_run": {
+          const ta = a.next_fire_time ?? "";
+          const tb = b.next_fire_time ?? "";
+          if (!ta && !tb) return 0;
+          if (!ta) return 1;
+          if (!tb) return -1;
+          return dir * ta.localeCompare(tb);
+        }
+        case "last_run": {
+          const sa = scanMap.get(a.id);
+          const sb = scanMap.get(b.id);
+          const da = sa?.completed_at ?? sa?.started_at ?? "";
+          const db = sb?.completed_at ?? sb?.started_at ?? "";
+          if (!da && !db) return 0;
+          if (!da) return 1;
+          if (!db) return -1;
+          return dir * da.localeCompare(db);
+        }
+        case "scanner": {
+          const na = scannerMap.get(a.scanner_id)?.name ?? "";
+          const nb = scannerMap.get(b.scanner_id)?.name ?? "";
+          return dir * na.localeCompare(nb);
+        }
+        default:
+          return 0;
+      }
+    });
+    return list;
+  }, [networkList, sortField, sortDir, scanMap, scannerMap]);
 
   if (networks.isLoading) return <LoadingState rows={6} />;
   if (networks.error)
@@ -231,6 +303,31 @@ function NetworksPage() {
         </div>
       )}
 
+      {/* Sort Bar */}
+      {networkList.length > 1 && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground mr-1">Sort:</span>
+          {SORT_OPTIONS.map((opt) => {
+            const active = sortField === opt.field;
+            return (
+              <button
+                key={opt.field}
+                type="button"
+                onClick={() => toggleSort(opt.field)}
+                className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] transition-colors cursor-pointer ${
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-surface-2 text-text-quaternary hover:text-text-secondary"
+                }`}
+              >
+                {opt.label}
+                {active && (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Network Cards */}
       {networkList.length === 0 ? (
         <EmptyState
@@ -247,7 +344,7 @@ function NetworksPage() {
         />
       ) : (
         <div className="space-y-4">
-          {networkList.map((network) => {
+          {sortedList.map((network) => {
             const scan = scanMap.get(network.id) as ScanSummary | undefined;
             const scanner = scannerMap.get(network.scanner_id);
             const phases = buildPhaseList(network);
@@ -270,7 +367,30 @@ function NetworksPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {network.scan_schedule && (
-                      <StatusBadge label="Scheduled" variant="success" />
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          update.mutate(
+                            { id: network.id, scan_schedule_enabled: !network.scan_schedule_enabled },
+                            {
+                              onSuccess: () =>
+                                toast.success(
+                                  network.scan_schedule_enabled
+                                    ? `Schedule paused for ${network.name}`
+                                    : `Schedule resumed for ${network.name}`,
+                                ),
+                              onError: (err) => toast.error(err.message),
+                            },
+                          );
+                        }}
+                        className="cursor-pointer"
+                        title={network.scan_schedule_enabled ? "Click to pause schedule" : "Click to resume schedule"}
+                      >
+                        <StatusBadge
+                          label={network.scan_schedule_enabled ? "Scheduled" : "Paused"}
+                          variant={network.scan_schedule_enabled ? "success" : "warning"}
+                        />
+                      </button>
                     )}
                     <button
                       onClick={(e) => {
@@ -336,7 +456,7 @@ function NetworksPage() {
                 </div>
 
                 {/* Last Run Info */}
-                <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-5">
+                <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-6">
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Port Spec</p>
                     <p className="text-sm text-foreground truncate" title={network.port_spec}>
@@ -382,6 +502,17 @@ function NetworksPage() {
                         ? `${formatDuration(scan.started_at, scan.completed_at)} · ${scan.port_count} ports`
                         : "-"}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Schedule</p>
+                    <p className="text-sm text-foreground truncate" title={network.schedule_description ?? undefined}>
+                      {network.schedule_description ?? "Manual"}
+                    </p>
+                    {network.next_fire_time && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Next: {formatTimeUntil(network.next_fire_time)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </Link>

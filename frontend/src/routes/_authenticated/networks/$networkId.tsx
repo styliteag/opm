@@ -52,7 +52,7 @@ function NetworkDetailPage() {
   const overview = useNetworkOverview(id);
   const scans = useNetworkScans(id);
   const rules = useNetworkRules(id);
-  const { triggerScan, triggerDiscovery } = useNetworkMutations();
+  const { triggerScan, triggerDiscovery, update } = useNetworkMutations();
   const discoveryScans = useQuery({
     queryKey: ["networks", id, "host-discovery-scans"],
     queryFn: () =>
@@ -98,6 +98,33 @@ function NetworkDetailPage() {
               variant={ov.scanner_online ? "success" : "danger"}
               dot
             />
+            {n.scan_schedule && (
+              <button
+                onClick={() =>
+                  update.mutate(
+                    { id, scan_schedule_enabled: !n.scan_schedule_enabled },
+                    {
+                      onSuccess: () => {
+                        overview.refetch();
+                        toast.success(
+                          n.scan_schedule_enabled
+                            ? "Schedule paused"
+                            : "Schedule resumed",
+                        );
+                      },
+                      onError: (e) => toast.error(e.message),
+                    },
+                  )
+                }
+                className="cursor-pointer"
+                title={n.scan_schedule_enabled ? "Click to pause" : "Click to resume"}
+              >
+                <StatusBadge
+                  label={n.scan_schedule_enabled ? "Scheduled" : "Paused"}
+                  variant={n.scan_schedule_enabled ? "success" : "warning"}
+                />
+              </button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -196,6 +223,33 @@ function NetworkDetailPage() {
             </div>
           </div>
 
+          {/* Schedule */}
+          {n.scan_schedule && (
+            <div className="rounded-lg border border-border bg-card p-5">
+              <h3 className="text-sm font-strong text-foreground mb-3">
+                Schedule
+              </h3>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                <ConfigField
+                  label="Schedule"
+                  value={n.schedule_description ?? n.scan_schedule}
+                />
+                <ConfigField
+                  label="Status"
+                  value={n.scan_schedule_enabled ? "Active" : "Paused"}
+                />
+                <ConfigField
+                  label="Next Run"
+                  value={
+                    n.next_fire_time
+                      ? new Date(n.next_fire_time).toLocaleString()
+                      : "—"
+                  }
+                />
+              </div>
+            </div>
+          )}
+
           {/* Alert & Feature Settings */}
           <div className="rounded-lg border border-border bg-card p-5">
             <h3 className="text-sm font-strong text-foreground mb-3">
@@ -261,11 +315,19 @@ function NetworkDetailPage() {
               />
               <ConfigField
                 label="Schedule"
-                value={n.scan_schedule ?? "Manual only"}
+                value={n.schedule_description ?? "Manual only"}
               />
               <ConfigField
                 label="Schedule Active"
                 value={n.scan_schedule_enabled ? "Yes" : "No"}
+              />
+              <ConfigField
+                label="Next Run"
+                value={
+                  n.next_fire_time
+                    ? new Date(n.next_fire_time).toLocaleString()
+                    : "—"
+                }
               />
               <ConfigField
                 label="Scanner Type"

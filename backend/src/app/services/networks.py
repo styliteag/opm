@@ -145,6 +145,7 @@ async def update_network(
     nuclei_timeout: int | None = None,
     clear_nuclei_timeout: bool = False,
     nuclei_sni_enabled: bool | None = None,
+    scan_schedule_enabled: bool | None = None,
 ) -> Network:
     """Update an existing network.
 
@@ -225,6 +226,8 @@ async def update_network(
         network.nuclei_timeout = nuclei_timeout
     if nuclei_sni_enabled is not None:
         network.nuclei_sni_enabled = nuclei_sni_enabled
+    if scan_schedule_enabled is not None:
+        network.scan_schedule_enabled = scan_schedule_enabled
 
     # Guard against incompatible combos introduced by a partial update:
     # if the network now has a non-eligible scanner_type but nuclei_enabled

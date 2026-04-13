@@ -253,6 +253,7 @@ async def update_network(
         clear_nuclei_timeout="nuclei_timeout" in request.model_fields_set
         and request.nuclei_timeout is None,
         nuclei_sni_enabled=request.nuclei_sni_enabled,
+        scan_schedule_enabled=request.scan_schedule_enabled,
     )
     await db.commit()
     return _enrich_network_response(updated_network)

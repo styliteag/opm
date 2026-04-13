@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Frontend**: "Next Run" column on network cards showing relative time until next scheduled scan
+- **Frontend**: sortable network list — sort by Name, Next Run, Last Run, or Scanner
+- **Frontend**: network detail page shows human-readable schedule description and next run time instead of raw JSON
+
 ## [2.2.15] - 2026-04-14
 
 ### Added
