@@ -132,6 +132,8 @@ export interface Network {
   is_ipv6: boolean;
   created_at: string;
   updated_at: string;
+  schedule_description: string | null;
+  next_fire_time: string | null;
 }
 
 export interface ScanPhase {

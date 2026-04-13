@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import cronstrue from "cronstrue";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +21,7 @@ import { computeScanEstimate } from "@/lib/scan-estimate";
 import type { Network, ScanPhase } from "@/lib/types";
 import { GvmConfigSection } from "./GvmConfigSection";
 import { NucleiSettings } from "./NucleiSettings";
+import { ScheduleBuilder } from "./ScheduleBuilder";
 import { PhaseCards } from "./PhaseCards";
 import { SshAlertOverrides } from "./SshAlertOverrides";
 import {
@@ -105,12 +105,6 @@ const RATE_PRESETS = [
   { label: "Max", value: 100000, desc: "Lab/isolated only" },
 ];
 
-const SCHEDULE_PRESETS = [
-  { label: "Hourly", value: "0 * * * *" },
-  { label: "Daily 2am", value: "0 2 * * *" },
-  { label: "Weekly", value: "0 2 * * 1" },
-  { label: "Monthly", value: "0 2 1 * *" },
-];
 
 interface NetworkFormProps {
   open: boolean;
@@ -276,15 +270,6 @@ export function NetworkForm({
     watchedPortSpec,
     watchedRate,
   );
-
-  let cronHuman = "";
-  try {
-    if (watchedSchedule.trim()) {
-      cronHuman = cronstrue.toString(watchedSchedule);
-    }
-  } catch {
-    cronHuman = "";
-  }
 
   const onSubmit = (data: NetworkFormData) => {
     const {
@@ -743,34 +728,10 @@ export function NetworkForm({
             </legend>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="scan_schedule">Schedule (cron)</Label>
-                <Input
-                  id="scan_schedule"
-                  {...register("scan_schedule")}
-                  placeholder="0 2 * * *"
-                  className="font-mono"
+                <ScheduleBuilder
+                  value={watchedSchedule}
+                  onChange={(v) => setValue("scan_schedule", v)}
                 />
-                <div className="mt-1.5 flex gap-1">
-                  {SCHEDULE_PRESETS.map((p) => (
-                    <button
-                      key={p.value}
-                      type="button"
-                      onClick={() => setValue("scan_schedule", p.value)}
-                      className={`cursor-pointer rounded px-1.5 py-0.5 text-[10px] transition-colors ${
-                        watchedSchedule === p.value
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-surface-2 text-text-quaternary hover:text-text-secondary"
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-                {cronHuman && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {cronHuman}
-                  </p>
-                )}
               </div>
               <div>
                 <Label htmlFor="email_recipients">Alert Email Recipients</Label>

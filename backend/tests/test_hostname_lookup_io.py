@@ -661,12 +661,12 @@ class TestManualEditEndpoint:
         assert body["status"] == "no_results"
         assert body["hostnames"] == []
 
-    async def test_put_uses_8_week_ttl(
+    async def test_put_uses_no_expire_ttl(
         self,
         client: AsyncClient,
         admin_headers: dict[str, str],
     ) -> None:
-        """Manual edits get a long TTL so the filler doesn't overwrite."""
+        """Manual edits never expire (~100 years TTL)."""
         response = await client.put(
             "/api/admin/hostname-lookup/entries/10.0.0.80",
             headers=admin_headers,
@@ -677,8 +677,8 @@ class TestManualEditEndpoint:
         queried_at = datetime.fromisoformat(body["queried_at"])
         expires_at = datetime.fromisoformat(body["expires_at"])
         delta_days = (expires_at - queried_at).days
-        # 8 weeks = 56 days; allow ±1 day for the clock boundary.
-        assert 55 <= delta_days <= 56
+        # ~100 years = 36500 days; just verify it's far in the future.
+        assert delta_days >= 36499
 
     async def test_put_dedupes_and_strips(
         self, client: AsyncClient, admin_headers: dict[str, str]

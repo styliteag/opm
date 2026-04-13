@@ -27,7 +27,7 @@ class Network(Base):
     cidr: Mapped[str] = mapped_column(String(43), nullable=False)  # IPv6 CIDR max length
     port_spec: Mapped[str] = mapped_column(String(1000), nullable=False)  # e.g., "80-443,8080,!88"
     scanner_id: Mapped[int] = mapped_column(ForeignKey("scanners.id"), nullable=False, index=True)
-    scan_schedule: Mapped[str | None] = mapped_column(String(100), nullable=True)  # cron format
+    scan_schedule: Mapped[str | None] = mapped_column(String(255), nullable=True)  # JSON or cron
     scan_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)  # packets per second
     scan_timeout: Mapped[int | None] = mapped_column(
         Integer, nullable=True, server_default="3600"

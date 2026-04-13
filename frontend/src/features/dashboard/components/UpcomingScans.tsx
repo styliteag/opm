@@ -1,7 +1,5 @@
 import { useMemo } from "react";
 import { Clock } from "lucide-react";
-import { CronExpressionParser } from "cron-parser";
-import cronstrue from "cronstrue";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Network } from "@/lib/types";
@@ -37,34 +35,20 @@ function formatTimeUntil(target: Date): string {
   return remainingHours > 0 ? `in ${days}d ${remainingHours}h` : `in ${days}d`;
 }
 
-function parseScheduleDescription(schedule: string): string {
-  try {
-    return cronstrue.toString(schedule);
-  } catch {
-    return schedule;
-  }
-}
-
 export function UpcomingScans({ networks }: UpcomingScansProps) {
   const upcoming = useMemo<UpcomingScan[]>(() => {
     const scans: UpcomingScan[] = [];
 
     for (const network of networks) {
       if (!network.scan_schedule || !network.scan_schedule_enabled) continue;
+      if (!network.next_fire_time) continue;
 
-      try {
-        const interval = CronExpressionParser.parseExpression(
-          network.scan_schedule,
-        );
-        const nextRun = interval.next().toDate();
-        scans.push({
-          networkName: network.name,
-          nextRun,
-          scheduleDescription: parseScheduleDescription(network.scan_schedule),
-        });
-      } catch {
-        // Skip networks with invalid cron expressions
-      }
+      scans.push({
+        networkName: network.name,
+        nextRun: new Date(network.next_fire_time),
+        scheduleDescription:
+          network.schedule_description ?? network.scan_schedule,
+      });
     }
 
     return scans

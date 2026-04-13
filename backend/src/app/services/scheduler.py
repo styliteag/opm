@@ -1,12 +1,10 @@
 """Background scheduler for creating planned scans based on cron schedules."""
 
 import logging
-import re
 from datetime import datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
-from apscheduler.triggers.cron import CronTrigger  # type: ignore[import-untyped]
 from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import-untyped]
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +13,7 @@ from app.core.config import settings
 from app.core.database import async_session_factory
 from app.models.network import Network
 from app.models.scan import Scan, ScanStatus, TriggerType
+from app.services.schedule_convert import build_trigger
 
 logger = logging.getLogger(__name__)
 
@@ -37,42 +36,9 @@ def _get_schedule_timezone() -> timezone | ZoneInfo | tzinfo:
         return timezone.utc
 
 
-def _normalize_day_of_week(expr: str) -> str:
-    """Normalize day_of_week: standard cron allows 7 for Sunday, APScheduler only accepts 0-6."""
-    return re.sub(r"\b7\b", "0", expr)
-
-
-def _build_cron_trigger(schedule: str) -> CronTrigger | None:
-    """Build a CronTrigger from 5 or 6-field cron syntax."""
-    schedule_tz = _get_schedule_timezone()
-    fields = schedule.split()
-    if len(fields) == 5:
-        minute, hour, day, month, day_of_week = fields
-        return CronTrigger(
-            minute=minute,
-            hour=hour,
-            day=day,
-            month=month,
-            day_of_week=_normalize_day_of_week(day_of_week),
-            timezone=schedule_tz,
-        )
-    if len(fields) == 6:
-        second, minute, hour, day, month, day_of_week = fields
-        return CronTrigger(
-            second=second,
-            minute=minute,
-            hour=hour,
-            day=day,
-            month=month,
-            day_of_week=_normalize_day_of_week(day_of_week),
-            timezone=schedule_tz,
-        )
-    return None
-
-
 def _is_schedule_due(schedule: str, now: datetime) -> bool:
     """Return True if the cron schedule should fire within the last minute."""
-    trigger = _build_cron_trigger(schedule)
+    trigger = build_trigger(schedule, _get_schedule_timezone())
     if trigger is None:
         return False
     window_start = now - timedelta(minutes=1)

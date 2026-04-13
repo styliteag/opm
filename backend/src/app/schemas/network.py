@@ -76,30 +76,44 @@ def validate_port_spec(value: str) -> str:
     return value
 
 
-def validate_cron_schedule(value: str | None) -> str | None:
-    """Validate cron schedule format or allow null for manual-only.
-
-    Basic cron format: minute hour day_of_month month day_of_week
-    Examples: "0 * * * *" (every hour), "*/5 * * * *" (every 5 minutes)
-    """
-    if value is None or value == "":
-        return None
-
-    # Basic cron validation (5 or 6 fields)
+def _validate_legacy_cron(value: str) -> str:
+    """Validate legacy 5/6-field cron format."""
     parts = value.split()
     if len(parts) < 5 or len(parts) > 6:
         raise ValueError(
             "Invalid cron format: expected 5 or 6 fields "
             "(minute hour day_of_month month day_of_week [year])"
         )
-
-    # Basic pattern validation for cron fields
     cron_field_pattern = re.compile(r"^[\d\*\/\-\,]+$")
     for i, part in enumerate(parts):
         if not cron_field_pattern.match(part):
             raise ValueError(f"Invalid cron field at position {i}: {part}")
-
     return value
+
+
+def validate_cron_schedule(value: str | None) -> str | None:
+    """Validate scan schedule — accepts JSON structured format or legacy cron.
+
+    JSON format: ``{"type": "daily", "hour": 2, "minute": 0}``
+    Legacy cron: ``0 2 * * *``
+    """
+    if value is None or value == "":
+        return None
+
+    stripped = value.strip()
+    if stripped.startswith("{"):
+        import json
+
+        from app.schemas.schedule import parse_structured_schedule
+
+        try:
+            data = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid schedule JSON: {exc}") from exc
+        parse_structured_schedule(data)
+        return stripped
+
+    return _validate_legacy_cron(stripped)
 
 
 VALID_SCAN_PROTOCOLS = ("tcp", "udp", "both")
@@ -386,6 +400,8 @@ class NetworkResponse(BaseModel):
     is_ipv6: bool
     created_at: datetime
     updated_at: datetime
+    schedule_description: str | None = None
+    next_fire_time: datetime | None = None
 
     model_config = {"from_attributes": True}
 

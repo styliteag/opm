@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Backend/Frontend**: structured schedule builder replacing raw cron input — supports daily, weekly, monthly (date), monthly (nth weekday like "3rd Sunday"), every N hours, and custom cron as escape hatch
+- **Backend**: `schedule_description` and `next_fire_time` computed fields on network API responses — eliminates client-side cron parsing
+- **Frontend**: `ScheduleBuilder` component with type dropdown, day-of-week toggles, nth weekday picker, and preset buttons
+- **Backend**: migration 021 widens `scan_schedule` column from 100 to 255 chars for JSON schedule format
+
 ## [2.2.14] - 2026-04-14
 
 ### Fixed

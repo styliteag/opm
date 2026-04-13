@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.core.deps import CurrentUser, DbSession, OperatorUser, Pagination
 from app.models.alert_rule import AlertRule
+from app.models.network import Network
 from app.schemas.host import (
     HostDiscoveryScanListResponse,
     HostDiscoveryScanResponse,
@@ -33,6 +34,18 @@ from app.services import host_discovery as host_discovery_service
 from app.services import networks as networks_service
 from app.services import scanners as scanners_service
 from app.services import scans as scans_service
+from app.services.schedule_convert import get_next_fire_time, schedule_to_human
+from app.services.scheduler import _get_schedule_timezone
+
+
+def _enrich_network_response(network: Network) -> NetworkResponse:
+    """Build a NetworkResponse with computed schedule fields."""
+    resp = NetworkResponse.model_validate(network)
+    if network.scan_schedule:
+        tz = _get_schedule_timezone()
+        resp.schedule_description = schedule_to_human(network.scan_schedule)
+        resp.next_fire_time = get_next_fire_time(network.scan_schedule, tz)
+    return resp
 
 
 def _alert_rule_to_port_rule_response(rule: AlertRule) -> PortRuleResponse:
@@ -58,7 +71,7 @@ async def list_networks(
     """Get list of all networks (any authenticated user)."""
     networks = await networks_service.get_all_networks(db)
     return NetworkListResponse(
-        networks=[NetworkResponse.model_validate(network) for network in networks]
+        networks=[_enrich_network_response(network) for network in networks]
     )
 
 
@@ -114,7 +127,7 @@ async def create_network(
     )
     await db.commit()
 
-    return NetworkResponse.model_validate(network)
+    return _enrich_network_response(network)
 
 
 @router.get("/{network_id}", response_model=NetworkResponse)
@@ -130,7 +143,7 @@ async def get_network(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Network not found",
         )
-    return NetworkResponse.model_validate(network)
+    return _enrich_network_response(network)
 
 
 @router.get("/{network_id}/overview", response_model=NetworkOverviewResponse)
@@ -147,7 +160,7 @@ async def get_network_overview(
             detail="Network not found",
         )
     return NetworkOverviewResponse(
-        network=NetworkResponse.model_validate(overview["network"]),
+        network=_enrich_network_response(overview["network"]),
         host_count=overview["host_count"],
         active_alert_count=overview["active_alert_count"],
         alert_severity_distribution=overview["alert_severity_distribution"],
@@ -242,7 +255,7 @@ async def update_network(
         nuclei_sni_enabled=request.nuclei_sni_enabled,
     )
     await db.commit()
-    return NetworkResponse.model_validate(updated_network)
+    return _enrich_network_response(updated_network)
 
 
 @router.delete("/{network_id}", status_code=status.HTTP_204_NO_CONTENT)
