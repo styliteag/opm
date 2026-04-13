@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Scanner**: hostname enrichment now checks backend cache before querying external APIs, skipping IPs with fresh cached hostnames instead of re-querying every host discovery run
+- **Scanner**: host discovery phase in scan orchestration now passes `client` to `run_host_discovery`, enabling cache pre-flight and budget awareness (was previously `None`, bypassing cache entirely)
+- **Scanner**: enrichment logs now show reason for each IP query (cached/expired/unknown/backend unreachable)
+- **Scanner**: nuclei test suite updated for `NucleiRunResult` return type and removed obsolete `severity` parameter
+
 ## [2.2.9] - 2026-04-13
 
 ## [2.2.8] - 2026-04-13

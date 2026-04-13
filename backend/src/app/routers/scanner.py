@@ -53,6 +53,7 @@ from app.services import hosts as hosts_service
 from app.services.hostname_lookup import (
     apply_scanner_hostname_results,
     claim_pending_lookup_jobs,
+    get_hostname_cache_status,
     get_hostnames_for_ips,
     get_scanner_budget_snapshot,
     mark_queue_entry_completed,
@@ -348,6 +349,7 @@ async def get_scanner_hostnames(
     db: DbSession,
     scanner: CurrentScanner,  # noqa: ARG001 — DI gate for scanner JWT
     ips: str = "",
+    include_expired: bool = False,
 ) -> ScannerHostnamesResponse:
     """Bulk-return cached hostnames for the given IPs.
 
@@ -359,6 +361,11 @@ async def get_scanner_hostnames(
 
     IPs without fresh cached hostnames are silently omitted from the
     response dict; the scanner falls back to ``IP:PORT`` for those.
+
+    When ``include_expired=true``, the response also lists IPs whose
+    cache entry exists but is past its TTL or failed. This lets the
+    scanner distinguish "expired" from "never seen" when deciding
+    whether to re-query external sources.
     """
     ip_list = [ip.strip() for ip in ips.split(",") if ip.strip()]
     if not ip_list:
@@ -369,6 +376,13 @@ async def get_scanner_hostnames(
     # never need more than the hosts discovered in a single scan.
     if len(ip_list) > 500:
         ip_list = ip_list[:500]
+
+    if include_expired:
+        cache_status = await get_hostname_cache_status(db, ip_list)
+        return ScannerHostnamesResponse(
+            hostnames=cache_status.fresh,
+            expired_ips=cache_status.expired_ips,
+        )
 
     mapping = await get_hostnames_for_ips(db, ip_list)
     return ScannerHostnamesResponse(hostnames=mapping)

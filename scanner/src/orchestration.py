@@ -192,7 +192,7 @@ def _run_host_discovery_phase(
     """Run host discovery phase."""
     target = job.target_ip or job.cidr
     logger.info("=== Host Discovery Phase === target=%s", target)
-    hosts = run_host_discovery(target, job.is_ipv6, logger)
+    hosts = run_host_discovery(target, job.is_ipv6, logger, client=client)
     live_ips = [h.ip for h in hosts]
     logger.info("Host discovery found %d live hosts", len(live_ips))
     return {"live_ips": live_ips, "hosts": hosts}

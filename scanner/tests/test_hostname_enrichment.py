@@ -20,7 +20,7 @@ from src.hostname_enrichment import (
     enrich_hostnames_ssl_cert,
 )
 from src.hostname_sources import HostnameLookupResult
-from src.models import HostResult
+from src.models import HostnameCacheStatus, HostResult
 
 
 @pytest.fixture()
@@ -798,6 +798,15 @@ class _StubScannerClient:
         self._budget = budget or {}
         self.posted: list[dict[str, object]] = []
         self.budget_calls = 0
+        self.cache_status_calls = 0
+
+    def get_hostname_cache_status(
+        self, ips: list[str]
+    ) -> HostnameCacheStatus:
+        self.cache_status_calls += 1
+        # Return empty status — no cached entries, so all IPs proceed
+        # through the full enrichment chain (same as pre-cache behavior).
+        return HostnameCacheStatus(fresh={}, expired_ips=frozenset())
 
     def get_hostname_budget(self) -> dict[str, int]:
         self.budget_calls += 1

@@ -12,6 +12,7 @@ import httpx
 from src.models import (
     ClaimedJob,
     HostDiscoveryJob,
+    HostnameCacheStatus,
     HostnameLookupJob,
     HostResult,
     LogEntry,
@@ -452,6 +453,59 @@ class ScannerClient:
             if valid:
                 result[ip] = valid
         return result
+
+    def get_hostname_cache_status(
+        self, ips: list[str]
+    ) -> HostnameCacheStatus | None:
+        """Pre-flight cache check for hostname enrichment.
+
+        Returns fresh hostnames + expired IP set so enrichment can skip
+        already-cached IPs and log why each remaining IP is queried.
+
+        Returns ``None`` on transport errors or non-200 responses so the
+        caller can fall back to full enrichment (same as before this
+        pre-flight existed).
+        """
+        if not ips:
+            return HostnameCacheStatus(fresh={}, expired_ips=frozenset())
+
+        ip_param = ",".join(ip for ip in ips if ip)
+        try:
+            response = self._request(
+                "GET",
+                f"/api/scanner/hostnames?ips={ip_param}&include_expired=true",
+                auth_required=True,
+            )
+        except Exception as exc:
+            self._logger.warning("hostname cache status request failed: %s", exc)
+            return None
+
+        if response.status_code != 200:
+            self._logger.warning(
+                "hostname cache status returned HTTP %s", response.status_code
+            )
+            return None
+
+        try:
+            payload = response.json()
+            mapping = payload.get("hostnames") or {}
+            expired_raw = payload.get("expired_ips") or []
+        except (ValueError, AttributeError):
+            return None
+
+        fresh: dict[str, list[str]] = {}
+        for ip, names in mapping.items():
+            if not isinstance(ip, str) or not isinstance(names, list):
+                continue
+            # Keep empty lists — they represent fresh no_results cache
+            # entries (the IP was looked up recently, nothing found).
+            # The scanner must skip these too to avoid wasting budget.
+            fresh[ip] = [n for n in names if isinstance(n, str) and n]
+
+        expired_ips = frozenset(
+            e for e in expired_raw if isinstance(e, str) and e
+        )
+        return HostnameCacheStatus(fresh=fresh, expired_ips=expired_ips)
 
     def get_hostname_budget(self) -> dict[str, int]:
         """Pre-flight read of today's per-source daily budget remaining.

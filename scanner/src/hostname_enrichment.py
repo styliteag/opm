@@ -54,7 +54,7 @@ from src.hostname_sources import (
     HostnameLookupResult,
     RapidDnsSource,
 )
-from src.models import HostnameLookupJob, HostResult
+from src.models import HostnameCacheStatus, HostnameLookupJob, HostResult
 
 if TYPE_CHECKING:
     from src.client import ScannerClient
@@ -747,6 +747,42 @@ def enrich_host_results(
         len(hosts),
     )
 
+    # Pre-flight cache check: skip IPs whose hostnames are already
+    # cached in the backend. Distinguishes fresh (skip), expired
+    # (re-query), and unknown (new IP) so the log is informative.
+    cache_hit_ips: set[str] = set()
+    cache_status: HostnameCacheStatus | None = None
+    if client is not None:
+        cache_status = client.get_hostname_cache_status(enrichable)
+        if cache_status is None:
+            logger.warning(
+                "Hostname cache pre-flight failed (backend unreachable?), "
+                "proceeding with full enrichment for %d IPs",
+                len(enrichable),
+            )
+        else:
+            cache_hit_ips = set(cache_status.fresh.keys())
+            expired_set = cache_status.expired_ips
+            unknown_ips = [
+                ip
+                for ip in enrichable
+                if ip not in cache_hit_ips and ip not in expired_set
+            ]
+            n_expired = len([ip for ip in enrichable if ip in expired_set])
+            logger.info(
+                "Hostname cache: %d cached (skip), %d expired (re-query), "
+                "%d unknown (new)",
+                len(cache_hit_ips),
+                n_expired,
+                len(unknown_ips),
+            )
+            # Remove fresh-cached IPs from the enrichment list.
+            enrichable = [ip for ip in enrichable if ip not in cache_hit_ips]
+
+    if not enrichable:
+        logger.info("All IPs have fresh cached hostnames, skipping enrichment")
+        # Still apply cached display names below via display_map.
+
     # Pre-flight budget check for the budgeted vhost-list sources.
     # Empty dict (transport error / 404 / unauth) means "no signal,
     # try anyway" — same as if the call had succeeded with a positive
@@ -762,7 +798,12 @@ def enrich_host_results(
 
     # Display-name map: ip -> first usable hostname (preserves the
     # legacy single-string semantics for HostResult.hostname).
+    # Pre-seed with fresh cache hits so they're applied to HostResults.
     display_map: dict[str, str] = {}
+    if client is not None and cache_status is not None:
+        for ip, names in cache_status.fresh.items():
+            if names:
+                display_map[ip] = names[0]
     # Vhost-list outcomes for backend posting (only HT / RapidDNS /
     # crt.sh — never display-name sources). Includes failed +
     # no_results so the backend can dedupe and pin budgets.
@@ -848,12 +889,23 @@ def enrich_host_results(
                 }
             )
 
-    if not display_map:
+    cached_with_names = sum(
+        1 for ip in cache_hit_ips if ip in display_map
+    )
+    newly_resolved = len(display_map) - cached_with_names
+    if newly_resolved <= 0 and not cache_hit_ips:
         logger.info("No additional hostnames found from external APIs")
+    elif newly_resolved <= 0 and cache_hit_ips:
+        logger.info(
+            "Hostname enrichment complete: %d from cache, 0 new from APIs",
+            cached_with_names,
+        )
     else:
         logger.info(
-            "Hostname enrichment complete: resolved %d/%d additional hostnames",
-            len(display_map),
+            "Hostname enrichment complete: %d from cache, %d new from APIs "
+            "(out of %d queried)",
+            cached_with_names,
+            newly_resolved,
             len(enrichable),
         )
 

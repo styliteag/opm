@@ -40,7 +40,7 @@ class TestScannerHostnamesEndpoint:
             "/api/scanner/hostnames?ips=", headers=scanner_headers
         )
         assert response.status_code == 200
-        assert response.json() == {"hostnames": {}}
+        assert response.json() == {"hostnames": {}, "expired_ips": []}
 
     async def test_returns_cached_hostnames_for_ips(
         self,
@@ -125,4 +125,4 @@ class TestScannerHostnamesEndpoint:
             "/api/scanner/hostnames?ips=10.0.0.7", headers=scanner_headers
         )
         assert response.status_code == 200
-        assert response.json() == {"hostnames": {}}
+        assert response.json() == {"hostnames": {}, "expired_ips": []}

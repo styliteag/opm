@@ -27,8 +27,9 @@ Nuclei Scan
 
 ### 1. Host Discovery (automatic, inline)
 
-During host discovery jobs, `enrich_host_results()` (`scanner/src/hostname_enrichment.py:696`) runs the full enrichment chain on all pingable public IPs without hostnames:
+During host discovery jobs, `enrich_host_results()` (`scanner/src/hostname_enrichment.py:696`) runs the enrichment chain on all pingable public IPs without hostnames:
 
+0. **Cache pre-flight** — queries `GET /api/scanner/hostnames?include_expired=true` to check which IPs already have fresh cached hostnames (skip), expired entries (re-query), or are unknown (new). Logs the breakdown.
 1. **nmap reverse DNS** (from scan output)
 2. **SSL Certificate** CN/SAN extraction
 3. **Google DNS** PTR lookup
@@ -37,7 +38,7 @@ During host discovery jobs, `enrich_host_results()` (`scanner/src/hostname_enric
 6. **RapidDNS** HTML scrape fallback
 7. **crt.sh** Certificate Transparency logs
 
-Each source is tried only for IPs not yet resolved by a higher-priority source. Results from HackerTarget, RapidDNS, and crt.sh are posted back to the backend to populate the cache and increment budget counters.
+IPs with fresh cache entries are skipped entirely — their display names are applied from cache. Each remaining source is tried only for IPs not yet resolved by a higher-priority source. Results from HackerTarget, RapidDNS, and crt.sh are posted back to the backend to populate the cache and increment budget counters.
 
 ### 2. Manual Queue (on-demand)
 

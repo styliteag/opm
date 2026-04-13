@@ -200,6 +200,62 @@ async def get_hostnames_for_ips(
 
 
 @dataclass(frozen=True)
+class HostnameCacheStatus:
+    """Bulk cache read with freshness info.
+
+    ``fresh`` maps IPs with valid (non-expired, non-failed) cache entries
+    to their hostname lists.  ``expired_ips`` lists IPs that have a cache
+    row but it's past ``expires_at`` or was a ``failed`` lookup — so the
+    scanner knows the IP was previously seen but needs re-enrichment.
+
+    IPs not in either set are completely unknown to the cache.
+    """
+
+    fresh: dict[str, list[str]]
+    expired_ips: list[str]
+
+
+async def get_hostname_cache_status(
+    db: AsyncSession, ips: list[str]
+) -> HostnameCacheStatus:
+    """Bulk cache read returning fresh hostnames *and* expired IP list.
+
+    Used by the scanner hostname enrichment pre-flight to distinguish
+    "already cached" (skip), "expired" (re-query), and "unknown" (new IP).
+    """
+    if not ips:
+        return HostnameCacheStatus(fresh={}, expired_ips=[])
+
+    now = _now()
+
+    # Fetch ALL rows for requested IPs (fresh + expired + failed).
+    all_rows = (
+        (
+            await db.execute(
+                select(HostnameLookup).where(HostnameLookup.ip.in_(ips))
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    fresh: dict[str, list[str]] = {}
+    expired_ips: list[str] = []
+
+    for row in all_rows:
+        is_fresh = row.expires_at > now and row.status != "failed"
+        if is_fresh:
+            # Include fresh no_results rows as empty lists so the
+            # scanner knows this IP was looked up recently and skips
+            # re-querying it (the TTL for no_results is 7 days).
+            fresh[row.ip] = list(row.hostnames_json or [])
+        else:
+            expired_ips.append(row.ip)
+
+    return HostnameCacheStatus(fresh=fresh, expired_ips=expired_ips)
+
+
+@dataclass(frozen=True)
 class CachedHostnameSummary:
     """Per-IP summary used by the /api/hosts list response.
 

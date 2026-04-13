@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.models import OpenPortResult
+from src.models import NucleiRunResult, OpenPortResult
 from src.scanners import nuclei
 
 
@@ -430,15 +430,18 @@ class _FakeProcess:
 class TestRunNuclei:
     def test_empty_targets_returns_empty(self) -> None:
         logger = logging.getLogger("test")
-        assert nuclei.run_nuclei([], None, "medium", 300, logger) == []
+        result = nuclei.run_nuclei([], None, 300, logger)
+        assert result.findings == []
+        assert result.timed_out is False
 
     def test_missing_binary_returns_empty(self) -> None:
         logger = logging.getLogger("test")
         with patch("src.scanners.nuclei.shutil.which", return_value=None):
             result = nuclei.run_nuclei(
-                ["10.0.0.1:80"], "cves", "medium", 300, logger
+                ["10.0.0.1:80"], "cves", 300, logger
             )
-        assert result == []
+        assert result.findings == []
+        assert result.timed_out is False
 
     def test_subprocess_start_failure_returns_empty(self, tmp_path: Any) -> None:
         logger = logging.getLogger("test")
@@ -449,9 +452,10 @@ class TestRunNuclei:
             side_effect=FileNotFoundError("nuclei"),
         ):
             result = nuclei.run_nuclei(
-                ["10.0.0.1:80"], "cves", "medium", 60, logger
+                ["10.0.0.1:80"], "cves", 60, logger
             )
-        assert result == []
+        assert result.findings == []
+        assert result.timed_out is False
 
     def test_subprocess_timeout_returns_empty(self, tmp_path: Any) -> None:
         """When the timeout watcher fires, run_nuclei returns []."""
@@ -485,9 +489,10 @@ class TestRunNuclei:
             "src.scanners.nuclei.ProcessTimeoutWatcher", _InstantTimeoutWatcher
         ):
             result = nuclei.run_nuclei(
-                ["10.0.0.1:80"], "cves", "medium", 60, logger
+                ["10.0.0.1:80"], "cves", 60, logger
             )
-        assert result == []
+        assert result.findings == []
+        assert result.timed_out is True
 
     def test_happy_path_parses_jsonl_output(
         self, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
@@ -525,12 +530,13 @@ class TestRunNuclei:
             "src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"
         ), patch("src.scanners.nuclei.subprocess.Popen", side_effect=fake_popen):
             results = nuclei.run_nuclei(
-                ["10.0.0.1:80"], "exposures", "medium", 300, logger
+                ["10.0.0.1:80"], "exposures", 300, logger
             )
 
-        assert len(results) == 1
-        assert results[0].oid == "exposures/configs/git-config:body"
-        assert results[0].source == "nuclei"
+        assert results.timed_out is False
+        assert len(results.findings) == 1
+        assert results.findings[0].oid == "exposures/configs/git-config:body"
+        assert results.findings[0].source == "nuclei"
 
     def test_stats_lines_forwarded_to_logger(self, caplog: pytest.LogCaptureFixture) -> None:
         """Live `-stats` output on stderr/stdout should hit the logger."""
@@ -549,7 +555,7 @@ class TestRunNuclei:
         with caplog.at_level(logging.INFO, logger="test_nuclei_stats"), patch(
             "src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"
         ), patch("src.scanners.nuclei.subprocess.Popen", side_effect=fake_popen):
-            nuclei.run_nuclei(["10.0.0.1:80"], None, "medium", 300, logger)
+            nuclei.run_nuclei(["10.0.0.1:80"], None, 300, logger)
 
         forwarded = [rec.message for rec in caplog.records if "progress line" in rec.message]
         assert any("progress line one" in m for m in forwarded)
@@ -566,6 +572,7 @@ class TestRunNuclei:
             "src.scanners.nuclei.shutil.which", return_value="/usr/bin/nuclei"
         ), patch("src.scanners.nuclei.subprocess.Popen", side_effect=fake_popen):
             result = nuclei.run_nuclei(
-                ["10.0.0.1:80"], None, "medium", 300, logger
+                ["10.0.0.1:80"], None, 300, logger
             )
-        assert result == []
+        assert result.findings == []
+        assert result.timed_out is False

@@ -197,9 +197,14 @@ class ScannerHostnamesResponse(BaseModel):
     present for IPs with a fresh, non-failed row that has at least one
     hostname). IPs without cached hostnames are simply omitted — the
     scanner falls back to ``IP:PORT`` for those.
+
+    ``expired_ips`` lists IPs that have a cache row but it is past its
+    TTL or was a failed lookup. Only populated when the caller passes
+    ``include_expired=true``; otherwise an empty list.
     """
 
     hostnames: dict[str, list[str]]
+    expired_ips: list[str] = []
 
 
 class OpenPortData(BaseModel):

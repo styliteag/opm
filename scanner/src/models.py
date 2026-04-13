@@ -88,6 +88,19 @@ class ClaimedJob:
 
 
 @dataclass(frozen=True)
+class HostnameCacheStatus:
+    """Result of a cache pre-flight check before hostname enrichment.
+
+    ``fresh`` maps IPs with valid cached hostnames.
+    ``expired_ips`` lists IPs with stale/failed cache entries.
+    IPs in neither set are unknown to the cache.
+    """
+
+    fresh: dict[str, list[str]]
+    expired_ips: frozenset[str]
+
+
+@dataclass(frozen=True)
 class OpenPortResult:
     """Normalized open port data from masscan output."""
 
