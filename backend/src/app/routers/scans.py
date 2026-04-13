@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, Spacer
 
-from app.core.deps import CurrentUser, DbSession, OperatorUser, Pagination
+from app.core.deps import CurrentUser, DbSession, LogPagination, OperatorUser, Pagination
 from app.lib.export import (
     build_pdf,
     csv_response,
@@ -245,7 +245,7 @@ async def get_scan_diff(
 async def get_scan_logs(
     user: CurrentUser,
     db: DbSession,
-    pagination: Pagination,
+    pagination: LogPagination,
     scan_id: int,
 ) -> ScanLogListResponse:
     """Get paginated scan logs for a scan."""

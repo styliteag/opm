@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -91,6 +91,11 @@ class Scan(Base):
         JSON,
         nullable=True,
         comment="Per-scan overrides for port_spec, scanner_type, rate, protocol, timeouts",
+    )
+    nuclei_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Nuclei phase outcome: null=didn't run, success, timeout, error",
     )
 
     # Relationships

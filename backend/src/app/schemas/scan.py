@@ -119,6 +119,7 @@ class NucleiPhaseSummary(BaseModel):
     findings_count: int = 0
     hosts_scanned: int = 0
     severity_counts: dict[str, int] = {}
+    status: str = "success"  # success, timeout, error
 
 
 class ScanDetailResponse(ScanResponse):

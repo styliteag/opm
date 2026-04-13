@@ -30,7 +30,7 @@ import tempfile
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
-from src.models import OpenPortResult, VulnerabilityResult
+from src.models import NucleiRunResult, OpenPortResult, VulnerabilityResult
 from src.threading_utils import ProcessTimeoutWatcher
 
 # Default wall-clock ceiling for the nuclei subprocess, in seconds.
@@ -404,7 +404,7 @@ def run_nuclei(
     templates_dir: str | None = None,
     on_progress: Callable[[float, str], None] | None = None,
     exclude_tags: str | None = None,
-) -> list[VulnerabilityResult]:
+) -> NucleiRunResult:
     """Invoke nuclei against the given targets and return parsed findings.
 
     Errors (missing binary, timeout, non-zero exit) are caught here and
@@ -413,14 +413,14 @@ def run_nuclei(
     """
     if not targets:
         logger.info("nuclei: no targets, skipping")
-        return []
+        return NucleiRunResult(findings=[], timed_out=False)
 
     if shutil.which("nuclei") is None:
         logger.warning(
             "nuclei binary not available on this scanner — skipping nuclei phase. "
             "Rebuild the scanner image to add nuclei support."
         )
-        return []
+        return NucleiRunResult(findings=[], timed_out=False)
 
     resolved_timeout = timeout_s if timeout_s and timeout_s > 0 else DEFAULT_NUCLEI_TIMEOUT_S
     templates_path = templates_dir or os.environ.get(
@@ -477,7 +477,7 @@ def run_nuclei(
             )
         except (FileNotFoundError, OSError) as exc:
             logger.warning("nuclei: subprocess failed to start: %s", exc)
-            return []
+            return NucleiRunResult(findings=[], timed_out=False)
 
         timeout_watcher = ProcessTimeoutWatcher(
             process=process,
@@ -516,10 +516,11 @@ def run_nuclei(
 
         if timeout_watcher.timed_out:
             logger.warning(
-                "nuclei: subprocess timed out after %ds — partial results (if any) discarded",
+                "nuclei: subprocess timed out after %ds — partial results (if any) discarded. "
+                "Increase nuclei_timeout in network settings to allow more time.",
                 resolved_timeout,
             )
-            return []
+            return NucleiRunResult(findings=[], timed_out=True)
 
         if returncode not in (0, 2):
             # Exit 0 = no findings, exit 2 = findings present. Anything else is
@@ -535,8 +536,8 @@ def run_nuclei(
                 output = fh.read()
         except FileNotFoundError:
             logger.info("nuclei: no findings (no output file)")
-            return []
+            return NucleiRunResult(findings=[], timed_out=False)
 
     findings = parse_nuclei_jsonl(output)
     logger.info("nuclei: parsed %d finding(s)", len(findings))
-    return findings
+    return NucleiRunResult(findings=findings, timed_out=False)

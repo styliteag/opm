@@ -12,6 +12,7 @@ interface NucleiPhaseSummary {
   findings_count: number;
   hosts_scanned: number;
   severity_counts: Record<string, number>;
+  status?: string; // success, timeout, error
 }
 
 interface ScanDetail extends ScanSummary {
@@ -66,7 +67,8 @@ export function useScanDetail(scanId: number) {
 export function useScanLogs(scanId: number) {
   return useQuery({
     queryKey: ["scans", scanId, "logs"],
-    queryFn: () => fetchApi<ScanLogsResponse>(`/api/scans/${scanId}/logs`),
+    queryFn: () =>
+      fetchApi<ScanLogsResponse>(`/api/scans/${scanId}/logs?limit=3000`),
     enabled: scanId > 0,
     refetchInterval: 5_000,
   });
