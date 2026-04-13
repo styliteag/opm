@@ -160,7 +160,7 @@ curl -X POST "http://localhost:8000/api/scanner/auth" \
 
 - **Limit:** 10 authentication attempts per minute
 - **Window:** 60 seconds sliding window
-- **Per-IP:** Tracked by `X-Forwarded-For`, `X-Real-IP`, or direct client IP
+- **Per-IP:** Tracked by `X-Forwarded-For`, `X-Real-IP`, or direct client IP (proxy headers are only trusted when `TRUST_PROXY_HEADERS=true`)
 
 ## JWT Token Structure
 

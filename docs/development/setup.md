@@ -276,6 +276,38 @@ docker compose -f compose-dev.yml up --build
 
 This is destructive to local dev data.
 
+## Proxy Headers and Rate Limiting
+
+Login and scanner-auth endpoints enforce per-IP rate limits. By default the backend uses the direct TCP client IP (`request.client.host`). When OPM runs behind a reverse proxy this will be the proxy's IP — meaning all users share one rate-limit bucket.
+
+Set `TRUST_PROXY_HEADERS=true` to make the backend read the real client IP from `X-Forwarded-For` (first entry) or `X-Real-IP`.
+
+| Deployment | Recommended value | Why |
+|---|---|---|
+| `compose-dev.yml` (local) | `false` (default) | No proxy — clients connect directly to the backend |
+| `compose.yml` (production) | `true` | Built-in nginx forwards `X-Forwarded-For` and `X-Real-IP` (see `docker/nginx.conf`) |
+| External proxy (Traefik, Caddy, …) | `true` | Same reasoning — the proxy must set the headers |
+
+**Security note:** Only enable this when the proxy is the sole entry point to the backend. If clients can reach the backend directly, they can forge `X-Forwarded-For` and bypass rate limits.
+
+### Affected endpoints
+
+| Endpoint | Rate limit |
+|---|---|
+| `POST /api/auth/login` | 10 attempts / 60 s per IP |
+| `POST /api/scanner/auth` | 10 attempts / 60 s per IP |
+
+### Verifying it works
+
+```bash
+# With TRUST_PROXY_HEADERS=true, the backend should log the forwarded IP:
+curl -H "X-Forwarded-For: 203.0.113.42" http://localhost:8000/api/auth/login \
+  -d '{"email":"test@example.com","password":"wrong"}' \
+  -H "Content-Type: application/json"
+```
+
+If rate limiting locks out `203.0.113.42` after 10 attempts (not your proxy IP), the setting is working.
+
 ## Related Docs
 
 - [Development architecture](architecture.md)
