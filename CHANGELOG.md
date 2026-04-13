@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Frontend**: timeout fields (scan timeout, nuclei timeout) now use minutes instead of seconds in network form and host scan dialog
+
 ## [2.2.7] - 2026-04-13
 
 ### Added

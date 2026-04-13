@@ -185,18 +185,18 @@ export function NucleiSettings({ enabled }: NucleiSettingsProps) {
           </div>
           <div>
             <Label htmlFor="nuclei_timeout">
-              Timeout (seconds, optional)
+              Timeout (min, optional)
             </Label>
             <Input
               id="nuclei_timeout"
               type="number"
-              min={60}
-              max={7200}
+              min={1}
+              max={120}
               {...register("nuclei_timeout")}
-              placeholder="1800"
+              placeholder="30"
             />
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              Hard kill after this many seconds. Default 1800 (30 min).
+              Hard kill after this many minutes. Default 30.
             </p>
             {errors.nuclei_timeout && (
               <p className="mt-1 text-xs text-destructive">

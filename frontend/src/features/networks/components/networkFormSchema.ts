@@ -13,7 +13,7 @@ export const networkFormSchema = z.object({
   scan_timeout: z.preprocess(
     (val) =>
       val === "" || val === undefined || val === null ? undefined : Number(val),
-    z.number().min(60).max(86400).optional(),
+    z.number().min(1).max(1440).optional(),
   ),
   port_timeout: z.preprocess(
     (val) =>
@@ -38,7 +38,7 @@ export const networkFormSchema = z.object({
   nuclei_timeout: z.preprocess(
     (val) =>
       val === "" || val === undefined || val === null ? undefined : Number(val),
-    z.number().min(60).max(7200).optional(),
+    z.number().min(1).max(120).optional(),
   ),
   nuclei_sni_enabled: z.boolean().default(false),
   email_recipients: z.string().optional(),

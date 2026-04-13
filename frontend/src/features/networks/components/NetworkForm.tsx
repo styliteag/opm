@@ -159,7 +159,7 @@ export function NetworkForm({
           scanner_type: source.scanner_type as "masscan" | "nmap" | "greenbone",
           scan_protocol: source.scan_protocol as "tcp" | "udp" | "both",
           scan_rate: source.scan_rate ?? undefined,
-          scan_timeout: source.scan_timeout ?? undefined,
+          scan_timeout: source.scan_timeout != null ? Math.round(source.scan_timeout / 60) : undefined,
           port_timeout: source.port_timeout ?? undefined,
           scan_schedule: source.scan_schedule ?? undefined,
           nse_profile_id: source.nse_profile_id ?? undefined,
@@ -176,7 +176,7 @@ export function NetworkForm({
               | "high"
               | "critical"
               | null) ?? undefined,
-          nuclei_timeout: source.nuclei_timeout ?? undefined,
+          nuclei_timeout: source.nuclei_timeout != null ? Math.round(source.nuclei_timeout / 60) : undefined,
           nuclei_sni_enabled: source.nuclei_sni_enabled ?? false,
           email_recipients: (
             source.alert_config as Record<string, unknown> | null
@@ -195,7 +195,7 @@ export function NetworkForm({
           scan_protocol: "tcp",
           port_spec: "1-65535",
           scan_rate: 1000,
-          scan_timeout: 3600,
+          scan_timeout: 60,
           port_timeout: 1500,
           gvm_keep_reports: true,
           ssh_probe_enabled: true,
@@ -309,6 +309,8 @@ export function NetworkForm({
     const nucleiActive = !isGreenbone && rest.nuclei_enabled;
     const payload: Record<string, unknown> = {
       ...rest,
+      // Convert minutes (form) → seconds (API)
+      scan_timeout: rest.scan_timeout != null ? rest.scan_timeout * 60 : null,
       phases: isGreenbone
         ? null
         : phases?.map((p) =>
@@ -326,7 +328,7 @@ export function NetworkForm({
       nuclei_severity:
         nucleiActive && rest.nuclei_severity ? rest.nuclei_severity : null,
       nuclei_timeout:
-        nucleiActive && rest.nuclei_timeout ? rest.nuclei_timeout : null,
+        nucleiActive && rest.nuclei_timeout ? rest.nuclei_timeout * 60 : null,
       nuclei_sni_enabled: nucleiActive && (rest.nuclei_sni_enabled ?? false),
     };
 
@@ -629,12 +631,12 @@ export function NetworkForm({
                 </div>
               </div>
               <div>
-                <Label htmlFor="scan_timeout">Scan Timeout (s)</Label>
+                <Label htmlFor="scan_timeout">Scan Timeout (min)</Label>
                 <Input
                   id="scan_timeout"
                   type="number"
                   {...register("scan_timeout")}
-                  placeholder="3600"
+                  placeholder="60"
                 />
                 {errors.scan_timeout && (
                   <p className="mt-1 text-xs text-destructive">
@@ -642,7 +644,7 @@ export function NetworkForm({
                   </p>
                 )}
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  60 – 86 400
+                  1 – 1 440
                 </p>
               </div>
               <div>

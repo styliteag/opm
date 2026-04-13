@@ -40,7 +40,7 @@ const schema = z.object({
   ),
   scan_timeout: z.preprocess(
     (v) => (v === "" || v === undefined ? undefined : Number(v)),
-    z.number().min(60).max(86400).optional(),
+    z.number().min(1).max(1440).optional(),
   ),
   port_timeout: z.preprocess(
     (v) => (v === "" || v === undefined ? undefined : Number(v)),
@@ -56,7 +56,7 @@ const schema = z.object({
   ),
   nuclei_timeout: z.preprocess(
     (v) => (v === "" || v === undefined ? undefined : Number(v)),
-    z.number().min(60).max(7200).optional(),
+    z.number().min(1).max(120).optional(),
   ),
   nuclei_sni_enabled: z.boolean().default(false),
 });
@@ -122,13 +122,13 @@ export function HostScanDialog({
         scanner_type: net.scanner_type === "masscan" ? "masscan" : "nmap",
         scan_protocol: (net.scan_protocol as "tcp" | "udp" | "both") ?? "tcp",
         scan_rate: net.scan_rate ?? undefined,
-        scan_timeout: net.scan_timeout ?? undefined,
+        scan_timeout: net.scan_timeout != null ? Math.round(net.scan_timeout / 60) : undefined,
         port_timeout: net.port_timeout ?? undefined,
         nuclei_enabled: net.nuclei_enabled ?? false,
         nuclei_tags: net.nuclei_tags ?? "cve,exposure,misconfig,tech",
         nuclei_exclude_tags: net.nuclei_exclude_tags ?? "fuzz,dos,intrusive",
         nuclei_severity: net.nuclei_severity ?? undefined,
-        nuclei_timeout: net.nuclei_timeout ?? undefined,
+        nuclei_timeout: net.nuclei_timeout != null ? Math.round(net.nuclei_timeout / 60) : undefined,
         nuclei_sni_enabled: net.nuclei_sni_enabled ?? false,
       });
     }
@@ -142,6 +142,8 @@ export function HostScanDialog({
 
     const overrides = {
       ...data,
+      // Convert minutes (form) → seconds (API)
+      scan_timeout: data.scan_timeout != null ? data.scan_timeout * 60 : undefined,
       scanner_type: scanMode === "nse" ? "nse" : data.scanner_type,
       nse_profile_id: scanMode === "nse" ? Number(nseProfileId) : undefined,
       // Don't send nuclei overrides for NSE scans
@@ -154,7 +156,9 @@ export function HostScanDialog({
             nuclei_timeout: undefined,
             nuclei_sni_enabled: undefined,
           }
-        : {}),
+        : {
+            nuclei_timeout: data.nuclei_timeout != null ? data.nuclei_timeout * 60 : undefined,
+          }),
     };
 
     customScan.mutate(
@@ -295,11 +299,11 @@ export function HostScanDialog({
             {/* Timeouts */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="scan_timeout">Scan Timeout (s)</Label>
+                <Label htmlFor="scan_timeout">Scan Timeout (min)</Label>
                 <Input
                   id="scan_timeout"
                   type="number"
-                  placeholder="3600"
+                  placeholder="60"
                   {...register("scan_timeout")}
                 />
                 {errors.scan_timeout && (
