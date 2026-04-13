@@ -792,21 +792,33 @@ class TestEnrichRapidDns:
 
 
 class _StubScannerClient:
-    """Minimal scanner client stand-in for budget + post-back tests."""
+    """Minimal scanner client stand-in for budget, cache + post-back tests."""
 
-    def __init__(self, budget: dict[str, int] | None = None) -> None:
+    def __init__(
+        self,
+        budget: dict[str, int] | None = None,
+        cache_fresh: dict[str, list[str]] | None = None,
+        cache_expired: frozenset[str] | None = None,
+        cache_returns_none: bool = False,
+    ) -> None:
         self._budget = budget or {}
+        self._cache_fresh = cache_fresh or {}
+        self._cache_expired = cache_expired or frozenset()
+        self._cache_returns_none = cache_returns_none
         self.posted: list[dict[str, object]] = []
         self.budget_calls = 0
         self.cache_status_calls = 0
 
     def get_hostname_cache_status(
         self, ips: list[str]
-    ) -> HostnameCacheStatus:
+    ) -> HostnameCacheStatus | None:
         self.cache_status_calls += 1
-        # Return empty status — no cached entries, so all IPs proceed
-        # through the full enrichment chain (same as pre-cache behavior).
-        return HostnameCacheStatus(fresh={}, expired_ips=frozenset())
+        if self._cache_returns_none:
+            return None
+        return HostnameCacheStatus(
+            fresh=dict(self._cache_fresh),
+            expired_ips=self._cache_expired,
+        )
 
     def get_hostname_budget(self) -> dict[str, int]:
         self.budget_calls += 1
@@ -1105,3 +1117,228 @@ class TestPostHostnameResultsToBackend:
             logger,
         )
         assert client.posted == []
+
+
+def _public_host(ip: str, hostname: str | None = None) -> HostResult:
+    """Helper: create a pingable public-IP HostResult."""
+    return HostResult(
+        ip=ip,
+        hostname=hostname,
+        is_pingable=True,
+        mac_address=None,
+        mac_vendor=None,
+    )
+
+
+# Decorator stack shared by all cache pre-flight tests: patches every
+# external enrichment source so no real network calls happen.
+_patch_all_sources = [
+    patch("src.hostname_enrichment.enrich_hostnames_crt_sh", return_value={}),
+    patch("src.hostname_enrichment.enrich_hostnames_rapiddns", return_value={}),
+    patch("src.hostname_enrichment.enrich_hostnames_hackertarget", return_value={}),
+    patch("src.hostname_enrichment.enrich_hostnames_ip_api", return_value={}),
+    patch("src.hostname_enrichment.enrich_hostnames_google_dns", return_value={}),
+    patch("src.hostname_enrichment.enrich_hostnames_ssl_cert", return_value={}),
+]
+
+
+def _apply_patches(fn):  # type: ignore[no-untyped-def]
+    """Apply the full stack of source patches to a test function."""
+    for p in reversed(_patch_all_sources):
+        fn = p(fn)
+    return fn
+
+
+class TestEnrichCachePreFlight:
+    """Tests for the cache pre-flight in enrich_host_results.
+
+    Verifies that fresh-cached IPs skip external APIs, expired IPs are
+    re-queried, no_results entries are respected, and backend failures
+    fall back to full enrichment.
+    """
+
+    @_apply_patches
+    def test_fresh_cache_hit_skips_all_external_apis(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """When all IPs have fresh cache entries, no external source
+        should be called at all."""
+        client = _StubScannerClient(
+            cache_fresh={"1.2.3.4": ["cached.example"]},
+        )
+        hosts = [_public_host("1.2.3.4")]
+
+        result = enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        # Display name applied from cache
+        assert result[0].hostname == "cached.example"
+        # No external API called
+        mock_ssl.assert_not_called()
+        mock_google_dns.assert_not_called()
+        mock_ip_api.assert_not_called()
+        mock_ht.assert_not_called()
+        mock_rd.assert_not_called()
+        mock_crt_sh.assert_not_called()
+        # Cache pre-flight was called
+        assert client.cache_status_calls == 1
+
+    @_apply_patches
+    def test_fresh_no_results_skips_external_apis(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """A fresh no_results cache entry (empty list) should also skip
+        external APIs — the IP was looked up recently, got nothing."""
+        client = _StubScannerClient(
+            cache_fresh={"1.2.3.4": []},  # no_results
+        )
+        hosts = [_public_host("1.2.3.4")]
+
+        result = enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        # No display name (nothing was resolved)
+        assert result[0].hostname is None
+        # No external API called
+        mock_ssl.assert_not_called()
+        mock_ht.assert_not_called()
+        mock_rd.assert_not_called()
+
+    @_apply_patches
+    def test_expired_ips_are_re_queried(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """Expired IPs should proceed through the enrichment chain."""
+        mock_ssl.return_value = {"1.2.3.4": ["renewed.example"]}
+
+        client = _StubScannerClient(
+            cache_expired=frozenset({"1.2.3.4"}),
+        )
+        hosts = [_public_host("1.2.3.4")]
+
+        result = enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        # SSL cert resolved it
+        assert result[0].hostname == "renewed.example"
+        # External API was called (IP was not skipped)
+        mock_ssl.assert_called_once()
+
+    @_apply_patches
+    def test_unknown_ips_are_queried(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """IPs not in cache at all should proceed through enrichment."""
+        mock_ssl.return_value = {"1.2.3.4": ["new.example"]}
+
+        client = _StubScannerClient()  # empty cache
+        hosts = [_public_host("1.2.3.4")]
+
+        result = enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        assert result[0].hostname == "new.example"
+        mock_ssl.assert_called_once()
+
+    @_apply_patches
+    def test_backend_failure_falls_back_to_full_enrichment(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """When the cache pre-flight returns None (backend unreachable),
+        all IPs should go through the full enrichment chain."""
+        mock_ssl.return_value = {"1.2.3.4": ["fallback.example"]}
+
+        client = _StubScannerClient(cache_returns_none=True)
+        hosts = [_public_host("1.2.3.4")]
+
+        result = enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        assert result[0].hostname == "fallback.example"
+        mock_ssl.assert_called_once()
+        assert client.cache_status_calls == 1
+
+    @_apply_patches
+    def test_mixed_cached_and_uncached_ips(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """Only uncached IPs should be passed to external sources."""
+        mock_ssl.return_value = {"2.3.4.5": ["discovered.example"]}
+
+        client = _StubScannerClient(
+            cache_fresh={"1.2.3.4": ["cached.example"]},
+        )
+        hosts = [
+            _public_host("1.2.3.4"),
+            _public_host("2.3.4.5"),
+        ]
+
+        result = enrich_host_results(hosts, logger, client=client)  # type: ignore[arg-type]
+
+        # Cached IP gets display name from cache
+        ip_map = {h.ip: h.hostname for h in result}
+        assert ip_map["1.2.3.4"] == "cached.example"
+        # Uncached IP gets display name from SSL cert
+        assert ip_map["2.3.4.5"] == "discovered.example"
+        # SSL cert was called only with the uncached IP
+        call_args = mock_ssl.call_args[0][0]
+        assert "1.2.3.4" not in call_args
+        assert "2.3.4.5" in call_args
+
+    @_apply_patches
+    def test_no_client_skips_cache_preflight(
+        self,
+        mock_ssl: MagicMock,
+        mock_google_dns: MagicMock,
+        mock_ip_api: MagicMock,
+        mock_ht: MagicMock,
+        mock_rd: MagicMock,
+        mock_crt_sh: MagicMock,
+        logger: logging.Logger,
+    ) -> None:
+        """When client=None (tests/legacy), no cache check happens and
+        all IPs go through enrichment as before."""
+        mock_ssl.return_value = {"1.2.3.4": ["legacy.example"]}
+
+        hosts = [_public_host("1.2.3.4")]
+        result = enrich_host_results(hosts, logger, client=None)
+
+        assert result[0].hostname == "legacy.example"
+        mock_ssl.assert_called_once()

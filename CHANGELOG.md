@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scanner**: enrichment logs now show reason for each IP query (cached/expired/unknown/backend unreachable)
 - **Scanner**: nuclei test suite updated for `NucleiRunResult` return type and removed obsolete `severity` parameter
 
+### Added
+
+- **Tests**: hostname cache pre-flight coverage — service categorization (fresh/expired/no_results/unknown), `include_expired` endpoint, scanner enrichment skip/re-query/fallback behavior
+
 ## [2.2.9] - 2026-04-13
 
 ## [2.2.8] - 2026-04-13
