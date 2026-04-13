@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.7] - 2026-04-13
+
 ### Added
 
 - **Docs**: documented `TRUST_PROXY_HEADERS` setting — usage, security implications, per-deployment recommendations, and verification steps
