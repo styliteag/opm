@@ -316,7 +316,11 @@ class ScannerClient:
         status: str = "success",
         error_message: str | None = None,
     ) -> None:
-        """Submit GVM vulnerability results to the backend."""
+        """Submit GVM/Nuclei vulnerability results to the backend.
+
+        Uses an extended timeout (120s) because large batches (1000+ findings)
+        trigger bulk DB inserts and alert deduplication on the backend.
+        """
         payload: dict[str, Any] = {
             "scan_id": scan_id,
             "vulnerabilities": [v.to_payload() for v in vulnerabilities],
@@ -324,7 +328,8 @@ class ScannerClient:
             "error_message": error_message,
         }
         response = self._request(
-            "POST", "/api/scanner/vulnerability-results", json=payload, auth_required=True
+            "POST", "/api/scanner/vulnerability-results", json=payload,
+            auth_required=True, timeout=120.0,
         )
         response.raise_for_status()
 
@@ -775,6 +780,7 @@ class ScannerClient:
         headers: dict[str, str] | None = None,
         params: dict[str, str] | None = None,
         auth_required: bool,
+        timeout: float | None = None,
     ) -> httpx.Response:
         """Make an HTTP request with retries and authentication.
 
@@ -785,6 +791,7 @@ class ScannerClient:
             headers: Optional headers
             params: Optional query string parameters
             auth_required: Whether authentication is required
+            timeout: Per-request timeout override (uses client default if None)
 
         Returns:
             HTTP response
@@ -806,6 +813,7 @@ class ScannerClient:
                         json=json,
                         headers=request_headers,
                         params=params,
+                        timeout=timeout,
                     )
             except httpx.RequestError as exc:
                 last_exc = exc

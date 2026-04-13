@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Backend**: nuclei alert types (`nuclei_vulnerability`, `nuclei_cve_detected`) missing from DB ENUM — caused `DataError: Data truncated for column 'alert_type'` on nuclei result submission (migration 020)
+- **Backend**: alert deduplication used one SELECT per finding — replaced with single batch query to avoid timeout on large result sets (979+ findings)
+- **Backend**: bulk vulnerability inserts flushed in batches of 200 to stay within MariaDB `max_allowed_packet`
+- **Scanner**: vulnerability result submission used the default 15s HTTP timeout — raised to 120s for large payloads
+
 ## [2.2.11] - 2026-04-13
 
 ## [2.2.10] - 2026-04-13
