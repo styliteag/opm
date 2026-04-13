@@ -12,7 +12,7 @@ from app.core.scanner_types import get_valid_scanner_types
 NUCLEI_ELIGIBLE_SCANNER_TYPES = frozenset({"masscan", "nmap"})
 VALID_NUCLEI_SEVERITIES = ("info", "low", "medium", "high", "critical")
 NUCLEI_TIMEOUT_MIN = 60
-NUCLEI_TIMEOUT_MAX = 7200
+NUCLEI_TIMEOUT_MAX = 86400
 
 
 def validate_cidr(value: str) -> str:

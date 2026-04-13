@@ -191,12 +191,12 @@ export function NucleiSettings({ enabled }: NucleiSettingsProps) {
               id="nuclei_timeout"
               type="number"
               min={1}
-              max={120}
+              max={1440}
               {...register("nuclei_timeout")}
               placeholder="120"
             />
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              Hard kill after this many minutes. Default 120.
+              Hard kill after this many minutes (max 1440 = 24h). Default 120.
             </p>
             {errors.nuclei_timeout && (
               <p className="mt-1 text-xs text-destructive">

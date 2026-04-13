@@ -464,7 +464,7 @@ class TestNucleiValidation:
             )
 
     def test_nuclei_timeout_range(self) -> None:
-        """nuclei_timeout must be within [60, 7200] seconds."""
+        """nuclei_timeout must be within [60, 86400] seconds."""
         from pydantic import ValidationError
 
         from app.schemas.network import NetworkCreateRequest

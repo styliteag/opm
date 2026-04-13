@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Backend/Frontend**: increase maximum nuclei timeout from 2h to 24h (86400s)
+- **Backend**: manual hostname cache edits no longer expire (previously 8 weeks)
+
 ## [2.2.12] - 2026-04-13
 
 ### Fixed

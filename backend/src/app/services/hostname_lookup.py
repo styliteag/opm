@@ -74,12 +74,11 @@ QUEUE_STUCK_CLAIM_AFTER = timedelta(hours=1)
 # "the refresh I clicked yesterday came back failed".
 QUEUE_TERMINAL_RETENTION = timedelta(days=7)
 
-# Manual edits (admin UI → PUT /entries/{ip}) use a long TTL so the
-# filler doesn't immediately overwrite a hand-curated list on the next
-# hourly pass. 8 weeks is long enough to survive many automatic
-# refresh cycles but still expires eventually so stale hand-edits
-# don't pin a row forever — operator can always re-edit if they want.
-MANUAL_EDIT_TTL_DAYS = 56
+# Manual edits (admin UI → PUT /entries/{ip}) never expire — the
+# operator explicitly curated this data and it should stick until they
+# change or delete it. We use a far-future sentinel (100 years) rather
+# than nullable expires_at to keep all cache queries simple.
+MANUAL_EDIT_TTL_DAYS = 36500
 
 # Source name reserved for admin-edited rows. Kept distinct from the
 # reverse-IP source names so the UI can render a "MANUAL" badge.
@@ -333,8 +332,8 @@ async def update_cache_entry_manual(
 ) -> HostnameLookup:
     """Admin hand-edit of a cache row — upsert with ``source='manual'``.
 
-    Writes (or replaces) the row for ``ip`` using a long 8-week TTL so
-    the filler won't overwrite it on its next hourly pass. The status
+    Writes (or replaces) the row for ``ip`` with a non-expiring TTL so
+    the filler never overwrites a hand-curated list. The status
     is derived from the hostname list: non-empty → ``success``, empty
     → ``no_results`` (operator explicitly asserting "this IP serves
     nothing worth scanning").

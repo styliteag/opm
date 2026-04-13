@@ -38,7 +38,7 @@ export const networkFormSchema = z.object({
   nuclei_timeout: z.preprocess(
     (val) =>
       val === "" || val === undefined || val === null ? undefined : Number(val),
-    z.number().min(1).max(120).optional(),
+    z.number().min(1).max(1440).optional(),
   ),
   nuclei_sni_enabled: z.boolean().default(false),
   email_recipients: z.string().optional(),
