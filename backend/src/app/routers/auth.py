@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
 
+from app.core.config import settings
 from app.core.deps import CurrentUser, DbSession
 from app.core.permissions import ROLE_PERMISSIONS
 from app.schemas.auth import LoginRequest, TokenResponse, UserResponse, UserThemeUpdateRequest
@@ -23,15 +24,13 @@ _login_rate_lock = Lock()
 
 def _check_login_rate_limit(request: Request) -> None:
     """Enforce sliding-window rate limit on login attempts."""
-    forwarded = request.headers.get("X-Forwarded-For")
-    client_ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (
-            request.headers.get("X-Real-IP")
-            or (request.client.host if request.client else "unknown")
-        )
-    )
+    client_ip = request.client.host if request.client else "unknown"
+    if settings.trust_proxy_headers:
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+        else:
+            client_ip = request.headers.get("X-Real-IP") or client_ip
 
     now = time.time()
     window_start = now - _LOGIN_RATE_LIMIT_WINDOW

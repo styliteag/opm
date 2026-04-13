@@ -7,6 +7,7 @@ from threading import Lock
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import Response
 
+from app.core.config import settings
 from app.core.deps import CurrentScanner, DbSession
 from app.schemas.gvm_library import (
     GvmMetadataSnapshotRequest,
@@ -78,23 +79,21 @@ _rate_limit_lock = Lock()
 
 def _get_client_ip(request: Request) -> str:
     """Extract client IP from request, handling proxies."""
-    # Check X-Forwarded-For header for proxied requests
+    client = request.client
+    client_ip = client.host if client else "unknown"
+
+    if not settings.trust_proxy_headers:
+        return client_ip
+
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
-        # Take the first IP in the chain (original client)
         return forwarded_for.split(",")[0].strip()
 
-    # Check X-Real-IP header
     real_ip = request.headers.get("X-Real-IP")
     if real_ip:
         return real_ip.strip()
 
-    # Fall back to direct client IP
-    client = request.client
-    if client:
-        return client.host
-
-    return "unknown"
+    return client_ip
 
 
 def _check_rate_limit(client_ip: str) -> bool:
