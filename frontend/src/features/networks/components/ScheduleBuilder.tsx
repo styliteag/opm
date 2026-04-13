@@ -81,7 +81,7 @@ const PRESETS = [
     state: { ...DEFAULT_STATE, type: "interval_hours" as const, hours: 1 },
   },
   {
-    label: "Daily 2am",
+    label: "Daily 02:00",
     state: { ...DEFAULT_STATE, type: "daily" as const, hour: 2, minute: 0 },
   },
   {
@@ -100,6 +100,17 @@ const PRESETS = [
       ...DEFAULT_STATE,
       type: "monthly_date" as const,
       day: 1,
+      hour: 2,
+      minute: 0,
+    },
+  },
+  {
+    label: "3rd Sunday",
+    state: {
+      ...DEFAULT_STATE,
+      type: "monthly_nth" as const,
+      nth: 3,
+      weekday: "sun",
       hour: 2,
       minute: 0,
     },
