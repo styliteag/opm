@@ -26,6 +26,11 @@ async def init_admin() -> None:
     async with async_session_factory() as db:
         existing_admin = await get_user_by_email(db, settings.admin_email)
         if existing_admin is None:
+            if not settings.admin_password:
+                logger.warning(
+                    "Skipping initial admin creation because ADMIN_PASSWORD is not set."
+                )
+                return
             await create_admin_user(db, settings.admin_email, settings.admin_password)
             await db.commit()
             logger.info(f"Created initial admin user: {settings.admin_email}")

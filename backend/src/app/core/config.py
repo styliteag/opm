@@ -10,6 +10,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # Database
@@ -22,7 +23,7 @@ class Settings(BaseSettings):
 
     # Admin user (created on startup if not exists)
     admin_email: str = "admin@example.com"
-    admin_password: str = "changeme"
+    admin_password: str = ""
 
     # SMTP Settings for email alerts
     smtp_host: str = ""
@@ -40,6 +41,7 @@ class Settings(BaseSettings):
     # Application
     debug: bool = False
     database_echo: bool = False
+    trust_proxy_headers: bool = False
 
     # Timezone for cron schedules (e.g., "Europe/Berlin", "America/New_York")
     # Defaults to server's local timezone if not set
