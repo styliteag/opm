@@ -96,6 +96,28 @@ function NetworksPage() {
     [latestScans.data],
   );
 
+  const allNetworks = useMemo(
+    () => networks.data?.networks ?? [],
+    [networks.data],
+  );
+  const networkList = useMemo(
+    () =>
+      filter === "ssh-override"
+        ? allNetworks.filter(networkOverridesSsh)
+        : allNetworks,
+    [allNetworks, filter],
+  );
+
+  const stats = useMemo(() => {
+    const scheduled = allNetworks.filter((n) => n.scan_schedule && n.scan_schedule_enabled).length;
+    const lastCompleted = allNetworks.filter((n) => scanMap.get(n.id)?.status === "completed").length;
+    const failing = allNetworks.filter((n) => {
+      const s = scanMap.get(n.id);
+      return s && s.status === "failed";
+    }).length;
+    return { total: allNetworks.length, scheduled, lastCompleted, failing };
+  }, [allNetworks, scanMap]);
+
   if (networks.isLoading) return <LoadingState rows={6} />;
   if (networks.error)
     return (
@@ -104,23 +126,6 @@ function NetworksPage() {
         onRetry={() => networks.refetch()}
       />
     );
-
-  const allNetworks = networks.data?.networks ?? [];
-  const networkList =
-    filter === "ssh-override"
-      ? allNetworks.filter(networkOverridesSsh)
-      : allNetworks;
-
-  // Coverage stat reflects every network, regardless of any active filter.
-  const totalCoverage =
-    allNetworks.length > 0
-      ? Math.round(
-          (allNetworks.filter((n) => scanMap.get(n.id)?.status === "completed")
-            .length /
-            allNetworks.length) *
-            100,
-        )
-      : 0;
 
   return (
     <div className="space-y-6">
@@ -174,12 +179,34 @@ function NetworksPage() {
         </div>
         <div className="rounded-lg border border-border bg-card p-5">
           <h3 className="text-sm font-strong text-foreground">
-            Network Coverage
+            Network Summary
           </h3>
-          <p className="mt-2 text-4xl font-strong text-foreground">
-            {totalCoverage}%
-          </p>
-          <p className="text-sm text-muted-foreground">Total Visibility</p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-2xl font-strong text-foreground">
+                {stats.total}
+              </p>
+              <p className="text-xs text-muted-foreground">Total</p>
+            </div>
+            <div>
+              <p className="text-2xl font-strong text-foreground">
+                {stats.scheduled}
+              </p>
+              <p className="text-xs text-muted-foreground">Scheduled</p>
+            </div>
+            <div>
+              <p className="text-2xl font-strong text-foreground">
+                {stats.lastCompleted}
+              </p>
+              <p className="text-xs text-muted-foreground">Last OK</p>
+            </div>
+            <div>
+              <p className={`text-2xl font-strong ${stats.failing > 0 ? "text-red-400" : "text-foreground"}`}>
+                {stats.failing}
+              </p>
+              <p className="text-xs text-muted-foreground">Last Failed</p>
+            </div>
+          </div>
         </div>
       </div>
 

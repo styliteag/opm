@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Frontend**: network list cards now show scan phases (e.g. Masscan → SSH → Nuclei), timeouts, last run time, duration, and port count
 - **Frontend**: network detail page shows full scan config — pipeline visualization, timeouts, nuclei config section, GVM settings, features & alerts
+- **Frontend**: replaced "Network Coverage / Total Visibility" card with a network summary (total, scheduled, last OK, last failed)
 - **Scanner**: SSH probes now run as a proper pipeline phase between port scan and nuclei, instead of post-pipeline
 - **Scanner**: phase timing logged for each pipeline phase (elapsed seconds)
 - **Frontend**: scan log panel fetches up to 500 entries (was 50) with taller scrollable container
