@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.16] - 2026-04-14
+
 ### Added
 
 - **Frontend**: "Next Run" column on network cards showing relative time until next scheduled scan
