@@ -337,9 +337,9 @@ function NetworksPage() {
 
                 {/* Last Run Info */}
                 <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-5">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Port Spec</p>
-                    <p className="text-sm text-foreground">
+                    <p className="text-sm text-foreground truncate" title={network.port_spec}>
                       {network.port_spec}
                     </p>
                   </div>
