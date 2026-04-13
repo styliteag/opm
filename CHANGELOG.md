@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.6] - 2026-04-13
+
 ### Added
 
 - **Scanners**: indexed API key authentication for new and regenerated scanner keys. Scanner keys now use an `api_key_id.secret` format, backed by migration `018_add_scanner_api_key_id`; legacy pre-index keys still authenticate via a temporary fallback path and should be rotated
