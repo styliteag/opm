@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import time
 from typing import Any
 
 # Ensure scanners are registered at import time
@@ -87,6 +88,7 @@ def _format_phase_progress(
     labels = {
         "host_discovery": "Host Discovery",
         "port_scan": "Port Scan",
+        "ssh_probe": "SSH Probe",
         "vulnerability": "Vulnerability Scan",
     }
     label = labels.get(phase_name, phase_name)
@@ -107,6 +109,34 @@ def _build_legacy_phases(job: ScannerJob) -> list[ScanPhase]:
     return [
         ScanPhase(name="port_scan", enabled=True, tool=job.scanner_type, config={}),
     ]
+
+
+_SSH_ELIGIBLE_SCANNER_TYPES = ("masscan", "nmap")
+
+
+def _ensure_ssh_phase(
+    phases: list[ScanPhase], job: ScannerJob
+) -> list[ScanPhase]:
+    """Insert an SSH probe phase after port_scan when eligible.
+
+    Inserts before any vulnerability phase so SSH probing happens between
+    port discovery and nuclei/NSE scanning.
+    """
+    if not job.ssh_probe_enabled or job.scanner_type not in _SSH_ELIGIBLE_SCANNER_TYPES:
+        return phases
+    if any(p.name == "ssh_probe" for p in phases):
+        return phases
+
+    ssh_phase = ScanPhase(name="ssh_probe", enabled=True, tool="ssh_probe", config={})
+
+    # Insert after the last port_scan and before the first vulnerability phase.
+    insert_idx = len(phases)
+    for i, p in enumerate(phases):
+        if p.name == "vulnerability":
+            insert_idx = i
+            break
+
+    return [*phases[:insert_idx], ssh_phase, *phases[insert_idx:]]
 
 
 _NUCLEI_ELIGIBLE_SCANNER_TYPES = ("masscan", "nmap")
@@ -213,6 +243,44 @@ def _run_port_scan_phase(
     return {"open_ports": result.open_ports, "result": result}
 
 
+def _run_ssh_probe_phase(
+    phase: ScanPhase, job: ScannerJob, client: ScannerClient,
+    scan_id: int, logger: logging.Logger,
+    progress_reporter: ProgressReporter, completed: dict[str, Any],
+) -> dict[str, Any]:
+    """Run SSH probes on ports identified by the port_scan phase."""
+    logger.info("=== SSH Probe Phase ===")
+
+    ps = completed.get("port_scan")
+    open_ports = ps.get("open_ports", []) if ps else []
+    if not open_ports:
+        logger.info("ssh_probe: no open ports, skipping")
+        return {"ssh_results": []}
+
+    ssh_targets = detect_ssh_services(open_ports)
+    if not ssh_targets:
+        logger.info("ssh_probe: no SSH services detected, skipping")
+        return {"ssh_results": []}
+
+    logger.info("ssh_probe: probing %d SSH target(s)", len(ssh_targets))
+    progress_reporter.update(0, "SSH Probe: starting")
+
+    ssh_results = run_ssh_probes(
+        ssh_targets, logger,
+        concurrency=DEFAULT_SSH_PROBE_CONCURRENCY,
+        timeout=DEFAULT_SSH_PROBE_TIMEOUT,
+    )
+
+    responded = sum(1 for r in ssh_results if r.success)
+    logger.info(
+        "ssh_probe: %d/%d targets responded",
+        responded,
+        len(ssh_targets),
+    )
+    progress_reporter.update(100, f"SSH Probe: {responded}/{len(ssh_targets)} responded")
+    return {"ssh_results": ssh_results}
+
+
 def _run_nuclei_phase(
     phase: ScanPhase, job: ScannerJob, client: ScannerClient,
     scan_id: int, logger: logging.Logger,
@@ -289,7 +357,7 @@ def _run_nuclei_phase(
     progress_reporter.update(0, "Nuclei: starting")
 
     try:
-        findings = run_nuclei(
+        nuclei_result = run_nuclei(
             targets=targets,
             tags=phase.config.get("tags") or job.nuclei_tags,
             timeout_s=phase.config.get("timeout") or job.nuclei_timeout,
@@ -301,17 +369,23 @@ def _run_nuclei_phase(
         logger.exception("nuclei: unexpected failure during run_nuclei")
         return {"nuclei_result": None}
 
+    findings = nuclei_result.findings
+    vuln_status = "timeout" if nuclei_result.timed_out else "success"
+
     try:
         client.submit_vulnerability_results(
             scan_id=scan_id,
             vulnerabilities=findings,
-            status="success",
+            status=vuln_status,
         )
-        logger.info("nuclei: submitted %d finding(s) for scan %s", len(findings), scan_id)
+        logger.info("nuclei: submitted %d finding(s) for scan %s (status=%s)", len(findings), scan_id, vuln_status)
     except Exception:
         logger.exception("nuclei: failed to submit results for scan %s", scan_id)
 
-    progress_reporter.update(100, f"Nuclei: {len(findings)} finding(s)")
+    if nuclei_result.timed_out:
+        progress_reporter.update(100, "Nuclei: timed out")
+    else:
+        progress_reporter.update(100, f"Nuclei: {len(findings)} finding(s)")
     return {"nuclei_result": findings}
 
 
@@ -378,6 +452,7 @@ def _run_vulnerability_phase(
 _PHASE_RUNNERS = {
     "host_discovery": _run_host_discovery_phase,
     "port_scan": _run_port_scan_phase,
+    "ssh_probe": _run_ssh_probe_phase,
     "vulnerability": _run_vulnerability_phase,
 }
 
@@ -404,7 +479,6 @@ def _run_phase_pipeline(
                 _submit_pipeline_results(
                     client, scan_id, completed, logger,
                     status="failed", error="Cancelled by user",
-                    ssh_probe_enabled=job.ssh_probe_enabled,
                 )
                 return
         except Exception:
@@ -418,6 +492,7 @@ def _run_phase_pipeline(
             logger.warning("Unknown phase '%s', skipping", phase.name)
             continue
 
+        phase_start = time.monotonic()
         try:
             result = runner(phase, job, client, scan_id, logger, progress_reporter, completed)
             completed[phase.name] = result
@@ -426,7 +501,6 @@ def _run_phase_pipeline(
             _submit_pipeline_results(
                 client, scan_id, completed, logger,
                 status="failed", error="Cancelled by user",
-                ssh_probe_enabled=job.ssh_probe_enabled,
             )
             return
         except Exception as exc:
@@ -434,9 +508,11 @@ def _run_phase_pipeline(
             _submit_pipeline_results(
                 client, scan_id, completed, logger,
                 status="failed", error=f"Phase {phase.name} failed: {exc}",
-                ssh_probe_enabled=job.ssh_probe_enabled,
             )
             return
+
+        elapsed = time.monotonic() - phase_start
+        logger.info("Phase '%s' completed in %.1fs", phase.name, elapsed)
 
         msg = _format_phase_progress(phase.name, 100, num, total)
         progress_reporter.update((num / total) * 100, msg)
@@ -444,32 +520,20 @@ def _run_phase_pipeline(
     progress_reporter.update(100, "Scan complete")
     _submit_pipeline_results(
         client, scan_id, completed, logger, status="success",
-        ssh_probe_enabled=job.ssh_probe_enabled,
     )
 
 
 def _submit_pipeline_results(
     client: ScannerClient, scan_id: int, completed: dict[str, Any],
     logger: logging.Logger, status: str = "success", error: str | None = None,
-    ssh_probe_enabled: bool = True,
 ) -> None:
     """Submit results from completed phases."""
     ps = completed.get("port_scan")
     open_ports = ps["open_ports"] if ps else []
 
-    # SSH probing on port scan results — opt-out per network via ssh_probe_enabled
-    ssh_results: list[SSHProbeResult] = []
-    if open_ports and status == "success" and ssh_probe_enabled:
-        ssh_targets = detect_ssh_services(open_ports)
-        if ssh_targets:
-            logger.info("Running SSH probes on %d targets", len(ssh_targets))
-            ssh_results = run_ssh_probes(
-                ssh_targets, logger,
-                concurrency=DEFAULT_SSH_PROBE_CONCURRENCY,
-                timeout=DEFAULT_SSH_PROBE_TIMEOUT,
-            )
-    elif open_ports and status == "success" and not ssh_probe_enabled:
-        logger.info("SSH probing disabled for this network, skipping")
+    # SSH results come from the ssh_probe phase (if it ran).
+    sp = completed.get("ssh_probe")
+    ssh_results: list[SSHProbeResult] = sp["ssh_results"] if sp else []
 
     vuln = completed.get("vulnerability")
 
@@ -536,8 +600,9 @@ def process_job(
         # is applied uniformly to both legacy and pre-built phases so that
         # networks with a stored `phases` column still honor
         # `nuclei_enabled`.
+        base_phases = job.phases or _build_legacy_phases(job)
         phases = _ensure_nuclei_phase(
-            job.phases or _build_legacy_phases(job), job
+            _ensure_ssh_phase(base_phases, job), job
         )
         _run_phase_pipeline(phases, job, client, scan_id, logger, progress_reporter)
 

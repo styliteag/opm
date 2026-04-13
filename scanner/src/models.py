@@ -184,6 +184,14 @@ class VulnerabilityResult:
 
 
 @dataclass(frozen=True)
+class NucleiRunResult:
+    """Result from a nuclei scan run, including timeout state."""
+
+    findings: list[VulnerabilityResult]
+    timed_out: bool = False
+
+
+@dataclass(frozen=True)
 class HostDiscoveryJob:
     """A pending host discovery job from the backend."""
 
