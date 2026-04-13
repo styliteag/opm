@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Scanner**: default nuclei timeout increased from 30 minutes to 120 minutes
+
 ### Fixed
 
 - **Scanner**: hostname enrichment now checks backend cache before querying external APIs, skipping IPs with fresh cached hostnames instead of re-querying every host discovery run

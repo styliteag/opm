@@ -106,7 +106,7 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 - **Result storage**: reuses `POST /api/scanner/vulnerability-results` with a new `source` field in `VulnerabilityResultData` (`"gvm"` default for back-compat; scanner sends `"nuclei"` per-finding). The `vulnerabilities.oid` column was widened to `VARCHAR(255)` in migration 011 and stores the composite `template_id:matcher_name` so distinct matcher variants stay distinct.
 - **Alerts**: `NUCLEI_VULNERABILITY` / `NUCLEI_CVE_DETECTED` enum members added to `AlertType`. `_generate_nuclei_alerts()` mirrors `_generate_gvm_alerts()`: medium+ threshold (info/low silently stored but never alert-emitted), dedupe key `nuclei:{network_id}:{ip}:{port}:{protocol}:{composite_oid}`.
 - **Failure isolation**: `_run_nuclei_phase()` wraps everything (subprocess, parse, submit) in try/except. A broken nuclei run logs a warning and never fails the surrounding scan. Missing nuclei binary logs a single info line at scanner startup and the phase short-circuits to empty.
-- **Runtime knobs**: hardcoded nuclei defaults (rate-limit, concurrency, bulk-size) — only `nuclei_tags`, `nuclei_severity`, and `nuclei_timeout` (60–7200 s wall-clock; null → scanner default 1800) are configurable per-network. `subprocess.run(..., timeout=nuclei_timeout)` is the hard kill.
+- **Runtime knobs**: hardcoded nuclei defaults (rate-limit, concurrency, bulk-size) — only `nuclei_tags`, `nuclei_severity`, and `nuclei_timeout` (60–7200 s wall-clock; null → scanner default 7200) are configurable per-network. `subprocess.run(..., timeout=nuclei_timeout)` is the hard kill.
 
 ## Alert State Terminology
 

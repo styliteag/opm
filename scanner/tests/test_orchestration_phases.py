@@ -91,7 +91,7 @@ class TestEnsureNucleiPhaseAppends:
             phases=_db_style_phases(),
             nuclei_tags="cve",
             nuclei_severity="medium",
-            nuclei_timeout=1800,
+            nuclei_timeout=7200,
         )
         # The orchestration normally chains legacy/phases + ensure; here
         # we just verify the helper on the pre-built list directly.
@@ -104,7 +104,7 @@ class TestEnsureNucleiPhaseAppends:
         assert nuclei_phase.config == {
             "tags": "cve",
             "severity": "medium",
-            "timeout": 1800,
+            "timeout": 7200,
         }
 
     def test_appends_to_legacy_built_phases_nmap(self) -> None:

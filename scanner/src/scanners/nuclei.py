@@ -35,7 +35,7 @@ from src.threading_utils import ProcessTimeoutWatcher
 
 # Default wall-clock ceiling for the nuclei subprocess, in seconds.
 # Overridden per-network via `Network.nuclei_timeout`.
-DEFAULT_NUCLEI_TIMEOUT_S = 1800
+DEFAULT_NUCLEI_TIMEOUT_S = 7200
 
 # Regex to extract host-level progress from nuclei `-stats` output.
 # Example: "Hosts: 3/10 (30.00%)" — we capture the percentage.
