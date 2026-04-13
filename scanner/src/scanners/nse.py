@@ -173,7 +173,7 @@ class NseScanner:
         if is_ipv6:
             command.append("-6")
 
-        command.append(sanitized_target)
+        command.extend(t.strip() for t in sanitized_target.split(","))
 
         # Execute nmap with PTY for progress tracking
         nse_results, cancelled = _run_nse_scan(

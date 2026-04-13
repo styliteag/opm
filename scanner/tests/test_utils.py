@@ -88,6 +88,26 @@ class TestSanitizeCidr:
         with pytest.raises(ValueError, match="must be a non-empty string"):
             sanitize_cidr(123)  # type: ignore
 
+    def test_comma_separated_ips(self) -> None:
+        """Test validation of comma-separated IPs from host discovery."""
+        result = sanitize_cidr("192.168.1.1,192.168.1.2,192.168.1.3")
+        assert result == "192.168.1.1,192.168.1.2,192.168.1.3"
+
+    def test_comma_separated_with_spaces(self) -> None:
+        """Test comma-separated IPs with whitespace are trimmed."""
+        result = sanitize_cidr("10.0.0.1, 10.0.0.2, 10.0.0.3")
+        assert result == "10.0.0.1,10.0.0.2,10.0.0.3"
+
+    def test_comma_separated_with_invalid_entry(self) -> None:
+        """Test comma-separated list with one bad entry rejects all."""
+        with pytest.raises(ValueError, match="Invalid CIDR format"):
+            sanitize_cidr("192.168.1.1,999.999.999.999")
+
+    def test_comma_separated_injection_attempt(self) -> None:
+        """Test comma-separated list blocks injection in any entry."""
+        with pytest.raises(ValueError, match="contains invalid characters"):
+            sanitize_cidr("192.168.1.1,192.168.1.2; rm -rf /")
+
 
 class TestSanitizePortSpec:
     """Test cases for sanitize_port_spec function."""

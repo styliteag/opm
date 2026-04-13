@@ -86,45 +86,51 @@ def split_port_spec(port_spec: str) -> tuple[str, str | None]:
     return include_spec, exclude_spec
 
 
-def sanitize_cidr(cidr: str) -> str:
-    """Validate and sanitize CIDR notation for safe use in subprocess commands.
-
-    This function provides defensive validation to ensure CIDR strings received
-    from the backend API are safe to use in subprocess commands.
-
-    Args:
-        cidr: CIDR notation string (e.g., "192.168.1.0/24" or "2001:db8::/32")
-
-    Returns:
-        Validated CIDR string
-
-    Raises:
-        ValueError: If CIDR format is invalid or contains unsafe characters
-    """
+def _validate_single_cidr(cidr: str) -> str:
+    """Validate a single CIDR/IP string."""
     import ipaddress
 
-    if not cidr or not isinstance(cidr, str):
-        raise ValueError("CIDR must be a non-empty string")
-
-    # Strip whitespace
     cidr = cidr.strip()
-
-    # Check if empty after stripping
     if not cidr:
         raise ValueError("CIDR must be a non-empty string")
 
-    # Check for any shell metacharacters or control characters that should never be in a CIDR
     # Allow only alphanumeric, dots, colons, slashes, and hyphens
     if not re.match(r"^[a-fA-F0-9.:/\-]+$", cidr):
         raise ValueError(f"CIDR contains invalid characters: {cidr}")
 
-    # Validate using ipaddress module (same as backend validation)
     try:
         ipaddress.ip_network(cidr, strict=False)
     except ValueError as e:
         raise ValueError(f"Invalid CIDR format: {e}") from e
 
     return cidr
+
+
+def sanitize_cidr(cidr: str) -> str:
+    """Validate and sanitize CIDR notation for safe use in subprocess commands.
+
+    Supports comma-separated targets (e.g. from host discovery) by validating
+    each entry individually.
+
+    Args:
+        cidr: CIDR notation string or comma-separated list of IPs/CIDRs
+
+    Returns:
+        Validated CIDR string (comma-separated if multiple)
+
+    Raises:
+        ValueError: If CIDR format is invalid or contains unsafe characters
+    """
+    if not cidr or not isinstance(cidr, str):
+        raise ValueError("CIDR must be a non-empty string")
+
+    cidr = cidr.strip()
+    if not cidr:
+        raise ValueError("CIDR must be a non-empty string")
+
+    parts = cidr.split(",")
+    validated = [_validate_single_cidr(part) for part in parts]
+    return ",".join(validated)
 
 
 def sanitize_port_spec(port_spec: str) -> str:

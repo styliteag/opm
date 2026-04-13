@@ -182,9 +182,12 @@ def run_masscan(
     # Build port specification based on protocol
     masscan_port_spec = build_masscan_port_spec(include_ports, scan_protocol)
 
+    # Split comma-separated targets into separate args (from host discovery)
+    targets = [t.strip() for t in cidr.split(",")]
+
     command = [
         "masscan",
-        cidr,
+        *targets,
         f"-p{masscan_port_spec}",
         "--banners",
         "--wait",

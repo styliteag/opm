@@ -798,7 +798,7 @@ def run_nmap(
         "-T4",
         "--stats-every",
         "5s",
-        cidr,
+        *[t.strip() for t in cidr.split(",")],
     ]
 
     # Use 70% of timeout for phase 1

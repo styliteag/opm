@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Scanner**: port scan phase crashes with `CIDR contains invalid characters` when host discovery returns multiple live IPs (comma-separated targets now validated individually)
+
 ### Changed
 
 - **Frontend**: timeout fields (scan timeout, nuclei timeout) now use minutes instead of seconds in network form and host scan dialog
