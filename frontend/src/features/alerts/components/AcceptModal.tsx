@@ -125,7 +125,7 @@ export function AcceptModal({
                 className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-sm transition-colors ${
                   scope === "global"
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:text-foreground"
+                    : "border-border-subtle text-text-quaternary hover:text-text-secondary"
                 }`}
               >
                 <div className="font-emphasis">Global</div>
@@ -140,7 +140,7 @@ export function AcceptModal({
                 className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-sm transition-colors ${
                   scope === "network"
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:text-foreground"
+                    : "border-border-subtle text-text-quaternary hover:text-text-secondary"
                 }`}
               >
                 <div className="font-emphasis">Network</div>

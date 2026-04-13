@@ -196,7 +196,7 @@ export function HostScanDialog({
                     className={`flex-1 rounded-md px-3 py-2 text-sm font-emphasis transition-colors ${
                       scanMode === opt.value
                         ? "bg-primary text-primary-foreground"
-                        : "bg-accent text-muted-foreground hover:text-foreground"
+                        : "bg-surface-2 text-text-quaternary hover:text-text-secondary"
                     }`}
                   >
                     {opt.label}
@@ -282,7 +282,7 @@ export function HostScanDialog({
                       className={`cursor-pointer rounded px-1.5 py-0.5 text-[10px] transition-colors ${
                         watchedRate === p.value
                           ? "bg-primary text-primary-foreground"
-                          : "bg-accent text-muted-foreground hover:text-foreground"
+                          : "bg-surface-2 text-text-quaternary hover:text-text-secondary"
                       }`}
                     >
                       {p.label}

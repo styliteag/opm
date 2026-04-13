@@ -134,7 +134,7 @@ export function QuickScanModal() {
                   className={`flex-1 rounded-md px-3 py-2 text-sm font-emphasis transition-colors ${
                     scanType === opt.value
                       ? "bg-primary text-primary-foreground"
-                      : "bg-accent text-muted-foreground hover:text-foreground"
+                      : "bg-surface-2 text-text-quaternary hover:text-text-secondary"
                   }`}
                 >
                   {opt.label}

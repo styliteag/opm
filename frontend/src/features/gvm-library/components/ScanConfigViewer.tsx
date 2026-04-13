@@ -68,7 +68,7 @@ export function ScanConfigViewer({ entry, onClose }: ScanConfigViewerProps) {
 
         {parsed && (
           <>
-            <div className="flex gap-1 border-b border-border">
+            <div className="flex gap-3 border-b border-border-subtle pb-px">
               {(
                 [
                   ['overview', 'Overview'],
@@ -86,10 +86,10 @@ export function ScanConfigViewer({ entry, onClose }: ScanConfigViewerProps) {
                 <button
                   key={key}
                   onClick={() => setTab(key)}
-                  className={`px-3 py-2 text-xs font-emphasis transition-colors ${
+                  className={`relative px-0.5 pb-2 text-xs font-emphasis transition-colors after:pointer-events-none after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:rounded-full after:bg-brand-accent after:opacity-0 after:transition-opacity ${
                     tab === key
-                      ? 'text-foreground border-b-2 border-primary -mb-px'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? 'text-text-primary after:opacity-100'
+                      : 'text-text-quaternary hover:text-text-secondary'
                   }`}
                 >
                   {label}

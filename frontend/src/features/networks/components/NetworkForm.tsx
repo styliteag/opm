@@ -415,17 +415,17 @@ export function NetworkForm({
               one viewport. ── */}
           <div
             role="tablist"
-            className="inline-flex rounded-md border border-border/40 bg-muted/30 p-0.5 text-xs font-emphasis"
+            className="inline-flex gap-0.5 rounded-lg border border-border-subtle bg-surface-2/50 p-[3px] text-xs font-emphasis"
           >
             <button
               type="button"
               role="tab"
               aria-selected={effectiveTab === "general"}
               onClick={() => setActiveTab("general")}
-              className={`cursor-pointer rounded px-3 py-1 transition-colors ${
+              className={`cursor-pointer rounded-md border px-3 py-1 transition-colors ${
                 effectiveTab === "general"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "border-border-standard bg-surface-3 text-text-primary shadow-sm"
+                  : "border-transparent text-text-quaternary hover:text-text-secondary"
               }`}
             >
               General
@@ -436,10 +436,10 @@ export function NetworkForm({
                 role="tab"
                 aria-selected={effectiveTab === "phases"}
                 onClick={() => setActiveTab("phases")}
-                className={`cursor-pointer rounded px-3 py-1 transition-colors ${
+                className={`cursor-pointer rounded-md border px-3 py-1 transition-colors ${
                   effectiveTab === "phases"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "border-border-standard bg-surface-3 text-text-primary shadow-sm"
+                    : "border-transparent text-text-quaternary hover:text-text-secondary"
                 }`}
               >
                 Phases
@@ -450,10 +450,10 @@ export function NetworkForm({
               role="tab"
               aria-selected={effectiveTab === "alerts"}
               onClick={() => setActiveTab("alerts")}
-              className={`cursor-pointer rounded px-3 py-1 transition-colors ${
+              className={`cursor-pointer rounded-md border px-3 py-1 transition-colors ${
                 effectiveTab === "alerts"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "border-border-standard bg-surface-3 text-text-primary shadow-sm"
+                  : "border-transparent text-text-quaternary hover:text-text-secondary"
               }`}
             >
               Schedule &amp; Alerts
@@ -619,7 +619,7 @@ export function NetworkForm({
                       className={`cursor-pointer rounded px-1.5 py-0.5 text-[10px] transition-colors ${
                         watchedRate === p.value
                           ? "bg-primary text-primary-foreground"
-                          : "bg-accent text-muted-foreground hover:text-foreground"
+                          : "bg-surface-2 text-text-quaternary hover:text-text-secondary"
                       }`}
                       title={p.desc}
                     >
@@ -757,7 +757,7 @@ export function NetworkForm({
                       className={`cursor-pointer rounded px-1.5 py-0.5 text-[10px] transition-colors ${
                         watchedSchedule === p.value
                           ? "bg-primary text-primary-foreground"
-                          : "bg-accent text-muted-foreground hover:text-foreground"
+                          : "bg-surface-2 text-text-quaternary hover:text-text-secondary"
                       }`}
                     >
                       {p.label}

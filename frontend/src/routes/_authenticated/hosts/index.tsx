@@ -112,16 +112,16 @@ function HostsPage() {
       </div>
 
       {/* View Toggle */}
-      <div className="flex items-center gap-1 rounded-lg border border-border p-1 w-fit">
+      <div className="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-surface-2/50 p-[3px] w-fit">
         <button
           onClick={() => {
             setViewMode("hosts");
             setPage(0);
           }}
-          className={`rounded-md px-3 py-1 text-sm font-emphasis transition-colors ${
+          className={`rounded-md border px-3 py-1 text-sm font-emphasis transition-colors ${
             viewMode === "hosts"
-              ? "bg-primary text-white"
-              : "text-muted-foreground hover:text-foreground"
+              ? "border-border-standard bg-surface-3 text-text-primary shadow-sm"
+              : "border-transparent text-text-quaternary hover:text-text-secondary"
           }`}
         >
           Hosts
@@ -131,10 +131,10 @@ function HostsPage() {
             setViewMode("global-ports");
             setPage(0);
           }}
-          className={`rounded-md px-3 py-1 text-sm font-emphasis transition-colors ${
+          className={`rounded-md border px-3 py-1 text-sm font-emphasis transition-colors ${
             viewMode === "global-ports"
-              ? "bg-primary text-white"
-              : "text-muted-foreground hover:text-foreground"
+              ? "border-border-standard bg-surface-3 text-text-primary shadow-sm"
+              : "border-transparent text-text-quaternary hover:text-text-secondary"
           }`}
         >
           Global Ports
@@ -172,24 +172,24 @@ function HostsPage() {
         </Select>
         {viewMode === "hosts" && (
           <>
-            <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+            <div className="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-surface-2/50 p-[3px]">
               <button
                 onClick={() => setPage(0)}
-                className="rounded px-2 py-1 text-xs font-emphasis text-muted-foreground"
+                className="rounded-md border border-transparent px-2 py-1 text-xs font-emphasis text-text-quaternary hover:text-text-secondary transition-colors"
                 title="IPv4 + IPv6"
               >
                 All
               </button>
               <button
                 onClick={() => setPage(0)}
-                className="rounded px-2 py-1 text-xs font-emphasis text-muted-foreground"
+                className="rounded-md border border-transparent px-2 py-1 text-xs font-emphasis text-text-quaternary hover:text-text-secondary transition-colors"
                 title="IPv4 only"
               >
                 IPv4
               </button>
               <button
                 onClick={() => setPage(0)}
-                className="rounded px-2 py-1 text-xs font-emphasis text-muted-foreground"
+                className="rounded-md border border-transparent px-2 py-1 text-xs font-emphasis text-text-quaternary hover:text-text-secondary transition-colors"
                 title="IPv6 only"
               >
                 IPv6
@@ -211,15 +211,15 @@ function HostsPage() {
                   }}
                   className={`rounded-md px-2 py-1 text-xs font-emphasis transition-colors ${
                     search === svc.toLowerCase()
-                      ? "bg-primary text-white"
-                      : "bg-accent text-muted-foreground hover:text-foreground"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-surface-2 text-text-quaternary hover:text-text-secondary"
                   }`}
                 >
                   {svc}
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+            <div className="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-surface-2/50 p-[3px]">
               {(["all", "active", "stale"] as const).map((s) => (
                 <button
                   key={s}
@@ -227,10 +227,10 @@ function HostsPage() {
                     setStaleness(s);
                     setPage(0);
                   }}
-                  className={`rounded px-2 py-1 text-xs font-emphasis capitalize transition-colors ${
+                  className={`rounded-md border px-2 py-1 text-xs font-emphasis capitalize transition-colors ${
                     staleness === s
-                      ? "bg-primary text-white"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "border-border-standard bg-surface-3 text-text-primary shadow-sm"
+                      : "border-transparent text-text-quaternary hover:text-text-secondary"
                   }`}
                 >
                   {s}

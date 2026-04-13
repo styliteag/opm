@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Frontend**: redesigned all tab and segmented-control components for dark mode — line tabs use brand-accent indigo underline instead of harsh white, segmented controls use surface-3 elevated pills with visible borders instead of low-contrast muted backgrounds; unified across shared Tabs component, NetworkForm, ScanConfigViewer, hosts page toggles/filters, QuickScanModal, HostScanDialog, AcceptModal, and ScriptSelector
 - **Frontend**: network list cards now show scan phases (e.g. Masscan → SSH → Nuclei), timeouts, last run time, duration, and port count
 - **Frontend**: network detail page shows full scan config — pipeline visualization, timeouts, nuclei config section, GVM settings, features & alerts
 - **Frontend**: replaced "Network Coverage / Total Visibility" card with a network summary (total, scheduled, last OK, last failed)

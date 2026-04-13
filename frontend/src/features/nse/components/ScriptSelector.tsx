@@ -208,18 +208,18 @@ export function ScriptSelector({
             className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
-        <div className="flex rounded-md border border-border overflow-hidden shrink-0">
+        <div className="flex rounded-lg border border-border-subtle bg-surface-2/50 overflow-hidden shrink-0 p-[3px] gap-0.5">
           {(["all", "selected", "unselected"] as FilterMode[]).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setFilterMode(mode)}
               aria-pressed={filterMode === mode}
-              className={`cursor-pointer px-3 py-1.5 text-xs font-emphasis transition-colors ${
+              className={`cursor-pointer rounded-md border px-3 py-1 text-xs font-emphasis transition-colors ${
                 filterMode === mode
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:text-foreground"
-              } ${mode !== "all" ? "border-l border-border" : ""}`}
+                  ? "border-border-standard bg-surface-3 text-text-primary shadow-sm"
+                  : "border-transparent text-text-quaternary hover:text-text-secondary"
+              }`}
             >
               {mode === "all"
                 ? "All"
