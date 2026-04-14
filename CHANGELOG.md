@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **Backend**: upgrade Pillow to 12.2.0 to fix FITS decompression bomb vulnerability (Dependabot #27)
+- **Scanner**: upgrade pytest to 9.0.3 to fix insecure /tmp/pytest-of-{user} directory vulnerability (Dependabot #28)
 
 ## [2.2.16] - 2026-04-14
 

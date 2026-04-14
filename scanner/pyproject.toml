@@ -14,7 +14,7 @@ gvm = [
     "python-gvm>=24.0.0",
 ]
 dev = [
-    "pytest>=8.0.0",
+    "pytest>=9.0.3",
     "mypy>=1.13.0",
     "ruff>=0.8.0",
 ]
