@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.17] - 2026-04-14
+
 ### Security
 
 - **Backend**: upgrade Pillow to 12.2.0 to fix FITS decompression bomb vulnerability (Dependabot #27)
