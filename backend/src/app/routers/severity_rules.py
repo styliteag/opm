@@ -1,21 +1,21 @@
-"""GVM per-OID severity override rule endpoints."""
+"""Per-finding severity override rule endpoints."""
 
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import DbSession, OperatorUser
-from app.models.gvm_severity_rule import GvmSeverityRule
-from app.schemas.gvm_severity_rule import (
-    GvmSeverityRuleCreate,
-    GvmSeverityRuleListResponse,
-    GvmSeverityRuleResponse,
-    GvmSeverityRuleUpdate,
+from app.models.severity_rule import SeverityRule
+from app.schemas.severity_rule import (
+    SeverityRuleCreate,
+    SeverityRuleListResponse,
+    SeverityRuleResponse,
+    SeverityRuleUpdate,
 )
-from app.services import gvm_severity_rules as service
+from app.services import severity_rules as service
 
-router = APIRouter(prefix="/api/gvm-severity-rules", tags=["gvm-severity-rules"])
+router = APIRouter(prefix="/api/severity-rules", tags=["severity-rules"])
 
 
-def _shape(rule: GvmSeverityRule) -> GvmSeverityRuleResponse:
+def _shape(rule: SeverityRule) -> SeverityRuleResponse:
     network_name: str | None = None
     network = getattr(rule, "network", None)
     if network is not None:
@@ -26,7 +26,7 @@ def _shape(rule: GvmSeverityRule) -> GvmSeverityRuleResponse:
         created_by_username = getattr(creator, "email", None) or getattr(
             creator, "name", None
         )
-    base = GvmSeverityRuleResponse.model_validate(rule)
+    base = SeverityRuleResponse.model_validate(rule)
     return base.model_copy(
         update={
             "network_name": network_name,
@@ -35,27 +35,27 @@ def _shape(rule: GvmSeverityRule) -> GvmSeverityRuleResponse:
     )
 
 
-@router.get("", response_model=GvmSeverityRuleListResponse)
+@router.get("", response_model=SeverityRuleListResponse)
 async def list_rules(
     user: OperatorUser,
     db: DbSession,
     network_id: int | None = Query(None),
     oid: str | None = Query(None),
-) -> GvmSeverityRuleListResponse:
+) -> SeverityRuleListResponse:
     rules = await service.list_rules(db, network_id=network_id, oid=oid)
-    return GvmSeverityRuleListResponse(rules=[_shape(r) for r in rules])
+    return SeverityRuleListResponse(rules=[_shape(r) for r in rules])
 
 
 @router.post(
     "",
-    response_model=GvmSeverityRuleResponse,
+    response_model=SeverityRuleResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_rule(
-    payload: GvmSeverityRuleCreate,
+    payload: SeverityRuleCreate,
     user: OperatorUser,
     db: DbSession,
-) -> GvmSeverityRuleResponse:
+) -> SeverityRuleResponse:
     rule = await service.upsert_rule(
         db,
         oid=payload.oid,
@@ -69,13 +69,13 @@ async def create_rule(
     return _shape(rule)
 
 
-@router.patch("/{rule_id}", response_model=GvmSeverityRuleResponse)
+@router.patch("/{rule_id}", response_model=SeverityRuleResponse)
 async def update_rule(
     rule_id: int,
-    payload: GvmSeverityRuleUpdate,
+    payload: SeverityRuleUpdate,
     user: OperatorUser,
     db: DbSession,
-) -> GvmSeverityRuleResponse:
+) -> SeverityRuleResponse:
     rule = await service.get_rule(db, rule_id)
     if rule is None:
         raise HTTPException(status_code=404, detail="Rule not found")

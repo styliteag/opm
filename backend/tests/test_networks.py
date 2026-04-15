@@ -6,6 +6,8 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.network import Network
+from app.models.nse_template import NseTemplate
+from app.models.scan import Scan
 from app.models.scanner import Scanner
 from app.models.user import User
 from app.services.networks import (
@@ -373,6 +375,38 @@ class TestNetworkRouter:
         data = response.json()
         assert data["network_id"] == network.id
         assert "scan_id" in data
+
+    async def test_trigger_scan_uses_default_nse_profile(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        admin_user: User,
+        network: Network,
+        admin_headers: dict,
+    ):
+        """Manual trigger should preserve the network's default NSE profile."""
+        template = NseTemplate(
+            name="DNS Recursion",
+            description="Checks for recursive DNS resolvers",
+            nse_scripts=["dns-recursion"],
+        )
+        db_session.add(template)
+        await db_session.flush()
+
+        network.scanner_type = "nse"
+        network.nse_profile_id = template.id
+        await db_session.commit()
+
+        response = await client.post(
+            f"/api/networks/{network.id}/scan", headers=admin_headers
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+
+        created_scan = await db_session.get(Scan, data["scan_id"])
+        assert created_scan is not None
+        assert created_scan.nse_template_id == template.id
 
     async def test_list_network_scans(
         self,

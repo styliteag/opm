@@ -24,11 +24,14 @@ async def create_manual_scan(db: AsyncSession, network: Network) -> Scan:
 
     Creates a scan record with status 'planned' and trigger_type 'manual'.
     """
+    nse_template_id = network.nse_profile_id
+
     scan = Scan(
         network_id=network.id,
         scanner_id=network.scanner_id,
         status=ScanStatus.PLANNED,
         trigger_type=TriggerType.MANUAL,
+        nse_template_id=nse_template_id,
     )
     db.add(scan)
     await db.flush()

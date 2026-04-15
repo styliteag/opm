@@ -1,6 +1,7 @@
 """Scanner job retrieval and claiming service."""
 
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,54 @@ from app.models.scanner import Scanner
 from app.schemas.scanner import ScannerJobClaimResponse, ScannerJobResponse
 from app.services import gvm_library as gvm_library_service
 from app.services import nse_scripts as nse_scripts_service
+
+
+def _append_default_nse_phase(
+    phases: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Append an NSE vulnerability phase when the pipeline doesn't already have one."""
+    if any(
+        phase.get("name") == "vulnerability" and phase.get("tool") == "nmap_nse"
+        for phase in phases
+    ):
+        return phases
+    return [
+        *phases,
+        {
+            "name": "vulnerability",
+            "enabled": True,
+            "tool": "nmap_nse",
+            "config": {},
+        },
+    ]
+
+
+def _build_job_pipeline(
+    network: Network,
+    base_scanner_type: str,
+    has_nse_template: bool,
+) -> list[dict[str, Any]] | None:
+    """Build explicit phases for mixed port-scan + NSE jobs when needed."""
+    if not has_nse_template or base_scanner_type not in {"masscan", "nmap"}:
+        return network.phases
+
+    if network.phases is not None:
+        return _append_default_nse_phase(network.phases)
+
+    return [
+        {
+            "name": "port_scan",
+            "enabled": True,
+            "tool": base_scanner_type,
+            "config": {},
+        },
+        {
+            "name": "vulnerability",
+            "enabled": True,
+            "tool": "nmap_nse",
+            "config": {},
+        },
+    ]
 
 
 async def get_pending_jobs_for_scanner(
@@ -43,14 +92,11 @@ async def get_pending_jobs_for_scanner(
     jobs: list[ScannerJobResponse] = []
     for scan in planned_scans:
         overrides = scan.scan_overrides or {}
+        base_scanner_type = overrides.get("scanner_type", scan.network.scanner_type or "masscan")
 
-        # Determine scanner type — NSE scans have nse_template_id set
         is_nse = scan.nse_template_id is not None
-        scanner_type = (
-            "nse"
-            if is_nse
-            else overrides.get("scanner_type", scan.network.scanner_type or "masscan")
-        )
+        nse_only = is_nse and base_scanner_type == "nse"
+        scanner_type = "nse" if nse_only else base_scanner_type
 
         # Build NSE-specific fields from template
         nse_scripts = None
@@ -87,7 +133,7 @@ async def get_pending_jobs_for_scanner(
                 nse_scripts=nse_scripts,
                 nse_script_args=nse_script_args,
                 custom_script_hashes=custom_script_hashes,
-                phases=net.phases,
+                phases=_build_job_pipeline(net, scanner_type, is_nse),
                 gvm_scan_config=net.gvm_scan_config,
                 gvm_port_list=net.gvm_port_list,
                 gvm_keep_reports=net.gvm_keep_reports,

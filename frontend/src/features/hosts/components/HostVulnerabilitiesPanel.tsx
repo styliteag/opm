@@ -2,11 +2,9 @@ import { useMemo, useId, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
-import { SeverityBadge } from "@/components/data-display/SeverityBadge";
 import { Button } from "@/components/ui/button";
-import { SeverityRuleDialog } from "@/features/gvm-severity-rules/components/SeverityRuleDialog";
+import { SeverityRuleDialog } from "@/features/severity-rules/components/SeverityRuleDialog";
 import type {
-  NseResult,
   Vulnerability,
   VulnerabilitySeverity,
   VulnerabilitySource,
@@ -29,6 +27,10 @@ const SOURCE_STYLES: Record<VulnerabilitySource, { label: string; className: str
   nuclei: {
     label: "Nuclei",
     className: "bg-teal-500/10 text-teal-300 border-teal-500/20",
+  },
+  nse: {
+    label: "NSE",
+    className: "bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20",
   },
 };
 
@@ -287,21 +289,23 @@ function GvmVulnRow({ vuln }: { vuln: Vulnerability }) {
 }
 
 export function HostVulnerabilitiesPanel({
-  nseResults,
-  gvmResults,
+  results,
   isLoading,
 }: {
-  nseResults: NseResult[];
-  gvmResults: Vulnerability[];
+  results: Vulnerability[];
   isLoading: boolean;
 }) {
   const nucleiFindings = useMemo(
-    () => gvmResults.filter((v) => v.source === "nuclei"),
-    [gvmResults],
+    () => results.filter((v) => v.source === "nuclei"),
+    [results],
   );
   const gvmFindings = useMemo(
-    () => gvmResults.filter((v) => v.source !== "nuclei"),
-    [gvmResults],
+    () => results.filter((v) => v.source === "gvm"),
+    [results],
+  );
+  const nseFindings = useMemo(
+    () => results.filter((v) => v.source === "nse"),
+    [results],
   );
 
   if (isLoading) {
@@ -311,7 +315,7 @@ export function HostVulnerabilitiesPanel({
   const hasAny =
     nucleiFindings.length > 0 ||
     gvmFindings.length > 0 ||
-    nseResults.length > 0;
+    nseFindings.length > 0;
 
   return (
     <div className="space-y-6">
@@ -355,47 +359,16 @@ export function HostVulnerabilitiesPanel({
       )}
 
       {/* ── NSE Findings ── */}
-      {nseResults.length > 0 && (
+      {nseFindings.length > 0 && (
         <div>
-          <h4 className="mb-3 text-sm font-emphasis text-foreground">
-            NSE Findings ({nseResults.length})
+          <h4 className="mb-3 flex items-center gap-2 text-sm font-emphasis text-foreground">
+            <SourceBadge source="nse" />
+            NSE Findings ({nseFindings.length})
           </h4>
           <div className="rounded-lg border border-border">
             <div className="divide-y divide-border">
-              {nseResults.map((vuln) => (
-                <div key={vuln.id} className="px-5 py-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <SeverityBadge severity={vuln.severity} />
-                      <div>
-                        <p className="text-sm font-emphasis text-foreground">
-                          {vuln.script_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Port {vuln.port}/{vuln.protocol} ·{" "}
-                          {formatRelativeTime(vuln.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                    {vuln.cve_ids.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {vuln.cve_ids.map((cve) => (
-                          <span
-                            key={cve}
-                            className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-mono text-destructive"
-                          >
-                            {cve}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {vuln.script_output && (
-                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded bg-accent/50 p-3 text-xs text-muted-foreground">
-                      {vuln.script_output}
-                    </pre>
-                  )}
-                </div>
+              {nseFindings.map((vuln) => (
+                <GvmVulnRow key={vuln.id} vuln={vuln} />
               ))}
             </div>
           </div>

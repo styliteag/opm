@@ -17,7 +17,7 @@ export type AlertType =
   | "nuclei_vulnerability"
   | "nuclei_cve_detected";
 
-export type VulnerabilitySource = "gvm" | "nuclei";
+export type VulnerabilitySource = "gvm" | "nuclei" | "nse";
 
 export type Severity = "critical" | "high" | "medium" | "info";
 export type VulnerabilitySeverity = Severity | "low";

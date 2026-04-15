@@ -14,6 +14,7 @@ from app.core.database import async_session_factory
 from app.models.network import Network
 from app.models.scan import Scan, ScanStatus, TriggerType
 from app.services.schedule_convert import build_trigger
+from app.services.scans import create_manual_scan
 
 logger = logging.getLogger(__name__)
 
@@ -89,20 +90,8 @@ async def evaluate_schedules() -> None:
                 if await _has_active_scan(db, network.id):
                     continue
 
-                # For NSE scanner type, attach the network's default profile
-                nse_template_id = None
-                if network.scanner_type == "nse" and network.nse_profile_id is not None:
-                    nse_template_id = network.nse_profile_id
-
-                scan = Scan(
-                    network_id=network.id,
-                    scanner_id=network.scanner_id,
-                    status=ScanStatus.PLANNED,
-                    trigger_type=TriggerType.SCHEDULED,
-                    nse_template_id=nse_template_id,
-                )
-                db.add(scan)
-                await db.flush()
+                scan = await create_manual_scan(db, network)
+                scan.trigger_type = TriggerType.SCHEDULED
                 logger.info("Scheduled scan for network %s (%s)", network.name, network.id)
             except Exception:
                 logger.exception(

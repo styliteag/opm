@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { SeverityRuleDialog } from "@/features/gvm-severity-rules/components/SeverityRuleDialog";
+import { SeverityRuleDialog } from "@/features/severity-rules/components/SeverityRuleDialog";
 import { cn } from "@/lib/utils";
 import type { Vulnerability } from "@/lib/types";
 import { useVulnerabilities } from "@/features/scans/hooks/useVulnerabilities";
@@ -15,6 +15,12 @@ const SEVERITY_STYLES: Record<string, string> = {
   info: "bg-accent text-muted-foreground border-border",
 };
 
+const SOURCE_STYLES: Record<string, string> = {
+  gvm: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20",
+  nuclei: "bg-teal-500/10 text-teal-300 border-teal-500/20",
+  nse: "bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20",
+};
+
 function VulnSeverityBadge({ label }: { label: string }) {
   return (
     <span
@@ -24,6 +30,19 @@ function VulnSeverityBadge({ label }: { label: string }) {
       )}
     >
       {label}
+    </span>
+  );
+}
+
+function VulnSourceBadge({ source }: { source: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-emphasis uppercase tracking-wide",
+        SOURCE_STYLES[source] ?? SOURCE_STYLES.gvm,
+      )}
+    >
+      {source}
     </span>
   );
 }
@@ -81,6 +100,9 @@ function VulnRow({
           {vuln.severity.toFixed(1)}
         </td>
         <td className="px-3 py-2 text-sm text-foreground">{vuln.name}</td>
+        <td className="px-3 py-2">
+          <VulnSourceBadge source={vuln.source} />
+        </td>
         <td className="px-3 py-2 text-xs text-secondary-foreground tabular-nums">
           {vuln.ip}
           {vuln.port != null ? `:${vuln.port}` : ""}
@@ -98,7 +120,7 @@ function VulnRow({
       {expanded && (
         <tr className="border-b border-border">
           <td />
-          <td colSpan={6} className="px-3 py-3">
+          <td colSpan={7} className="px-3 py-3">
             <div className="space-y-2 text-sm">
               {vuln.description && (
                 <div>
@@ -126,7 +148,7 @@ function VulnRow({
                 </div>
               )}
               <div className="text-xs text-muted-foreground">
-                OID: {vuln.oid}
+                Source: {vuln.source.toUpperCase()} | OID: {vuln.oid}
                 {vuln.cvss_base_vector ? ` | CVSS: ${vuln.cvss_base_vector}` : ""}
               </div>
               <div>
@@ -203,6 +225,7 @@ export function VulnerabilitiesTable({
               <th className="px-3 py-2">Severity</th>
               <th className="px-3 py-2">CVSS</th>
               <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">Source</th>
               <th className="px-3 py-2">Target</th>
               <th className="px-3 py-2">CVEs</th>
               <th className="px-3 py-2">QoD</th>

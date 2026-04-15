@@ -39,24 +39,22 @@ export function listSeverityRules(params?: {
   if (params?.network_id != null) qs.set("network_id", String(params.network_id));
   if (params?.oid) qs.set("oid", params.oid);
   const suffix = qs.toString() ? `?${qs}` : "";
-  return fetchApi<GvmSeverityRuleListResponse>(
-    `/api/gvm-severity-rules${suffix}`,
-  );
+  return fetchApi<GvmSeverityRuleListResponse>(`/api/severity-rules${suffix}`);
 }
 
 export function createSeverityRule(
   payload: GvmSeverityRuleCreate,
 ): Promise<GvmSeverityRule> {
-  return postApi<GvmSeverityRule>("/api/gvm-severity-rules", payload);
+  return postApi<GvmSeverityRule>("/api/severity-rules", payload);
 }
 
 export function updateSeverityRule(
   id: number,
   payload: GvmSeverityRuleUpdate,
 ): Promise<GvmSeverityRule> {
-  return patchApi<GvmSeverityRule>(`/api/gvm-severity-rules/${id}`, payload);
+  return patchApi<GvmSeverityRule>(`/api/severity-rules/${id}`, payload);
 }
 
 export function deleteSeverityRule(id: number): Promise<void> {
-  return deleteApi(`/api/gvm-severity-rules/${id}`);
+  return deleteApi(`/api/severity-rules/${id}`);
 }

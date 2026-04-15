@@ -9,15 +9,13 @@ import { Button } from "@/components/ui/button";
 import {
   useSeverityRuleMutations,
   useSeverityRules,
-} from "@/features/gvm-severity-rules/hooks/useSeverityRules";
+} from "@/features/severity-rules/hooks/useSeverityRules";
 
-export const Route = createFileRoute(
-  "/_authenticated/admin/gvm-severity-rules",
-)({
-  component: GvmSeverityRulesPage,
+export const Route = createFileRoute("/_authenticated/admin/severity-rules")({
+  component: SeverityRulesPage,
 });
 
-function GvmSeverityRulesPage() {
+function SeverityRulesPage() {
   const rulesQuery = useSeverityRules();
   const { remove } = useSeverityRuleMutations();
 
@@ -37,11 +35,11 @@ function GvmSeverityRulesPage() {
   return (
     <div className="space-y-4 p-6">
       <header>
-        <h1 className="text-2xl font-emphasis">GVM Severity Rules</h1>
+        <h1 className="text-2xl font-emphasis">Severity Rules</h1>
         <p className="mt-1 text-sm text-text-secondary">
-          Per-OID severity overrides. A rule changes what severity GVM and
-          nuclei findings carry when generating alerts. Network-scoped rules
-          take precedence over global rules.
+          Per-finding severity overrides. A rule changes what severity GVM,
+          NSE, and nuclei findings carry when generating alerts.
+          Network-scoped rules take precedence over global rules.
         </p>
       </header>
 

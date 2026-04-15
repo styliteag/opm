@@ -1,4 +1,4 @@
-"""Per-OID severity override rules for GVM / nuclei findings."""
+"""Per-finding severity override rules."""
 
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class GvmSeverityRule(Base):
+class SeverityRule(Base):
     """Rule that overrides a finding's severity based on its OID.
 
     Scope:
@@ -26,9 +26,9 @@ class GvmSeverityRule(Base):
     to the *resolved* severity.
     """
 
-    __tablename__ = "gvm_severity_rules"
+    __tablename__ = "severity_rules"
     __table_args__ = (
-        UniqueConstraint("oid", "network_id", name="uq_gvm_severity_rules_oid_network"),
+        UniqueConstraint("oid", "network_id", name="uq_severity_rules_oid_network"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

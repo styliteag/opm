@@ -9,7 +9,7 @@ import {
   type GvmSeverityRuleUpdate,
 } from "../api";
 
-const RULES_KEY = ["gvm", "severity-rules"] as const;
+const RULES_KEY = ["severity-rules"] as const;
 
 export function useSeverityRules(params?: {
   network_id?: number | null;

@@ -34,7 +34,6 @@ import {
   useHostRiskTrend,
   useRescanHost,
 } from "@/features/hosts/hooks/useHosts";
-import { useHostVulnerabilities } from "@/features/hosts/hooks/useHostVulnerabilities";
 import { useHostGvmVulnerabilities } from "@/features/hosts/hooks/useHostGvmVulnerabilities";
 import {
   computeRiskScore,
@@ -51,9 +50,7 @@ function HostDetailPage() {
   const { hostId } = Route.useParams();
   const id = Number(hostId);
   const { data, isLoading, error, refetch } = useHostDetail(id);
-  const hostIp = data?.host.ip ?? "";
-  const vulns = useHostVulnerabilities(hostIp);
-  const gvmVulns = useHostGvmVulnerabilities(id);
+  const vulnerabilities = useHostGvmVulnerabilities(id);
   const rescan = useRescanHost();
   const riskTrend = useHostRiskTrend(id);
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
@@ -63,9 +60,8 @@ function HostDetailPage() {
   if (!data) return <ErrorState message="Host not found" />;
 
   const { host, ports, alerts, ssh, recent_scans, networks } = data;
-  const vulnList = vulns.data?.results ?? [];
-  const gvmVulnList = gvmVulns.data?.results ?? [];
-  const totalVulnCount = vulnList.length + gvmVulnList.length;
+  const vulnList = vulnerabilities.data?.results ?? [];
+  const totalVulnCount = vulnList.length;
   const riskScore = computeRiskScore(alerts, ports, ssh);
 
   return (
@@ -236,9 +232,8 @@ function HostDetailPage() {
 
         <TabsContent value="vulns" className="mt-4">
           <HostVulnerabilitiesPanel
-            nseResults={vulnList}
-            gvmResults={gvmVulnList}
-            isLoading={vulns.isLoading || gvmVulns.isLoading}
+            results={vulnList}
+            isLoading={vulnerabilities.isLoading}
           />
         </TabsContent>
 

@@ -1,9 +1,9 @@
-"""Service layer for GVM per-OID severity override rules."""
+"""Service layer for per-finding severity override rules."""
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.gvm_severity_rule import GvmSeverityRule
+from app.models.severity_rule import SeverityRule
 
 
 async def list_rules(
@@ -11,38 +11,38 @@ async def list_rules(
     *,
     network_id: int | None = None,
     oid: str | None = None,
-) -> list[GvmSeverityRule]:
+) -> list[SeverityRule]:
     """List rules. If ``network_id`` given, include global + that network."""
-    query = select(GvmSeverityRule)
+    query = select(SeverityRule)
     filters = []
     if network_id is not None:
         filters.append(
             or_(
-                GvmSeverityRule.network_id == network_id,
-                GvmSeverityRule.network_id.is_(None),
+                SeverityRule.network_id == network_id,
+                SeverityRule.network_id.is_(None),
             )
         )
     if oid is not None:
-        filters.append(GvmSeverityRule.oid == oid)
+        filters.append(SeverityRule.oid == oid)
     if filters:
         query = query.where(and_(*filters))
-    query = query.order_by(GvmSeverityRule.created_at.desc())
+    query = query.order_by(SeverityRule.created_at.desc())
     result = await db.execute(query)
     return list(result.scalars().all())
 
 
-async def get_rule(db: AsyncSession, rule_id: int) -> GvmSeverityRule | None:
-    return await db.get(GvmSeverityRule, rule_id)
+async def get_rule(db: AsyncSession, rule_id: int) -> SeverityRule | None:
+    return await db.get(SeverityRule, rule_id)
 
 
 async def get_rule_by_scope(
     db: AsyncSession, oid: str, network_id: int | None
-) -> GvmSeverityRule | None:
-    query = select(GvmSeverityRule).where(GvmSeverityRule.oid == oid)
+) -> SeverityRule | None:
+    query = select(SeverityRule).where(SeverityRule.oid == oid)
     if network_id is None:
-        query = query.where(GvmSeverityRule.network_id.is_(None))
+        query = query.where(SeverityRule.network_id.is_(None))
     else:
-        query = query.where(GvmSeverityRule.network_id == network_id)
+        query = query.where(SeverityRule.network_id == network_id)
     result = await db.execute(query)
     return result.scalar_one_or_none()
 
@@ -55,14 +55,14 @@ async def upsert_rule(
     severity_override: str,
     reason: str | None,
     created_by_user_id: int | None,
-) -> GvmSeverityRule:
+) -> SeverityRule:
     """Create-or-update a rule scoped to (oid, network_id)."""
     existing = await get_rule_by_scope(db, oid, network_id)
     if existing is not None:
         existing.severity_override = severity_override
         existing.reason = reason
         return existing
-    rule = GvmSeverityRule(
+    rule = SeverityRule(
         oid=oid,
         network_id=network_id,
         severity_override=severity_override,
@@ -76,11 +76,11 @@ async def upsert_rule(
 
 async def update_rule(
     db: AsyncSession,
-    rule: GvmSeverityRule,
+    rule: SeverityRule,
     *,
     severity_override: str | None = None,
     reason: str | None = None,
-) -> GvmSeverityRule:
+) -> SeverityRule:
     if severity_override is not None:
         rule.severity_override = severity_override
     if reason is not None:
@@ -88,7 +88,7 @@ async def update_rule(
     return rule
 
 
-async def delete_rule(db: AsyncSession, rule: GvmSeverityRule) -> None:
+async def delete_rule(db: AsyncSession, rule: SeverityRule) -> None:
     await db.delete(rule)
 
 
@@ -103,12 +103,12 @@ async def resolve_overrides(
     if not oids:
         return {}
     result = await db.execute(
-        select(GvmSeverityRule).where(
+        select(SeverityRule).where(
             and_(
-                GvmSeverityRule.oid.in_(oids),
+                SeverityRule.oid.in_(oids),
                 or_(
-                    GvmSeverityRule.network_id == network_id,
-                    GvmSeverityRule.network_id.is_(None),
+                    SeverityRule.network_id == network_id,
+                    SeverityRule.network_id.is_(None),
                 ),
             )
         )

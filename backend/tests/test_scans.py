@@ -7,6 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.network import Network
+from app.models.nse_template import NseTemplate
 from app.models.scan import ScanStatus, TriggerType
 from app.models.user import User
 from app.services.scans import (
@@ -35,6 +36,26 @@ class TestScanService:
         assert scan.network_id == network.id
         assert scan.scanner_id == network.scanner_id
         assert scan.status == ScanStatus.PLANNED
+        assert scan.trigger_type == TriggerType.MANUAL
+
+    async def test_create_manual_scan_uses_default_nse_profile(
+        self, db_session: AsyncSession, network: Network
+    ):
+        """Manual scans should copy the network's default NSE profile."""
+        template = NseTemplate(
+            name="DNS Recursion",
+            description="Checks for recursive DNS resolvers",
+            nse_scripts=["dns-recursion"],
+        )
+        db_session.add(template)
+        await db_session.flush()
+
+        network.nse_profile_id = template.id
+        await db_session.flush()
+
+        scan = await create_manual_scan(db_session, network)
+
+        assert scan.nse_template_id == template.id
         assert scan.trigger_type == TriggerType.MANUAL
 
     async def test_get_scan_by_id_exists(

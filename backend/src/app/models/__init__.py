@@ -10,7 +10,6 @@ from app.models.global_port_rule import GlobalPortRule
 from app.models.global_setting import GlobalSetting
 from app.models.gvm_library import GvmLibraryEntry
 from app.models.gvm_scanner_metadata import GvmScannerMetadata
-from app.models.gvm_severity_rule import GvmSeverityRule
 from app.models.host import Host
 from app.models.host_discovery_scan import HostDiscoveryScan
 from app.models.hostname_lookup import (
@@ -27,6 +26,7 @@ from app.models.port_rule import PortRule
 from app.models.scan import Scan
 from app.models.scan_log import ScanLog
 from app.models.scanner import Scanner
+from app.models.severity_rule import SeverityRule
 from app.models.ssh_scan_result import SSHScanResult
 from app.models.user import User
 from app.models.vulnerability import Vulnerability
@@ -51,7 +51,6 @@ __all__ = [
     "GlobalSetting",
     "GvmLibraryEntry",
     "GvmScannerMetadata",
-    "GvmSeverityRule",
     "Host",
     "HostDiscoveryScan",
     "HostnameLookup",
@@ -60,5 +59,6 @@ __all__ = [
     "NseTemplate",
     "NseScript",
     "NseResult",
+    "SeverityRule",
     "Vulnerability",
 ]

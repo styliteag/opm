@@ -91,6 +91,15 @@ def _filter_scripts(
     return kept
 
 
+def _protocol_scan_flags(scan_protocol: str) -> list[str]:
+    """Return explicit nmap scan-type flags for the requested protocol mix."""
+    if scan_protocol == "udp":
+        return ["-sU"]
+    if scan_protocol == "both":
+        return ["-sT", "-sU"]
+    return ["-sT"]
+
+
 class NseScanner:
     """NSE vulnerability scanner using nmap scripting engine."""
 
@@ -152,6 +161,7 @@ class NseScanner:
         command = [
             "nmap",
             "-Pn",              # Skip host discovery (already known live)
+            *_protocol_scan_flags(scan_protocol),
             "-sV",              # Service version detection (needed for vulners)
             "-T4",              # Aggressive timing
             "--script", scripts_str,

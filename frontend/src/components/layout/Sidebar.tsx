@@ -59,8 +59,8 @@ const adminNav: NavItem[] = [
     adminOnly: true,
   },
   {
-    label: "GVM Severity Rules",
-    href: "/admin/gvm-severity-rules",
+    label: "Severity Rules",
+    href: "/admin/severity-rules",
     icon: Shield,
     adminOnly: true,
   },

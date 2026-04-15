@@ -1,4 +1,4 @@
-"""Pydantic schemas for GVM per-OID severity override rules."""
+"""Pydantic schemas for per-finding severity override rules."""
 
 from datetime import datetime
 from typing import Literal
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 SeverityLabel = Literal["info", "low", "medium", "high", "critical"]
 
 
-class GvmSeverityRuleCreate(BaseModel):
+class SeverityRuleCreate(BaseModel):
     """Payload to create or upsert a severity rule."""
 
     oid: str
@@ -17,14 +17,14 @@ class GvmSeverityRuleCreate(BaseModel):
     reason: str | None = None
 
 
-class GvmSeverityRuleUpdate(BaseModel):
+class SeverityRuleUpdate(BaseModel):
     """Payload to edit an existing rule."""
 
     severity_override: SeverityLabel | None = None
     reason: str | None = None
 
 
-class GvmSeverityRuleResponse(BaseModel):
+class SeverityRuleResponse(BaseModel):
     """Full rule as returned by the API."""
 
     id: int
@@ -41,5 +41,5 @@ class GvmSeverityRuleResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class GvmSeverityRuleListResponse(BaseModel):
-    rules: list[GvmSeverityRuleResponse]
+class SeverityRuleListResponse(BaseModel):
+    rules: list[SeverityRuleResponse]
