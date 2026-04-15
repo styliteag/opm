@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Backend**: NSE findings are now persisted to the unified `vulnerabilities` table (source `nse`) in addition to `nse_results`, so the host detail Vulnerabilities panel and severity-rule dialog treat NSE output the same as GVM/nuclei.
 - **Backend**: NSE alert generation now flows through the shared severity-rule + threshold pipeline (default `medium`). Legacy eligibility is preserved — a finding still needs a CVE or `VULNERABLE` marker to alert on its native severity; rule-less findings like `ssl-enum-ciphers` "weak cipher" notes no longer auto-alert. Use a severity rule to promote them when desired.
 - **Backend**: nuclei alert generation now consults the shared `severity_rules` table — the composite `template_id:matcher_name` is the rule key, so operators can promote or demote specific matcher variants via the existing "Change alert severity" dialog. Previously the UI wrote rule rows for nuclei findings that the alert pipeline silently ignored. Alert messages gain the same `(severity promoted from X to Y via rule)` note already emitted for GVM and NSE.
+
+### Added
+
+- **Frontend**: admin `/admin/severity-rules` page now supports adding rules from scratch (free-text OID + scope + severity + reason), editing existing rules inline, and bulk export/import as JSON. Export writes `network_name` (not id) so files are portable between environments; import upserts on `(oid, network_id)` and skips entries for unknown networks with a warning.
 - **Backend**: `scans.create_manual_scan` is now a thin alias for `create_planned_scan(db, network, trigger_type=...)`. The scheduler sets the trigger type directly instead of post-patching the row.
 - **Scanner**: NSE phase emits explicit `-sT` / `-sU` / `-sT -sU` nmap flags based on the network's configured protocol mix.
 
