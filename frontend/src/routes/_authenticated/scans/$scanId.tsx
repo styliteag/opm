@@ -126,7 +126,10 @@ function ScanDetailPage() {
       {/* Scan Info */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { label: "Ports Found", value: String(data.port_count) },
+          {
+            label: "Ports Found",
+            value: String(data.port_count ?? data.open_ports?.length ?? 0),
+          },
           { label: "Trigger", value: data.trigger_type },
           {
             label: "Started",

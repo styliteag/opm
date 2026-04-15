@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import re
@@ -175,7 +176,7 @@ class GreenboneScanner:
 
                 # Fetch results
                 open_ports, vulnerabilities = self._fetch_results(
-                    gmp, task_id, logger
+                    gmp, task_id, target_cidr, logger
                 )
 
                 logger.info(
@@ -310,6 +311,7 @@ class GreenboneScanner:
         self,
         gmp: Any,
         task_id: str,
+        target_cidr: str,
         logger: logging.Logger,
     ) -> tuple[list[OpenPortResult], list[VulnerabilityResult]]:
         """Fetch and parse results from a completed GVM task."""
@@ -319,6 +321,7 @@ class GreenboneScanner:
         open_ports: list[OpenPortResult] = []
         vulnerabilities: list[VulnerabilityResult] = []
         seen_ports: set[tuple[str, int, str]] = set()
+        skipped_out_of_scope = 0
 
         for result_elem in tree.findall(".//result"):
             host_elem = result_elem.find("host")
@@ -329,6 +332,10 @@ class GreenboneScanner:
                 continue
 
             ip = host_elem.text or ""
+            if not self._host_matches_target(ip, target_cidr):
+                skipped_out_of_scope += 1
+                continue
+
             oid = nvt_elem.get("oid", "")
             name = self._get_text(nvt_elem, "name")
             description = self._get_text(result_elem, "description")
@@ -382,11 +389,23 @@ class GreenboneScanner:
                     )
 
         logger.info(
-            "Parsed %d vulnerabilities and %d unique open ports from GVM results",
+            "Parsed %d vulnerabilities and %d unique open ports from GVM results "
+            "(dropped %d out-of-scope results)",
             len(vulnerabilities),
             len(open_ports),
+            skipped_out_of_scope,
         )
         return open_ports, vulnerabilities
+
+    def _host_matches_target(self, host: str, target_cidr: str) -> bool:
+        """Return True when a result host belongs to the requested target scope."""
+        try:
+            target = ipaddress.ip_network(target_cidr, strict=False)
+            return ipaddress.ip_address(host) in target
+        except ValueError:
+            # Keep legacy behavior for unexpected/non-IP host values rather than
+            # dropping all results on parse failures.
+            return host == target_cidr or not host
 
     def _parse_port(self, port_text: str) -> tuple[int | None, str]:
         """Parse GVM port string like '443/tcp' into (port, protocol)."""
