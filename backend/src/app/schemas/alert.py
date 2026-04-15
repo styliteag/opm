@@ -36,6 +36,7 @@ class AlertResponse(BaseModel):
     id: int
     type: AlertType
     source: str = "port"
+    source_key: str | None = None
     network_id: int | None
     network_name: str | None
     global_open_port_id: int | None = None

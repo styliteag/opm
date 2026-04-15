@@ -54,6 +54,7 @@ export interface Alert {
   id: number;
   type: AlertType;
   source: string;
+  source_key: string | null;
   network_id: number | null;
   network_name: string | null;
   global_open_port_id: number | null;

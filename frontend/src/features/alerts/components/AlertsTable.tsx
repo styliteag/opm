@@ -16,6 +16,7 @@ import {
   Eye,
   XCircle,
   CheckCircle,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
 import { Tooltip, TooltipProvider } from "@/components/ui/tooltip";
+import { parseAlertSourceKey } from "@/features/severity-rules/lib/parseAlertSourceKey";
 import type { Alert } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
 
@@ -46,6 +48,7 @@ interface AlertsTableProps {
   onReopen?: (alertId: number) => void;
   onAccept?: (alertIds: number[]) => void;
   onDelete?: (alertId: number) => void;
+  onChangeSeverity?: (alert: Alert) => void;
   selectedIds: number[];
   onSelectChange: (ids: number[]) => void;
   sorting: SortingState;
@@ -96,6 +99,7 @@ function createColumns(props: {
   onReopen?: (alertId: number) => void;
   onAccept?: (alertIds: number[]) => void;
   onDelete?: (alertId: number) => void;
+  onChangeSeverity?: (alert: Alert) => void;
 }): ColumnDef<Alert>[] {
   return [
     {
@@ -288,6 +292,14 @@ function createColumns(props: {
                 <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
                 Accept (create rule)
               </DropdownMenuItem>
+              {parseAlertSourceKey(alert.source, alert.source_key) !== null && (
+                <DropdownMenuItem
+                  onClick={() => props.onChangeSeverity?.(alert)}
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+                  Change alert severity
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
@@ -311,14 +323,22 @@ export function AlertsTable({
   onReopen,
   onAccept,
   onDelete,
+  onChangeSeverity,
   selectedIds,
   onSelectChange,
   sorting,
   onSortingChange,
 }: AlertsTableProps) {
   const columns = useMemo(
-    () => createColumns({ onDismiss, onReopen, onAccept, onDelete }),
-    [onDismiss, onReopen, onAccept, onDelete],
+    () =>
+      createColumns({
+        onDismiss,
+        onReopen,
+        onAccept,
+        onDelete,
+        onChangeSeverity,
+      }),
+    [onDismiss, onReopen, onAccept, onDelete, onChangeSeverity],
   );
 
   const rowSelection = Object.fromEntries(

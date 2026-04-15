@@ -14,6 +14,8 @@ import { AlertFilters } from "@/features/alerts/components/AlertFilters";
 import { DismissModal } from "@/features/alerts/components/DismissModal";
 import { AcceptModal } from "@/features/alerts/components/AcceptModal";
 import { DeleteConfirmModal } from "@/features/alerts/components/DeleteConfirmModal";
+import { SeverityRuleDialog } from "@/features/severity-rules/components/SeverityRuleDialog";
+import { parseAlertSourceKey } from "@/features/severity-rules/lib/parseAlertSourceKey";
 import {
   useAlerts,
   useAlertMutations,
@@ -95,6 +97,13 @@ function AlertsPage() {
   const { bulkDelete, reopen } = useAlertMutations();
 
   const [deleteTarget, setDeleteTarget] = useState<number[] | null>(null);
+  const [severityRuleTarget, setSeverityRuleTarget] = useState<{
+    oid: string;
+    networkId: number | null;
+    networkName: string | null;
+    findingName: string;
+    nativeSeverity: string | null;
+  } | null>(null);
 
   const alertList = alerts.data?.alerts ?? [];
   const totalAlerts = alerts.data?.total ?? 0;
@@ -301,6 +310,17 @@ function AlertsPage() {
             onReopen={handleReopen}
             onAccept={(alertIds) => setAcceptTarget({ ids: alertIds })}
             onDelete={handleDelete}
+            onChangeSeverity={(alert) => {
+              const parsed = parseAlertSourceKey(alert.source, alert.source_key);
+              if (!parsed) return;
+              setSeverityRuleTarget({
+                oid: parsed.oid,
+                networkId: parsed.networkId,
+                networkName: alert.network_name,
+                findingName: alert.message.split(".")[0] ?? alert.source,
+                nativeSeverity: alert.severity_override ?? null,
+              });
+            }}
           />
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
@@ -381,6 +401,18 @@ function AlertsPage() {
               },
             );
           }}
+        />
+      )}
+
+      {severityRuleTarget && (
+        <SeverityRuleDialog
+          open
+          onClose={() => setSeverityRuleTarget(null)}
+          oid={severityRuleTarget.oid}
+          findingName={severityRuleTarget.findingName}
+          nativeSeverity={severityRuleTarget.nativeSeverity}
+          networkId={severityRuleTarget.networkId}
+          networkName={severityRuleTarget.networkName}
         />
       )}
     </div>

@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Frontend**: admin `/admin/severity-rules` page now supports adding rules from scratch (free-text OID + scope + severity + reason), editing existing rules inline, and bulk export/import as JSON. Export writes `network_name` (not id) so files are portable between environments; import upserts on `(oid, network_id)` and skips entries for unknown networks with a warning.
+- **Frontend**: alert rows for GVM, nuclei, and NSE findings now expose a "Change alert severity" action in the row menu on the Alerts list page. The action derives the OID from the alert's `source_key` and opens the existing severity-rule dialog preselected with the alert's network — no more navigating to host detail to tune a noisy finding. Port and SSH alerts don't show the action, and legacy alerts without a `source_key` hide it gracefully.
+- **Backend**: `AlertResponse` now exposes `source_key` so clients can reverse-map alerts to their severity-rule OID.
 
 ### Fixed
 

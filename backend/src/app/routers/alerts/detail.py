@@ -114,6 +114,7 @@ async def get_alert(
         id=alert.id,
         type=alert.alert_type,
         source=alert.source,
+        source_key=alert.source_key,
         network_id=alert.network_id,
         network_name=network_name,
         global_open_port_id=alert.global_open_port_id,
