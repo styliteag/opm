@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Backend**: new built-in NSE profile "Open DNS Resolver" (`dns-recursion` + `dns-cache-snoop`) to detect DNS resolvers abusable for DDoS reflection/amplification (CERT-Bund report pattern)
+- **Backend**: extend "High Risk Scan" NSE profile with `dns-recursion` and `dns-cache-snoop`
+
+### Changed
+
+- **Frontend**: remove ambiguous "None" option from NSE Profile selector on Network form; when the vulnerability phase is enabled, the profile now auto-defaults to "Vulners CVE Lookup" with inline helper text explaining the default behavior
+
 ## [2.2.17] - 2026-04-14
 
 ### Security

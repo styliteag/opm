@@ -84,6 +84,9 @@ BUILTIN_PROFILES: list[dict[str, Any]] = [
             # ssh — 2
             "ssh-auth-methods",
             "ssh-vuln-cve2018-15473",
+            # dns — 2
+            "dns-recursion",
+            "dns-cache-snoop",
         ],
         "script_args": {"vulners.showall": "true"},
         "category": "scan_profiles",
@@ -255,6 +258,18 @@ BUILTIN_PROFILES: list[dict[str, Any]] = [
         "name": "DNS Zone Transfer",
         "description": "Attempts DNS zone transfer (AXFR) to reveal all DNS records for a domain.",
         "nse_scripts": ["dns-zone-transfer"],
+        "severity": "high",
+        "category": "network",
+        "platform": "dns",
+        "priority": 2,
+    },
+    {
+        "name": "Open DNS Resolver",
+        "description": (
+            "Detects open recursive DNS resolvers abusable for DDoS"
+            " reflection/amplification attacks (CERT-Bund report pattern)."
+        ),
+        "nse_scripts": ["dns-recursion", "dns-cache-snoop"],
         "severity": "high",
         "category": "network",
         "platform": "dns",

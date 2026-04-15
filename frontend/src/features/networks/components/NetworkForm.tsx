@@ -263,7 +263,16 @@ export function NetworkForm({
   const vulnEnabled = (phases ?? []).some(
     (p) => p.name === "vulnerability" && p.enabled,
   );
-  const nseProfileMissing = vulnEnabled && !watchedNseProfileId;
+
+  const vulnersProfileId = (profiles.data?.profiles ?? []).find(
+    (p) => p.name === "Vulners CVE Lookup",
+  )?.id;
+
+  useEffect(() => {
+    if (vulnEnabled && !watchedNseProfileId && vulnersProfileId) {
+      setValue("nse_profile_id", vulnersProfileId);
+    }
+  }, [vulnEnabled, watchedNseProfileId, vulnersProfileId, setValue]);
 
   const estimate = computeScanEstimate(
     watchedCidr,
@@ -684,31 +693,22 @@ export function NetworkForm({
                   Phases
                 </legend>
                 <PhaseCards phases={phases} onChange={setPhases} scannerType={watchedScannerType as "masscan" | "nmap" | "greenbone"} />
-                <div
-                  className={`rounded-md transition-colors ${
-                    nseProfileMissing
-                      ? "border border-yellow-500/40 bg-yellow-500/5 p-3"
-                      : ""
-                  }`}
-                >
+                <div>
                   <Label htmlFor="nse_profile_id">
                     NSE Profile{vulnEnabled ? "" : " (optional)"}
                   </Label>
                   <Select id="nse_profile_id" {...register("nse_profile_id")}>
-                    <option value="">None</option>
                     {(profiles.data?.profiles ?? []).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>
                     ))}
                   </Select>
-                  {nseProfileMissing && (
-                    <p className="mt-1.5 text-xs text-yellow-500">
-                      Vulnerability phase is enabled — without a profile, only the
-                      default <span className="font-mono text-[11px]">vulners</span>{" "}
-                      script will run.
-                    </p>
-                  )}
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Defaults to <span className="font-mono text-[11px]">Vulners CVE Lookup</span>{" "}
+                    (CVE detection via version banners). Pick a more specific profile
+                    for targeted checks (e.g. <span className="font-mono text-[11px]">Open DNS Resolver</span>).
+                  </p>
                 </div>
 
                 <NucleiSettings enabled={watchedNucleiEnabled} />
