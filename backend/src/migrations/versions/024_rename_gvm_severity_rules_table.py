@@ -55,11 +55,13 @@ def _table_count(table_name: str) -> int:
 def upgrade() -> None:
     if _table_exists("severity_rules") and _table_exists("gvm_severity_rules"):
         if _table_count("severity_rules") == 0 and _table_count("gvm_severity_rules") > 0:
+            columns = (
+                "id, oid, network_id, severity_override, "
+                "reason, created_by_user_id, created_at, updated_at"
+            )
             op.execute(
-                "INSERT IGNORE INTO severity_rules "
-                "(id, oid, network_id, severity_override, reason, created_by_user_id, created_at, updated_at) "
-                "SELECT id, oid, network_id, severity_override, reason, created_by_user_id, created_at, updated_at "
-                "FROM gvm_severity_rules"
+                f"INSERT IGNORE INTO severity_rules ({columns}) "
+                f"SELECT {columns} FROM gvm_severity_rules"
             )
         return
     if _table_exists("severity_rules"):

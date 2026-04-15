@@ -13,8 +13,8 @@ from app.core.config import settings
 from app.core.database import async_session_factory
 from app.models.network import Network
 from app.models.scan import Scan, ScanStatus, TriggerType
+from app.services.scans import create_planned_scan
 from app.services.schedule_convert import build_trigger
-from app.services.scans import create_manual_scan
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +90,9 @@ async def evaluate_schedules() -> None:
                 if await _has_active_scan(db, network.id):
                     continue
 
-                scan = await create_manual_scan(db, network)
-                scan.trigger_type = TriggerType.SCHEDULED
+                await create_planned_scan(
+                    db, network, trigger_type=TriggerType.SCHEDULED
+                )
                 logger.info("Scheduled scan for network %s (%s)", network.name, network.id)
             except Exception:
                 logger.exception(

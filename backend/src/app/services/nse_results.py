@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert, AlertType
 from app.models.nse_result import NseResult
-from app.models.vulnerability import Vulnerability
 from app.models.scan import Scan, ScanStatus
 from app.models.scanner import Scanner
+from app.models.vulnerability import Vulnerability
 from app.schemas.nse import NseResultsSubmission, NseScriptResultPayload
 from app.schemas.vulnerability import VulnerabilityResultData, VulnerabilitySeverityLabel
 from app.services.severity_rules import resolve_overrides as _resolve_severity_overrides
@@ -179,6 +179,19 @@ async def submit_nse_results(
     return results_recorded
 
 
+def _has_native_alert_signal(finding: VulnerabilityResultData) -> bool:
+    """Return True when an NSE finding matches the legacy alert criteria.
+
+    Preserves pre-2.2.22 behaviour: only findings that carry a CVE or contain
+    the ``VULNERABLE`` marker in their script output are alert-eligible on
+    their native severity. Findings without those signals need an explicit
+    severity-override rule to promote them into alerting.
+    """
+    if finding.cve_ids:
+        return True
+    return "VULNERABLE" in finding.description.upper()
+
+
 async def _generate_nse_alerts(
     db: AsyncSession,
     scan: Scan,
@@ -187,7 +200,12 @@ async def _generate_nse_alerts(
     """Generate alerts for NSE findings using the shared severity-rule model.
 
     Applies the same per-OID severity-override table used by GVM/nuclei with a
-    default alert threshold of ``medium``.
+    default alert threshold of ``medium``. Findings without a CVE or
+    ``VULNERABLE`` marker only alert when promoted by an explicit severity
+    rule — this avoids the alert flood that would otherwise come from scripts
+    like ``ssl-enum-ciphers`` whose severity is inferred from keywords such as
+    ``WEAK`` or ``DEPRECATED``.
+
     Returns count of alerts created.
     """
     findings = [_to_vulnerability_payload(finding) for finding in nse_findings]
@@ -200,6 +218,11 @@ async def _generate_nse_alerts(
     alertable: list[tuple[VulnerabilityResultData, str]] = []
     candidate_keys: list[str] = []
     for finding in findings:
+        if not finding.description.strip():
+            continue
+        has_override = finding.oid in overrides
+        if not has_override and not _has_native_alert_signal(finding):
+            continue
         effective_severity = overrides.get(finding.oid, finding.severity_label.value)
         if _severity_below_threshold(effective_severity, None):
             continue
@@ -222,8 +245,6 @@ async def _generate_nse_alerts(
 
     alerts_created = 0
     for finding, effective_severity in alertable:
-        if not finding.description.strip():
-            continue
         source_key = _build_nse_source_key(scan.network_id, finding)
         if source_key in existing_keys:
             continue

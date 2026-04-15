@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Backend**: renamed `gvm_severity_rules` table and service to generic `severity_rules` — the same per-OID override mechanism now covers GVM, nuclei, and NSE findings. Existing rules migrate in place via migration `024_rename_severity_rules`. Admin page moved from `/admin/gvm-severity-rules` to `/admin/severity-rules`.
+- **Backend**: NSE findings are now persisted to the unified `vulnerabilities` table (source `nse`) in addition to `nse_results`, so the host detail Vulnerabilities panel and severity-rule dialog treat NSE output the same as GVM/nuclei.
+- **Backend**: NSE alert generation now flows through the shared severity-rule + threshold pipeline (default `medium`). Legacy eligibility is preserved — a finding still needs a CVE or `VULNERABLE` marker to alert on its native severity; rule-less findings like `ssl-enum-ciphers` "weak cipher" notes no longer auto-alert. Use a severity rule to promote them when desired.
+- **Backend**: `scans.create_manual_scan` is now a thin alias for `create_planned_scan(db, network, trigger_type=...)`. The scheduler sets the trigger type directly instead of post-patching the row.
+- **Scanner**: NSE phase emits explicit `-sT` / `-sU` / `-sT -sU` nmap flags based on the network's configured protocol mix.
+
+### Fixed
+
+- **Backend**: masscan/nmap networks with a default NSE profile now correctly receive an automatic `nmap_nse` vulnerability phase in the scanner job pipeline.
+- **Backend**: GVM scanner no longer reports findings from hosts outside the requested target scope.
+
 ## [2.2.21] - 2026-04-15
 
 ### Fixed

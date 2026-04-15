@@ -18,24 +18,33 @@ class ScanRepository(BaseRepository[Scan]):
     model = Scan
 
 
-async def create_manual_scan(db: AsyncSession, network: Network) -> Scan:
+async def create_planned_scan(
+    db: AsyncSession,
+    network: Network,
+    *,
+    trigger_type: TriggerType = TriggerType.MANUAL,
+) -> Scan:
     """
-    Create a new manual scan for a network.
+    Create a new planned scan for a network with the given trigger type.
 
-    Creates a scan record with status 'planned' and trigger_type 'manual'.
+    Attaches the network's default NSE profile (if any) so masscan/nmap
+    pipelines append an NSE vulnerability phase automatically.
     """
-    nse_template_id = network.nse_profile_id
-
     scan = Scan(
         network_id=network.id,
         scanner_id=network.scanner_id,
         status=ScanStatus.PLANNED,
-        trigger_type=TriggerType.MANUAL,
-        nse_template_id=nse_template_id,
+        trigger_type=trigger_type,
+        nse_template_id=network.nse_profile_id,
     )
     db.add(scan)
     await db.flush()
     return scan
+
+
+async def create_manual_scan(db: AsyncSession, network: Network) -> Scan:
+    """Backwards-compatible alias for :func:`create_planned_scan`."""
+    return await create_planned_scan(db, network, trigger_type=TriggerType.MANUAL)
 
 
 async def create_single_host_scan(
