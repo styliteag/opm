@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.22] - 2026-04-15
+
 ### Changed
 
 - **Backend**: renamed `gvm_severity_rules` table and service to generic `severity_rules` — the same per-OID override mechanism now covers GVM, nuclei, and NSE findings. Existing rules migrate in place via migration `024_rename_severity_rules`. Admin page moved from `/admin/gvm-severity-rules` to `/admin/severity-rules`.
