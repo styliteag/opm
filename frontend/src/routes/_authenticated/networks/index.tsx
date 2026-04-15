@@ -16,6 +16,7 @@ import {
 } from "@/features/dashboard/hooks/useDashboardData";
 import { useNetworkMutations } from "@/features/networks/hooks/useNetworkDetail";
 import { NetworkForm } from "@/features/networks/components/NetworkForm";
+import { PhasePills } from "@/features/networks/components/PhasePills";
 import { SSH_ALERT_KEYS } from "@/features/admin/hooks/useAdmin";
 import {
   formatRelativeTime,
@@ -45,18 +46,6 @@ function formatDuration(startedAt: string | null, completedAt: string | null): s
   const mins = Math.floor(secs / 60);
   const rem = secs % 60;
   return rem > 0 ? `${mins}m ${rem}s` : `${mins}m`;
-}
-
-function buildPhaseList(network: Network): string[] {
-  const phases: string[] = [];
-  if (network.scanner_type === "nse") {
-    phases.push("NSE");
-  } else {
-    phases.push(network.scanner_type === "masscan" ? "Masscan" : "Nmap");
-    if (network.ssh_probe_enabled) phases.push("SSH");
-    if (network.nuclei_enabled) phases.push("Nuclei");
-  }
-  return phases;
 }
 
 function formatTimeout(seconds: number | null): string {
@@ -347,7 +336,6 @@ function NetworksPage() {
           {sortedList.map((network) => {
             const scan = scanMap.get(network.id) as ScanSummary | undefined;
             const scanner = scannerMap.get(network.scanner_id);
-            const phases = buildPhaseList(network);
 
             return (
               <Link
@@ -422,16 +410,27 @@ function NetworksPage() {
 
                 {/* Phases + Config */}
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span>
-                    <span className="text-quaternary">Phases:</span>{" "}
-                    {phases.map((p, i) => (
-                      <span key={p}>
-                        {i > 0 && (
-                          <span className="text-quaternary mx-0.5">&rarr;</span>
-                        )}
-                        <span className="text-foreground">{p}</span>
-                      </span>
-                    ))}
+                  <span className="flex items-center gap-2">
+                    <span className="text-quaternary">Phases:</span>
+                    <PhasePills
+                      network={network}
+                      disabled={update.isPending}
+                      onToggle={(patch) =>
+                        update.mutate(
+                          { id: network.id, ...patch },
+                          {
+                            onSuccess: () =>
+                              toast.success(`Updated ${network.name}`),
+                            onError: (e) =>
+                              toast.error(
+                                e instanceof Error
+                                  ? e.message
+                                  : "Failed to update network",
+                              ),
+                          },
+                        )
+                      }
+                    />
                   </span>
                   <span>
                     <span className="text-quaternary">Scan timeout:</span>{" "}
