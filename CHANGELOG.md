@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.21] - 2026-04-15
+
 ### Fixed
 
 - **Backend**: GVM alert messages now include the finding's description (up to 400 chars) between the title and the CVE/solution lines, and render the native severity label as e.g. `info` instead of the enum repr `VulnerabilitySeverityLabel.INFO` in the promotion note.
