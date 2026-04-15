@@ -29,10 +29,10 @@ import { Route as AuthenticatedHostsHostIdRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAlertsAlertIdRouteImport } from './routes/_authenticated/alerts/$alertId'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminSshAlertDefaultsRouteImport } from './routes/_authenticated/admin/ssh-alert-defaults'
+import { Route as AuthenticatedAdminSeverityRulesRouteImport } from './routes/_authenticated/admin/severity-rules'
 import { Route as AuthenticatedAdminRolesRouteImport } from './routes/_authenticated/admin/roles'
 import { Route as AuthenticatedAdminOrganizationRouteImport } from './routes/_authenticated/admin/organization'
 import { Route as AuthenticatedAdminHostnameLookupRouteImport } from './routes/_authenticated/admin/hostname-lookup'
-import { Route as AuthenticatedAdminSeverityRulesRouteImport } from './routes/_authenticated/admin/severity-rules'
 import { Route as AuthenticatedAdminGvmLibraryRouteImport } from './routes/_authenticated/admin/gvm-library'
 import { Route as AuthenticatedNseEditorScriptNameRouteImport } from './routes/_authenticated/nse/editor.$scriptName'
 
@@ -145,6 +145,12 @@ const AuthenticatedAdminSshAlertDefaultsRoute =
     path: '/admin/ssh-alert-defaults',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminSeverityRulesRoute =
+  AuthenticatedAdminSeverityRulesRouteImport.update({
+    id: '/admin/severity-rules',
+    path: '/admin/severity-rules',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminRolesRoute = AuthenticatedAdminRolesRouteImport.update({
   id: '/admin/roles',
   path: '/admin/roles',
@@ -160,12 +166,6 @@ const AuthenticatedAdminHostnameLookupRoute =
   AuthenticatedAdminHostnameLookupRouteImport.update({
     id: '/admin/hostname-lookup',
     path: '/admin/hostname-lookup',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminSeverityRulesRoute =
-  AuthenticatedAdminSeverityRulesRouteImport.update({
-    id: '/admin/severity-rules',
-    path: '/admin/severity-rules',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminGvmLibraryRoute =
@@ -187,10 +187,10 @@ export interface FileRoutesByFullPath {
   '/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/trends': typeof AuthenticatedTrendsRoute
   '/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
-  '/admin/severity-rules': typeof AuthenticatedAdminSeverityRulesRoute
   '/admin/hostname-lookup': typeof AuthenticatedAdminHostnameLookupRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
+  '/admin/severity-rules': typeof AuthenticatedAdminSeverityRulesRoute
   '/admin/ssh-alert-defaults': typeof AuthenticatedAdminSshAlertDefaultsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/alerts/$alertId': typeof AuthenticatedAlertsAlertIdRoute
@@ -214,10 +214,10 @@ export interface FileRoutesByTo {
   '/trends': typeof AuthenticatedTrendsRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
-  '/admin/severity-rules': typeof AuthenticatedAdminSeverityRulesRoute
   '/admin/hostname-lookup': typeof AuthenticatedAdminHostnameLookupRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
+  '/admin/severity-rules': typeof AuthenticatedAdminSeverityRulesRoute
   '/admin/ssh-alert-defaults': typeof AuthenticatedAdminSshAlertDefaultsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/alerts/$alertId': typeof AuthenticatedAlertsAlertIdRoute
@@ -243,10 +243,10 @@ export interface FileRoutesById {
   '/_authenticated/trends': typeof AuthenticatedTrendsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
-  '/_authenticated/admin/severity-rules': typeof AuthenticatedAdminSeverityRulesRoute
   '/_authenticated/admin/hostname-lookup': typeof AuthenticatedAdminHostnameLookupRoute
   '/_authenticated/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/_authenticated/admin/roles': typeof AuthenticatedAdminRolesRoute
+  '/_authenticated/admin/severity-rules': typeof AuthenticatedAdminSeverityRulesRoute
   '/_authenticated/admin/ssh-alert-defaults': typeof AuthenticatedAdminSshAlertDefaultsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/alerts/$alertId': typeof AuthenticatedAlertsAlertIdRoute
@@ -272,10 +272,10 @@ export interface FileRouteTypes {
     | '/alert-rules'
     | '/trends'
     | '/admin/gvm-library'
-    | '/admin/severity-rules'
     | '/admin/hostname-lookup'
     | '/admin/organization'
     | '/admin/roles'
+    | '/admin/severity-rules'
     | '/admin/ssh-alert-defaults'
     | '/admin/users'
     | '/alerts/$alertId'
@@ -299,10 +299,10 @@ export interface FileRouteTypes {
     | '/trends'
     | '/'
     | '/admin/gvm-library'
-    | '/admin/severity-rules'
     | '/admin/hostname-lookup'
     | '/admin/organization'
     | '/admin/roles'
+    | '/admin/severity-rules'
     | '/admin/ssh-alert-defaults'
     | '/admin/users'
     | '/alerts/$alertId'
@@ -327,10 +327,10 @@ export interface FileRouteTypes {
     | '/_authenticated/trends'
     | '/_authenticated/'
     | '/_authenticated/admin/gvm-library'
-    | '/_authenticated/admin/severity-rules'
     | '/_authenticated/admin/hostname-lookup'
     | '/_authenticated/admin/organization'
     | '/_authenticated/admin/roles'
+    | '/_authenticated/admin/severity-rules'
     | '/_authenticated/admin/ssh-alert-defaults'
     | '/_authenticated/admin/users'
     | '/_authenticated/alerts/$alertId'
@@ -496,6 +496,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSshAlertDefaultsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/severity-rules': {
+      id: '/_authenticated/admin/severity-rules'
+      path: '/admin/severity-rules'
+      fullPath: '/admin/severity-rules'
+      preLoaderRoute: typeof AuthenticatedAdminSeverityRulesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/roles': {
       id: '/_authenticated/admin/roles'
       path: '/admin/roles'
@@ -515,13 +522,6 @@ declare module '@tanstack/react-router' {
       path: '/admin/hostname-lookup'
       fullPath: '/admin/hostname-lookup'
       preLoaderRoute: typeof AuthenticatedAdminHostnameLookupRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/severity-rules': {
-      id: '/_authenticated/admin/severity-rules'
-      path: '/admin/severity-rules'
-      fullPath: '/admin/severity-rules'
-      preLoaderRoute: typeof AuthenticatedAdminSeverityRulesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/gvm-library': {
@@ -546,10 +546,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTrendsRoute: typeof AuthenticatedTrendsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminGvmLibraryRoute: typeof AuthenticatedAdminGvmLibraryRoute
-  AuthenticatedAdminSeverityRulesRoute: typeof AuthenticatedAdminSeverityRulesRoute
   AuthenticatedAdminHostnameLookupRoute: typeof AuthenticatedAdminHostnameLookupRoute
   AuthenticatedAdminOrganizationRoute: typeof AuthenticatedAdminOrganizationRoute
   AuthenticatedAdminRolesRoute: typeof AuthenticatedAdminRolesRoute
+  AuthenticatedAdminSeverityRulesRoute: typeof AuthenticatedAdminSeverityRulesRoute
   AuthenticatedAdminSshAlertDefaultsRoute: typeof AuthenticatedAdminSshAlertDefaultsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAlertsAlertIdRoute: typeof AuthenticatedAlertsAlertIdRoute
@@ -573,11 +573,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTrendsRoute: AuthenticatedTrendsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminGvmLibraryRoute: AuthenticatedAdminGvmLibraryRoute,
-  AuthenticatedAdminSeverityRulesRoute:
-    AuthenticatedAdminSeverityRulesRoute,
   AuthenticatedAdminHostnameLookupRoute: AuthenticatedAdminHostnameLookupRoute,
   AuthenticatedAdminOrganizationRoute: AuthenticatedAdminOrganizationRoute,
   AuthenticatedAdminRolesRoute: AuthenticatedAdminRolesRoute,
+  AuthenticatedAdminSeverityRulesRoute: AuthenticatedAdminSeverityRulesRoute,
   AuthenticatedAdminSshAlertDefaultsRoute:
     AuthenticatedAdminSshAlertDefaultsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,

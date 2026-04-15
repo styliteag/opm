@@ -13,6 +13,10 @@ coverage
 dist-ssr
 *.local
 
+# TanStack Router generator temp dir (docker-dev writes into src/ to avoid EXDEV)
+src/.tanstack-tmp/
+.tanstack/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

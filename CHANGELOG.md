@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Backend**: masscan/nmap networks with a default NSE profile now correctly receive an automatic `nmap_nse` vulnerability phase in the scanner job pipeline.
 - **Backend**: GVM scanner no longer reports findings from hosts outside the requested target scope.
+- **Frontend**: regenerate `routeTree.gen.ts` so the TanStack Router plugin short-circuits on dev container boot instead of hitting an `EXDEV: cross-device link not permitted` error when renaming its temp file across the container-overlay → host bind-mount boundary.
 
 ## [2.2.21] - 2026-04-15
 
