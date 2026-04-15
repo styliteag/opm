@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.18] - 2026-04-15
+
 ### Added
 
 - **Backend**: new built-in NSE profile "Open DNS Resolver" (`dns-recursion` + `dns-cache-snoop`) to detect DNS resolvers abusable for DDoS reflection/amplification (CERT-Bund report pattern)
