@@ -86,7 +86,7 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 - `Scanner.kind` column (`"standard"` / `"gvm"` / `"unified"`) — set by admin at scanner creation or auto-detected by the scanner image on auth. `"unified"` means the scanner has both standard tools (masscan/nmap/nuclei) and a GVM socket, handling both job types. Existing scanners default to `"standard"` on migration 010
 - Network `scanner_type` must be `"greenbone"` with a `gvm_scan_config` (and optional `gvm_port_list`) — both are **names** of library/built-in entries, never UUIDs
 - Vulnerability results submitted to `POST /api/scanner/vulnerability-results` → stored in `vulnerabilities` table
-- Alerts generated for medium+ severity findings: `gvm_vulnerability` (no CVEs) and `gvm_cve_detected` (has CVEs)
+- Alerts generated for findings at or above the network's `gvm_alert_severity` threshold (default medium when null): `gvm_vulnerability` (no CVEs) and `gvm_cve_detected` (has CVEs). Threshold is edited on the Network form's Greenbone block.
 - Host detail page shows all GVM findings (including info/low) deduped by OID via `GET /api/hosts/{id}/vulnerabilities`
 - First startup downloads GVM vulnerability feeds — takes significant time; monitor via `docker compose -f compose-gvm.yml logs -f gvmd`
 
@@ -96,6 +96,14 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 - **Per-scanner mirror** (`gvm_scanner_metadata` table) is a live cache of what the scanner's GVM instance currently has. The `opm-scanner-gvm` agent posts full snapshots via `POST /api/scanner/gvm-metadata` on startup, every ~5 min while idle, and on-demand when `gvm_refresh: true` is piggybacked in the `/api/scanner/jobs` poll response (admin triggers via the scanner detail page).
 - **Auto-deploy before scan**: `/api/scanner/jobs/{id}/claim` returns `required_library_entries` whose names resolve via library lookup. The scanner self-checks against its own `get_scan_configs()` / `get_port_lists()`, fetches missing/drifted XML via `GET /api/scanner/gvm-library?kind=...&name=...`, imports via `gmp.import_config` / `gmp.import_port_list`. Version drift is detected via an `[OPM:hash=<sha256>]` marker embedded in the GVM `<comment>` element on import.
 - **Network resolution order** at scan claim: library → scanner-native mirror → fail fast. Built-in configs like "Full and fast" resolve via step 2 once the mirror is populated.
+
+#### GVM / Nuclei Severity Rules (per-OID alert overrides)
+
+- **Table** `gvm_severity_rules` (migration 023): `(oid, network_id)` unique, `network_id` nullable — null = global, set = network-scoped. Stores `severity_override` (info/low/medium/high/critical), optional `reason`, and `created_by_user_id`. Applies to both GVM OIDs and nuclei composite `template_id:matcher_name` keys (same `oid` column).
+- **Resolution order** inside `_generate_gvm_alerts` (`app/services/vulnerability_results.py`): network rule → global rule → native severity. The resolved severity is what the network's `gvm_alert_severity` threshold is applied to, and is stored on the resulting `Alert.severity_override`. Alert messages include a `(severity promoted from X to Y via rule)` note when a rule fired. Nuclei alert generation does **not** currently consult overrides (only the GVM path does).
+- **CRUD** via `/api/gvm-severity-rules` (operator+), upserts on `(oid, network_id)`. Admin list page at `/admin/gvm-severity-rules`.
+- **UI entry points**: "Change alert severity" button on expanded GVM/nuclei rows in the host detail Vulnerabilities panel and the scan detail Vulnerabilities table. Dialog defaults to "All networks (global)" scope regardless of context; network scope is available when the caller supplies a `networkId` (scan page does, host page doesn't — a host can belong to multiple networks).
+- **Intended workflow**: promote a noisy-but-benign info finding (e.g. DNS recursion OID `1.3.6.1.4.1.25623.1.0.147232`) to high so it reaches the alert layer, or demote a persistent medium nuisance to info to suppress it — without changing the network-wide `gvm_alert_severity` floor.
 
 ### Nuclei (post-phase vulnerability scanning)
 
