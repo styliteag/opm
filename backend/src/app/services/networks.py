@@ -63,6 +63,7 @@ async def create_network(
     gvm_scan_config: str | None = None,
     gvm_port_list: str | None = None,
     gvm_keep_reports: bool = True,
+    gvm_alert_severity: str | None = None,
     ssh_probe_enabled: bool = True,
     nuclei_enabled: bool = False,
     nuclei_tags: str | None = None,
@@ -98,6 +99,7 @@ async def create_network(
         gvm_scan_config=gvm_scan_config,
         gvm_port_list=gvm_port_list,
         gvm_keep_reports=gvm_keep_reports,
+        gvm_alert_severity=gvm_alert_severity,
         ssh_probe_enabled=ssh_probe_enabled,
         nuclei_enabled=nuclei_enabled,
         nuclei_tags=nuclei_tags,
@@ -134,6 +136,8 @@ async def update_network(
     gvm_port_list: str | None = None,
     clear_gvm_port_list: bool = False,
     gvm_keep_reports: bool | None = None,
+    gvm_alert_severity: str | None = None,
+    clear_gvm_alert_severity: bool = False,
     ssh_probe_enabled: bool | None = None,
     nuclei_enabled: bool | None = None,
     nuclei_tags: str | None = None,
@@ -199,6 +203,8 @@ async def update_network(
         network.gvm_port_list = gvm_port_list
     if gvm_keep_reports is not None:
         network.gvm_keep_reports = gvm_keep_reports
+    if gvm_alert_severity is not None or clear_gvm_alert_severity:
+        network.gvm_alert_severity = gvm_alert_severity
     if ssh_probe_enabled is not None:
         network.ssh_probe_enabled = ssh_probe_enabled
     if scanner_type is not None:

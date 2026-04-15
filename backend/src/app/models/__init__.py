@@ -10,6 +10,7 @@ from app.models.global_port_rule import GlobalPortRule
 from app.models.global_setting import GlobalSetting
 from app.models.gvm_library import GvmLibraryEntry
 from app.models.gvm_scanner_metadata import GvmScannerMetadata
+from app.models.gvm_severity_rule import GvmSeverityRule
 from app.models.host import Host
 from app.models.host_discovery_scan import HostDiscoveryScan
 from app.models.hostname_lookup import (
@@ -50,6 +51,7 @@ __all__ = [
     "GlobalSetting",
     "GvmLibraryEntry",
     "GvmScannerMetadata",
+    "GvmSeverityRule",
     "Host",
     "HostDiscoveryScan",
     "HostnameLookup",

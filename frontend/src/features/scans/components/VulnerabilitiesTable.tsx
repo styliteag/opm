@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { SeverityRuleDialog } from "@/features/gvm-severity-rules/components/SeverityRuleDialog";
 import { cn } from "@/lib/utils";
 import type { Vulnerability } from "@/lib/types";
 import { useVulnerabilities } from "@/features/scans/hooks/useVulnerabilities";
@@ -47,8 +49,17 @@ function SeveritySummary({ vulnerabilities }: { vulnerabilities: Vulnerability[]
   );
 }
 
-function VulnRow({ vuln }: { vuln: Vulnerability }) {
+function VulnRow({
+  vuln,
+  networkId,
+  networkName,
+}: {
+  vuln: Vulnerability;
+  networkId: number | null;
+  networkName: string | null;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [ruleOpen, setRuleOpen] = useState(false);
 
   return (
     <>
@@ -118,7 +129,36 @@ function VulnRow({ vuln }: { vuln: Vulnerability }) {
                 OID: {vuln.oid}
                 {vuln.cvss_base_vector ? ` | CVSS: ${vuln.cvss_base_vector}` : ""}
               </div>
+              <div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRuleOpen(true);
+                  }}
+                >
+                  <ShieldAlert className="mr-1 h-3.5 w-3.5" />
+                  Change alert severity
+                </Button>
+              </div>
             </div>
+          </td>
+        </tr>
+      )}
+      {ruleOpen && (
+        <tr className="hidden">
+          <td>
+            <SeverityRuleDialog
+              open={ruleOpen}
+              onClose={() => setRuleOpen(false)}
+              oid={vuln.oid}
+              findingName={vuln.name}
+              nativeSeverity={vuln.severity_label}
+              networkId={networkId}
+              networkName={networkName}
+            />
           </td>
         </tr>
       )}
@@ -126,7 +166,15 @@ function VulnRow({ vuln }: { vuln: Vulnerability }) {
   );
 }
 
-export function VulnerabilitiesTable({ scanId }: { scanId: number }) {
+export function VulnerabilitiesTable({
+  scanId,
+  networkId,
+  networkName,
+}: {
+  scanId: number;
+  networkId: number | null;
+  networkName: string | null;
+}) {
   const { data, isLoading } = useVulnerabilities(scanId);
 
   if (isLoading) {
@@ -162,7 +210,12 @@ export function VulnerabilitiesTable({ scanId }: { scanId: number }) {
           </thead>
           <tbody>
             {data.results.map((vuln) => (
-              <VulnRow key={vuln.id} vuln={vuln} />
+              <VulnRow
+                key={vuln.id}
+                vuln={vuln}
+                networkId={networkId}
+                networkName={networkName}
+              />
             ))}
           </tbody>
         </table>

@@ -15,6 +15,7 @@ from .routers import (
     global_ports,
     global_settings,
     gvm_library,
+    gvm_severity_rules,
     host_timeline,
     hosts,
     metadata,
@@ -97,6 +98,7 @@ app.include_router(alerts.router)
 app.include_router(global_ports.router)
 app.include_router(global_settings.router)
 app.include_router(gvm_library.router)
+app.include_router(gvm_severity_rules.router)
 app.include_router(host_timeline.router)
 app.include_router(hostname_lookup_router.router)
 app.include_router(hosts.router)

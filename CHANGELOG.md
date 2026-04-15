@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Backend**: per-network `gvm_alert_severity` setting controls the minimum GVM severity that raises alerts (info/low/medium/high/critical). Defaults to medium (previous hardcoded behavior). Findings below the threshold are still stored but do not fire alerts.
+- **Frontend**: Greenbone config block on the Network form now exposes the new "Alert threshold" selector; network detail page shows the effective threshold.
+- **Backend**: new `gvm_severity_rules` table with per-OID severity overrides, scoped either globally or to a single network. Rules are resolved before the alert threshold is applied, so you can promote a low-severity finding (e.g. DNS recursion) to alert-worthy or demote a noisy medium-severity finding. CRUD endpoints under `/api/gvm-severity-rules` (operator-only).
+- **Frontend**: "Change alert severity" button on GVM and nuclei findings in the host detail → Vulnerabilities tab opens a dialog for creating/editing/removing rules. New admin page `/admin/gvm-severity-rules` lists all rules with scope, override, reason, and creator.
+
 ## [2.2.18] - 2026-04-15
 
 ### Added

@@ -32,6 +32,7 @@ import { Route as AuthenticatedAdminSshAlertDefaultsRouteImport } from './routes
 import { Route as AuthenticatedAdminRolesRouteImport } from './routes/_authenticated/admin/roles'
 import { Route as AuthenticatedAdminOrganizationRouteImport } from './routes/_authenticated/admin/organization'
 import { Route as AuthenticatedAdminHostnameLookupRouteImport } from './routes/_authenticated/admin/hostname-lookup'
+import { Route as AuthenticatedAdminGvmSeverityRulesRouteImport } from './routes/_authenticated/admin/gvm-severity-rules'
 import { Route as AuthenticatedAdminGvmLibraryRouteImport } from './routes/_authenticated/admin/gvm-library'
 import { Route as AuthenticatedNseEditorScriptNameRouteImport } from './routes/_authenticated/nse/editor.$scriptName'
 
@@ -161,6 +162,12 @@ const AuthenticatedAdminHostnameLookupRoute =
     path: '/admin/hostname-lookup',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminGvmSeverityRulesRoute =
+  AuthenticatedAdminGvmSeverityRulesRouteImport.update({
+    id: '/admin/gvm-severity-rules',
+    path: '/admin/gvm-severity-rules',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminGvmLibraryRoute =
   AuthenticatedAdminGvmLibraryRouteImport.update({
     id: '/admin/gvm-library',
@@ -180,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/trends': typeof AuthenticatedTrendsRoute
   '/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
+  '/admin/gvm-severity-rules': typeof AuthenticatedAdminGvmSeverityRulesRoute
   '/admin/hostname-lookup': typeof AuthenticatedAdminHostnameLookupRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
@@ -206,6 +214,7 @@ export interface FileRoutesByTo {
   '/trends': typeof AuthenticatedTrendsRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
+  '/admin/gvm-severity-rules': typeof AuthenticatedAdminGvmSeverityRulesRoute
   '/admin/hostname-lookup': typeof AuthenticatedAdminHostnameLookupRoute
   '/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
@@ -234,6 +243,7 @@ export interface FileRoutesById {
   '/_authenticated/trends': typeof AuthenticatedTrendsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
+  '/_authenticated/admin/gvm-severity-rules': typeof AuthenticatedAdminGvmSeverityRulesRoute
   '/_authenticated/admin/hostname-lookup': typeof AuthenticatedAdminHostnameLookupRoute
   '/_authenticated/admin/organization': typeof AuthenticatedAdminOrganizationRoute
   '/_authenticated/admin/roles': typeof AuthenticatedAdminRolesRoute
@@ -262,6 +272,7 @@ export interface FileRouteTypes {
     | '/alert-rules'
     | '/trends'
     | '/admin/gvm-library'
+    | '/admin/gvm-severity-rules'
     | '/admin/hostname-lookup'
     | '/admin/organization'
     | '/admin/roles'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/trends'
     | '/'
     | '/admin/gvm-library'
+    | '/admin/gvm-severity-rules'
     | '/admin/hostname-lookup'
     | '/admin/organization'
     | '/admin/roles'
@@ -315,6 +327,7 @@ export interface FileRouteTypes {
     | '/_authenticated/trends'
     | '/_authenticated/'
     | '/_authenticated/admin/gvm-library'
+    | '/_authenticated/admin/gvm-severity-rules'
     | '/_authenticated/admin/hostname-lookup'
     | '/_authenticated/admin/organization'
     | '/_authenticated/admin/roles'
@@ -504,6 +517,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminHostnameLookupRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/gvm-severity-rules': {
+      id: '/_authenticated/admin/gvm-severity-rules'
+      path: '/admin/gvm-severity-rules'
+      fullPath: '/admin/gvm-severity-rules'
+      preLoaderRoute: typeof AuthenticatedAdminGvmSeverityRulesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/gvm-library': {
       id: '/_authenticated/admin/gvm-library'
       path: '/admin/gvm-library'
@@ -526,6 +546,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTrendsRoute: typeof AuthenticatedTrendsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminGvmLibraryRoute: typeof AuthenticatedAdminGvmLibraryRoute
+  AuthenticatedAdminGvmSeverityRulesRoute: typeof AuthenticatedAdminGvmSeverityRulesRoute
   AuthenticatedAdminHostnameLookupRoute: typeof AuthenticatedAdminHostnameLookupRoute
   AuthenticatedAdminOrganizationRoute: typeof AuthenticatedAdminOrganizationRoute
   AuthenticatedAdminRolesRoute: typeof AuthenticatedAdminRolesRoute
@@ -552,6 +573,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTrendsRoute: AuthenticatedTrendsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminGvmLibraryRoute: AuthenticatedAdminGvmLibraryRoute,
+  AuthenticatedAdminGvmSeverityRulesRoute:
+    AuthenticatedAdminGvmSeverityRulesRoute,
   AuthenticatedAdminHostnameLookupRoute: AuthenticatedAdminHostnameLookupRoute,
   AuthenticatedAdminOrganizationRoute: AuthenticatedAdminOrganizationRoute,
   AuthenticatedAdminRolesRoute: AuthenticatedAdminRolesRoute,

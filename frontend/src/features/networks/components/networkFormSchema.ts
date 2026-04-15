@@ -27,6 +27,10 @@ export const networkFormSchema = z.object({
     z.number().optional(),
   ),
   gvm_keep_reports: z.boolean().default(true),
+  gvm_alert_severity: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.enum(["info", "low", "medium", "high", "critical"]).optional(),
+  ),
   ssh_probe_enabled: z.boolean().default(true),
   nuclei_enabled: z.boolean().default(false),
   nuclei_tags: z.string().default("cve,exposure,misconfig,tech"),

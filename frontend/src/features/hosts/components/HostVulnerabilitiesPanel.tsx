@@ -1,7 +1,10 @@
 import { useMemo, useId, useState } from "react";
+import { ShieldAlert } from "lucide-react";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
+import { Button } from "@/components/ui/button";
+import { SeverityRuleDialog } from "@/features/gvm-severity-rules/components/SeverityRuleDialog";
 import type {
   NseResult,
   Vulnerability,
@@ -67,6 +70,7 @@ function parseNucleiOid(oid: string): { templateId: string; matcher: string | nu
 
 function NucleiVulnRow({ vuln }: { vuln: Vulnerability }) {
   const [expanded, setExpanded] = useState(true);
+  const [ruleOpen, setRuleOpen] = useState(false);
   const detailsId = useId();
   const { templateId, matcher } = parseNucleiOid(vuln.oid);
   const target =
@@ -150,7 +154,28 @@ function NucleiVulnRow({ vuln }: { vuln: Vulnerability }) {
               CVSS: {vuln.cvss_base_vector}
             </p>
           )}
+          <div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setRuleOpen(true)}
+            >
+              <ShieldAlert className="mr-1 h-3.5 w-3.5" />
+              Change alert severity
+            </Button>
+          </div>
         </div>
+      )}
+      {ruleOpen && (
+        <SeverityRuleDialog
+          open={ruleOpen}
+          onClose={() => setRuleOpen(false)}
+          oid={vuln.oid}
+          findingName={vuln.name}
+          nativeSeverity={vuln.severity_label}
+          networkId={null}
+        />
       )}
     </div>
   );
@@ -158,6 +183,7 @@ function NucleiVulnRow({ vuln }: { vuln: Vulnerability }) {
 
 function GvmVulnRow({ vuln }: { vuln: Vulnerability }) {
   const [expanded, setExpanded] = useState(false);
+  const [ruleOpen, setRuleOpen] = useState(false);
   const detailsId = useId();
 
   return (
@@ -233,7 +259,28 @@ function GvmVulnRow({ vuln }: { vuln: Vulnerability }) {
             </p>
           )}
           <p className="text-xs text-muted-foreground">OID: {vuln.oid}</p>
+          <div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setRuleOpen(true)}
+            >
+              <ShieldAlert className="mr-1 h-3.5 w-3.5" />
+              Change alert severity
+            </Button>
+          </div>
         </div>
+      )}
+      {ruleOpen && (
+        <SeverityRuleDialog
+          open={ruleOpen}
+          onClose={() => setRuleOpen(false)}
+          oid={vuln.oid}
+          findingName={vuln.name}
+          nativeSeverity={vuln.severity_label}
+          networkId={null}
+        />
       )}
     </div>
   );

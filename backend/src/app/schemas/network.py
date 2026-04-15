@@ -145,6 +145,17 @@ def validate_nuclei_severity(value: str | None) -> str | None:
     return value
 
 
+def validate_gvm_alert_severity(value: str | None) -> str | None:
+    """Validate gvm_alert_severity is one of the allowed severity labels."""
+    if value is None:
+        return None
+    if value not in VALID_NUCLEI_SEVERITIES:
+        raise ValueError(
+            f"Invalid gvm_alert_severity: must be one of {VALID_NUCLEI_SEVERITIES}"
+        )
+    return value
+
+
 def validate_nuclei_timeout(value: int | None) -> int | None:
     """Validate nuclei_timeout is within the allowed range (seconds)."""
     if value is None:
@@ -178,6 +189,7 @@ class NetworkCreateRequest(BaseModel):
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
     gvm_keep_reports: bool = True
+    gvm_alert_severity: str | None = None
     ssh_probe_enabled: bool = True
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None
@@ -237,6 +249,11 @@ class NetworkCreateRequest(BaseModel):
     def validate_nuclei_severity_value(cls, v: str | None) -> str | None:
         return validate_nuclei_severity(v)
 
+    @field_validator("gvm_alert_severity")
+    @classmethod
+    def validate_gvm_alert_severity_value(cls, v: str | None) -> str | None:
+        return validate_gvm_alert_severity(v)
+
     @field_validator("nuclei_timeout")
     @classmethod
     def validate_nuclei_timeout_value(cls, v: int | None) -> int | None:
@@ -274,6 +291,7 @@ class NetworkUpdateRequest(BaseModel):
     gvm_scan_config: str | None = None
     gvm_port_list: str | None = None
     gvm_keep_reports: bool | None = None
+    gvm_alert_severity: str | None = None
     ssh_probe_enabled: bool | None = None
     nuclei_enabled: bool | None = None
     nuclei_tags: str | None = None
@@ -341,6 +359,11 @@ class NetworkUpdateRequest(BaseModel):
     def validate_nuclei_severity_value(cls, v: str | None) -> str | None:
         return validate_nuclei_severity(v)
 
+    @field_validator("gvm_alert_severity")
+    @classmethod
+    def validate_gvm_alert_severity_value(cls, v: str | None) -> str | None:
+        return validate_gvm_alert_severity(v)
+
     @field_validator("nuclei_timeout")
     @classmethod
     def validate_nuclei_timeout_value(cls, v: int | None) -> int | None:
@@ -390,6 +413,7 @@ class NetworkResponse(BaseModel):
     gvm_scan_config: str | None
     gvm_port_list: str | None
     gvm_keep_reports: bool = True
+    gvm_alert_severity: str | None = None
     ssh_probe_enabled: bool = True
     nuclei_enabled: bool = False
     nuclei_tags: str | None = None

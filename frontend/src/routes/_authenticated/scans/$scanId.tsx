@@ -214,7 +214,11 @@ function ScanDetailPage() {
       )}
 
       {/* Vulnerabilities (GVM) */}
-      <VulnerabilitiesTable scanId={data.id} />
+      <VulnerabilitiesTable
+        scanId={data.id}
+        networkId={data.network_id}
+        networkName={data.network_name ?? null}
+      />
 
       {/* Scan Diff */}
       {data.status === "completed" && <ScanDiffView scanId={data.id} />}

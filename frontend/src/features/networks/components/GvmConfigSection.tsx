@@ -165,6 +165,22 @@ export function GvmConfigSection({
           Uncheck to have the scanner delete them after each run.
         </p>
       </div>
+
+      <div>
+        <Label htmlFor="gvm_alert_severity">Alert threshold</Label>
+        <Select id="gvm_alert_severity" {...register("gvm_alert_severity")}>
+          <option value="">Default (medium)</option>
+          <option value="info">Info</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+        </Select>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          Findings at or above this severity raise alerts. Lower-severity
+          findings are still stored and visible on the host detail page.
+        </p>
+      </div>
     </>
   );
 }

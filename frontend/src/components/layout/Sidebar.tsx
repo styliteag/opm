@@ -59,6 +59,12 @@ const adminNav: NavItem[] = [
     adminOnly: true,
   },
   {
+    label: "GVM Severity Rules",
+    href: "/admin/gvm-severity-rules",
+    icon: Shield,
+    adminOnly: true,
+  },
+  {
     label: "SSH Defaults",
     href: "/admin/ssh-alert-defaults",
     icon: KeyRound,

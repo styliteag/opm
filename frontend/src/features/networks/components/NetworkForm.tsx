@@ -158,6 +158,14 @@ export function NetworkForm({
           scan_schedule: source.scan_schedule ?? undefined,
           nse_profile_id: source.nse_profile_id ?? undefined,
           gvm_keep_reports: source.gvm_keep_reports ?? true,
+          gvm_alert_severity:
+            (source.gvm_alert_severity as
+              | "info"
+              | "low"
+              | "medium"
+              | "high"
+              | "critical"
+              | null) ?? undefined,
           ssh_probe_enabled: source.ssh_probe_enabled ?? true,
           nuclei_enabled: source.nuclei_enabled ?? false,
           nuclei_tags: source.nuclei_tags || "cve,exposure,misconfig,tech",
@@ -313,6 +321,8 @@ export function NetworkForm({
       gvm_scan_config: isGreenbone ? gvmScanConfig : null,
       gvm_port_list: isGreenbone && gvmPortList ? gvmPortList : null,
       gvm_keep_reports: isGreenbone ? rest.gvm_keep_reports : true,
+      gvm_alert_severity:
+        isGreenbone && rest.gvm_alert_severity ? rest.gvm_alert_severity : null,
       nuclei_enabled: nucleiActive,
       nuclei_tags: nucleiActive && rest.nuclei_tags ? rest.nuclei_tags : null,
       nuclei_exclude_tags:

@@ -76,6 +76,12 @@ class Network(Base):
         comment="Keep GVM task/target/report in the Greenbone instance after scan "
         "(visible in GSA); when false, scanner deletes them post-scan",
     )
+    gvm_alert_severity: Mapped[str | None] = mapped_column(
+        String(16),
+        nullable=True,
+        comment="Minimum GVM severity to raise alerts: info/low/medium/high/critical "
+        "(null = medium)",
+    )
     ssh_probe_enabled: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

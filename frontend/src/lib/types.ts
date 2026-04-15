@@ -122,6 +122,7 @@ export interface Network {
   gvm_scan_config: string | null;
   gvm_port_list: string | null;
   gvm_keep_reports: boolean;
+  gvm_alert_severity: string | null;
   ssh_probe_enabled: boolean;
   nuclei_enabled: boolean;
   nuclei_tags: string | null;

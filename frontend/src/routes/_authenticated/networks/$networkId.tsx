@@ -291,6 +291,10 @@ function NetworkDetailPage() {
                     label="Keep GVM Reports"
                     value={n.gvm_keep_reports ? "Yes" : "No"}
                   />
+                  <ConfigField
+                    label="Alert Threshold"
+                    value={n.gvm_alert_severity ?? "medium (default)"}
+                  />
                 </>
               )}
             </div>
