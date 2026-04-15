@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.19] - 2026-04-15
+
 ### Added
 
 - **Backend**: per-network `gvm_alert_severity` setting controls the minimum GVM severity that raises alerts (info/low/medium/high/critical). Defaults to medium (previous hardcoded behavior). Findings below the threshold are still stored but do not fire alerts.
