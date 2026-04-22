@@ -27,6 +27,8 @@ class UserResponse(BaseModel):
     role: UserRole
     is_active: bool
     theme_preference: ThemePreference
+    totp_enabled: bool = False
+    backup_codes_remaining: int = 0
 
     model_config = {"from_attributes": True}
 

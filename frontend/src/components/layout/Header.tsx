@@ -1,4 +1,4 @@
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { LogOut, Moon, Sun, SunMoon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -73,14 +73,18 @@ export function Header() {
 
         {user && (
           <div className="flex items-center gap-2">
-            <div className="text-right">
+            <Link
+              to="/settings/security"
+              className="text-right transition-opacity hover:opacity-80"
+              title="Security settings"
+            >
               <p className="text-sm font-emphasis text-foreground">
                 {user.email}
               </p>
               <Badge variant="outline" className="text-[10px] capitalize">
                 {user.role}
               </Badge>
-            </div>
+            </Link>
             <Button
               variant="ghost"
               size="icon"

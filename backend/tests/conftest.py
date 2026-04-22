@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.security import create_access_token, hash_password
 from app.models import Base
+from app.routers import auth as auth_router
+from app.services import two_factor as two_factor_service
 from app.models.network import Network
 from app.models.scan import Scan, ScanStatus, TriggerType
 from app.models.scanner import Scanner
@@ -17,6 +19,16 @@ from app.models.user import User, UserRole
 
 # Test database URL - use SQLite for fast, isolated tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_rate_limits():
+    """Reset module-global rate limiters between tests (login + 2FA verify)."""
+    auth_router._login_rate_store.clear()
+    two_factor_service._verify_rate_store.clear()
+    yield
+    auth_router._login_rate_store.clear()
+    two_factor_service._verify_rate_store.clear()
 
 
 @pytest.fixture

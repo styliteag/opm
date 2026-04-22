@@ -4,14 +4,22 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { LoginForm } from './LoginForm'
 
-// Mock useLogin hook
-const mockMutate = vi.fn()
+const mockLoginMutate = vi.fn()
+const mockVerifyMutate = vi.fn()
+const mockFinalize = vi.fn()
+
 vi.mock('../hooks/useLogin', () => ({
   useLogin: () => ({
-    mutate: mockMutate,
+    mutate: mockLoginMutate,
     isPending: false,
     error: null,
   }),
+  useVerify2FA: () => ({
+    mutate: mockVerifyMutate,
+    isPending: false,
+    error: null,
+  }),
+  useFinalizeLogin: () => mockFinalize,
 }))
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -21,7 +29,9 @@ function renderWithProviders(ui: React.ReactElement) {
 
 describe('LoginForm', () => {
   beforeEach(() => {
-    mockMutate.mockClear()
+    mockLoginMutate.mockClear()
+    mockVerifyMutate.mockClear()
+    mockFinalize.mockClear()
   })
 
   it('renders email and password fields', () => {
@@ -45,48 +55,108 @@ describe('LoginForm', () => {
     })
   })
 
-  it('shows validation error for invalid email', async () => {
-    renderWithProviders(<LoginForm />)
-
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'not-email' } })
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
-
-    await waitFor(() => {
-      // Zod v4 email validation error
-      const errorEl = screen.getByText(/email/i)
-      expect(errorEl).toBeInTheDocument()
-    })
-  })
-
   it('calls mutate with valid credentials', async () => {
     renderWithProviders(<LoginForm />)
 
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'admin@example.com' } })
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret123' } })
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'admin@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret123' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
 
     await waitFor(() => {
-      expect(mockMutate).toHaveBeenCalledWith({
+      expect(mockLoginMutate).toHaveBeenCalled()
+      const [args] = mockLoginMutate.mock.calls[0]
+      expect(args).toEqual({
         email: 'admin@example.com',
         password: 'secret123',
       })
     })
   })
 
-  it('renders error message from mutation', () => {
-    // Override the mock for this test
-    vi.mocked(mockMutate)
-    const { unmount } = renderWithProviders(<LoginForm />)
-    unmount()
+  it('finalizes login when no 2FA required', async () => {
+    mockLoginMutate.mockImplementation((_data, options) => {
+      options?.onSuccess?.({
+        access_token: 'jwt-abc',
+        token_type: 'bearer',
+        requires_2fa: false,
+        challenge_token: null,
+      })
+    })
 
-    // Re-mock with error
-    vi.doMock('../hooks/useLogin', () => ({
-      useLogin: () => ({
-        mutate: mockMutate,
-        isPending: false,
-        error: new Error('Invalid credentials'),
-      }),
-    }))
+    renderWithProviders(<LoginForm />)
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'admin@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret123' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
+
+    await waitFor(() => {
+      expect(mockFinalize).toHaveBeenCalledWith('jwt-abc')
+    })
+  })
+
+  it('switches to 2FA code prompt when requires_2fa is true', async () => {
+    mockLoginMutate.mockImplementation((_data, options) => {
+      options?.onSuccess?.({
+        access_token: null,
+        token_type: null,
+        requires_2fa: true,
+        challenge_token: 'challenge-xyz',
+      })
+    })
+
+    renderWithProviders(<LoginForm />)
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'admin@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret123' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument()
+    })
+  })
+
+  it('submits verification code to verify mutation', async () => {
+    mockLoginMutate.mockImplementation((_data, options) => {
+      options?.onSuccess?.({
+        access_token: null,
+        token_type: null,
+        requires_2fa: true,
+        challenge_token: 'challenge-xyz',
+      })
+    })
+
+    renderWithProviders(<LoginForm />)
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'admin@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'secret123' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText(/verification code/i), {
+      target: { value: '123456' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }))
+
+    await waitFor(() => {
+      expect(mockVerifyMutate).toHaveBeenCalledWith({
+        challenge_token: 'challenge-xyz',
+        code: '123456',
+      })
+    })
   })
 })

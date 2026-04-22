@@ -29,6 +29,7 @@ from app.models.scanner import Scanner
 from app.models.severity_rule import SeverityRule
 from app.models.ssh_scan_result import SSHScanResult
 from app.models.user import User
+from app.models.user_backup_code import UserBackupCode
 from app.models.vulnerability import Vulnerability
 
 __all__ = [
@@ -60,5 +61,6 @@ __all__ = [
     "NseScript",
     "NseResult",
     "SeverityRule",
+    "UserBackupCode",
     "Vulnerability",
 ]

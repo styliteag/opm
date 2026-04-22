@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, func
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,6 +13,7 @@ from app.models.base import Base
 if TYPE_CHECKING:
     from app.models.alert import Alert
     from app.models.alert_comment import AlertComment
+    from app.models.user_backup_code import UserBackupCode
 
 
 class UserRole(str, Enum):
@@ -47,6 +48,14 @@ class User(Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    totp_secret_pending: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, default=None
+    )
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    totp_last_used_step: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, default=None
+    )
     theme_preference: Mapped[ThemePreference] = mapped_column(
         SQLEnum(ThemePreference, values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
@@ -64,3 +73,8 @@ class User(Base):
         "AlertComment", back_populates="user"
     )
     assigned_alerts: Mapped[list["Alert"]] = relationship("Alert", back_populates="assigned_to")
+    backup_codes: Mapped[list["UserBackupCode"]] = relationship(
+        "UserBackupCode",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )

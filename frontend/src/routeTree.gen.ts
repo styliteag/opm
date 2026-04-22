@@ -19,6 +19,7 @@ import { Route as AuthenticatedScannersIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedNetworksIndexRouteImport } from './routes/_authenticated/networks/index'
 import { Route as AuthenticatedHostsIndexRouteImport } from './routes/_authenticated/hosts/index'
 import { Route as AuthenticatedAlertsIndexRouteImport } from './routes/_authenticated/alerts/index'
+import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings/security'
 import { Route as AuthenticatedScansScanIdRouteImport } from './routes/_authenticated/scans/$scanId'
 import { Route as AuthenticatedScannersScannerIdRouteImport } from './routes/_authenticated/scanners/$scannerId'
 import { Route as AuthenticatedNseResultsRouteImport } from './routes/_authenticated/nse/results'
@@ -86,6 +87,12 @@ const AuthenticatedAlertsIndexRoute =
   AuthenticatedAlertsIndexRouteImport.update({
     id: '/alerts/',
     path: '/alerts/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsSecurityRoute =
+  AuthenticatedSettingsSecurityRouteImport.update({
+    id: '/settings/security',
+    path: '/settings/security',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedScansScanIdRoute =
@@ -201,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/nse/results': typeof AuthenticatedNseResultsRoute
   '/scanners/$scannerId': typeof AuthenticatedScannersScannerIdRoute
   '/scans/$scanId': typeof AuthenticatedScansScanIdRoute
+  '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/alerts/': typeof AuthenticatedAlertsIndexRoute
   '/hosts/': typeof AuthenticatedHostsIndexRoute
   '/networks/': typeof AuthenticatedNetworksIndexRoute
@@ -228,6 +236,7 @@ export interface FileRoutesByTo {
   '/nse/results': typeof AuthenticatedNseResultsRoute
   '/scanners/$scannerId': typeof AuthenticatedScannersScannerIdRoute
   '/scans/$scanId': typeof AuthenticatedScansScanIdRoute
+  '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/alerts': typeof AuthenticatedAlertsIndexRoute
   '/hosts': typeof AuthenticatedHostsIndexRoute
   '/networks': typeof AuthenticatedNetworksIndexRoute
@@ -257,6 +266,7 @@ export interface FileRoutesById {
   '/_authenticated/nse/results': typeof AuthenticatedNseResultsRoute
   '/_authenticated/scanners/$scannerId': typeof AuthenticatedScannersScannerIdRoute
   '/_authenticated/scans/$scanId': typeof AuthenticatedScansScanIdRoute
+  '/_authenticated/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/_authenticated/alerts/': typeof AuthenticatedAlertsIndexRoute
   '/_authenticated/hosts/': typeof AuthenticatedHostsIndexRoute
   '/_authenticated/networks/': typeof AuthenticatedNetworksIndexRoute
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/nse/results'
     | '/scanners/$scannerId'
     | '/scans/$scanId'
+    | '/settings/security'
     | '/alerts/'
     | '/hosts/'
     | '/networks/'
@@ -313,6 +324,7 @@ export interface FileRouteTypes {
     | '/nse/results'
     | '/scanners/$scannerId'
     | '/scans/$scanId'
+    | '/settings/security'
     | '/alerts'
     | '/hosts'
     | '/networks'
@@ -341,6 +353,7 @@ export interface FileRouteTypes {
     | '/_authenticated/nse/results'
     | '/_authenticated/scanners/$scannerId'
     | '/_authenticated/scans/$scanId'
+    | '/_authenticated/settings/security'
     | '/_authenticated/alerts/'
     | '/_authenticated/hosts/'
     | '/_authenticated/networks/'
@@ -424,6 +437,13 @@ declare module '@tanstack/react-router' {
       path: '/alerts'
       fullPath: '/alerts/'
       preLoaderRoute: typeof AuthenticatedAlertsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings/security': {
+      id: '/_authenticated/settings/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof AuthenticatedSettingsSecurityRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/scans/$scanId': {
@@ -560,6 +580,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNseResultsRoute: typeof AuthenticatedNseResultsRoute
   AuthenticatedScannersScannerIdRoute: typeof AuthenticatedScannersScannerIdRoute
   AuthenticatedScansScanIdRoute: typeof AuthenticatedScansScanIdRoute
+  AuthenticatedSettingsSecurityRoute: typeof AuthenticatedSettingsSecurityRoute
   AuthenticatedAlertsIndexRoute: typeof AuthenticatedAlertsIndexRoute
   AuthenticatedHostsIndexRoute: typeof AuthenticatedHostsIndexRoute
   AuthenticatedNetworksIndexRoute: typeof AuthenticatedNetworksIndexRoute
@@ -588,6 +609,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNseResultsRoute: AuthenticatedNseResultsRoute,
   AuthenticatedScannersScannerIdRoute: AuthenticatedScannersScannerIdRoute,
   AuthenticatedScansScanIdRoute: AuthenticatedScansScanIdRoute,
+  AuthenticatedSettingsSecurityRoute: AuthenticatedSettingsSecurityRoute,
   AuthenticatedAlertsIndexRoute: AuthenticatedAlertsIndexRoute,
   AuthenticatedHostsIndexRoute: AuthenticatedHostsIndexRoute,
   AuthenticatedNetworksIndexRoute: AuthenticatedNetworksIndexRoute,

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Backend**: Two-factor authentication via TOTP. New columns `totp_secret`, `totp_secret_pending`, `totp_enabled`, `totp_last_used_step` on `users` plus a `user_backup_codes` table (migration `025_add_2fa_totp`). `/api/auth/login` now returns either a full access token or `{requires_2fa, challenge_token}`; the new `/api/auth/login/verify-2fa` exchanges the 5-minute challenge + 6-digit TOTP (or a backup code) for an access token. Self-service endpoints: `/api/auth/2fa/enroll/{start,verify}`, `/api/auth/2fa/disable`, `/api/auth/2fa/backup-codes/regenerate`. Admin reset via `DELETE /api/users/{id}/2fa` (refuses self-reset — admins disable their own via the self-service flow). `pyotp` added as a backend dependency — rebuild containers so it lands in the backend image.
+- **Frontend**: new `/settings/security` page with an in-page 2FA enrollment wizard (password reauth → QR code via `qrcode.react` + manual-entry secret → 10 plaintext backup codes shown once with text-file download), plus a manage panel to regenerate backup codes or disable 2FA. The login form now handles the two-step flow: when the backend requires 2FA the form switches to a one-time-code input that accepts both the 6-digit TOTP and a backup code. The email badge in the header links to `/settings/security`.
+- **Backend**: `/api/auth/me` now exposes `totp_enabled` and `backup_codes_remaining`. 2FA verify step is rate-limited to 5 attempts / 60s per user (stricter than the per-IP login limit).
+
+### Security
+
+- **Backend**: `get_current_user` is now an allow-list — rejects any JWT that carries a non-null `scope`. Previously only `scope="scanner"` tokens were rejected, which allowed a freshly-minted 2FA challenge token (`scope="2fa_challenge"`) to authenticate as the user and bypass the TOTP step entirely. The challenge token is also made single-use: a successful `/login/verify-2fa` bumps `token_version`, so the same challenge cannot be replayed within its 5-minute TTL. TOTP codes are additionally tracked via a new `totp_last_used_step` column so a captured code cannot be replayed within its ±90 s validity window. Self-service enrollment now requires a password confirmation on both `/2fa/enroll/start` and `/2fa/enroll/verify`, matching the existing pattern on disable/regenerate and preventing a hijacked bearer from silently binding a new authenticator to the victim's account.
+
+### Known issues
+
+- The 2FA verify rate limit (5 attempts / 60 s per user) is stored in per-process memory. Production runs 4 uvicorn workers, so the effective cross-pool cap is ~20/60 s per user. Move to Redis or a DB-backed counter if stricter compliance is required.
+
 ## [2.3.0] - 2026-04-15
 
 ## [2.2.22] - 2026-04-15

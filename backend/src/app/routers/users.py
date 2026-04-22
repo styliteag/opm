@@ -10,6 +10,7 @@ from app.schemas.user import (
     UserUpdateRequest,
 )
 from app.services import users as users_service
+from app.services.two_factor import delete_all_backup_codes
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -123,4 +124,36 @@ async def delete_user(
         )
 
     await users_service.delete_user(db, user)
+    await db.commit()
+
+
+@router.delete("/{user_id}/2fa", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_reset_2fa(
+    admin: AdminUser,
+    db: DbSession,
+    user_id: int,
+) -> None:
+    """Admin override: disable 2FA for a user and invalidate existing tokens."""
+    if user_id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Cannot reset your own 2FA via admin endpoint. "
+                "Use /api/auth/2fa/disable with password + current code."
+            ),
+        )
+
+    user = await users_service.get_user_by_id(db, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    user.totp_enabled = False
+    user.totp_secret = None
+    user.totp_secret_pending = None
+    user.totp_last_used_step = None
+    user.token_version += 1
+    await delete_all_backup_codes(db, user)
+    db.add(user)
     await db.commit()

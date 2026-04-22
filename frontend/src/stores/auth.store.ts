@@ -9,6 +9,8 @@ export interface User {
   email: string
   role: UserRole
   theme_preference: ThemePreference
+  totp_enabled?: boolean
+  backup_codes_remaining?: number
 }
 
 interface AuthState {

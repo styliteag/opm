@@ -9,6 +9,9 @@ vi.mock('@tanstack/react-router', () => ({
   useRouterState: () => ({
     location: { pathname: '/alerts' },
   }),
+  Link: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => (
+    <a {...props}>{children}</a>
+  ),
 }))
 
 import { Header } from './Header'

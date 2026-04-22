@@ -22,6 +22,7 @@ dependencies = [
     "reportlab>=4.0.0",
     "pillow>=12.2.0",
     "defusedxml>=0.7.1",
+    "pyotp>=2.9.0",
 ]
 
 [project.optional-dependencies]

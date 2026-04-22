@@ -36,8 +36,9 @@ async def get_current_user(
     if payload is None:
         raise credentials_exception
 
-    # Reject scanner-scoped tokens — they must not authenticate as users
-    if payload.get("scope") == "scanner":
+    # Allow-list: reject any token that carries a scope (scanner, 2fa_challenge,
+    # or anything added in the future). User access tokens have no scope field.
+    if payload.get("scope") is not None:
         raise credentials_exception
 
     user_id_str = payload.get("sub")
