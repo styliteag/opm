@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Trash2, ShieldCheck, ShieldOff } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Plus, Trash2, ShieldCheck, ShieldOff, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
@@ -93,6 +93,9 @@ function UsersPage() {
                 Status
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+                2FA
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                 Created
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
@@ -123,10 +126,29 @@ function UsersPage() {
                     variant={user.is_active ? "success" : "neutral"}
                   />
                 </td>
+                <td className="px-4 py-3">
+                  {user.totp_enabled ? (
+                    <span title="2FA enabled">
+                      <ShieldCheck className="h-4 w-4 text-green-500" />
+                    </span>
+                  ) : (
+                    <span title="2FA not enabled">
+                      <ShieldOff className="h-4 w-4 text-muted-foreground/40" />
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">
                   {formatRelativeTime(user.created_at)}
                 </td>
                 <td className="px-4 py-3 flex items-center gap-1">
+                  <Link
+                    to="/admin/users/$userId"
+                    params={{ userId: String(user.id) }}
+                    className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    title="Edit user"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Link>
                   <button
                     onClick={() =>
                       update.mutate(

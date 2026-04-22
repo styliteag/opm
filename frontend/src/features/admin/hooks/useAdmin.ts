@@ -8,6 +8,7 @@ interface UserItem {
   email: string;
   role: UserRole;
   is_active: boolean;
+  totp_enabled: boolean;
   theme_preference: string;
   created_at: string;
   updated_at: string;
@@ -41,6 +42,13 @@ export function useUsers() {
   });
 }
 
+export function useUser(id: number) {
+  return useQuery({
+    queryKey: ["users", id],
+    queryFn: () => fetchApi<UserItem>(`/api/users/${id}`),
+  });
+}
+
 export function useRoles() {
   return useQuery({
     queryKey: ["roles"],
@@ -71,6 +79,7 @@ export function useUserMutations() {
     }: {
       id: number;
       email?: string;
+      password?: string;
       role?: UserRole;
       is_active?: boolean;
     }) => putApi<UserItem>(`/api/users/${id}`, data),
@@ -82,7 +91,12 @@ export function useUserMutations() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
   });
 
-  return { create, update, remove };
+  const reset2fa = useMutation({
+    mutationFn: (id: number) => deleteApi(`/api/users/${id}/2fa`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+  });
+
+  return { create, update, remove, reset2fa };
 }
 
 export function useOrgMutations() {

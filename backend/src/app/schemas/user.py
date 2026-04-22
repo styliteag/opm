@@ -31,6 +31,7 @@ class UserResponse(BaseModel):
     email: str
     role: UserRole
     is_active: bool
+    totp_enabled: bool
     theme_preference: ThemePreference
     created_at: datetime
     updated_at: datetime
