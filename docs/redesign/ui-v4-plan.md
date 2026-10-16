@@ -105,7 +105,7 @@ story into COMPLETED-FEATURES.md (done at merge time, like v3).
 
 ## Open questions (decide during implementation)
 
-- SSH alert types below high after ADR 0013 — which stay alerting by type?
+- ~~SSH alert types below high after ADR 0013~~ — resolved: no threshold change; per-type toggles stay the control (ADR 0013).
 - Remove `PATCH /alerts/{id}/severity` endpoint or keep for API users?
 - Organization page fields (logo URL, policy URL) — used anywhere? Cut if not.
 - Quick picks for Expected reasons: static list, learned from history, or both?

@@ -24,5 +24,9 @@ medium, NSE default medium).
 - Backend change: default threshold resolution in `services/vulnerability_results.py`
   and `services/nse_results.py`; existing networks with an explicit threshold keep it,
   null means high after the change. Needs a CHANGELOG `Changed` entry and tests.
-- SSH alert severities must be mapped against the new floor (check which SSH alert types
-  are below high today and decide per type during implementation).
+- SSH alerts (resolved during implementation, 2026-10-16): SSH alert generation has no
+  severity threshold — each type (insecure auth, weak cipher, weak key exchange, outdated
+  version, config regression) is switched on/off via Settings → Rules → SSH defaults and
+  per-network overrides. No backend change: Home's high+ filter keeps lower-severity SSH
+  alerts off Home, they stay visible as findings on the host page, and the type toggles
+  remain the noise control. Decided by Claude while the user was AFK — review.
