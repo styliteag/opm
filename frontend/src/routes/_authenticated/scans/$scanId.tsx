@@ -189,8 +189,8 @@ function ScanDetailPage() {
                   <tr key={i} className="border-b border-border">
                     <td className="px-4 py-2 font-mono text-sm">
                       <Link
-                        to="/hosts"
-                        search={{ search: port.ip }}
+                        to="/ports"
+                        search={{ tab: "hosts", search: port.ip }}
                         className="text-foreground hover:text-primary transition-colors"
                       >
                         {port.ip}

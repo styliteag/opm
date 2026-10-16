@@ -157,8 +157,8 @@ function NetworkDetailPage() {
       {/* Quick Links */}
       <div className="flex items-center gap-2">
         <Link
-          to="/hosts"
-          search={{ network_id: id }}
+          to="/ports"
+          search={{ tab: "hosts", network_id: id }}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           <Monitor className="h-3.5 w-3.5 mr-1.5" />

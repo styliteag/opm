@@ -87,7 +87,8 @@ export function NseProfilesPage() {
         </div>
         <div className="flex gap-2">
           <Link
-            to="/nse/library"
+            to="/settings/scan-profiles"
+            search={{ tab: "scripts" }}
             className="flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <FileCode className="h-4 w-4" />

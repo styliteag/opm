@@ -1,112 +1,59 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  Bell,
-  Building,
   ChevronLeft,
   ChevronRight,
-  FileCode,
-  Gauge,
-  LayoutDashboard,
-  Monitor,
+  Home,
   Network,
-  Radar,
-  Server,
-  Settings2,
+  Settings,
   ShieldAlert,
-  Users,
+  Waypoints,
   Zap,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { hasRole } from "@/lib/roles";
-import { NAV_AREAS } from "@/lib/terminology";
+import { NAV_V4 } from "@/lib/terminology";
 import { cn } from "@/lib/utils";
-import type { UserRole } from "@/stores/auth.store";
-import { useAuthStore } from "@/stores/auth.store";
 import { useUiStore } from "@/stores/ui.store";
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  /** Path prefixes (besides `href`) that keep this entry highlighted. */
+  activePrefixes: string[];
 }
 
-interface NavArea {
-  label?: string;
-  minRole?: UserRole;
-  items: NavItem[];
-}
-
-const NAV_AREAS_CONFIG: NavArea[] = [
+// Four areas (ADR 0009). Settings is visible to everyone; its sub-nav filters by role.
+const NAV_ITEMS: NavItem[] = [
+  { label: NAV_V4.home, href: "/", icon: Home, activePrefixes: [] },
   {
-    items: [{ label: "Overview", href: "/overview", icon: Gauge }],
+    label: NAV_V4.ports,
+    href: "/ports",
+    icon: Waypoints,
+    activePrefixes: ["/hosts"],
   },
   {
-    label: NAV_AREAS.monitor,
-    items: [
-      { label: "Dashboard", href: "/", icon: LayoutDashboard },
-      { label: "Alerts", href: "/alerts", icon: ShieldAlert },
-      { label: "Hosts", href: "/hosts", icon: Monitor },
-      { label: "Scans", href: "/scans", icon: Radar },
-    ],
+    label: NAV_V4.networks,
+    href: "/networks",
+    icon: Network,
+    activePrefixes: ["/scans"],
   },
   {
-    label: NAV_AREAS.configuration,
-    minRole: "operator",
-    items: [
-      { label: "Networks", href: "/networks", icon: Network },
-      { label: "Scanners", href: "/scanners", icon: Server },
-      { label: "Scan Templates", href: "/scan-templates", icon: FileCode },
-      { label: "Alerting", href: "/alerting", icon: Bell },
-    ],
-  },
-  {
-    label: NAV_AREAS.administration,
-    minRole: "admin",
-    items: [
-      { label: "Users & Roles", href: "/admin/users", icon: Users },
-      { label: "Organization", href: "/admin/organization", icon: Building },
-      { label: "System", href: "/admin/system", icon: Settings2 },
-    ],
+    label: NAV_V4.settings,
+    href: "/settings",
+    icon: Settings,
+    activePrefixes: [],
   },
 ];
 
-function NavGroup({ area, collapsed }: { area: NavArea; collapsed: boolean }) {
-  const routerState = useRouterState();
-  const currentPath = routerState.location.pathname;
+function matchesPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
 
-  return (
-    <div className="space-y-1">
-      {area.label && !collapsed && (
-        <p className="px-3 py-1 text-xs font-emphasis uppercase tracking-wider text-muted-foreground">
-          {area.label}
-        </p>
-      )}
-      {area.items.map((item) => {
-        const isActive =
-          item.href === "/"
-            ? currentPath === "/"
-            : currentPath.startsWith(item.href);
-
-        return (
-          <Link
-            key={item.href}
-            to={item.href}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-              isActive
-                ? "bg-accent text-accent-foreground font-emphasis"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent",
-              collapsed && "justify-center px-2",
-            )}
-            title={collapsed ? item.label : undefined}
-          >
-            <item.icon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>{item.label}</span>}
-          </Link>
-        );
-      })}
-    </div>
+function isNavItemActive(item: NavItem, pathname: string): boolean {
+  if (item.href === "/") return pathname === "/";
+  return [item.href, ...item.activePrefixes].some((p) =>
+    matchesPrefix(pathname, p),
   );
 }
 
@@ -114,11 +61,9 @@ export function Sidebar() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const openQuickScan = useUiStore((s) => s.openQuickScan);
-  const userRole = useAuthStore((s) => s.user?.role);
-
-  const visibleAreas = NAV_AREAS_CONFIG.filter(
-    (area) => !area.minRole || hasRole(userRole, area.minRole),
-  );
+  const currentPath = useRouterState({
+    select: (s) => s.location.pathname,
+  });
 
   return (
     <aside
@@ -138,10 +83,28 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-4 overflow-y-auto p-3 scrollbar-none">
-        {visibleAreas.map((area) => (
-          <NavGroup key={area.label ?? "top"} area={area} collapsed={collapsed} />
-        ))}
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3 scrollbar-none">
+        {NAV_ITEMS.map((item) => {
+          const isActive = isNavItemActive(item, currentPath);
+          return (
+            <Link
+              key={item.href}
+              to={item.href}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                isActive
+                  ? "bg-accent text-accent-foreground font-emphasis"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent",
+                collapsed && "justify-center px-2",
+              )}
+              title={collapsed ? item.label : undefined}
+            >
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>{item.label}</span>}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Scan Now Button */}

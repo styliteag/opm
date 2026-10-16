@@ -13,16 +13,23 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedTrendsRouteImport } from './routes/_authenticated/trends'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedScanTemplatesRouteImport } from './routes/_authenticated/scan-templates'
+import { Route as AuthenticatedPortsRouteImport } from './routes/_authenticated/ports'
 import { Route as AuthenticatedOverviewRouteImport } from './routes/_authenticated/overview'
 import { Route as AuthenticatedAlertingRouteImport } from './routes/_authenticated/alerting'
 import { Route as AuthenticatedAlertRulesRouteImport } from './routes/_authenticated/alert-rules'
+import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedScansIndexRouteImport } from './routes/_authenticated/scans/index'
 import { Route as AuthenticatedScannersIndexRouteImport } from './routes/_authenticated/scanners/index'
 import { Route as AuthenticatedNetworksIndexRouteImport } from './routes/_authenticated/networks/index'
 import { Route as AuthenticatedHostsIndexRouteImport } from './routes/_authenticated/hosts/index'
 import { Route as AuthenticatedAlertsIndexRouteImport } from './routes/_authenticated/alerts/index'
+import { Route as AuthenticatedSettingsSystemRouteImport } from './routes/_authenticated/settings/system'
 import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings/security'
+import { Route as AuthenticatedSettingsScanProfilesRouteImport } from './routes/_authenticated/settings/scan-profiles'
+import { Route as AuthenticatedSettingsRulesRouteImport } from './routes/_authenticated/settings/rules'
+import { Route as AuthenticatedSettingsOrganizationRouteImport } from './routes/_authenticated/settings/organization'
 import { Route as AuthenticatedScansScanIdRouteImport } from './routes/_authenticated/scans/$scanId'
 import { Route as AuthenticatedScannersScannerIdRouteImport } from './routes/_authenticated/scanners/$scannerId'
 import { Route as AuthenticatedNseResultsRouteImport } from './routes/_authenticated/nse/results'
@@ -39,8 +46,13 @@ import { Route as AuthenticatedAdminRolesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminOrganizationRouteImport } from './routes/_authenticated/admin/organization'
 import { Route as AuthenticatedAdminHostnameLookupRouteImport } from './routes/_authenticated/admin/hostname-lookup'
 import { Route as AuthenticatedAdminGvmLibraryRouteImport } from './routes/_authenticated/admin/gvm-library'
+import { Route as AuthenticatedSettingsUsersIndexRouteImport } from './routes/_authenticated/settings/users/index'
+import { Route as AuthenticatedSettingsScannersIndexRouteImport } from './routes/_authenticated/settings/scanners/index'
+import { Route as AuthenticatedSettingsUsersUserIdRouteImport } from './routes/_authenticated/settings/users/$userId'
+import { Route as AuthenticatedSettingsScannersScannerIdRouteImport } from './routes/_authenticated/settings/scanners/$scannerId'
 import { Route as AuthenticatedNseEditorScriptNameRouteImport } from './routes/_authenticated/nse/editor.$scriptName'
 import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users_.$userId'
+import { Route as AuthenticatedSettingsScanProfilesScriptsScriptNameRouteImport } from './routes/_authenticated/settings/scan-profiles_.scripts.$scriptName'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -61,12 +73,22 @@ const AuthenticatedTrendsRoute = AuthenticatedTrendsRouteImport.update({
   path: '/trends',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedScanTemplatesRoute =
   AuthenticatedScanTemplatesRouteImport.update({
     id: '/scan-templates',
     path: '/scan-templates',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedPortsRoute = AuthenticatedPortsRouteImport.update({
+  id: '/ports',
+  path: '/ports',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedOverviewRoute = AuthenticatedOverviewRouteImport.update({
   id: '/overview',
   path: '/overview',
@@ -82,6 +104,12 @@ const AuthenticatedAlertRulesRoute = AuthenticatedAlertRulesRouteImport.update({
   path: '/alert-rules',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsIndexRoute =
+  AuthenticatedSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedScansIndexRoute = AuthenticatedScansIndexRouteImport.update({
   id: '/scans/',
   path: '/scans/',
@@ -110,11 +138,35 @@ const AuthenticatedAlertsIndexRoute =
     path: '/alerts/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsSystemRoute =
+  AuthenticatedSettingsSystemRouteImport.update({
+    id: '/system',
+    path: '/system',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsSecurityRoute =
   AuthenticatedSettingsSecurityRouteImport.update({
-    id: '/settings/security',
-    path: '/settings/security',
-    getParentRoute: () => AuthenticatedRoute,
+    id: '/security',
+    path: '/security',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsScanProfilesRoute =
+  AuthenticatedSettingsScanProfilesRouteImport.update({
+    id: '/scan-profiles',
+    path: '/scan-profiles',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsRulesRoute =
+  AuthenticatedSettingsRulesRouteImport.update({
+    id: '/rules',
+    path: '/rules',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsOrganizationRoute =
+  AuthenticatedSettingsOrganizationRouteImport.update({
+    id: '/organization',
+    path: '/organization',
+    getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const AuthenticatedScansScanIdRoute =
   AuthenticatedScansScanIdRouteImport.update({
@@ -208,6 +260,30 @@ const AuthenticatedAdminGvmLibraryRoute =
     path: '/admin/gvm-library',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsUsersIndexRoute =
+  AuthenticatedSettingsUsersIndexRouteImport.update({
+    id: '/users/',
+    path: '/users/',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsScannersIndexRoute =
+  AuthenticatedSettingsScannersIndexRouteImport.update({
+    id: '/scanners/',
+    path: '/scanners/',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsUsersUserIdRoute =
+  AuthenticatedSettingsUsersUserIdRouteImport.update({
+    id: '/users/$userId',
+    path: '/users/$userId',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsScannersScannerIdRoute =
+  AuthenticatedSettingsScannersScannerIdRouteImport.update({
+    id: '/scanners/$scannerId',
+    path: '/scanners/$scannerId',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedNseEditorScriptNameRoute =
   AuthenticatedNseEditorScriptNameRouteImport.update({
     id: '/nse/editor/$scriptName',
@@ -220,6 +296,12 @@ const AuthenticatedAdminUsersUserIdRoute =
     path: '/admin/users/$userId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsScanProfilesScriptsScriptNameRoute =
+  AuthenticatedSettingsScanProfilesScriptsScriptNameRouteImport.update({
+    id: '/scan-profiles_/scripts/$scriptName',
+    path: '/scan-profiles/scripts/$scriptName',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -227,7 +309,9 @@ export interface FileRoutesByFullPath {
   '/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/alerting': typeof AuthenticatedAlertingRoute
   '/overview': typeof AuthenticatedOverviewRoute
+  '/ports': typeof AuthenticatedPortsRoute
   '/scan-templates': typeof AuthenticatedScanTemplatesRoute
+  '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/trends': typeof AuthenticatedTrendsRoute
   '/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
   '/admin/hostname-lookup': typeof AuthenticatedAdminHostnameLookupRoute
@@ -245,20 +329,31 @@ export interface FileRoutesByFullPath {
   '/nse/results': typeof AuthenticatedNseResultsRoute
   '/scanners/$scannerId': typeof AuthenticatedScannersScannerIdRoute
   '/scans/$scanId': typeof AuthenticatedScansScanIdRoute
+  '/settings/organization': typeof AuthenticatedSettingsOrganizationRoute
+  '/settings/rules': typeof AuthenticatedSettingsRulesRoute
+  '/settings/scan-profiles': typeof AuthenticatedSettingsScanProfilesRoute
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
+  '/settings/system': typeof AuthenticatedSettingsSystemRoute
   '/alerts/': typeof AuthenticatedAlertsIndexRoute
   '/hosts/': typeof AuthenticatedHostsIndexRoute
   '/networks/': typeof AuthenticatedNetworksIndexRoute
   '/scanners/': typeof AuthenticatedScannersIndexRoute
   '/scans/': typeof AuthenticatedScansIndexRoute
+  '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/nse/editor/$scriptName': typeof AuthenticatedNseEditorScriptNameRoute
+  '/settings/scanners/$scannerId': typeof AuthenticatedSettingsScannersScannerIdRoute
+  '/settings/users/$userId': typeof AuthenticatedSettingsUsersUserIdRoute
+  '/settings/scanners/': typeof AuthenticatedSettingsScannersIndexRoute
+  '/settings/users/': typeof AuthenticatedSettingsUsersIndexRoute
+  '/settings/scan-profiles/scripts/$scriptName': typeof AuthenticatedSettingsScanProfilesScriptsScriptNameRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/alerting': typeof AuthenticatedAlertingRoute
   '/overview': typeof AuthenticatedOverviewRoute
+  '/ports': typeof AuthenticatedPortsRoute
   '/scan-templates': typeof AuthenticatedScanTemplatesRoute
   '/trends': typeof AuthenticatedTrendsRoute
   '/': typeof AuthenticatedIndexRoute
@@ -278,14 +373,24 @@ export interface FileRoutesByTo {
   '/nse/results': typeof AuthenticatedNseResultsRoute
   '/scanners/$scannerId': typeof AuthenticatedScannersScannerIdRoute
   '/scans/$scanId': typeof AuthenticatedScansScanIdRoute
+  '/settings/organization': typeof AuthenticatedSettingsOrganizationRoute
+  '/settings/rules': typeof AuthenticatedSettingsRulesRoute
+  '/settings/scan-profiles': typeof AuthenticatedSettingsScanProfilesRoute
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
+  '/settings/system': typeof AuthenticatedSettingsSystemRoute
   '/alerts': typeof AuthenticatedAlertsIndexRoute
   '/hosts': typeof AuthenticatedHostsIndexRoute
   '/networks': typeof AuthenticatedNetworksIndexRoute
   '/scanners': typeof AuthenticatedScannersIndexRoute
   '/scans': typeof AuthenticatedScansIndexRoute
+  '/settings': typeof AuthenticatedSettingsIndexRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/nse/editor/$scriptName': typeof AuthenticatedNseEditorScriptNameRoute
+  '/settings/scanners/$scannerId': typeof AuthenticatedSettingsScannersScannerIdRoute
+  '/settings/users/$userId': typeof AuthenticatedSettingsUsersUserIdRoute
+  '/settings/scanners': typeof AuthenticatedSettingsScannersIndexRoute
+  '/settings/users': typeof AuthenticatedSettingsUsersIndexRoute
+  '/settings/scan-profiles/scripts/$scriptName': typeof AuthenticatedSettingsScanProfilesScriptsScriptNameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -294,7 +399,9 @@ export interface FileRoutesById {
   '/_authenticated/alert-rules': typeof AuthenticatedAlertRulesRoute
   '/_authenticated/alerting': typeof AuthenticatedAlertingRoute
   '/_authenticated/overview': typeof AuthenticatedOverviewRoute
+  '/_authenticated/ports': typeof AuthenticatedPortsRoute
   '/_authenticated/scan-templates': typeof AuthenticatedScanTemplatesRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/_authenticated/trends': typeof AuthenticatedTrendsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/gvm-library': typeof AuthenticatedAdminGvmLibraryRoute
@@ -313,14 +420,24 @@ export interface FileRoutesById {
   '/_authenticated/nse/results': typeof AuthenticatedNseResultsRoute
   '/_authenticated/scanners/$scannerId': typeof AuthenticatedScannersScannerIdRoute
   '/_authenticated/scans/$scanId': typeof AuthenticatedScansScanIdRoute
+  '/_authenticated/settings/organization': typeof AuthenticatedSettingsOrganizationRoute
+  '/_authenticated/settings/rules': typeof AuthenticatedSettingsRulesRoute
+  '/_authenticated/settings/scan-profiles': typeof AuthenticatedSettingsScanProfilesRoute
   '/_authenticated/settings/security': typeof AuthenticatedSettingsSecurityRoute
+  '/_authenticated/settings/system': typeof AuthenticatedSettingsSystemRoute
   '/_authenticated/alerts/': typeof AuthenticatedAlertsIndexRoute
   '/_authenticated/hosts/': typeof AuthenticatedHostsIndexRoute
   '/_authenticated/networks/': typeof AuthenticatedNetworksIndexRoute
   '/_authenticated/scanners/': typeof AuthenticatedScannersIndexRoute
   '/_authenticated/scans/': typeof AuthenticatedScansIndexRoute
+  '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/admin/users_/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/_authenticated/nse/editor/$scriptName': typeof AuthenticatedNseEditorScriptNameRoute
+  '/_authenticated/settings/scanners/$scannerId': typeof AuthenticatedSettingsScannersScannerIdRoute
+  '/_authenticated/settings/users/$userId': typeof AuthenticatedSettingsUsersUserIdRoute
+  '/_authenticated/settings/scanners/': typeof AuthenticatedSettingsScannersIndexRoute
+  '/_authenticated/settings/users/': typeof AuthenticatedSettingsUsersIndexRoute
+  '/_authenticated/settings/scan-profiles_/scripts/$scriptName': typeof AuthenticatedSettingsScanProfilesScriptsScriptNameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -330,7 +447,9 @@ export interface FileRouteTypes {
     | '/alert-rules'
     | '/alerting'
     | '/overview'
+    | '/ports'
     | '/scan-templates'
+    | '/settings'
     | '/trends'
     | '/admin/gvm-library'
     | '/admin/hostname-lookup'
@@ -348,20 +467,31 @@ export interface FileRouteTypes {
     | '/nse/results'
     | '/scanners/$scannerId'
     | '/scans/$scanId'
+    | '/settings/organization'
+    | '/settings/rules'
+    | '/settings/scan-profiles'
     | '/settings/security'
+    | '/settings/system'
     | '/alerts/'
     | '/hosts/'
     | '/networks/'
     | '/scanners/'
     | '/scans/'
+    | '/settings/'
     | '/admin/users/$userId'
     | '/nse/editor/$scriptName'
+    | '/settings/scanners/$scannerId'
+    | '/settings/users/$userId'
+    | '/settings/scanners/'
+    | '/settings/users/'
+    | '/settings/scan-profiles/scripts/$scriptName'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/alert-rules'
     | '/alerting'
     | '/overview'
+    | '/ports'
     | '/scan-templates'
     | '/trends'
     | '/'
@@ -381,14 +511,24 @@ export interface FileRouteTypes {
     | '/nse/results'
     | '/scanners/$scannerId'
     | '/scans/$scanId'
+    | '/settings/organization'
+    | '/settings/rules'
+    | '/settings/scan-profiles'
     | '/settings/security'
+    | '/settings/system'
     | '/alerts'
     | '/hosts'
     | '/networks'
     | '/scanners'
     | '/scans'
+    | '/settings'
     | '/admin/users/$userId'
     | '/nse/editor/$scriptName'
+    | '/settings/scanners/$scannerId'
+    | '/settings/users/$userId'
+    | '/settings/scanners'
+    | '/settings/users'
+    | '/settings/scan-profiles/scripts/$scriptName'
   id:
     | '__root__'
     | '/_authenticated'
@@ -396,7 +536,9 @@ export interface FileRouteTypes {
     | '/_authenticated/alert-rules'
     | '/_authenticated/alerting'
     | '/_authenticated/overview'
+    | '/_authenticated/ports'
     | '/_authenticated/scan-templates'
+    | '/_authenticated/settings'
     | '/_authenticated/trends'
     | '/_authenticated/'
     | '/_authenticated/admin/gvm-library'
@@ -415,14 +557,24 @@ export interface FileRouteTypes {
     | '/_authenticated/nse/results'
     | '/_authenticated/scanners/$scannerId'
     | '/_authenticated/scans/$scanId'
+    | '/_authenticated/settings/organization'
+    | '/_authenticated/settings/rules'
+    | '/_authenticated/settings/scan-profiles'
     | '/_authenticated/settings/security'
+    | '/_authenticated/settings/system'
     | '/_authenticated/alerts/'
     | '/_authenticated/hosts/'
     | '/_authenticated/networks/'
     | '/_authenticated/scanners/'
     | '/_authenticated/scans/'
+    | '/_authenticated/settings/'
     | '/_authenticated/admin/users_/$userId'
     | '/_authenticated/nse/editor/$scriptName'
+    | '/_authenticated/settings/scanners/$scannerId'
+    | '/_authenticated/settings/users/$userId'
+    | '/_authenticated/settings/scanners/'
+    | '/_authenticated/settings/users/'
+    | '/_authenticated/settings/scan-profiles_/scripts/$scriptName'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -460,11 +612,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTrendsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/scan-templates': {
       id: '/_authenticated/scan-templates'
       path: '/scan-templates'
       fullPath: '/scan-templates'
       preLoaderRoute: typeof AuthenticatedScanTemplatesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/ports': {
+      id: '/_authenticated/ports'
+      path: '/ports'
+      fullPath: '/ports'
+      preLoaderRoute: typeof AuthenticatedPortsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/overview': {
@@ -487,6 +653,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/alert-rules'
       preLoaderRoute: typeof AuthenticatedAlertRulesRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings/': {
+      id: '/_authenticated/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/scans/': {
       id: '/_authenticated/scans/'
@@ -523,12 +696,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAlertsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/system': {
+      id: '/_authenticated/settings/system'
+      path: '/system'
+      fullPath: '/settings/system'
+      preLoaderRoute: typeof AuthenticatedSettingsSystemRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
     '/_authenticated/settings/security': {
       id: '/_authenticated/settings/security'
-      path: '/settings/security'
+      path: '/security'
       fullPath: '/settings/security'
       preLoaderRoute: typeof AuthenticatedSettingsSecurityRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/scan-profiles': {
+      id: '/_authenticated/settings/scan-profiles'
+      path: '/scan-profiles'
+      fullPath: '/settings/scan-profiles'
+      preLoaderRoute: typeof AuthenticatedSettingsScanProfilesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/rules': {
+      id: '/_authenticated/settings/rules'
+      path: '/rules'
+      fullPath: '/settings/rules'
+      preLoaderRoute: typeof AuthenticatedSettingsRulesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/organization': {
+      id: '/_authenticated/settings/organization'
+      path: '/organization'
+      fullPath: '/settings/organization'
+      preLoaderRoute: typeof AuthenticatedSettingsOrganizationRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/scans/$scanId': {
       id: '/_authenticated/scans/$scanId'
@@ -642,6 +843,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminGvmLibraryRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/users/': {
+      id: '/_authenticated/settings/users/'
+      path: '/users'
+      fullPath: '/settings/users/'
+      preLoaderRoute: typeof AuthenticatedSettingsUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/scanners/': {
+      id: '/_authenticated/settings/scanners/'
+      path: '/scanners'
+      fullPath: '/settings/scanners/'
+      preLoaderRoute: typeof AuthenticatedSettingsScannersIndexRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/users/$userId': {
+      id: '/_authenticated/settings/users/$userId'
+      path: '/users/$userId'
+      fullPath: '/settings/users/$userId'
+      preLoaderRoute: typeof AuthenticatedSettingsUsersUserIdRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/scanners/$scannerId': {
+      id: '/_authenticated/settings/scanners/$scannerId'
+      path: '/scanners/$scannerId'
+      fullPath: '/settings/scanners/$scannerId'
+      preLoaderRoute: typeof AuthenticatedSettingsScannersScannerIdRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
     '/_authenticated/nse/editor/$scriptName': {
       id: '/_authenticated/nse/editor/$scriptName'
       path: '/nse/editor/$scriptName'
@@ -656,14 +885,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersUserIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/scan-profiles_/scripts/$scriptName': {
+      id: '/_authenticated/settings/scan-profiles_/scripts/$scriptName'
+      path: '/scan-profiles/scripts/$scriptName'
+      fullPath: '/settings/scan-profiles/scripts/$scriptName'
+      preLoaderRoute: typeof AuthenticatedSettingsScanProfilesScriptsScriptNameRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
   }
 }
+
+interface AuthenticatedSettingsRouteChildren {
+  AuthenticatedSettingsOrganizationRoute: typeof AuthenticatedSettingsOrganizationRoute
+  AuthenticatedSettingsRulesRoute: typeof AuthenticatedSettingsRulesRoute
+  AuthenticatedSettingsScanProfilesRoute: typeof AuthenticatedSettingsScanProfilesRoute
+  AuthenticatedSettingsSecurityRoute: typeof AuthenticatedSettingsSecurityRoute
+  AuthenticatedSettingsSystemRoute: typeof AuthenticatedSettingsSystemRoute
+  AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
+  AuthenticatedSettingsScannersScannerIdRoute: typeof AuthenticatedSettingsScannersScannerIdRoute
+  AuthenticatedSettingsUsersUserIdRoute: typeof AuthenticatedSettingsUsersUserIdRoute
+  AuthenticatedSettingsScannersIndexRoute: typeof AuthenticatedSettingsScannersIndexRoute
+  AuthenticatedSettingsUsersIndexRoute: typeof AuthenticatedSettingsUsersIndexRoute
+  AuthenticatedSettingsScanProfilesScriptsScriptNameRoute: typeof AuthenticatedSettingsScanProfilesScriptsScriptNameRoute
+}
+
+const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
+  AuthenticatedSettingsOrganizationRoute:
+    AuthenticatedSettingsOrganizationRoute,
+  AuthenticatedSettingsRulesRoute: AuthenticatedSettingsRulesRoute,
+  AuthenticatedSettingsScanProfilesRoute:
+    AuthenticatedSettingsScanProfilesRoute,
+  AuthenticatedSettingsSecurityRoute: AuthenticatedSettingsSecurityRoute,
+  AuthenticatedSettingsSystemRoute: AuthenticatedSettingsSystemRoute,
+  AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
+  AuthenticatedSettingsScannersScannerIdRoute:
+    AuthenticatedSettingsScannersScannerIdRoute,
+  AuthenticatedSettingsUsersUserIdRoute: AuthenticatedSettingsUsersUserIdRoute,
+  AuthenticatedSettingsScannersIndexRoute:
+    AuthenticatedSettingsScannersIndexRoute,
+  AuthenticatedSettingsUsersIndexRoute: AuthenticatedSettingsUsersIndexRoute,
+  AuthenticatedSettingsScanProfilesScriptsScriptNameRoute:
+    AuthenticatedSettingsScanProfilesScriptsScriptNameRoute,
+}
+
+const AuthenticatedSettingsRouteWithChildren =
+  AuthenticatedSettingsRoute._addFileChildren(
+    AuthenticatedSettingsRouteChildren,
+  )
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAlertRulesRoute: typeof AuthenticatedAlertRulesRoute
   AuthenticatedAlertingRoute: typeof AuthenticatedAlertingRoute
   AuthenticatedOverviewRoute: typeof AuthenticatedOverviewRoute
+  AuthenticatedPortsRoute: typeof AuthenticatedPortsRoute
   AuthenticatedScanTemplatesRoute: typeof AuthenticatedScanTemplatesRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedTrendsRoute: typeof AuthenticatedTrendsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminGvmLibraryRoute: typeof AuthenticatedAdminGvmLibraryRoute
@@ -682,7 +958,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNseResultsRoute: typeof AuthenticatedNseResultsRoute
   AuthenticatedScannersScannerIdRoute: typeof AuthenticatedScannersScannerIdRoute
   AuthenticatedScansScanIdRoute: typeof AuthenticatedScansScanIdRoute
-  AuthenticatedSettingsSecurityRoute: typeof AuthenticatedSettingsSecurityRoute
   AuthenticatedAlertsIndexRoute: typeof AuthenticatedAlertsIndexRoute
   AuthenticatedHostsIndexRoute: typeof AuthenticatedHostsIndexRoute
   AuthenticatedNetworksIndexRoute: typeof AuthenticatedNetworksIndexRoute
@@ -696,7 +971,9 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAlertRulesRoute: AuthenticatedAlertRulesRoute,
   AuthenticatedAlertingRoute: AuthenticatedAlertingRoute,
   AuthenticatedOverviewRoute: AuthenticatedOverviewRoute,
+  AuthenticatedPortsRoute: AuthenticatedPortsRoute,
   AuthenticatedScanTemplatesRoute: AuthenticatedScanTemplatesRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedTrendsRoute: AuthenticatedTrendsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminGvmLibraryRoute: AuthenticatedAdminGvmLibraryRoute,
@@ -716,7 +993,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNseResultsRoute: AuthenticatedNseResultsRoute,
   AuthenticatedScannersScannerIdRoute: AuthenticatedScannersScannerIdRoute,
   AuthenticatedScansScanIdRoute: AuthenticatedScansScanIdRoute,
-  AuthenticatedSettingsSecurityRoute: AuthenticatedSettingsSecurityRoute,
   AuthenticatedAlertsIndexRoute: AuthenticatedAlertsIndexRoute,
   AuthenticatedHostsIndexRoute: AuthenticatedHostsIndexRoute,
   AuthenticatedNetworksIndexRoute: AuthenticatedNetworksIndexRoute,

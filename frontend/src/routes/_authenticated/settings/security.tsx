@@ -14,11 +14,11 @@ function SecuritySettingsPage() {
   const { data: user, isLoading } = useCurrentUser()
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-6">
+    <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-strong text-foreground">
-          Account Security
-        </h1>
+        <h2 className="text-xl font-strong text-foreground">
+          Account security
+        </h2>
         <p className="text-sm text-muted-foreground">
           Password and two-factor authentication for your account.
         </p>

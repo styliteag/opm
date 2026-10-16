@@ -5,6 +5,8 @@ import { useUiStore } from "@/stores/ui.store";
 import type { UserRole } from "@/stores/auth.store";
 import { useAuthStore } from "@/stores/auth.store";
 
+let mockPathname = "/";
+
 // Mock TanStack Router
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -21,9 +23,12 @@ vi.mock("@tanstack/react-router", () => ({
       {children}
     </a>
   ),
-  useRouterState: () => ({
-    location: { pathname: "/" },
-  }),
+  useRouterState: (opts?: {
+    select?: (s: { location: { pathname: string } }) => unknown;
+  }) => {
+    const state = { location: { pathname: mockPathname } };
+    return opts?.select ? opts.select(state) : state;
+  },
 }));
 
 // Import after mocks
@@ -42,8 +47,14 @@ function setRole(role: UserRole) {
   });
 }
 
+function activeLabel(): string | null {
+  const active = document.querySelector('a[aria-current="page"]');
+  return active?.textContent ?? null;
+}
+
 describe("Sidebar", () => {
   beforeEach(() => {
+    mockPathname = "/";
     useUiStore.setState({ sidebarCollapsed: false, quickScanModalOpen: false });
     setRole("admin");
   });
@@ -53,47 +64,55 @@ describe("Sidebar", () => {
     expect(screen.getByText("STYLiTE Orbit Monitor")).toBeInTheDocument();
   });
 
-  it("renders Overview and Monitor items for every role", () => {
+  it("renders exactly the four v4 areas with their targets", () => {
+    render(<Sidebar />);
+    const links = screen.getAllByRole("link");
+    expect(links.map((l) => l.textContent)).toEqual([
+      "Home",
+      "Ports",
+      "Networks",
+      "Settings",
+    ]);
+    expect(links.map((l) => l.getAttribute("href"))).toEqual([
+      "/",
+      "/ports",
+      "/networks",
+      "/settings",
+    ]);
+  });
+
+  it("shows Settings to every role (sub-nav filters by role)", () => {
     setRole("viewer");
     render(<Sidebar />);
-    expect(screen.getByText("Overview")).toBeInTheDocument();
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Alerts")).toBeInTheDocument();
-    expect(screen.getByText("Hosts")).toBeInTheDocument();
-    expect(screen.getByText("Scans")).toBeInTheDocument();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
-  it("renders the three area labels for admins", () => {
+  it("renders no group labels", () => {
     render(<Sidebar />);
-    expect(screen.getByText("Monitor")).toBeInTheDocument();
-    expect(screen.getByText("Configuration")).toBeInTheDocument();
-    expect(screen.getByText("Administration")).toBeInTheDocument();
-  });
-
-  it("hides Configuration from analysts", () => {
-    setRole("analyst");
-    render(<Sidebar />);
+    expect(screen.queryByText("Monitor")).not.toBeInTheDocument();
     expect(screen.queryByText("Configuration")).not.toBeInTheDocument();
-    expect(screen.queryByText("Networks")).not.toBeInTheDocument();
-    expect(screen.queryByText("Scan Templates")).not.toBeInTheDocument();
-  });
-
-  it("shows Configuration to operators but hides Administration", () => {
-    setRole("operator");
-    render(<Sidebar />);
-    expect(screen.getByText("Networks")).toBeInTheDocument();
-    expect(screen.getByText("Scanners")).toBeInTheDocument();
-    expect(screen.getByText("Scan Templates")).toBeInTheDocument();
-    expect(screen.getByText("Alerting")).toBeInTheDocument();
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
-    expect(screen.queryByText("Users & Roles")).not.toBeInTheDocument();
   });
 
-  it("shows Administration items to admins", () => {
+  it.each([
+    ["/", "Home"],
+    ["/ports", "Ports"],
+    ["/hosts/12", "Ports"],
+    ["/networks", "Networks"],
+    ["/networks/4", "Networks"],
+    ["/scans/99", "Networks"],
+    ["/settings/scanners/2", "Settings"],
+    ["/settings/security", "Settings"],
+  ])("highlights the right entry for %s", (path, label) => {
+    mockPathname = path;
     render(<Sidebar />);
-    expect(screen.getByText("Users & Roles")).toBeInTheDocument();
-    expect(screen.getByText("Organization")).toBeInTheDocument();
-    expect(screen.getByText("System")).toBeInTheDocument();
+    expect(activeLabel()).toBe(label);
+  });
+
+  it("highlights nothing for unrelated pages", () => {
+    mockPathname = "/alerts";
+    render(<Sidebar />);
+    expect(activeLabel()).toBeNull();
   });
 
   it("renders Scan Now button", () => {
@@ -111,13 +130,24 @@ describe("Sidebar", () => {
     useUiStore.setState({ sidebarCollapsed: true, quickScanModalOpen: false });
     render(<Sidebar />);
     expect(screen.queryByText("STYLiTE Orbit Monitor")).not.toBeInTheDocument();
-    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ports")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Ports")).toBeInTheDocument();
   });
 
-  it("does not render retired v2 nav items", () => {
+  it("does not render retired v3 nav items", () => {
     render(<Sidebar />);
-    expect(screen.queryByText("NSE Scripts")).not.toBeInTheDocument();
-    expect(screen.queryByText("Trends")).not.toBeInTheDocument();
-    expect(screen.queryByText("GVM Library")).not.toBeInTheDocument();
+    for (const label of [
+      "Overview",
+      "Dashboard",
+      "Alerts",
+      "Hosts",
+      "Scans",
+      "Scanners",
+      "Scan Templates",
+      "Alerting",
+      "Users & Roles",
+    ]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
   });
 });

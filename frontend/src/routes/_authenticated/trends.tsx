@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-// UI v3 cut-over: this v2 route permanently redirects to its new home.
+// UI v4 cut-over: this route permanently redirects to its new home (ADR 0009).
 export const Route = createFileRoute("/_authenticated/trends")({
   beforeLoad: () => {
     throw redirect({ to: "/" });

@@ -109,7 +109,7 @@ export function ScriptUploadModal({
           onOpenChange(false);
           onSuccess?.();
           navigate({
-            to: "/nse/editor/$scriptName",
+            to: "/settings/scan-profiles/scripts/$scriptName",
             params: { scriptName },
           });
         },

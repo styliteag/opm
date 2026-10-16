@@ -132,7 +132,7 @@ export function NseLibraryPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link
-            to="/nse/profiles"
+            to="/settings/scan-profiles"
             className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -202,7 +202,7 @@ export function NseLibraryPage() {
           {filtered.map((script) => (
             <Link
               key={script.name}
-              to="/nse/editor/$scriptName"
+              to="/settings/scan-profiles/scripts/$scriptName"
               params={{ scriptName: script.name }}
               className="block rounded-lg border border-border bg-card p-4 hover:border-primary/30 transition-colors"
             >

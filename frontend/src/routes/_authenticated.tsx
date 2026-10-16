@@ -15,7 +15,7 @@ function NotFound() {
       <p className="text-6xl font-emphasis text-muted-foreground">404</p>
       <p className="text-sm text-tertiary">This page doesn't exist.</p>
       <Link to="/" className="text-sm text-accent hover:underline">
-        Back to dashboard
+        Back to Home
       </Link>
     </div>
   );

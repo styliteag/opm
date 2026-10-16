@@ -85,7 +85,8 @@ function HostDetailPage() {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
           <Link
-            to="/hosts"
+            to="/ports"
+            search={{ tab: "hosts" }}
             className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />

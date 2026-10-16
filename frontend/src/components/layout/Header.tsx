@@ -1,23 +1,31 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { LogOut, Moon, Sun, SunMoon } from "lucide-react";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  ChevronDown,
+  LogOut,
+  Moon,
+  ShieldCheck,
+  Sun,
+  SunMoon,
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/stores/auth.store";
 import { useThemeStore } from "@/stores/theme.store";
 
+import { breadcrumbSegments } from "./breadcrumbs";
+
 function Breadcrumbs() {
-  const routerState = useRouterState();
-  const pathname = routerState.location.pathname;
-
-  const segments = pathname
-    .split("/")
-    .filter(Boolean)
-    .map((seg) =>
-      seg.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-    );
-
-  if (segments.length === 0) segments.push("Dashboard");
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const segments = breadcrumbSegments(pathname);
 
   return (
     <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm">
@@ -39,64 +47,71 @@ function Breadcrumbs() {
   );
 }
 
-function ThemeSwitcher() {
+const NEXT_THEME = { dark: "light", light: "system", system: "dark" } as const;
+const THEME_ICON = { dark: Moon, light: Sun, system: SunMoon } as const;
+
+function UserMenu() {
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const mode = useThemeStore((s) => s.mode);
   const setMode = useThemeStore((s) => s.setMode);
+  const navigate = useNavigate();
 
-  const nextMode =
-    mode === "dark" ? "light" : mode === "light" ? "system" : "dark";
-  const Icon = mode === "dark" ? Moon : mode === "light" ? Sun : SunMoon;
+  if (!user) return null;
+
+  const ThemeIcon = THEME_ICON[mode];
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setMode(nextMode)}
-      title={`Theme: ${mode}`}
-      aria-label={`Switch theme, currently ${mode}`}
-    >
-      <Icon className="h-4 w-4" />
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="User menu"
+        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-right transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span>
+          <span className="block text-sm font-emphasis text-foreground">
+            {user.email}
+          </span>
+          <Badge variant="outline" className="text-[10px] capitalize">
+            {user.role}
+          </Badge>
+        </span>
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            Signed in as {user.email} ({user.role})
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => void navigate({ to: "/settings/security" })}
+        >
+          <ShieldCheck />
+          Account security
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          closeOnClick={false}
+          onClick={() => setMode(NEXT_THEME[mode])}
+        >
+          <ThemeIcon />
+          <span className="capitalize">Theme: {mode}</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={logout}>
+          <LogOut />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
 export function Header() {
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
-
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-background px-6">
       <Breadcrumbs />
-
-      <div className="flex items-center gap-3">
-        <ThemeSwitcher />
-
-        {user && (
-          <div className="flex items-center gap-2">
-            <Link
-              to="/settings/security"
-              className="text-right transition-opacity hover:opacity-80"
-              title="Security settings"
-            >
-              <p className="text-sm font-emphasis text-foreground">
-                {user.email}
-              </p>
-              <Badge variant="outline" className="text-[10px] capitalize">
-                {user.role}
-              </Badge>
-            </Link>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={logout}
-              title="Sign out"
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-      </div>
+      <UserMenu />
     </header>
   );
 }
