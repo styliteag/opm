@@ -42,7 +42,14 @@ const NAV_ITEMS: NavItem[] = [
     icon: Network,
     activePrefixes: [],
     // Scan history is per network, so it sits under Networks (ADR 0009 amendment).
-    children: [{ label: NAV_V4.scans, href: "/scans", icon: History, activePrefixes: [] }],
+    children: [
+      {
+        label: NAV_V4.scans,
+        href: "/scans",
+        icon: History,
+        activePrefixes: [],
+      },
+    ],
   },
   {
     label: NAV_V4.settings,
@@ -131,15 +138,18 @@ export function Sidebar() {
               active={isNavItemActive(item, currentPath)}
               collapsed={collapsed}
             />
-            {item.children?.map((child) => (
-              <NavLink
-                key={child.href}
-                item={child}
-                active={isNavItemActive(child, currentPath)}
-                collapsed={collapsed}
-                sub
-              />
-            ))}
+            {/* Sub-entries only show while their section is open. */}
+            {(isNavItemActive(item, currentPath) ||
+              item.children?.some((c) => isNavItemActive(c, currentPath))) &&
+              item.children?.map((child) => (
+                <NavLink
+                  key={child.href}
+                  item={child}
+                  active={isNavItemActive(child, currentPath)}
+                  collapsed={collapsed}
+                  sub
+                />
+              ))}
           </div>
         ))}
       </nav>
@@ -147,7 +157,11 @@ export function Sidebar() {
       {/* Scan Now Button */}
       {canScan && (
         <div className="border-t border-border p-3">
-          <Button onClick={openQuickScan} className="w-full" title="Scan a network now">
+          <Button
+            onClick={openQuickScan}
+            className="w-full"
+            title="Scan a network now"
+          >
             <Zap className="h-4 w-4" />
             {!collapsed && <span>Scan Now</span>}
           </Button>

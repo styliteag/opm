@@ -64,28 +64,43 @@ describe("Sidebar", () => {
     expect(screen.getByText("STYLiTE Orbit Monitor")).toBeInTheDocument();
   });
 
-  it("renders the four v4 areas plus Scans nested under Networks", () => {
+  it("renders exactly the four v4 areas outside the Networks section", () => {
     render(<Sidebar />);
     const links = screen.getAllByRole("link");
     expect(links.map((l) => l.textContent)).toEqual([
       "Home",
       "Ports",
       "Networks",
-      "Scans",
       "Settings",
     ]);
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       "/",
       "/ports",
       "/networks",
-      "/scans",
       "/settings",
     ]);
-    expect(screen.getByRole("link", { name: "Scans" })).toHaveAttribute(
-      "data-nav-level",
-      "sub",
-    );
   });
+
+  it.each(["/networks", "/networks/4", "/scans", "/scans/99"])(
+    "shows Scans nested under Networks on %s",
+    (path) => {
+      mockPathname = path;
+      render(<Sidebar />);
+      const links = screen.getAllByRole("link");
+      expect(links.map((l) => l.textContent)).toEqual([
+        "Home",
+        "Ports",
+        "Networks",
+        "Scans",
+        "Settings",
+      ]);
+      expect(screen.getByRole("link", { name: "Scans" })).toHaveAttribute("href", "/scans");
+      expect(screen.getByRole("link", { name: "Scans" })).toHaveAttribute(
+        "data-nav-level",
+        "sub",
+      );
+    },
+  );
 
   it("shows Settings to every role (sub-nav filters by role)", () => {
     setRole("viewer");
