@@ -201,11 +201,11 @@ async def _generate_nse_alerts(
     """Generate alerts for NSE findings using the shared severity-rule model.
 
     Applies the same per-OID severity-override table used by GVM/nuclei with a
-    default alert threshold of ``medium``. Findings without a CVE or
-    ``VULNERABLE`` marker only alert when promoted by an explicit severity
-    rule — this avoids the alert flood that would otherwise come from scripts
-    like ``ssl-enum-ciphers`` whose severity is inferred from keywords such as
-    ``WEAK`` or ``DEPRECATED``.
+    default alert threshold of ``high`` (ADR 0013; NSE has no per-network
+    threshold). Findings without a CVE or ``VULNERABLE`` marker only alert
+    when promoted by an explicit severity rule — this avoids the alert flood
+    that would otherwise come from scripts like ``ssl-enum-ciphers`` whose
+    severity is inferred from keywords such as ``WEAK`` or ``DEPRECATED``.
 
     Returns count of alerts created.
     """
