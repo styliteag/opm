@@ -34,7 +34,10 @@ export function HostComment({
     const inputId = `host-comment-${hostId}`;
     return (
       <div className="rounded-lg border border-border bg-card p-4">
-        <Label htmlFor={inputId} className="mb-1.5 text-xs text-muted-foreground">
+        <Label
+          htmlFor={inputId}
+          className="mb-1.5 text-xs text-muted-foreground"
+        >
           Host Comment
         </Label>
         <Textarea
@@ -71,26 +74,20 @@ export function HostComment({
   }
 
   return (
-    <div
-      className="group rounded-lg border border-border bg-card p-4 cursor-pointer hover:border-primary/30 transition-colors"
+    <button
+      type="button"
+      className="group flex max-w-full cursor-pointer items-center gap-1.5 rounded-sm text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => {
         setDraft(comment ?? "");
         setEditing(true);
       }}
     >
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-emphasis text-muted-foreground">
-          Host Comment
-        </span>
-        <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-      </div>
-      <p className="text-sm text-foreground">
-        {comment || (
-          <span className="text-muted-foreground italic">
-            Click to add a comment...
-          </span>
-        )}
-      </p>
-    </div>
+      {comment ? (
+        <span className="text-secondary-foreground">{comment}</span>
+      ) : (
+        <span className="text-muted-foreground">Add a host comment…</span>
+      )}
+      <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+    </button>
   );
 }

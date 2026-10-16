@@ -10,10 +10,19 @@ function alert(source: string, message: string, type = "new_port"): Alert {
 
 describe("alertDisplayTitle", () => {
   it.each([
-    ["New open port detected globally: 10.0.0.1:53", "New open port 10.0.0.1:53"],
+    [
+      "New open port detected globally: 10.0.0.1:53",
+      "New open port 10.0.0.1:53",
+    ],
     ["New open port detected: 10.0.0.1:80", "New open port 10.0.0.1:80"],
-    ["Open port not in allowlist: 10.0.0.1:22", "Unexpected open port 10.0.0.1:22"],
-    ["Blocked port detected: 10.0.0.1:23", "Always-critical port open 10.0.0.1:23"],
+    [
+      "Open port not in allowlist: 10.0.0.1:22",
+      "Unexpected open port 10.0.0.1:22",
+    ],
+    [
+      "Blocked port detected: 10.0.0.1:23",
+      "Always-critical port open 10.0.0.1:23",
+    ],
   ])("plain port title for %s", (message, expected) => {
     expect(alertDisplayTitle(alert("port", message))).toBe(expected);
   });
@@ -25,9 +34,9 @@ describe("alertDisplayTitle", () => {
   });
 
   it("falls back to a plain label when the GVM name is missing", () => {
-    expect(alertDisplayTitle(alert("gvm", "GVM OID 1.2.3 found '' on 10.0.0.1."))).toBe(
-      "Deep vulnerability scan finding",
-    );
+    expect(
+      alertDisplayTitle(alert("gvm", "GVM OID 1.2.3 found '' on 10.0.0.1.")),
+    ).toBe("Deep vulnerability scan finding");
     expect(alertDisplayTitle(alert("gvm", "garbled"))).toBe(
       "Deep vulnerability scan finding",
     );
@@ -59,20 +68,25 @@ describe("alertDisplayTitle", () => {
     );
     expect(
       alertDisplayTitle(
-        alert("nse", "NSE script 'vulners' found vulnerability on 1.1.1.1:443/tcp. CVEs: CVE-2024-1234 Output: y"),
+        alert(
+          "nse",
+          "NSE script 'vulners' found vulnerability on 1.1.1.1:443/tcp. CVEs: CVE-2024-1234 Output: y",
+        ),
       ),
     ).toBe("Known vulnerabilities (CVE-2024-1234)");
   });
 
   it("strips the target suffix from SSH messages", () => {
-    const msg = "SSH server supports weak ciphers: aes128-cbc (OpenSSH_8.2) on 10.0.0.1:22";
+    const msg =
+      "SSH server supports weak ciphers: aes128-cbc (OpenSSH_8.2) on 10.0.0.1:22";
     expect(alertDisplayTitle(alert("ssh", msg))).toBe(
       "SSH server supports weak ciphers: aes128-cbc (OpenSSH_8.2)",
     );
   });
 
   it("drops a trailing severity-promotion note", () => {
-    const msg = "SSH server running outdated version: 7.0 on 10.0.0.1:22 (severity promoted from medium to high via rule)";
+    const msg =
+      "SSH server running outdated version: 7.0 on 10.0.0.1:22 (severity promoted from medium to high via rule)";
     expect(alertDisplayTitle(alert("ssh", msg))).toBe(
       "SSH server running outdated version: 7.0",
     );

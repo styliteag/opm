@@ -76,8 +76,10 @@ in one click. Everything else is evidence on the port.** (ADR 0008)
 
 Home = queue list (variant A) + Why quick picks and j/k/e/s keyboard from variant C.
 Host = port table with expandable per-port findings (variant A), decision-needed ports
-first, info findings collapsed. Details: `frontend/src/features/prototype-v4/NOTES.md`
-(deleted once Home is built; verdict kept here).
+first, info findings collapsed. Rejected: Home B (board per network — scrolls sideways
+with 9+ networks), Home C (one-at-a-time — slow for 10+ items; possible later "focus
+mode"), Host B (split view hides the port overview), Host C (no single port table). The
+prototype code (`features/prototype-v4/`) was deleted in phase 3; this section is the record.
 
 ## Open questions (decide during implementation)
 

@@ -435,13 +435,32 @@ export interface HostOverviewResponse {
   matching_rules: PortRuleMatch[];
 }
 
-export interface HostRiskTrendPoint {
-  date: string;
-  score: number;
+/** Ports page triage status (UI v4), mirrors backend `PortStatus`. */
+export type PortStatus = "new" | "review" | "expected" | "snoozed" | "critical";
+
+export interface GlobalOpenPort {
+  id: number;
+  ip: string;
+  port: number;
+  protocol: string;
+  banner: string | null;
+  service_guess: string | null;
+  mac_address: string | null;
+  mac_vendor: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  seen_by_networks: number[];
+  user_comment: string | null;
+  is_stale: boolean;
+  host_id: number | null;
+  hostname: string | null;
+  status: PortStatus | null;
+  why: string | null;
+  alert_id: number | null;
 }
 
-export interface HostRiskTrendResponse {
-  points: HostRiskTrendPoint[];
+export interface GlobalOpenPortListResponse {
+  ports: GlobalOpenPort[];
 }
 
 export interface TrendDataPoint {

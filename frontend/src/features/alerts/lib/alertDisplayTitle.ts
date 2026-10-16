@@ -40,7 +40,9 @@ function cveTitle(message: string): string | null {
 const PROMOTION_NOTE = /\s*\(severity promoted from \w+ to \w+ via rule\)\s*$/i;
 const TARGET_SUFFIX = /\s+on [0-9a-f.:[\]]+(?:\/\w+)?\.?$/i;
 
-export function alertDisplayTitle(alert: Alert): string {
+export function alertDisplayTitle(
+  alert: Pick<Alert, "source" | "message">,
+): string {
   const message = alert.message.replace(PROMOTION_NOTE, "").trim();
 
   if (alert.source === "port") {

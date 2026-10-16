@@ -46,7 +46,13 @@ export function expectedRequest(input: ExpectedInput): {
 /** v4 triage verbs: Expected, Snooze, Reopen, Accept risk, Assign. */
 export function useTriageActions() {
   const qc = useQueryClient();
-  const onSuccess = () => qc.invalidateQueries({ queryKey: ["alerts"] });
+  // Triage changes port status too, so the Ports list and host pages refresh.
+  const onSuccess = () =>
+    Promise.all(
+      [["alerts"], ["hosts"], ["global-ports"]].map((queryKey) =>
+        qc.invalidateQueries({ queryKey }),
+      ),
+    );
 
   const expected = useMutation({
     mutationFn: (input: ExpectedInput) => {

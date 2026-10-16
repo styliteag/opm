@@ -66,11 +66,21 @@ describe("useTriageActions", () => {
   });
 
   it("expected posts to the network endpoint with match=host by default", async () => {
-    const mockFetch = okFetch({ accepted_count: 1, dismissed_ids: [4], missing_ids: [], errors: [] });
+    const mockFetch = okFetch({
+      accepted_count: 1,
+      dismissed_ids: [4],
+      missing_ids: [],
+      errors: [],
+    });
     vi.stubGlobal("fetch", mockFetch);
-    const { result } = renderHook(() => useTriageActions(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useTriageActions(), {
+      wrapper: createWrapper(),
+    });
 
-    await result.current.expected.mutateAsync({ alertIds: [4, 5], scope: "host" });
+    await result.current.expected.mutateAsync({
+      alertIds: [4, 5],
+      scope: "host",
+    });
 
     expect(call(mockFetch)).toEqual({
       url: "/api/alerts/bulk-accept-network",
@@ -80,9 +90,16 @@ describe("useTriageActions", () => {
   });
 
   it("expected everywhere posts to the global endpoint with a reason", async () => {
-    const mockFetch = okFetch({ accepted_count: 1, dismissed_ids: [4], missing_ids: [], errors: [] });
+    const mockFetch = okFetch({
+      accepted_count: 1,
+      dismissed_ids: [4],
+      missing_ids: [],
+      errors: [],
+    });
     vi.stubGlobal("fetch", mockFetch);
-    const { result } = renderHook(() => useTriageActions(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useTriageActions(), {
+      wrapper: createWrapper(),
+    });
 
     await result.current.expected.mutateAsync({
       alertIds: [4],
@@ -100,7 +117,9 @@ describe("useTriageActions", () => {
   it("snooze posts bulk-dismiss without a reason", async () => {
     const mockFetch = okFetch({ dismissed_ids: [1, 2], missing_ids: [] });
     vi.stubGlobal("fetch", mockFetch);
-    const { result } = renderHook(() => useTriageActions(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useTriageActions(), {
+      wrapper: createWrapper(),
+    });
 
     await result.current.snooze.mutateAsync({ alertIds: [1, 2] });
 
@@ -114,21 +133,34 @@ describe("useTriageActions", () => {
   it("reopen PUTs every alert id", async () => {
     const mockFetch = okFetch({});
     vi.stubGlobal("fetch", mockFetch);
-    const { result } = renderHook(() => useTriageActions(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useTriageActions(), {
+      wrapper: createWrapper(),
+    });
 
     await result.current.reopen.mutateAsync({ alertIds: [3, 8] });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(call(mockFetch, 0)).toMatchObject({ url: "/api/alerts/3/reopen", method: "PUT" });
-    expect(call(mockFetch, 1)).toMatchObject({ url: "/api/alerts/8/reopen", method: "PUT" });
+    expect(call(mockFetch, 0)).toMatchObject({
+      url: "/api/alerts/3/reopen",
+      method: "PUT",
+    });
+    expect(call(mockFetch, 1)).toMatchObject({
+      url: "/api/alerts/8/reopen",
+      method: "PUT",
+    });
   });
 
   it("acceptRisk posts the required reason", async () => {
     const mockFetch = okFetch({ id: 9 });
     vi.stubGlobal("fetch", mockFetch);
-    const { result } = renderHook(() => useTriageActions(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useTriageActions(), {
+      wrapper: createWrapper(),
+    });
 
-    await result.current.acceptRisk.mutateAsync({ alertId: 9, reason: " known " });
+    await result.current.acceptRisk.mutateAsync({
+      alertId: 9,
+      reason: " known ",
+    });
 
     expect(call(mockFetch)).toEqual({
       url: "/api/alerts/9/accept-risk",
@@ -140,7 +172,9 @@ describe("useTriageActions", () => {
   it("assign PATCHes every alert id with user_id", async () => {
     const mockFetch = okFetch({});
     vi.stubGlobal("fetch", mockFetch);
-    const { result } = renderHook(() => useTriageActions(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useTriageActions(), {
+      wrapper: createWrapper(),
+    });
 
     await result.current.assign.mutateAsync({ alertIds: [1, 2], userId: 5 });
 
@@ -155,7 +189,9 @@ describe("useTriageActions", () => {
   it("remove posts bulk-delete", async () => {
     const mockFetch = okFetch({ deleted_ids: [1], missing_ids: [] });
     vi.stubGlobal("fetch", mockFetch);
-    const { result } = renderHook(() => useTriageActions(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useTriageActions(), {
+      wrapper: createWrapper(),
+    });
 
     await result.current.remove.mutateAsync({ alertIds: [1] });
 
@@ -166,7 +202,7 @@ describe("useTriageActions", () => {
     });
   });
 
-  it("invalidates the alerts root key on success", async () => {
+  it("invalidates the alerts, hosts and global-ports root keys on success", async () => {
     vi.stubGlobal("fetch", okFetch({ dismissed_ids: [], missing_ids: [] }));
     const qc = new QueryClient();
     const spy = vi.spyOn(qc, "invalidateQueries");
@@ -177,8 +213,10 @@ describe("useTriageActions", () => {
 
     await result.current.snooze.mutateAsync({ alertIds: [1] });
 
-    await waitFor(() =>
-      expect(spy).toHaveBeenCalledWith({ queryKey: ["alerts"] }),
-    );
+    await waitFor(() => {
+      expect(spy).toHaveBeenCalledWith({ queryKey: ["alerts"] });
+      expect(spy).toHaveBeenCalledWith({ queryKey: ["hosts"] });
+      expect(spy).toHaveBeenCalledWith({ queryKey: ["global-ports"] });
+    });
   });
 });
