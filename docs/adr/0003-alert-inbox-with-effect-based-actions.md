@@ -1,6 +1,6 @@
 # ADR 0003: Alert triage becomes an inbox with effect-based action names
 
-- Status: accepted
+- Status: accepted; action names amended by [0012](0012-triage-verbs.md)
 - Date: 2026-07-14
 - Deciders: Wim Bonis
 

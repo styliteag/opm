@@ -1,6 +1,6 @@
 # ADR 0002: Navigation restructured into three task areas
 
-- Status: accepted
+- Status: superseded by [0009](0009-four-item-navigation.md)
 - Date: 2026-07-14
 - Deciders: Wim Bonis
 

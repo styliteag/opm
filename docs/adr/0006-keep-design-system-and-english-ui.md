@@ -1,6 +1,6 @@
 # ADR 0006: Keep the Linear-inspired design system and English UI language
 
-- Status: accepted
+- Status: accepted; "Tool names stay" superseded by [0010](0010-plain-language-labels.md)
 - Date: 2026-07-14
 - Deciders: Wim Bonis
 

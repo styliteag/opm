@@ -1,6 +1,6 @@
 # ADR 0005: Read-only executive status page for management
 
-- Status: accepted
+- Status: superseded by [0009](0009-four-item-navigation.md)
 - Date: 2026-07-14
 - Deciders: Wim Bonis
 

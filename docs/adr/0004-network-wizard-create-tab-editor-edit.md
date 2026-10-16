@@ -1,6 +1,6 @@
 # ADR 0004: Network creation via wizard, editing via tab pages
 
-- Status: accepted
+- Status: superseded by [0011](0011-inline-advanced-disclosure.md)
 - Date: 2026-07-14
 - Deciders: Wim Bonis
 
