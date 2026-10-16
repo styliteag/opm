@@ -20,6 +20,8 @@ import { CreateScannerModal } from "@/features/scanners/components/CreateScanner
 import { ApiKeyDisplay } from "@/components/feedback/ApiKeyDisplay";
 import { ScannerActionConfirm } from "@/features/scanners/components/ScannerActionConfirm";
 import type { ScannerActionTarget } from "@/features/scanners/lib/scannerConfirmCopy";
+import { scannerKindBadge } from "@/features/scanners/lib/scannerKind";
+import { useHasRole } from "@/lib/roles";
 import {
   formatRelativeTime,
   formatScannerVersion,
@@ -38,6 +40,7 @@ function ScannersPage() {
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [confirm, setConfirm] = useState<ScannerActionTarget | null>(null);
+  const canManage = useHasRole("operator");
 
   const runConfirmed = () => {
     if (!confirm) return;
@@ -76,22 +79,24 @@ function ScannersPage() {
         <div>
           <h2 className="text-xl font-strong text-foreground">Scanners</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Monitor and manage distributed scanning infrastructure.
+            Agents that run the scans from inside your networks.
           </p>
         </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Register Scanner
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Register scanner
+          </button>
+        )}
       </div>
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Total Scanners</p>
+          <p className="text-xs text-muted-foreground">Total scanners</p>
           <p className="mt-1 text-2xl font-strong text-foreground">
             {scannerList.length}
           </p>
@@ -174,25 +179,33 @@ function ScannersPage() {
               {
                 key: "kind",
                 header: "Type",
-                render: (scanner) => (
-                  <StatusBadge
-                    label={scanner.kind === "gvm" ? "GVM" : scanner.kind === "unified" ? "Unified" : "Standard"}
-                    variant={scanner.kind === "gvm" ? "warning" : scanner.kind === "unified" ? "info" : "neutral"}
-                  />
-                ),
+                render: (scanner) => {
+                  const badge = scannerKindBadge(scanner.kind);
+                  return (
+                    <span title={badge.title}>
+                      <StatusBadge
+                        label={badge.label}
+                        variant={badge.variant}
+                      />
+                    </span>
+                  );
+                },
               },
               {
                 key: "version",
                 header: "Version",
                 render: (scanner) => (
                   <span className="text-sm font-mono text-muted-foreground">
-                    {formatScannerVersion(scanner.scanner_version, scanner.kind)}
+                    {formatScannerVersion(
+                      scanner.scanner_version,
+                      scanner.kind,
+                    )}
                   </span>
                 ),
               },
               {
                 key: "last_seen",
-                header: "Last Seen",
+                header: "Last seen",
                 render: (scanner) => (
                   <span className="text-sm text-muted-foreground">
                     {scanner.last_seen_at
@@ -201,32 +214,38 @@ function ScannersPage() {
                   </span>
                 ),
               },
-              {
-                key: "actions",
-                header: "Actions",
-                render: (scanner) => (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() =>
-                        setConfirm({ action: "regenerate", scanner })
-                      }
-                      className="rounded p-1 text-muted-foreground hover:text-primary transition-colors"
-                      title="Regenerate API key"
-                      aria-label={`Regenerate API key for ${scanner.name}`}
-                    >
-                      <Key className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setConfirm({ action: "delete", scanner })}
-                      className="rounded p-1 text-muted-foreground hover:text-red-400 transition-colors"
-                      title="Delete scanner"
-                      aria-label={`Delete scanner ${scanner.name}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ),
-              },
+              ...(canManage
+                ? [
+                    {
+                      key: "actions",
+                      header: "Actions",
+                      render: (scanner) => (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              setConfirm({ action: "regenerate", scanner })
+                            }
+                            className="rounded p-1 text-muted-foreground hover:text-primary transition-colors"
+                            title="Regenerate API key"
+                            aria-label={`Regenerate API key for ${scanner.name}`}
+                          >
+                            <Key className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              setConfirm({ action: "delete", scanner })
+                            }
+                            className="rounded p-1 text-muted-foreground hover:text-red-400 transition-colors"
+                            title="Delete scanner"
+                            aria-label={`Delete scanner ${scanner.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ),
+                    },
+                  ]
+                : []),
             ] satisfies DataTableColumn<Scanner>[]
           }
           rows={scannerList}

@@ -28,6 +28,8 @@ import {
   useScannerRefreshMutation,
 } from "@/features/gvm-library/hooks/useGvmLibrary";
 import { useScannerDetail } from "@/features/scanners/hooks/useScanners";
+import { scannerKindBadge } from "@/features/scanners/lib/scannerKind";
+import { useHasRole } from "@/lib/roles";
 import {
   formatRelativeTime,
   formatScannerVersion,
@@ -42,7 +44,9 @@ import type {
   ScannerScanSummary,
 } from "@/lib/types";
 
-export const Route = createFileRoute("/_authenticated/settings/scanners/$scannerId")({
+export const Route = createFileRoute(
+  "/_authenticated/settings/scanners/$scannerId",
+)({
   component: ScannerDetailPage,
 });
 
@@ -69,7 +73,7 @@ const networkColumns: DataTableColumn<ScannerNetworkInfo>[] = [
   },
   {
     key: "cidr",
-    header: "CIDR",
+    header: "Address range",
     render: (n) => (
       <span className="font-mono text-sm text-muted-foreground">{n.cidr}</span>
     ),
@@ -147,6 +151,7 @@ function ScannerDetailPage() {
   const id = Number(scannerId);
   const { data, isLoading, error, refetch } = useScannerDetail(id);
   const [editOpen, setEditOpen] = useState(false);
+  const canManage = useHasRole("operator");
 
   if (isLoading) return <LoadingState rows={6} />;
   if (error) return <ErrorState message={error.message} onRetry={refetch} />;
@@ -154,6 +159,7 @@ function ScannerDetailPage() {
 
   const s = data.scanner;
   const online = isOnline(s.last_seen_at);
+  const kindBadge = scannerKindBadge(s.kind);
   const successRate =
     data.total_scans > 0
       ? Math.round((data.completed_scans / data.total_scans) * 100)
@@ -170,7 +176,7 @@ function ScannerDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-strong text-foreground">{s.name}</h1>
+          <h2 className="text-xl font-strong text-foreground">{s.name}</h2>
           <div className="mt-0.5 flex flex-wrap items-center gap-3">
             {s.description && (
               <span className="text-sm text-muted-foreground">
@@ -182,10 +188,12 @@ function ScannerDetailPage() {
               variant={online ? "success" : "danger"}
               dot
             />
-            <StatusBadge
-              label={s.kind === "gvm" ? "GVM" : s.kind === "unified" ? "Unified" : "Standard"}
-              variant={s.kind === "gvm" ? "warning" : s.kind === "unified" ? "info" : "neutral"}
-            />
+            <span title={kindBadge.title}>
+              <StatusBadge
+                label={kindBadge.label}
+                variant={kindBadge.variant}
+              />
+            </span>
             {s.location && (
               <span className="text-xs text-muted-foreground">
                 {s.location}
@@ -198,16 +206,18 @@ function ScannerDetailPage() {
             )}
           </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setEditOpen(true)}
-          className="gap-1.5"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-          Edit
-        </Button>
+        {canManage && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setEditOpen(true)}
+            className="gap-1.5"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </Button>
+        )}
       </div>
 
       <EditScannerModal
@@ -224,19 +234,19 @@ function ScannerDetailPage() {
           icon={Network}
         />
         <StatCard
-          label="Total Scans"
+          label="Total scans"
           value={data.total_scans}
           icon={ScanLine}
           trend={`${data.scans_last_24h} today · ${data.scans_last_7d} this week`}
         />
         <StatCard
-          label="Success Rate"
+          label="Success rate"
           value={`${successRate}%`}
           icon={CheckCircle}
           trend={`${data.completed_scans} completed · ${data.failed_scans} failed`}
         />
         <StatCard
-          label="Avg Duration"
+          label="Avg duration"
           value={formatDuration(data.avg_scan_duration_seconds)}
           icon={Clock}
           trend={
@@ -254,12 +264,16 @@ function ScannerDetailPage() {
             Networks ({data.networks.length})
           </TabsTrigger>
           <TabsTrigger value="scans">
-            Recent Scans ({data.recent_scans.length})
+            Recent scans ({data.recent_scans.length})
           </TabsTrigger>
           {(s.kind === "gvm" || s.kind === "unified") && (
             <>
-              <TabsTrigger value="gvm_scan_configs">GVM Scan Configs</TabsTrigger>
-              <TabsTrigger value="gvm_port_lists">GVM Port Lists</TabsTrigger>
+              <TabsTrigger value="gvm_scan_configs">
+                Deep scan profiles
+              </TabsTrigger>
+              <TabsTrigger value="gvm_port_lists">
+                Deep scan port lists
+              </TabsTrigger>
             </>
           )}
         </TabsList>
@@ -362,6 +376,7 @@ function GvmMirrorTab({ scannerId, kind }: GvmMirrorTabProps) {
   const mirror = useScannerMirror(scannerId, kind);
   const library = useLibraryEntries(kind);
   const refresh = useScannerRefreshMutation(scannerId);
+  const canManage = useHasRole("operator");
 
   if (mirror.isLoading) return <LoadingState rows={4} />;
   if (mirror.error) {
@@ -398,21 +413,23 @@ function GvmMirrorTab({ scannerId, kind }: GvmMirrorTabProps) {
             : "Never synced"}
           {mirror.data?.gvm_refresh_requested && " · refresh pending..."}
         </p>
-        <button
-          onClick={handleRefresh}
-          disabled={refresh.isPending}
-          className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1 text-xs hover:bg-muted disabled:opacity-60"
-        >
-          <RefreshCw
-            className={`h-3.5 w-3.5 ${refresh.isPending ? "animate-spin" : ""}`}
-          />
-          Refresh metadata
-        </button>
+        {canManage && (
+          <button
+            onClick={handleRefresh}
+            disabled={refresh.isPending}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1 text-xs hover:bg-muted disabled:opacity-60"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${refresh.isPending ? "animate-spin" : ""}`}
+            />
+            Refresh metadata
+          </button>
+        )}
       </div>
 
       {entries.length === 0 && libraryOnly.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          No {kind === "scan_config" ? "scan configs" : "port lists"} known for
+          No {kind === "scan_config" ? "scan profiles" : "port lists"} known for
           this scanner. Trigger a refresh to fetch live state.
         </p>
       ) : (
@@ -422,9 +439,7 @@ function GvmMirrorTab({ scannerId, kind }: GvmMirrorTabProps) {
               <tr>
                 <th className="px-4 py-2 text-left font-emphasis">Name</th>
                 <th className="px-4 py-2 text-left font-emphasis">Source</th>
-                <th className="px-4 py-2 text-left font-emphasis">
-                  Installed
-                </th>
+                <th className="px-4 py-2 text-left font-emphasis">Installed</th>
                 <th className="px-4 py-2 text-left font-emphasis">Library</th>
                 <th className="px-4 py-2 text-left font-emphasis">Status</th>
               </tr>

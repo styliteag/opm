@@ -93,10 +93,13 @@ export function NetworkDetailHeader({
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span>{n.schedule_description ?? "Manual only"}</span>
-          {n.scan_schedule && (
+          {n.scan_schedule && !canOperate && !n.scan_schedule_enabled && (
+            <span>(paused)</span>
+          )}
+          {n.scan_schedule && canOperate && (
             <ScheduleSwitch
               checked={n.scan_schedule_enabled}
-              disabled={!canOperate || update.isPending}
+              disabled={update.isPending}
               onChange={toggleSchedule}
             />
           )}

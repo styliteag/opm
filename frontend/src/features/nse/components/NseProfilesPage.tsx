@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { Plus, Copy, Trash2, FileCode, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { EmptyState } from "@/components/data-display/EmptyState";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { useNseProfiles, useNseMutations } from "@/features/nse/hooks/useNse";
 import { ProfileEditModal } from "@/features/nse/components/ProfileEditModal";
+import { useHasRole } from "@/lib/roles";
 
 const CATEGORY_LABELS: Record<string, string> = {
   scan_profiles: "Scan Profiles",
@@ -46,6 +47,8 @@ export function NseProfilesPage() {
       }
     | undefined
   >();
+  const [pendingDelete, setPendingDelete] = useState<Profile | null>(null);
+  const canManage = useHasRole("operator");
   const { data, isLoading, error, refetch } = useNseProfiles();
   const { duplicateProfile, deleteProfile } = useNseMutations();
 
@@ -80,34 +83,29 @@ export function NseProfilesPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-strong text-foreground">NSE Profiles</h1>
+          <h2 className="text-xl font-strong text-foreground">
+            Vulnerability script profiles
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage Nmap Scripting Engine profiles for vulnerability scanning.
+            Named sets of vulnerability scripts (nmap NSE) a network can run
+            after the port scan.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Link
-            to="/settings/scan-profiles"
-            search={{ tab: "scripts" }}
-            className="flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <FileCode className="h-4 w-4" />
-            Script Library
-          </Link>
+        {canManage && (
           <button
             onClick={() => setCreateOpen(true)}
             className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Create Profile
+            Create profile
           </button>
-        </div>
+        )}
       </div>
 
       {profiles.length === 0 ? (
         <EmptyState
           title="No profiles"
-          message="Create your first NSE profile to start vulnerability scanning."
+          message="Create a profile to choose which vulnerability scripts a network runs."
           icon={FileCode}
         />
       ) : (
@@ -130,7 +128,9 @@ export function NseProfilesPage() {
                             {profile.name}
                           </h3>
                           <StatusBadge
-                            label={profile.type}
+                            label={
+                              profile.type === "builtin" ? "built-in" : "custom"
+                            }
                             variant={
                               profile.type === "builtin" ? "neutral" : "success"
                             }
@@ -160,50 +160,47 @@ export function NseProfilesPage() {
                       {profile.platform && <span>{profile.platform}</span>}
                     </div>
 
-                    <div className="mt-4 flex items-center gap-2">
-                      {profile.type === "custom" && (
-                        <button
-                          onClick={() => setEditProfile(profile)}
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-                        >
-                          <Pencil className="h-3 w-3" />
-                          Edit
-                        </button>
-                      )}
-                      <button
-                        onClick={() =>
-                          duplicateProfile.mutate(
-                            {
-                              id: profile.id,
-                              name: `Copy of ${profile.name}`,
-                            },
-                            {
-                              onSuccess: () =>
-                                toast.success("Profile duplicated"),
-                              onError: (e) => toast.error(e.message),
-                            },
-                          )
-                        }
-                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-                      >
-                        <Copy className="h-3 w-3" />
-                        Duplicate
-                      </button>
-                      {profile.type === "custom" && (
+                    {canManage && (
+                      <div className="mt-4 flex items-center gap-2">
+                        {profile.type === "custom" && (
+                          <button
+                            onClick={() => setEditProfile(profile)}
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                          </button>
+                        )}
                         <button
                           onClick={() =>
-                            deleteProfile.mutate(profile.id, {
-                              onSuccess: () => toast.success("Profile deleted"),
-                              onError: (e) => toast.error(e.message),
-                            })
+                            duplicateProfile.mutate(
+                              {
+                                id: profile.id,
+                                name: `Copy of ${profile.name}`,
+                              },
+                              {
+                                onSuccess: () =>
+                                  toast.success("Profile duplicated"),
+                                onError: (e) => toast.error(e.message),
+                              },
+                            )
                           }
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-red-400 hover:bg-accent/50 transition-colors"
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
                         >
-                          <Trash2 className="h-3 w-3" />
-                          Delete
+                          <Copy className="h-3 w-3" />
+                          Duplicate
                         </button>
-                      )}
-                    </div>
+                        {profile.type === "custom" && (
+                          <button
+                            onClick={() => setPendingDelete(profile)}
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-red-400 hover:bg-accent/50 transition-colors"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -211,6 +208,25 @@ export function NseProfilesPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Delete profile?"
+        description={`"${pendingDelete?.name ?? ""}" is deleted. This cannot be undone.`}
+        confirmLabel="Delete profile"
+        onConfirm={() =>
+          pendingDelete &&
+          deleteProfile.mutate(pendingDelete.id, {
+            onSuccess: () => {
+              toast.success("Profile deleted");
+              setPendingDelete(null);
+            },
+            onError: (e) => toast.error(e.message),
+          })
+        }
+        pending={deleteProfile.isPending}
+      />
 
       <ProfileEditModal
         open={createOpen || Boolean(editProfile)}

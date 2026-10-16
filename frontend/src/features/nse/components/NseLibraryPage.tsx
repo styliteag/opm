@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Search,
-  ArrowLeft,
   FileCode,
   Upload,
   Copy,
@@ -12,14 +11,17 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { EmptyState } from "@/components/data-display/EmptyState";
 import { useNseScripts, useNseMutations } from "@/features/nse/hooks/useNse";
+import { isCustomScript, scriptActions } from "@/features/nse/lib/scriptKind";
 import { useDebounce } from "@/hooks/useDebounce";
 import { postApi } from "@/lib/api";
+import { useHasRole } from "@/lib/roles";
 import { useAuthStore } from "@/stores/auth.store";
 import { ScriptUploadModal } from "@/features/nse/components/ScriptUploadModal";
 
@@ -31,6 +33,9 @@ export function NseLibraryPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<string | null>(null);
+  const canManage = useHasRole("operator");
 
   const userRole = useAuthStore((s) => s.user?.role);
   const isAdmin = userRole === "admin";
@@ -65,18 +70,21 @@ export function NseLibraryPage() {
     });
   };
 
-  const handleDelete = (e: React.MouseEvent, scriptName: string) => {
+  const openConfirm = (
+    e: React.MouseEvent,
+    open: (name: string) => void,
+    scriptName: string,
+  ) => {
     e.preventDefault();
     e.stopPropagation();
-    if (
-      !confirm(
-        `Delete custom script "${scriptName}"? It will be automatically removed from any profiles that use it.`,
-      )
-    )
-      return;
+    open(scriptName);
+  };
+
+  const handleDelete = (scriptName: string) => {
     deleteScript.mutate(scriptName, {
       onSuccess: () => {
         toast.success(`Deleted "${scriptName}"`);
+        setPendingDelete(null);
         refetch();
       },
       onError: (err) => {
@@ -85,12 +93,11 @@ export function NseLibraryPage() {
     });
   };
 
-  const handleRestore = (e: React.MouseEvent, scriptName: string) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleRestore = (scriptName: string) => {
     restoreScript.mutate(scriptName, {
       onSuccess: () => {
         toast.success(`Restored "${scriptName}" to original`);
+        setPendingRestore(null);
         refetch();
       },
       onError: (err) => {
@@ -122,29 +129,18 @@ export function NseLibraryPage() {
     }
   };
 
-  const isCustomScript = (type: string) => type === "custom";
-
   if (isLoading) return <LoadingState rows={8} />;
   if (error) return <ErrorState message={error.message} onRetry={refetch} />;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            to="/settings/scan-profiles"
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-strong text-foreground">
-              NSE Script Library
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Curated: {data?.total ?? 0} scripts · Showing: {filtered.length}
-            </p>
-          </div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-strong text-foreground">Scripts</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Checks that vulnerability script profiles run against open ports
+            (nmap NSE). {data?.total ?? 0} scripts · showing {filtered.length}.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
@@ -153,17 +149,20 @@ export function NseLibraryPage() {
               size="sm"
               onClick={handleSync}
               disabled={syncing}
+              title="Pull the latest built-in scripts from nmap"
             >
               <RefreshCw
                 className={`h-4 w-4 mr-1.5 ${syncing ? "animate-spin" : ""}`}
               />
-              {syncing ? "Syncing..." : "Sync with Nmap"}
+              {syncing ? "Updating..." : "Update built-in scripts"}
             </Button>
           )}
-          <Button size="sm" onClick={() => setUploadOpen(true)}>
-            <Upload className="h-4 w-4 mr-1.5" />
-            Upload Script
-          </Button>
+          {canManage && (
+            <Button size="sm" onClick={() => setUploadOpen(true)}>
+              <Upload className="h-4 w-4 mr-1.5" />
+              Upload script
+            </Button>
+          )}
         </div>
       </div>
 
@@ -182,7 +181,7 @@ export function NseLibraryPage() {
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
-          <option value="">All Categories</option>
+          <option value="">All categories</option>
           {categories.map((cat) => (
             <option key={cat} value={cat}>
               {cat}
@@ -199,86 +198,112 @@ export function NseLibraryPage() {
         />
       ) : (
         <div className="space-y-2">
-          {filtered.map((script) => (
-            <Link
-              key={script.name}
-              to="/settings/scan-profiles/scripts/$scriptName"
-              params={{ scriptName: script.name }}
-              className="block rounded-lg border border-border bg-card p-4 hover:border-primary/30 transition-colors"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <p className="font-mono text-sm font-medium text-primary">
-                    {script.name}
-                  </p>
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                      isCustomScript(script.type)
-                        ? "bg-blue-500/10 text-blue-500"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {script.type}
-                  </span>
-                  {script.cloned_from && (
-                    <span className="text-[10px] text-muted-foreground">
-                      cloned from {script.cloned_from}
+          {filtered.map((script) => {
+            const actions = scriptActions(script, canManage);
+            return (
+              <Link
+                key={script.name}
+                to="/settings/scan-profiles/scripts/$scriptName"
+                params={{ scriptName: script.name }}
+                className="block rounded-lg border border-border bg-card p-4 hover:border-primary/30 transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-sm font-medium text-primary">
+                      {script.name}
+                    </p>
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                        isCustomScript(script)
+                          ? "bg-blue-500/10 text-blue-500"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {isCustomScript(script) ? "custom" : "built-in"}
                     </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 ml-4">
-                  <div className="flex flex-wrap gap-1 mr-2">
-                    {script.categories?.slice(0, 3).map((cat) => (
-                      <span
-                        key={cat}
-                        className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                      >
-                        {cat}
+                    {script.cloned_from && (
+                      <span className="text-[10px] text-muted-foreground">
+                        cloned from {script.cloned_from}
                       </span>
-                    ))}
+                    )}
                   </div>
-                  {!isCustomScript(script.type) && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={(e) => handleClone(e, script.name)}
-                      title="Clone script"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  {isCustomScript(script.type) && script.cloned_from && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={(e) => handleRestore(e, script.name)}
-                      title="Restore to original"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  {isCustomScript(script.type) && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={(e) => handleDelete(e, script.name)}
-                      title="Delete custom script"
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1 ml-4">
+                    <div className="flex flex-wrap gap-1 mr-2">
+                      {script.categories?.slice(0, 3).map((cat) => (
+                        <span
+                          key={cat}
+                          className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                        >
+                          {cat}
+                        </span>
+                      ))}
+                    </div>
+                    {actions.clone && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={(e) => handleClone(e, script.name)}
+                        title="Clone script"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {actions.restore && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={(e) =>
+                          openConfirm(e, setPendingRestore, script.name)
+                        }
+                        title="Restore to original"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {actions.remove && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={(e) =>
+                          openConfirm(e, setPendingDelete, script.name)
+                        }
+                        title="Delete custom script"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {script.description && (
-                <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                  {script.description}
-                </p>
-              )}
-            </Link>
-          ))}
+                {script.description && (
+                  <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+                    {script.description}
+                  </p>
+                )}
+              </Link>
+            );
+          })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Delete custom script?"
+        description={`"${pendingDelete ?? ""}" is deleted and removed from every profile that uses it.`}
+        confirmLabel="Delete script"
+        onConfirm={() => pendingDelete && handleDelete(pendingDelete)}
+        pending={deleteScript.isPending}
+      />
+      <ConfirmDialog
+        open={pendingRestore !== null}
+        onOpenChange={(open) => !open && setPendingRestore(null)}
+        title="Restore original script?"
+        description={`Your changes to "${pendingRestore ?? ""}" are replaced with the built-in version.`}
+        confirmLabel="Restore original"
+        onConfirm={() => pendingRestore && handleRestore(pendingRestore)}
+        pending={restoreScript.isPending}
+      />
 
       <ScriptUploadModal
         open={uploadOpen}

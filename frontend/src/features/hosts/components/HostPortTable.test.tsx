@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -13,6 +13,8 @@ import {
   hostPortRows,
   mergeHostFindings,
 } from "../lib/hostFindings";
+import { useAuthStore } from "@/stores/auth.store";
+
 import { HostPortTable } from "./HostPortTable";
 
 vi.mock("sonner", () => ({
@@ -136,6 +138,13 @@ function renderTable() {
 }
 
 describe("HostPortTable", () => {
+  beforeEach(() => {
+    useAuthStore.setState({
+      token: "t",
+      user: { id: 1, email: "a@example.com", role: "admin", theme_preference: "dark" },
+    });
+  });
+
   it("sorts decision-needed ports first and summarises findings", () => {
     renderTable();
     const rows = screen.getAllByTestId("host-port-row");
@@ -176,5 +185,16 @@ describe("HostPortTable", () => {
       screen.getByRole("button", { name: /Exposed admin panel/ }),
     );
     expect(screen.getByText("tpl-3:m")).toBeInTheDocument();
+  });
+
+  it("hides finding actions from viewers", () => {
+    useAuthStore.setState({
+      user: { id: 2, email: "v@example.com", role: "viewer", theme_preference: "dark" },
+    });
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: "Expand port 22" }));
+    expect(screen.getByText("Password login allowed")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Accept risk/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Snooze/ })).toBeNull();
   });
 });

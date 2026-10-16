@@ -13,6 +13,7 @@ import {
 } from "@/features/ports/components/ListControls";
 import { useGlobalPortList } from "@/features/ports/hooks/usePorts";
 import {
+  hasNextPage,
   PORTS_PAGE_SIZE,
   SERVICE_CHIPS,
   STATUS_VIEWS,
@@ -60,6 +61,7 @@ export function PortsTab({ initialSearch, initialNetworkId }: PortsTabProps) {
     [networks.data],
   );
   const list = ports.data?.ports ?? [];
+  const total = ports.data?.total;
 
   const resetPage =
     <T,>(set: (v: T) => void) =>
@@ -155,7 +157,8 @@ export function PortsTab({ initialSearch, initialNetworkId }: PortsTabProps) {
               page={page}
               pageSize={PORTS_PAGE_SIZE}
               shown={list.length}
-              hasNext={list.length === PORTS_PAGE_SIZE}
+              total={total}
+              hasNext={hasNextPage(page, list.length, total)}
               noun="ports"
               onPage={setPage}
             />

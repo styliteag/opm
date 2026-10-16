@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { useUsers, useUserMutations } from "@/features/admin/hooks/useAdmin";
 import { CreateUserModal } from "@/features/admin/components/CreateUserModal";
 import { RolesPage } from "@/features/admin/components/RolesPage";
@@ -58,6 +59,10 @@ function UsersPage() {
   const { data, isLoading, error, refetch } = useUsers();
   const { update, remove } = useUserMutations();
   const [createOpen, setCreateOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: number;
+    email: string;
+  } | null>(null);
 
   if (isLoading) return <LoadingState rows={6} />;
   if (error) return <ErrorState message={error.message} onRetry={refetch} />;
@@ -70,7 +75,7 @@ function UsersPage() {
         <div>
           <h2 className="text-xl font-strong text-foreground">Users</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Provision access, audit login activity, and manage security roles.
+            Who can sign in and which role each person has.
           </p>
         </div>
         <button
@@ -78,14 +83,14 @@ function UsersPage() {
           className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" />
-          Add User
+          Add user
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Total Users</p>
+          <p className="text-xs text-muted-foreground">Total users</p>
           <p className="mt-1 text-2xl font-strong text-foreground">
             {users.length}
           </p>
@@ -206,10 +211,7 @@ function UsersPage() {
                   </button>
                   <button
                     onClick={() =>
-                      remove.mutate(user.id, {
-                        onSuccess: () => toast.success("User deleted"),
-                        onError: (e) => toast.error(e.message),
-                      })
+                      setPendingDelete({ id: user.id, email: user.email })
                     }
                     className="rounded p-1 text-muted-foreground hover:text-red-400 transition-colors"
                     title="Delete user"
@@ -224,6 +226,24 @@ function UsersPage() {
       </div>
 
       <CreateUserModal open={createOpen} onOpenChange={setCreateOpen} />
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Delete user?"
+        description={`${pendingDelete?.email ?? ""} can no longer sign in. This cannot be undone — deactivate the user instead to keep the account.`}
+        confirmLabel="Delete user"
+        onConfirm={() =>
+          pendingDelete &&
+          remove.mutate(pendingDelete.id, {
+            onSuccess: () => {
+              toast.success("User deleted");
+              setPendingDelete(null);
+            },
+            onError: (e) => toast.error(e.message),
+          })
+        }
+        pending={remove.isPending}
+      />
     </div>
   );
 }

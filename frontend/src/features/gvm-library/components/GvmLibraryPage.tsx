@@ -4,16 +4,7 @@ import { toast } from "sonner";
 
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { LoadingState } from "@/components/data-display/LoadingState";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useLibraryEntries,
@@ -26,6 +17,7 @@ import {
   PortListEditor,
   type PortListEditorMode,
 } from "@/features/gvm-library/components/PortListEditor";
+import { useHasRole } from "@/lib/roles";
 import { formatRelativeTime } from "@/lib/utils";
 import type { GvmKind, GvmLibraryEntry } from "@/lib/types";
 
@@ -45,14 +37,20 @@ export function GvmLibraryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-strong text-foreground">GVM Library</h1>
+        <h2 className="text-xl font-strong text-foreground">
+          Deep scan library
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload exported GVM scan configs and port lists so OPM can
-          auto-deploy them to GVM scanners before scans run. The inner
+          Scan profiles and port lists for deep vulnerability scans. OPM copies
+          them to the scanner before a scan runs.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Greenbone / GVM: upload scan configs and port lists exported from GSA.
+          The inner
           <code className="mx-1 rounded bg-muted px-1 py-0.5 text-xs">
             &lt;name&gt;
           </code>
-          from each XML becomes the library entry name.
+          of each XML becomes the entry name.
         </p>
       </div>
 
@@ -61,8 +59,8 @@ export function GvmLibraryPage() {
         onValueChange={(value) => setActiveKind(value as GvmKind)}
       >
         <TabsList>
-          <TabsTrigger value="scan_config">Scan Configs</TabsTrigger>
-          <TabsTrigger value="port_list">Port Lists</TabsTrigger>
+          <TabsTrigger value="scan_config">Scan profiles</TabsTrigger>
+          <TabsTrigger value="port_list">Port lists</TabsTrigger>
         </TabsList>
 
         <TabsContent value="scan_config">
@@ -76,15 +74,9 @@ export function GvmLibraryPage() {
           <LibraryTabPanel
             kind="port_list"
             onRequestDelete={setDeleteTarget}
-            onView={(entry) =>
-              setPortListEditor({ entry, mode: "view" })
-            }
-            onEdit={(entry) =>
-              setPortListEditor({ entry, mode: "edit" })
-            }
-            onCreateNew={() =>
-              setPortListEditor({ entry: null, mode: "new" })
-            }
+            onView={(entry) => setPortListEditor({ entry, mode: "view" })}
+            onEdit={(entry) => setPortListEditor({ entry, mode: "edit" })}
+            onCreateNew={() => setPortListEditor({ entry: null, mode: "new" })}
           />
         </TabsContent>
       </Tabs>
@@ -129,6 +121,7 @@ function LibraryTabPanel({
 }: LibraryTabPanelProps) {
   const { data, isLoading, error, refetch } = useLibraryEntries(kind);
   const { upload } = useLibraryMutations();
+  const canManage = useHasRole("operator");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File | null | undefined) => {
@@ -137,7 +130,9 @@ function LibraryTabPanel({
       { kind, file },
       {
         onSuccess: (entry) =>
-          toast.success(`Uploaded "${entry.name}" (hash ${entry.xml_hash.slice(0, 8)})`),
+          toast.success(
+            `Uploaded "${entry.name}" (hash ${entry.xml_hash.slice(0, 8)})`,
+          ),
         onError: (err: Error) => toast.error(err.message || "Upload failed"),
       },
     );
@@ -150,43 +145,45 @@ function LibraryTabPanel({
 
   return (
     <div className="space-y-4 pt-4">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={upload.isPending}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-60"
-        >
-          <Upload className="h-4 w-4" />
-          Upload XML
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xml,application/xml,text/xml"
-          className="hidden"
-          onChange={(e) => {
-            handleFile(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-        {kind === "port_list" && onCreateNew && (
+      {canManage && (
+        <div className="flex items-center gap-3">
           <button
-            onClick={onCreateNew}
+            onClick={() => fileInputRef.current?.click()}
             disabled={upload.isPending}
-            className="flex items-center gap-1.5 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-60"
           >
-            <Plus className="h-4 w-4" />
-            New Port List
+            <Upload className="h-4 w-4" />
+            Upload XML
           </button>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Name is read from the XML — upload an exported file from GSA (9392).
-        </p>
-      </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xml,application/xml,text/xml"
+            className="hidden"
+            onChange={(e) => {
+              handleFile(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          {kind === "port_list" && onCreateNew && (
+            <button
+              onClick={onCreateNew}
+              disabled={upload.isPending}
+              className="flex items-center gap-1.5 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+            >
+              <Plus className="h-4 w-4" />
+              New port list
+            </button>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Name is read from the XML — upload an exported file from GSA (9392).
+          </p>
+        </div>
+      )}
 
       {entries.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-          No {kind === "scan_config" ? "scan configs" : "port lists"} in the
+          No {kind === "scan_config" ? "scan profiles" : "port lists"} in the
           library yet.
         </div>
       ) : (
@@ -200,7 +197,11 @@ function LibraryTabPanel({
                   Uploaded by
                 </th>
                 <th className="px-4 py-2 text-left font-emphasis">Updated</th>
-                <th className="px-4 py-2 text-right font-emphasis">Actions</th>
+                {canManage && (
+                  <th className="px-4 py-2 text-right font-emphasis">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -221,46 +222,48 @@ function LibraryTabPanel({
                   <td className="px-4 py-2 text-muted-foreground">
                     {formatRelativeTime(entry.updated_at)}
                   </td>
-                  <td className="px-4 py-2 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {onView && (
+                  {canManage && (
+                    <td className="px-4 py-2 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {onView && (
+                          <button
+                            onClick={() => onView(entry)}
+                            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-muted"
+                            title="View"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {onEdit && (
+                          <button
+                            onClick={() => onEdit(entry)}
+                            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-muted"
+                            title="Edit"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         <button
-                          onClick={() => onView(entry)}
+                          onClick={() => {
+                            downloadLibraryXml(entry).catch((err) =>
+                              toast.error((err as Error).message),
+                            );
+                          }}
                           className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-muted"
-                          title="View"
+                          title="Download XML"
                         >
-                          <Eye className="h-3.5 w-3.5" />
+                          <Download className="h-3.5 w-3.5" />
                         </button>
-                      )}
-                      {onEdit && (
                         <button
-                          onClick={() => onEdit(entry)}
-                          className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-muted"
-                          title="Edit"
+                          onClick={() => onRequestDelete(entry)}
+                          className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                          title="Delete"
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          downloadLibraryXml(entry).catch((err) =>
-                            toast.error((err as Error).message),
-                          );
-                        }}
-                        className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-muted"
-                        title="Download XML"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => onRequestDelete(entry)}
-                        className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -293,40 +296,32 @@ function DeleteDialog({ entry, onClose }: DeleteDialogProps) {
     });
   };
 
+  const kindLabel =
+    entry?.kind === "scan_config" ? "scan profile" : "port list";
+  const referenceCount = references?.length ?? 0;
+
   return (
-    <AlertDialog open={entry !== null} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            Delete {entry?.kind === "scan_config" ? "scan config" : "port list"}{" "}
-            "{entry?.name}"?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {references && references.length > 0 ? (
-              <>
-                <span className="text-destructive">
-                  {references.length} network
-                  {references.length === 1 ? "" : "s"} reference this entry.
-                </span>{" "}
-                Deletion proceeds — those networks will fall back to the
-                scanner's native state or fail fast at scan time if the name
-                is not present there.
-              </>
-            ) : (
-              "This entry is not referenced by any network. Deletion is safe."
-            )}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleConfirm}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={entry !== null}
+      onOpenChange={(open) => !open && onClose()}
+      title={`Delete ${kindLabel} "${entry?.name ?? ""}"?`}
+      description={
+        referenceCount > 0 ? (
+          <>
+            <span className="text-destructive">
+              {referenceCount} network{referenceCount === 1 ? "" : "s"}{" "}
+              {referenceCount === 1 ? "uses" : "use"} this entry.
+            </span>{" "}
+            Their deep scans fall back to the scanner's own copy, or fail at
+            scan time if the scanner does not have it.
+          </>
+        ) : (
+          "No network uses this entry."
+        )
+      }
+      confirmLabel="Delete"
+      onConfirm={handleConfirm}
+      pending={remove.isPending}
+    />
   );
 }

@@ -4,6 +4,7 @@ import type { Alert, LatestScanEntry, Scanner } from "@/lib/types";
 
 import {
   failedNetworkScans,
+  groupFindings,
   groupPortAlerts,
   importantFindings,
   offlineScanners,
@@ -155,5 +156,41 @@ describe("failedNetworkScans", () => {
     expect(
       failedNetworkScans(entries, new Map([[1, "LAN"]])),
     ).toEqual([{ networkId: 1, name: "LAN", scanId: 10, error: "boom" }]);
+  });
+});
+
+describe("groupFindings", () => {
+  const gvmKey = (networkId: number) =>
+    `gvm:${networkId}:10.0.0.1:443:tcp:1.3.6.1.4.1.25623.1.0.1`;
+
+  it("merges the same finding on the same host:port across networks", () => {
+    const groups = groupFindings([
+      alert({ id: 1, source: "gvm", network_id: 1, network_name: "LAN", port: 443, source_key: gvmKey(1) }),
+      alert({ id: 2, source: "gvm", network_id: 2, network_name: "DMZ", port: 443, source_key: gvmKey(2), severity: "critical" }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].alertIds).toEqual([1, 2]);
+    expect(groups[0].networks).toEqual(["LAN", "DMZ"]);
+    expect(groups[0].severity).toBe("critical");
+    expect(groups[0].alert.id).toBe(2);
+  });
+
+  it("keeps different findings, ports, and sources apart", () => {
+    const groups = groupFindings([
+      alert({ id: 1, source: "gvm", port: 443, source_key: gvmKey(1) }),
+      alert({ id: 2, source: "gvm", port: 443, source_key: "gvm:1:10.0.0.1:443:tcp:1.3.6.1.4.1.25623.1.0.2" }),
+      alert({ id: 3, source: "gvm", port: 8443, source_key: "gvm:1:10.0.0.1:8443:tcp:1.3.6.1.4.1.25623.1.0.1" }),
+      alert({ id: 4, source: "nuclei", port: 443, source_key: "nuclei:1:10.0.0.1:443:tcp:1.3.6.1.4.1.25623.1.0.1" }),
+    ]);
+    expect(groups.map((g) => g.alertIds)).toEqual([[1], [2], [3], [4]]);
+  });
+
+  it("groups alerts without a finding id by type", () => {
+    const groups = groupFindings([
+      alert({ id: 1, source: "ssh", type: "ssh_insecure_auth", port: 22, network_name: "LAN" }),
+      alert({ id: 2, source: "ssh", type: "ssh_insecure_auth", port: 22, network_name: "DMZ" }),
+      alert({ id: 3, source: "ssh", type: "ssh_weak_cipher", port: 22 }),
+    ]);
+    expect(groups.map((g) => g.alertIds)).toEqual([[1, 2], [3]]);
   });
 });

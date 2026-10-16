@@ -31,7 +31,8 @@ function OrganizationPage() {
       <div>
         <h2 className="text-xl font-strong text-foreground">Organization</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Organization-level details shown across the console.
+          Name, description, and security contact of the organization running
+          this installation.
         </p>
       </div>
 
@@ -47,10 +48,6 @@ function OrganizationForm({ data }: { data: Organization }) {
   const [name, setName] = useState(data.name);
   const [description, setDescription] = useState(data.description ?? "");
   const [contactEmail, setContactEmail] = useState(data.contact_email ?? "");
-  const [logoUrl, setLogoUrl] = useState(data.logo_url ?? "");
-  const [securityPolicyUrl, setSecurityPolicyUrl] = useState(
-    data.security_policy_url ?? "",
-  );
 
   const handleSave = () => {
     update.mutate(
@@ -58,8 +55,6 @@ function OrganizationForm({ data }: { data: Organization }) {
         name: name || undefined,
         description: description || undefined,
         contact_email: contactEmail || undefined,
-        logo_url: logoUrl || null,
-        security_policy_url: securityPolicyUrl || null,
       },
       {
         onSuccess: () => toast.success("Organization updated"),
@@ -70,11 +65,11 @@ function OrganizationForm({ data }: { data: Organization }) {
 
   return (
     <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-      <h3 className="text-sm font-strong text-foreground">General Settings</h3>
+      <h3 className="text-sm font-strong text-foreground">General</h3>
 
       <div>
         <Label htmlFor="org-name" className="mb-1">
-          Organization Name
+          Organization name
         </Label>
         <Input
           id="org-name"
@@ -98,7 +93,7 @@ function OrganizationForm({ data }: { data: Organization }) {
 
       <div>
         <Label htmlFor="org-contact-email" className="mb-1">
-          Contact Email
+          Contact email
         </Label>
         <Input
           id="org-contact-email"
@@ -109,41 +104,14 @@ function OrganizationForm({ data }: { data: Organization }) {
         />
       </div>
 
-      <div>
-        <Label htmlFor="org-logo-url" className="mb-1">
-          Logo URL
-        </Label>
-        <Input
-          id="org-logo-url"
-          type="url"
-          value={logoUrl}
-          onChange={(e) => setLogoUrl(e.target.value)}
-          placeholder="https://example.com/logo.png"
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="org-security-policy-url" className="mb-1">
-          Security Policy URL
-        </Label>
-        <Input
-          id="org-security-policy-url"
-          type="url"
-          value={securityPolicyUrl}
-          onChange={(e) => setSecurityPolicyUrl(e.target.value)}
-          placeholder="https://example.com/security-policy"
-        />
-      </div>
-
       <Button
         onClick={handleSave}
         disabled={update.isPending}
         className="gap-1.5"
       >
         <Save className="h-4 w-4" />
-        {update.isPending ? "Saving..." : "Save Changes"}
+        {update.isPending ? "Saving..." : "Save changes"}
       </Button>
     </div>
   );
 }
-

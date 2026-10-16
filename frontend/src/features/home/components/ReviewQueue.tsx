@@ -10,6 +10,7 @@ import { ReviewRow } from "@/features/home/components/ReviewRow";
 import type { HomeQueueMode } from "@/features/home/hooks/useHomeData";
 import { useQueueKeyboard } from "@/features/home/hooks/useQueueKeyboard";
 import type { PortGroup } from "@/features/home/lib/homeQueue";
+import { useHasRole } from "@/lib/roles";
 import { NAV_V4, TRIAGE_ACTIONS } from "@/lib/terminology";
 
 interface ReviewQueueProps {
@@ -20,7 +21,8 @@ interface ReviewQueueProps {
   keyboardEnabled: boolean;
 }
 
-const idsOf = (groups: readonly PortGroup[]) => groups.flatMap((g) => g.alertIds);
+const idsOf = (groups: readonly PortGroup[]) =>
+  groups.flatMap((g) => g.alertIds);
 
 function severityCounts(groups: readonly PortGroup[]): Record<string, number> {
   const counts: Record<string, number> = {};
@@ -37,6 +39,10 @@ export function ReviewQueue({
   keyboardEnabled,
 }: ReviewQueueProps) {
   const triage = useTriage();
+  // Snooze/Reopen/Assign: analyst+; Expected and Delete: operator+ (hidden, not disabled).
+  const canTriage = useHasRole("analyst");
+  const canDecide = useHasRole("operator");
+  const inbox = mode === "inbox";
   const [cursor, setCursor] = useState(0);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [reasonTargets, setReasonTargets] = useState<PortGroup[] | null>(null);
@@ -50,6 +56,7 @@ export function ReviewQueue({
   const clearSelection = () => setSelected(new Set());
 
   const toggle = (key: string) =>
+    canTriage &&
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -59,17 +66,22 @@ export function ReviewQueue({
 
   useQueueKeyboard({
     enabled:
-      keyboardEnabled && reasonTargets === null && !deleteOpen && groups.length > 0,
+      keyboardEnabled &&
+      reasonTargets === null &&
+      !deleteOpen &&
+      groups.length > 0,
     count: groups.length,
     active,
     setCursor,
     onToggle: (i) => toggle(groups[i].key),
     onOpen: (i) => onOpenDetails(groups[i].alertIds[0]),
     onExpected:
-      mode === "inbox"
-        ? (i) => triage.markExpected({ alertIds: groups[i].alertIds, scope: "host" })
+      inbox && canDecide
+        ? (i) =>
+            triage.markExpected({ alertIds: groups[i].alertIds, scope: "host" })
         : undefined,
-    onSnooze: mode === "inbox" ? (i) => triage.snooze(groups[i].alertIds) : undefined,
+    onSnooze:
+      inbox && canTriage ? (i) => triage.snooze(groups[i].alertIds) : undefined,
   });
 
   if (groups.length === 0) {
@@ -100,33 +112,39 @@ export function ReviewQueue({
           <span className="text-muted-foreground">
             {selectedGroups.length} selected
           </span>
-          {mode === "inbox" ? (
+          {inbox ? (
             <>
+              {canDecide && (
+                <>
+                  <Button
+                    size="sm"
+                    disabled={triage.pending}
+                    onClick={() =>
+                      triage.markExpected(
+                        { alertIds: idsOf(selectedGroups), scope: "host" },
+                        clearSelection,
+                      )
+                    }
+                  >
+                    {TRIAGE_ACTIONS.expected.label} (this host)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={triage.pending}
+                    onClick={() => setReasonTargets(selectedGroups)}
+                  >
+                    {TRIAGE_ACTIONS.expected.label} with reason…
+                  </Button>
+                </>
+              )}
               <Button
                 size="sm"
+                variant="outline"
                 disabled={triage.pending}
                 onClick={() =>
-                  triage.markExpected(
-                    { alertIds: idsOf(selectedGroups), scope: "host" },
-                    clearSelection,
-                  )
+                  triage.snooze(idsOf(selectedGroups), clearSelection)
                 }
-              >
-                {TRIAGE_ACTIONS.expected.label} (this host)
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={triage.pending}
-                onClick={() => setReasonTargets(selectedGroups)}
-              >
-                {TRIAGE_ACTIONS.expected.label} with reason…
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={triage.pending}
-                onClick={() => triage.snooze(idsOf(selectedGroups), clearSelection)}
               >
                 {TRIAGE_ACTIONS.snooze.label}
               </Button>
@@ -136,20 +154,24 @@ export function ReviewQueue({
               size="sm"
               variant="outline"
               disabled={triage.pending}
-              onClick={() => triage.reopen(idsOf(selectedGroups), clearSelection)}
+              onClick={() =>
+                triage.reopen(idsOf(selectedGroups), clearSelection)
+              }
             >
               {TRIAGE_ACTIONS.reopen.label}
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto text-destructive"
-            disabled={triage.pending}
-            onClick={() => setDeleteOpen(true)}
-          >
-            Delete…
-          </Button>
+          {canDecide && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto text-destructive"
+              disabled={triage.pending}
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete…
+            </Button>
+          )}
           <button
             type="button"
             onClick={clearSelection}
@@ -166,6 +188,8 @@ export function ReviewQueue({
             key={group.key}
             group={group}
             mode={mode}
+            canTriage={canTriage}
+            canDecide={canDecide}
             active={i === active}
             selected={selected.has(group.key)}
             disabled={triage.pending}
@@ -186,11 +210,20 @@ export function ReviewQueue({
       </ul>
 
       <p className="text-xs text-muted-foreground">
-        Keys: <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>x</kbd> select ·{" "}
-        {mode === "inbox" && (
+        Keys: <kbd>j</kbd>/<kbd>k</kbd> move ·{" "}
+        {canTriage && (
           <>
-            <kbd>e</kbd> {TRIAGE_ACTIONS.expected.label} · <kbd>s</kbd>{" "}
-            {TRIAGE_ACTIONS.snooze.label} ·{" "}
+            <kbd>x</kbd> select ·{" "}
+          </>
+        )}
+        {inbox && canDecide && (
+          <>
+            <kbd>e</kbd> {TRIAGE_ACTIONS.expected.label} ·{" "}
+          </>
+        )}
+        {inbox && canTriage && (
+          <>
+            <kbd>s</kbd> {TRIAGE_ACTIONS.snooze.label} ·{" "}
           </>
         )}
         <kbd>Enter</kbd> details

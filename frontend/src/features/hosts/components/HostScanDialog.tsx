@@ -20,6 +20,7 @@ import { useNetworkDetail } from "@/features/networks/hooks/useNetworkDetail";
 import { useNseProfiles } from "@/features/nse/hooks/useNse";
 import { useCustomScanHost } from "@/features/hosts/hooks/useHosts";
 import { NucleiSettings } from "@/features/networks/components/NucleiSettings";
+import { TOOL_LABELS } from "@/lib/terminology";
 
 type ScanMode = "port" | "nse";
 
@@ -136,7 +137,7 @@ export function HostScanDialog({
 
   const onSubmit = (data: FormData) => {
     if (scanMode === "nse" && !nseProfileId) {
-      toast.error("Select an NSE profile");
+      toast.error("Select a script profile");
       return;
     }
 
@@ -185,12 +186,12 @@ export function HostScanDialog({
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
             {/* Scan Mode */}
             <div>
-              <Label>Scan Mode</Label>
+              <Label>Scan type</Label>
               <div className="flex gap-2">
                 {(
                   [
-                    { value: "port", label: "Port Scan" },
-                    { value: "nse", label: "NSE Vulnerability" },
+                    { value: "port", label: "Port scan" },
+                    { value: "nse", label: TOOL_LABELS.nse },
                   ] as const
                 ).map((opt) => (
                   <button
@@ -212,7 +213,7 @@ export function HostScanDialog({
             {/* NSE Profile Selector */}
             {scanMode === "nse" && (
               <div>
-                <Label>NSE Profile</Label>
+                <Label>Script profile (NSE)</Label>
                 <Select
                   value={nseProfileId}
                   onChange={(e) =>
@@ -250,10 +251,10 @@ export function HostScanDialog({
             {scanMode === "port" && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="scanner_type">Scanner Type</Label>
+                  <Label htmlFor="scanner_type">Port scan engine</Label>
                   <Select id="scanner_type" {...register("scanner_type")}>
-                    <option value="masscan">Masscan</option>
-                    <option value="nmap">Nmap</option>
+                    <option value="masscan">{TOOL_LABELS.masscan} (masscan)</option>
+                    <option value="nmap">{TOOL_LABELS.nmap} (nmap)</option>
                   </Select>
                 </div>
                 <div>
@@ -355,8 +356,8 @@ export function HostScanDialog({
                 {customScan.isPending
                   ? "Starting…"
                   : scanMode === "nse"
-                    ? "Start NSE Scan"
-                    : "Start Port Scan"}
+                    ? "Start script scan"
+                    : "Start port scan"}
               </Button>
             </DialogFooter>
           </form>

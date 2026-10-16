@@ -461,6 +461,8 @@ export interface GlobalOpenPort {
 
 export interface GlobalOpenPortListResponse {
   ports: GlobalOpenPort[];
+  /** Matching ports across all pages (same filters, no offset/limit). */
+  total: number;
 }
 
 export interface TrendDataPoint {

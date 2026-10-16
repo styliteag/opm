@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { patchApi } from "@/lib/api";
+import { useHasRole } from "@/lib/roles";
 
 export function HostComment({
   hostId,
@@ -18,6 +19,8 @@ export function HostComment({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(comment ?? "");
   const qc = useQueryClient();
+  // PATCH /api/hosts/{id} is operator+; others see the comment read-only.
+  const canEdit = useHasRole("operator");
 
   const save = useMutation({
     mutationFn: (user_comment: string) =>
@@ -71,6 +74,12 @@ export function HostComment({
         </div>
       </div>
     );
+  }
+
+  if (!canEdit) {
+    return comment ? (
+      <p className="text-sm text-secondary-foreground">{comment}</p>
+    ) : null;
   }
 
   return (

@@ -14,7 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-import { useSeverityRuleMutations, useSeverityRules } from "../hooks/useSeverityRules";
+import {
+  useSeverityRuleMutations,
+  useSeverityRules,
+} from "../hooks/useSeverityRules";
 import type { GvmSeverityRule, SeverityLabel } from "../api";
 
 interface SeverityRuleDialogProps {
@@ -43,7 +46,7 @@ export function SeverityRuleDialog(props: SeverityRuleDialogProps) {
           <DialogTitle>Change severity for this finding</DialogTitle>
           <DialogDescription>
             {props.findingName ? `${props.findingName} · ` : ""}
-            OID {props.oid}
+            Finding ID {props.oid}
             {props.nativeSeverity
               ? ` · scanner reports "${props.nativeSeverity}"`
               : ""}
@@ -67,7 +70,7 @@ function SeverityRuleDialogBody({
   const rules = rulesQuery.data?.rules ?? [];
   const networkRule: GvmSeverityRule | null =
     networkId != null
-      ? rules.find((r) => r.network_id === networkId) ?? null
+      ? (rules.find((r) => r.network_id === networkId) ?? null)
       : null;
   const globalRule: GvmSeverityRule | null =
     rules.find((r) => r.network_id == null) ?? null;
@@ -97,7 +100,7 @@ function SeverityRuleDialogBody({
               size="sm"
               onClick={() => setScope("global")}
             >
-              All networks (global)
+              Everywhere
             </Button>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
@@ -205,7 +208,7 @@ function RuleEditor({
       {activeRule && (
         <p className="text-xs text-muted-foreground">
           Existing rule: set to{" "}
-          <strong>{activeRule.severity_override}</strong> by{" "}
+          <span className="font-strong">{activeRule.severity_override}</span> by{" "}
           {activeRule.created_by_username ?? "unknown"} on{" "}
           {new Date(activeRule.created_at).toLocaleDateString()}
         </p>

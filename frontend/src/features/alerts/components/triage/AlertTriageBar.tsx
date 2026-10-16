@@ -7,6 +7,7 @@ import { ExpectedReasonDialog } from "@/features/alerts/components/triage/Expect
 import { ExpectedSplitButton } from "@/features/alerts/components/triage/ExpectedSplitButton";
 import { useTriage } from "@/features/alerts/hooks/useTriage";
 import { alertDisplayTitle } from "@/features/alerts/lib/alertDisplayTitle";
+import { useHasRole } from "@/lib/roles";
 import { TRIAGE_ACTIONS } from "@/lib/terminology";
 import type { Alert } from "@/lib/types";
 
@@ -17,14 +18,20 @@ interface AlertTriageBarProps {
 
 /**
  * v4 actions for one alert (ADR 0012): port alerts get Expected ▾ + Snooze,
- * findings get Snooze + Accept risk, handled alerts get Reopen.
+ * findings get Snooze + Accept risk, handled alerts get Reopen. Snooze and
+ * Reopen need analyst+, Expected and Accept risk operator+ (backend deps);
+ * controls the role can't use are hidden.
  */
 export function AlertTriageBar({ alert, onResolved }: AlertTriageBarProps) {
   const triage = useTriage();
+  const canTriage = useHasRole("analyst");
+  const canDecide = useHasRole("operator");
   const [reasonOpen, setReasonOpen] = useState(false);
   const [riskOpen, setRiskOpen] = useState(false);
   const target =
     alert.port != null ? `${alert.ip}:${alert.port}` : alert.ip;
+
+  if (!canTriage) return null;
 
   if (alert.dismissed) {
     return (
@@ -53,6 +60,8 @@ export function AlertTriageBar({ alert, onResolved }: AlertTriageBarProps) {
       {TRIAGE_ACTIONS.snooze.label}
     </Button>
   );
+
+  if (!canDecide) return snoozeButton;
 
   if (alert.source === "port") {
     return (
@@ -99,7 +108,7 @@ export function AlertTriageBar({ alert, onResolved }: AlertTriageBarProps) {
         target={alertDisplayTitle(alert)}
         pending={triage.pending}
         onConfirm={(reason) =>
-          triage.acceptRisk(alert.id, reason, () => {
+          triage.acceptRisk([alert.id], reason, () => {
             setRiskOpen(false);
             onResolved?.();
           })

@@ -9,6 +9,7 @@ import { HostKnownHostnames } from "@/features/hosts/components/HostKnownHostnam
 import { HostScanDialog } from "@/features/hosts/components/HostScanDialog";
 import type { HostFinding } from "@/features/hosts/lib/hostFindings";
 import { SeverityRuleDialog } from "@/features/severity-rules/components/SeverityRuleDialog";
+import { useHasRole } from "@/lib/roles";
 import type { HostOverviewResponse } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
 
@@ -56,7 +57,14 @@ function RecentScans({
 }
 
 /** Finding IDs + severity rules (ADR 0012: rules are an advanced tool). */
-function FindingRules({ findings }: { findings: HostFinding[] }) {
+function FindingRules({
+  findings,
+  canEdit,
+}: {
+  findings: HostFinding[];
+  /** Severity rules are operator+ on the backend. */
+  canEdit: boolean;
+}) {
   const [ruleFor, setRuleFor] = useState<HostFinding | null>(null);
   const withIds = findings.filter((f) => f.findingId && f.source !== "ssh");
   if (withIds.length === 0)
@@ -78,10 +86,12 @@ function FindingRules({ findings }: { findings: HostFinding[] }) {
                 {f.port != null ? `port ${f.port}` : "host"}
               </span>
             </span>
-            <Button variant="outline" size="xs" onClick={() => setRuleFor(f)}>
-              <ShieldAlert />
-              Change severity rule
-            </Button>
+            {canEdit && (
+              <Button variant="outline" size="xs" onClick={() => setRuleFor(f)}>
+                <ShieldAlert />
+                Change severity rule
+              </Button>
+            )}
           </li>
         ))}
       </ul>
@@ -105,6 +115,7 @@ export function HostAdvanced({
   onScanStarted,
 }: HostAdvancedProps) {
   const [scanOpen, setScanOpen] = useState(false);
+  const canOperate = useHasRole("operator");
   const { host, networks, recent_scans } = data;
 
   return (
@@ -117,28 +128,30 @@ export function HostAdvanced({
         <h3 className={H}>Known hostnames</h3>
         <HostKnownHostnames hostId={host.id} />
       </section>
-      <section className="space-y-2">
-        <h3 className={H}>Custom scan</h3>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={networks.length === 0}
-          onClick={() => setScanOpen(true)}
-        >
-          <Settings2 />
-          Custom scan…
-        </Button>
-        <HostScanDialog
-          open={scanOpen}
-          onOpenChange={setScanOpen}
-          hostIp={host.ip}
-          networkId={networks[0]?.id ?? 0}
-          onSuccess={onScanStarted}
-        />
-      </section>
+      {canOperate && (
+        <section className="space-y-2">
+          <h3 className={H}>Custom scan</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={networks.length === 0}
+            onClick={() => setScanOpen(true)}
+          >
+            <Settings2 />
+            Custom scan…
+          </Button>
+          <HostScanDialog
+            open={scanOpen}
+            onOpenChange={setScanOpen}
+            hostIp={host.ip}
+            networkId={networks[0]?.id ?? 0}
+            onSuccess={onScanStarted}
+          />
+        </section>
+      )}
       <section className="space-y-2">
         <h3 className={H}>Finding IDs and severity rules</h3>
-        <FindingRules findings={findings} />
+        <FindingRules findings={findings} canEdit={canOperate} />
       </section>
     </AdvancedSettings>
   );

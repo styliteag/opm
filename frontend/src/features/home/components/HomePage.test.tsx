@@ -3,9 +3,10 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
-import { useAuthStore } from "@/stores/auth.store";
+import { useAuthStore, type UserRole } from "@/stores/auth.store";
 import type { Alert } from "@/lib/types";
 import {
+  groupFindings,
   groupPortAlerts,
   importantFindings,
 } from "@/features/home/lib/homeQueue";
@@ -70,7 +71,7 @@ function alert(overrides: Partial<Alert>): Alert {
 function setAlerts(alerts: Alert[], extra: Record<string, unknown> = {}) {
   homeData.current = {
     groups: groupPortAlerts(alerts),
-    findings: importantFindings(alerts),
+    findings: groupFindings(importantFindings(alerts)),
     offline: [],
     failedScans: [],
     networkStatus: [],
@@ -103,6 +104,14 @@ const ALERTS = [
   }),
 ];
 
+function signIn(role: UserRole) {
+  useAuthStore.setState({
+    token: "t",
+    isAuthenticated: true,
+    user: { id: 1, email: "u@example.com", role, theme_preference: "dark" },
+  });
+}
+
 function renderHome(props: Partial<Parameters<typeof HomePage>[0]> = {}) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
@@ -121,7 +130,7 @@ describe("HomePage", () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    useAuthStore.setState({ token: "t", user: null, isAuthenticated: true });
+    signIn("admin");
     mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -265,5 +274,87 @@ describe("HomePage", () => {
     const { onOpenAlert } = renderHome();
     fireEvent.click(screen.getAllByTestId("review-row")[0]);
     expect(onOpenAlert).toHaveBeenCalledWith(3);
+  });
+
+  it("groups the same finding across networks; Snooze acts on all of them", async () => {
+    const key = (n: number) => `gvm:${n}:10.0.0.9:443:tcp:1.2.3`;
+    setAlerts([
+      alert({ id: 20, source: "gvm", type: "gvm_vulnerability", ip: "10.0.0.9", port: 443, network_id: 1, network_name: "LAN", source_key: key(1), message: "GVM OID 1.2.3 found 'Heartbleed' on 10.0.0.9:443/tcp." }),
+      alert({ id: 21, source: "gvm", type: "gvm_vulnerability", ip: "10.0.0.9", port: 443, network_id: 2, network_name: "DMZ", source_key: key(2), message: "GVM OID 1.2.3 found 'Heartbleed' on 10.0.0.9:443/tcp." }),
+    ]);
+    renderHome();
+    const rows = screen.getAllByTestId("finding-row");
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]).getByText("in 2 networks")).toBeInTheDocument();
+    fireEvent.click(within(rows[0]).getByRole("button", { name: /Snooze/ }));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(posts()[0]).toEqual({
+      url: "/api/alerts/bulk-dismiss",
+      body: { alert_ids: [20, 21] },
+    });
+  });
+
+  it("Accept risk on a grouped finding posts one request per alert", async () => {
+    const key = (n: number) => `gvm:${n}:10.0.0.9:443:tcp:1.2.3`;
+    setAlerts([
+      alert({ id: 20, source: "gvm", type: "gvm_vulnerability", ip: "10.0.0.9", port: 443, network_name: "LAN", source_key: key(1) }),
+      alert({ id: 21, source: "gvm", type: "gvm_vulnerability", ip: "10.0.0.9", port: 443, network_name: "DMZ", source_key: key(2) }),
+    ]);
+    renderHome();
+    fireEvent.click(screen.getByRole("button", { name: /Accept risk/ }));
+    fireEvent.change(await screen.findByRole("textbox"), {
+      target: { value: "Patched upstream" },
+    });
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Accept risk/ }));
+    await waitFor(() => expect(posts()).toHaveLength(2));
+    expect(posts().map((p) => p.url).sort()).toEqual([
+      "/api/alerts/20/accept-risk",
+      "/api/alerts/21/accept-risk",
+    ]);
+  });
+
+  describe("as a viewer", () => {
+    beforeEach(() => signIn("viewer"));
+
+    it("hides every triage control but keeps details", () => {
+      const { onOpenAlert } = renderHome();
+      expect(screen.queryByRole("button", { name: /Expected/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Snooze/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Accept risk/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      fireEvent.click(screen.getAllByTestId("review-row")[0]);
+      expect(onOpenAlert).toHaveBeenCalledWith(3);
+    });
+
+    it("ignores the e / s / x shortcuts", () => {
+      renderHome();
+      fireEvent.keyDown(window, { key: "x" });
+      fireEvent.keyDown(window, { key: "e" });
+      fireEvent.keyDown(window, { key: "s" });
+      expect(posts()).toHaveLength(0);
+      expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("as an analyst", () => {
+    beforeEach(() => signIn("analyst"));
+
+    it("can snooze but not mark Expected or accept risk", () => {
+      renderHome();
+      expect(screen.getAllByRole("button", { name: /Snooze/ }).length).toBeGreaterThan(0);
+      expect(screen.queryByRole("button", { name: /^Expected$/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Accept risk/ })).not.toBeInTheDocument();
+    });
+  });
+
+  it("Enter on a focused button does not trigger the open-details shortcut", () => {
+    const { onOpenAlert } = renderHome();
+    const snooze = within(screen.getAllByTestId("review-row")[0]).getByRole("button", {
+      name: /Snooze/,
+    });
+    snooze.focus();
+    fireEvent.keyDown(snooze, { key: "Enter" });
+    expect(onOpenAlert).not.toHaveBeenCalled();
   });
 });

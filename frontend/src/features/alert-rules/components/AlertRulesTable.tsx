@@ -34,6 +34,7 @@ import { InlineTextCell } from "@/components/ui/inline-text-cell";
 import { cn } from "@/lib/utils";
 import { patchApi } from "@/lib/api";
 import { getAlertTypeLabel } from "@/lib/alert-types";
+import { RULE_TYPE_LABELS } from "../lib/ruleLabels";
 import type { PortRule } from "../types";
 import { SourceBadge } from "./SourceBadge";
 
@@ -45,6 +46,8 @@ interface AlertRulesTableProps {
   onSelectedIdsChange: (ids: Set<number>) => void;
   onDelete: (rule: PortRule) => void;
   isDeleting: boolean;
+  /** Operator+ only: hides selection, inline edits and delete otherwise. */
+  canEdit: boolean;
 }
 
 function SortableHeader({
@@ -82,6 +85,7 @@ export function AlertRulesTable({
   onSelectedIdsChange,
   onDelete,
   isDeleting,
+  canEdit,
 }: AlertRulesTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const qc = useQueryClient();
@@ -116,8 +120,8 @@ export function AlertRulesTable({
   const updateRuleRef = useRef(updateRule);
   updateRuleRef.current = updateRule;
 
-  const columns = useMemo<ColumnDef<PortRule>[]>(
-    () => [
+  const columns = useMemo<ColumnDef<PortRule>[]>(() => {
+    const all: ColumnDef<PortRule>[] = [
       {
         id: "select",
         header: ({ table }) => {
@@ -166,7 +170,7 @@ export function AlertRulesTable({
       },
       {
         id: "scope",
-        accessorFn: (row) => row.network_name ?? "Global",
+        accessorFn: (row) => row.network_name ?? "Everywhere",
         header: ({ column }) => (
           <SortableHeader label="Scope" column={column} />
         ),
@@ -183,7 +187,9 @@ export function AlertRulesTable({
               </Link>
             );
           }
-          return <span className="text-sm text-muted-foreground">Global</span>;
+          return (
+            <span className="text-sm text-muted-foreground">Everywhere</span>
+          );
         },
         size: 140,
       },
@@ -210,7 +216,7 @@ export function AlertRulesTable({
           return parts.join(" ");
         },
         header: ({ column }) => (
-          <SortableHeader label="Alert Type" column={column} />
+          <SortableHeader label="Alert" column={column} />
         ),
         cell: ({ row }) => {
           const parts: string[] = [];
@@ -229,41 +235,49 @@ export function AlertRulesTable({
       {
         accessorKey: "rule_type",
         header: ({ column }) => <SortableHeader label="Type" column={column} />,
-        cell: ({ row }) => (
-          <Select
-            value={row.original.rule_type}
-            onChange={(e) =>
-              updateRuleRef.current.mutate({
-                rule: row.original,
-                patch: { rule_type: e.target.value },
-              })
-            }
-            className="h-7 text-xs w-[100px]"
-          >
-            <option value="accepted">Allowed</option>
-            <option value="critical">Critical</option>
-          </Select>
-        ),
-        size: 120,
+        cell: ({ row }) =>
+          !canEdit ? (
+            <span className="text-xs text-foreground">
+              {RULE_TYPE_LABELS[row.original.rule_type]}
+            </span>
+          ) : (
+            <Select
+              value={row.original.rule_type}
+              onChange={(e) =>
+                updateRuleRef.current.mutate({
+                  rule: row.original,
+                  patch: { rule_type: e.target.value },
+                })
+              }
+              className="h-7 text-xs w-[130px]"
+            >
+              <option value="accepted">{RULE_TYPE_LABELS.accepted}</option>
+              <option value="critical">{RULE_TYPE_LABELS.critical}</option>
+            </Select>
+          ),
+        size: 140,
       },
       {
         accessorKey: "description",
-        header: ({ column }) => (
-          <SortableHeader label="Description" column={column} />
-        ),
-        cell: ({ row }) => (
-          <InlineTextCell
-            value={row.original.description}
-            placeholder="Add description..."
-            onSave={(v) =>
-              updateRuleRef.current.mutate({
-                rule: row.original,
-                patch: { description: v || null },
-              })
-            }
-            isPending={updateRuleRef.current.isPending}
-          />
-        ),
+        header: ({ column }) => <SortableHeader label="Why" column={column} />,
+        cell: ({ row }) =>
+          !canEdit ? (
+            <span className="text-sm text-muted-foreground">
+              {row.original.description ?? ""}
+            </span>
+          ) : (
+            <InlineTextCell
+              value={row.original.description}
+              placeholder="Add reason..."
+              onSave={(v) =>
+                updateRuleRef.current.mutate({
+                  rule: row.original,
+                  patch: { description: v || null },
+                })
+              }
+              isPending={updateRuleRef.current.isPending}
+            />
+          ),
         size: 240,
       },
       {
@@ -273,6 +287,12 @@ export function AlertRulesTable({
         ),
         cell: ({ row }) => {
           const enabled = row.original.enabled;
+          if (!canEdit)
+            return (
+              <span className="text-xs text-muted-foreground">
+                {enabled ? "On" : "Off"}
+              </span>
+            );
           return (
             <button
               onClick={() =>
@@ -302,10 +322,15 @@ export function AlertRulesTable({
       },
       {
         accessorKey: "hit_count",
-        header: ({ column }) => <SortableHeader label="Hits" column={column} />,
+        header: ({ column }) => (
+          <SortableHeader label="Matches" column={column} />
+        ),
         cell: ({ row }) => (
-          <span className="text-sm font-mono text-muted-foreground">
-            {row.original.hit_count}
+          <span
+            className="text-sm font-mono text-muted-foreground"
+            title="Alerts this rule has matched"
+          >
+            {row.original.hit_count || "—"}
           </span>
         ),
         size: 70,
@@ -318,7 +343,8 @@ export function AlertRulesTable({
               onClick={() => onDeleteRef.current(row.original)}
               disabled={isDeleting}
               className="rounded p-1 text-muted-foreground hover:text-destructive disabled:opacity-50 cursor-pointer transition-colors"
-              title="Remove rule"
+              title="Delete rule"
+              aria-label="Delete rule"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -327,9 +353,11 @@ export function AlertRulesTable({
         size: 70,
         enableSorting: false,
       },
-    ],
-    [isDeleting],
-  );
+    ];
+    return canEdit
+      ? all
+      : all.filter((c) => c.id !== "select" && c.id !== "actions");
+  }, [isDeleting, canEdit]);
 
   const filteredByPort = useMemo(() => {
     if (!portFilter.trim()) return rules;
@@ -353,8 +381,8 @@ export function AlertRulesTable({
         (r.ip ?? "").toLowerCase().includes(q) ||
         (r.port ?? "").toLowerCase().includes(q) ||
         (r.description ?? "").toLowerCase().includes(q) ||
-        (r.network_name ?? "global").toLowerCase().includes(q) ||
-        (r.rule_type ?? "").toLowerCase().includes(q) ||
+        (r.network_name ?? "everywhere").toLowerCase().includes(q) ||
+        RULE_TYPE_LABELS[r.rule_type].toLowerCase().includes(q) ||
         (r.alert_type ?? "").toLowerCase().includes(q) ||
         (r.script_name ?? "").toLowerCase().includes(q)
       );

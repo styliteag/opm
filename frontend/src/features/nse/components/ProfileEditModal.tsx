@@ -113,7 +113,7 @@ export function ProfileEditModal({
       <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? "Edit Profile" : "Create Profile"}
+            {isEdit ? "Edit profile" : "Create profile"}
           </DialogTitle>
         </DialogHeader>
         <form

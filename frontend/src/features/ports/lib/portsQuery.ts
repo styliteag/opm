@@ -2,6 +2,16 @@ import type { PortStatus } from "@/lib/types";
 
 export const PORTS_PAGE_SIZE = 50;
 
+/** Whether a page follows; `total` wins over the "full page means more" guess. */
+export function hasNextPage(
+  page: number,
+  shown: number,
+  total: number | undefined,
+): boolean {
+  if (total === undefined) return shown === PORTS_PAGE_SIZE;
+  return page * PORTS_PAGE_SIZE + shown < total;
+}
+
 export type PortsView = "decide" | "expected" | "snoozed" | "all";
 
 /** Status segmented control on the Ports tab; "To decide" is the default. */

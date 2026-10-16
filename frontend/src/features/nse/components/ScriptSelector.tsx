@@ -162,10 +162,10 @@ export function ScriptSelector({
       <div className="flex items-center justify-between mb-2">
         <div>
           <span className="text-sm font-strong text-foreground">
-            NSE Scripts ({selected.size} of {totalCount} selected)
+            Scripts ({selected.size} of {totalCount} selected)
           </span>
           <p className="text-xs text-muted-foreground">
-            Choose which NSE scripts to include in this profile
+            Choose which vulnerability scripts (nmap NSE) this profile runs
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -201,7 +201,7 @@ export function ScriptSelector({
           />
           <input
             type="text"
-            aria-label="Search NSE scripts"
+            aria-label="Search scripts"
             placeholder="Search scripts by name, description, tags, or author..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}

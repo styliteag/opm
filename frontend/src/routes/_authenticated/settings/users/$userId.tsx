@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,15 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { useUser, useUserMutations } from "@/features/admin/hooks/useAdmin";
 import { useAuthStore } from "@/stores/auth.store";
 import type { UserRole } from "@/stores/auth.store";
@@ -39,7 +35,10 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const roleVariant: Record<UserRole, "danger" | "warning" | "success" | "neutral"> = {
+const roleVariant: Record<
+  UserRole,
+  "danger" | "warning" | "success" | "neutral"
+> = {
   admin: "danger",
   operator: "warning",
   analyst: "success",
@@ -54,6 +53,7 @@ function UserEditPage() {
 
   const { data: user, isLoading, error, refetch } = useUser(id);
   const { update, reset2fa } = useUserMutations();
+  const [reset2faOpen, setReset2faOpen] = useState(false);
 
   const {
     register,
@@ -68,7 +68,12 @@ function UserEditPage() {
 
   useEffect(() => {
     if (user) {
-      reset({ email: user.email, role: user.role, password: "", is_active: user.is_active });
+      reset({
+        email: user.email,
+        role: user.role,
+        password: "",
+        is_active: user.is_active,
+      });
     }
   }, [user, reset]);
 
@@ -77,7 +82,13 @@ function UserEditPage() {
   if (!user) return null;
 
   const onSubmit = (data: FormData) => {
-    const payload: { id: number; email?: string; role?: UserRole; password?: string; is_active?: boolean } = {
+    const payload: {
+      id: number;
+      email?: string;
+      role?: UserRole;
+      password?: string;
+      is_active?: boolean;
+    } = {
       id,
       email: data.email,
       role: data.role as UserRole,
@@ -96,7 +107,10 @@ function UserEditPage() {
 
   const handleReset2fa = () => {
     reset2fa.mutate(id, {
-      onSuccess: () => toast.success("2FA reset — user will need to re-enrol"),
+      onSuccess: () => {
+        toast.success("2FA reset — user will need to re-enrol");
+        setReset2faOpen(false);
+      },
       onError: (e) => toast.error(e.message),
     });
   };
@@ -112,7 +126,9 @@ function UserEditPage() {
           Users
         </Link>
         <span className="text-muted-foreground/40">/</span>
-        <h1 className="text-xl font-strong text-foreground truncate">{user.email}</h1>
+        <h2 className="text-xl font-strong text-foreground truncate">
+          {user.email}
+        </h2>
         <StatusBadge label={user.role} variant={roleVariant[user.role]} />
       </div>
 
@@ -126,7 +142,9 @@ function UserEditPage() {
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" {...register("email")} />
               {errors.email && (
-                <p className="mt-1 text-xs text-destructive">{errors.email.message}</p>
+                <p className="mt-1 text-xs text-destructive">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
@@ -149,7 +167,9 @@ function UserEditPage() {
                 {...register("password")}
               />
               {errors.password && (
-                <p className="mt-1 text-xs text-destructive">{errors.password.message}</p>
+                <p className="mt-1 text-xs text-destructive">
+                  {errors.password.message}
+                </p>
               )}
             </div>
 
@@ -197,13 +217,15 @@ function UserEditPage() {
             ) : (
               <>
                 <ShieldOff className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Not enrolled</span>
+                <span className="text-sm text-muted-foreground">
+                  Not enrolled
+                </span>
               </>
             )}
           </div>
 
-          {user.totp_enabled && (
-            isSelf ? (
+          {user.totp_enabled &&
+            (isSelf ? (
               <p className="text-sm text-muted-foreground">
                 Manage your own 2FA at{" "}
                 <Link
@@ -218,20 +240,29 @@ function UserEditPage() {
               <div className="space-y-1">
                 <Button
                   variant="outline"
-                  onClick={handleReset2fa}
+                  onClick={() => setReset2faOpen(true)}
                   disabled={reset2fa.isPending}
                   className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
                 >
                   {reset2fa.isPending ? "Resetting…" : "Reset 2FA"}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Disables 2FA and invalidates all backup codes. The user will need to re-enrol.
+                  Disables 2FA and invalidates all backup codes. The user will
+                  need to re-enrol.
                 </p>
               </div>
-            )
-          )}
+            ))}
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={reset2faOpen}
+        onOpenChange={setReset2faOpen}
+        title="Reset two-factor authentication?"
+        description={`2FA for ${user.email} is turned off and all backup codes stop working. The user has to set up 2FA again.`}
+        confirmLabel="Reset 2FA"
+        onConfirm={handleReset2fa}
+        pending={reset2fa.isPending}
+      />
     </div>
   );
 }

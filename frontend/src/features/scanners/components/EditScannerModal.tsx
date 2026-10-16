@@ -119,9 +119,9 @@ export function EditScannerModal({
           <div>
             <Label htmlFor="edit-kind">Kind</Label>
             <Select id="edit-kind" {...register("kind")}>
-              <option value="standard">Standard (masscan / nmap / nse)</option>
-              <option value="gvm">GVM (Greenbone bridge only)</option>
-              <option value="unified">Unified (standard + GVM)</option>
+              <option value="standard">Port scans (masscan / nmap / NSE)</option>
+              <option value="gvm">Deep scans only (Greenbone / GVM)</option>
+              <option value="unified">Port + deep scans (unified)</option>
             </Select>
             <p className="mt-1 text-[11px] text-muted-foreground">
               Kind should match the actual scanner image deployed

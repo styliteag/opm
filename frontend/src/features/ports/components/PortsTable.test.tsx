@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { useAuthStore } from "@/stores/auth.store";
+import { useAuthStore, type UserRole } from "@/stores/auth.store";
 import type { GlobalOpenPort } from "@/lib/types";
 
 import { PortsTable } from "./PortsTable";
@@ -53,6 +53,13 @@ function port(over: Partial<GlobalOpenPort>): GlobalOpenPort {
   };
 }
 
+function signIn(role: UserRole) {
+  useAuthStore.setState({
+    token: "t",
+    user: { id: 1, email: "u@example.com", role, theme_preference: "dark" },
+  });
+}
+
 function renderTable(ports: GlobalOpenPort[]) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -70,7 +77,7 @@ describe("PortsTable", () => {
   });
 
   beforeEach(() => {
-    useAuthStore.setState({ token: "t" });
+    signIn("admin");
     vi.stubGlobal("fetch", mockFetch);
   });
   afterEach(() => {
@@ -158,5 +165,20 @@ describe("PortsTable", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       user_comment: "Jump host",
     });
+  });
+
+  it("hides triage controls from viewers (Why stays editable, backend allows any user)", () => {
+    signIn("viewer");
+    renderTable([port({})]);
+    expect(screen.queryByRole("button", { name: "Expected" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Snooze/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Add why/ })).toBeInTheDocument();
+  });
+
+  it("shows Snooze but not Expected to analysts", () => {
+    signIn("analyst");
+    renderTable([port({})]);
+    expect(screen.queryByRole("button", { name: "Expected" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Snooze/ })).toBeInTheDocument();
   });
 });

@@ -57,16 +57,22 @@ export function useTriage() {
       },
     );
 
-  const acceptRisk = (alertId: number, reason: string, onDone?: Done) =>
-    actions.acceptRisk.mutate(
-      { alertId, reason },
-      {
-        onSuccess: () => {
-          toast.success("Risk accepted");
-          onDone?.();
-        },
-        onError: (e) => toast.error(e.message),
+  // One request per alert: each network gets its own severity rule.
+  const acceptRisk = (alertIds: number[], reason: string, onDone?: Done) =>
+    void Promise.all(
+      alertIds.map((alertId) =>
+        actions.acceptRisk.mutateAsync({ alertId, reason }),
+      ),
+    ).then(
+      () => {
+        toast.success(
+          alertIds.length === 1
+            ? "Risk accepted"
+            : `Risk accepted for ${plural(alertIds.length, "alert")}`,
+        );
+        onDone?.();
       },
+      (e: Error) => toast.error(e.message),
     );
 
   const assign = (alertIds: number[], userId: number | null) =>

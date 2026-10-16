@@ -1,3 +1,4 @@
+import { parseAlertSourceKey } from "@/features/severity-rules/lib/parseAlertSourceKey";
 import type { Alert, LatestScanEntry, Scanner, Severity } from "@/lib/types";
 import { parseUTC } from "@/lib/utils";
 
@@ -98,6 +99,66 @@ export function importantFindings(alerts: readonly Alert[]): Alert[] {
           SEVERITY_RANK[effectiveSeverity(a)] ||
         b.created_at.localeCompare(a.created_at),
     );
+}
+
+/** One Home findings row: the same finding on the same host:port across networks. */
+export interface FindingGroup {
+  key: string;
+  /** Highest-severity alert of the group; drives title and details. */
+  alert: Alert;
+  severity: Severity;
+  networks: string[];
+  alertIds: number[];
+  newestAt: string;
+}
+
+/** Finding ID from source_key (GVM/nuclei/NSE); alert type for the rest (SSH). */
+function findingKey(alert: Alert): string {
+  const parsed = parseAlertSourceKey(alert.source, alert.source_key);
+  const finding = parsed?.oid ?? alert.type;
+  return `${alert.source}|${finding}|${alert.ip}|${alert.port ?? "host"}`;
+}
+
+function addFinding(group: FindingGroup, alert: Alert): FindingGroup {
+  const severity = effectiveSeverity(alert);
+  const higher = SEVERITY_RANK[severity] > SEVERITY_RANK[group.severity];
+  return {
+    ...group,
+    alert: higher ? alert : group.alert,
+    severity: higher ? severity : group.severity,
+    networks:
+      alert.network_name && !group.networks.includes(alert.network_name)
+        ? [...group.networks, alert.network_name]
+        : group.networks,
+    alertIds: [...group.alertIds, alert.id],
+    newestAt: alert.created_at > group.newestAt ? alert.created_at : group.newestAt,
+  };
+}
+
+/**
+ * Collapse identical findings raised once per overlapping network into one
+ * row (same grouping idea as the port queue, ADR 0012). Keeps input order.
+ */
+export function groupFindings(findings: readonly Alert[]): FindingGroup[] {
+  const groups = new Map<string, FindingGroup>();
+  for (const alert of findings) {
+    const key = findingKey(alert);
+    const existing = groups.get(key);
+    groups.set(
+      key,
+      existing
+        ? addFinding(existing, alert)
+        : {
+            key,
+            alert,
+            severity: effectiveSeverity(alert),
+            networks: alert.network_name ? [alert.network_name] : [],
+            alertIds: [alert.id],
+            newestAt: alert.created_at,
+          },
+    );
+  }
+  return [...groups.values()];
 }
 
 /** Names of scanners not seen within five minutes (same rule as the v3 dashboard). */

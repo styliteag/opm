@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPortsParams, parsePortSearch, STATUS_VIEWS } from "./portsQuery";
+import {
+  buildPortsParams,
+  hasNextPage,
+  parsePortSearch,
+  STATUS_VIEWS,
+} from "./portsQuery";
 
 function params(qs: string) {
   const p = new URLSearchParams(qs);
@@ -94,5 +99,18 @@ describe("buildPortsParams", () => {
       }),
     );
     expect(p).toMatchObject({ ip_range: "10.0.0.0/8", service: "ssh" });
+  });
+});
+
+describe("hasNextPage", () => {
+  it("uses the total when the API reports one", () => {
+    expect(hasNextPage(0, 50, 120)).toBe(true);
+    expect(hasNextPage(1, 50, 100)).toBe(false);
+    expect(hasNextPage(2, 20, 120)).toBe(false);
+  });
+
+  it("falls back to a full page meaning maybe more", () => {
+    expect(hasNextPage(0, 50, undefined)).toBe(true);
+    expect(hasNextPage(0, 49, undefined)).toBe(false);
   });
 });

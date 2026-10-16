@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { HostComment } from "@/features/hosts/components/HostComment";
 import { InlineHostname } from "@/features/hosts/components/InlineHostname";
 import { useRescanHost } from "@/features/hosts/hooks/useHosts";
+import { useHasRole } from "@/lib/roles";
 import type { Host, HostOverviewResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export function HostHeader({
   importantFindings,
 }: HostHeaderProps) {
   const rescan = useRescanHost();
+  const canScan = useHasRole("operator");
 
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -82,19 +84,22 @@ export function HostHeader({
           <HostComment hostId={host.id} comment={host.user_comment} />
         </div>
       </div>
-      <Button
-        disabled={rescan.isPending}
-        onClick={() =>
-          rescan.mutate(host.ip, {
-            onSuccess: (resp) => toast.success(resp.message ?? "Scan started"),
-            onError: (err) =>
-              toast.error(err.message ?? "Failed to start scan"),
-          })
-        }
-      >
-        <RefreshCw className={cn(rescan.isPending && "animate-spin")} />
-        {rescan.isPending ? "Starting…" : "Scan again"}
-      </Button>
+      {canScan && (
+        <Button
+          disabled={rescan.isPending}
+          onClick={() =>
+            rescan.mutate(host.ip, {
+              onSuccess: (resp) =>
+                toast.success(resp.message ?? "Scan started"),
+              onError: (err) =>
+                toast.error(err.message ?? "Failed to start scan"),
+            })
+          }
+        >
+          <RefreshCw className={cn(rescan.isPending && "animate-spin")} />
+          {rescan.isPending ? "Starting…" : "Scan again"}
+        </Button>
+      )}
     </div>
   );
 }

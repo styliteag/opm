@@ -19,6 +19,7 @@ import {
   alertToolLabel,
 } from "@/features/alerts/lib/alertDisplayTitle";
 import { fetchAlert, fetchAlertTimeline } from "@/lib/api-client-helpers";
+import { useHasRole } from "@/lib/roles";
 import { PORT_STATUS } from "@/lib/terminology";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 
@@ -30,6 +31,8 @@ interface AlertDetailPanelProps {
 
 export function AlertDetailPanel({ alertId, onResolved }: AlertDetailPanelProps) {
   const comments = useAlertComments(alertId);
+  // Assign and comments are analyst+ on the backend; hidden for viewers.
+  const canTriage = useHasRole("analyst");
 
   const alertQuery = useQuery({
     queryKey: ["alerts", alertId],
@@ -87,11 +90,13 @@ export function AlertDetailPanel({ alertId, onResolved }: AlertDetailPanelProps)
         </p>
         <div className="flex flex-wrap gap-2">
           <AlertTriageBar alert={alert} onResolved={onResolved} />
-          <AssignAlertDropdown
-            alertId={alert.id}
-            currentUserId={alert.assigned_to_user_id}
-            currentUserEmail={alert.assigned_to_email}
-          />
+          {canTriage && (
+            <AssignAlertDropdown
+              alertId={alert.id}
+              currentUserId={alert.assigned_to_user_id}
+              currentUserEmail={alert.assigned_to_email}
+            />
+          )}
         </div>
       </div>
 
@@ -201,7 +206,7 @@ export function AlertDetailPanel({ alertId, onResolved }: AlertDetailPanelProps)
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">
-                    Password Auth
+                    Password login
                   </dt>
                   <dd className="mt-0.5">
                     <StatusBadge
@@ -220,7 +225,7 @@ export function AlertDetailPanel({ alertId, onResolved }: AlertDetailPanelProps)
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">
-                    Weak Ciphers
+                    Weak encryption
                   </dt>
                   <dd className="mt-0.5">
                     <StatusBadge
@@ -376,8 +381,12 @@ export function AlertDetailPanel({ alertId, onResolved }: AlertDetailPanelProps)
               ))}
             </div>
           )}
-          <Separator className="mb-4" />
-          <CommentInput alertId={alert.id} />
+          {canTriage && (
+            <>
+              <Separator className="mb-4" />
+              <CommentInput alertId={alert.id} />
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -36,7 +36,8 @@ export function listSeverityRules(params?: {
   oid?: string;
 }): Promise<GvmSeverityRuleListResponse> {
   const qs = new URLSearchParams();
-  if (params?.network_id != null) qs.set("network_id", String(params.network_id));
+  if (params?.network_id != null)
+    qs.set("network_id", String(params.network_id));
   if (params?.oid) qs.set("oid", params.oid);
   const suffix = qs.toString() ? `?${qs}` : "";
   return fetchApi<GvmSeverityRuleListResponse>(`/api/severity-rules${suffix}`);

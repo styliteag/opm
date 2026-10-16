@@ -101,9 +101,7 @@ describe("parseAndResolve", () => {
   });
 
   it("accepts a bare array payload", () => {
-    const text = JSON.stringify([
-      { oid: "a", severity_override: "medium" },
-    ]);
+    const text = JSON.stringify([{ oid: "a", severity_override: "medium" }]);
     const { valid } = parseAndResolve(text, networks);
     expect(valid).toEqual([
       {
@@ -116,7 +114,9 @@ describe("parseAndResolve", () => {
   });
 
   it("throws on malformed JSON", () => {
-    expect(() => parseAndResolve("{not json", networks)).toThrow(/Invalid JSON/);
+    expect(() => parseAndResolve("{not json", networks)).toThrow(
+      /Invalid JSON/,
+    );
   });
 
   it("throws when top-level shape is wrong", () => {

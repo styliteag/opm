@@ -68,9 +68,9 @@ export function CreateScannerModal({ open, onOpenChange, onCreated }: CreateScan
           <div>
             <Label htmlFor="kind">Kind</Label>
             <Select id="kind" {...register('kind')}>
-              <option value="standard">Standard (masscan / nmap / nse)</option>
-              <option value="gvm">GVM (Greenbone bridge only)</option>
-              <option value="unified">Unified (standard + GVM)</option>
+              <option value="standard">Port scans (masscan / nmap / NSE)</option>
+              <option value="gvm">Deep scans only (Greenbone / GVM)</option>
+              <option value="unified">Port + deep scans (unified)</option>
             </Select>
             <p className="mt-1 text-[11px] text-muted-foreground">
               Pick Unified for opm-scanner-unified (standard tools + GVM socket).

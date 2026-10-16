@@ -43,7 +43,11 @@ function SortableHeader({
       onClick={column.getToggleSortingHandler()}
       className="flex items-center gap-1 text-xs cursor-pointer"
       aria-label={`Sort by ${label}, currently ${
-        sorted === false ? "unsorted" : sorted === "asc" ? "ascending" : "descending"
+        sorted === false
+          ? "unsorted"
+          : sorted === "asc"
+            ? "ascending"
+            : "descending"
       }, click to sort ${nextDirection}`}
     >
       {label} <Icon className="h-3 w-3" aria-hidden="true" />
@@ -57,6 +61,16 @@ interface HostsTableProps {
   onSelectChange?: (ids: number[]) => void;
   sorting: SortingState;
   onSortingChange: (sorting: SortingState) => void;
+  /** Inline hostname/comment editing (PATCH /api/hosts needs operator+). */
+  editable?: boolean;
+}
+
+function ReadOnlyText({ value }: { value: string | null }) {
+  return (
+    <span className="block truncate text-sm text-muted-foreground">
+      {value || "-"}
+    </span>
+  );
 }
 
 export function HostsTable({
@@ -65,6 +79,7 @@ export function HostsTable({
   onSelectChange,
   sorting,
   onSortingChange,
+  editable = true,
 }: HostsTableProps) {
   const selectable = Boolean(onSelectChange);
   const qc = useQueryClient();
@@ -127,18 +142,22 @@ export function HostsTable({
           return (
             <div className="flex items-center gap-1 min-w-0">
               <div className="flex-1 min-w-0">
-                <InlineTextCell
-                  value={displayValue}
-                  onSave={(val) =>
-                    hostnameMutation.mutate({
-                      hostId: row.original.id,
-                      hostname: val,
-                    })
-                  }
-                  saveLabel="Save hostname"
-                  placeholder="-"
-                  isPending={hostnameMutation.isPending}
-                />
+                {!editable ? (
+                  <ReadOnlyText value={displayValue} />
+                ) : (
+                  <InlineTextCell
+                    value={displayValue}
+                    onSave={(val) =>
+                      hostnameMutation.mutate({
+                        hostId: row.original.id,
+                        hostname: val,
+                      })
+                    }
+                    saveLabel="Save hostname"
+                    placeholder="-"
+                    isPending={hostnameMutation.isPending}
+                  />
+                )}
               </div>
               {row.original.cached_hostname_count > 1 ? (
                 <CachedVhostsChip
@@ -153,20 +172,23 @@ export function HostsTable({
       {
         accessorKey: "user_comment",
         header: "Comment",
-        cell: ({ row }) => (
-          <InlineTextCell
-            value={row.original.user_comment}
-            onSave={(val) =>
-              commentMutation.mutate({
-                hostId: row.original.id,
-                user_comment: val,
-              })
-            }
-            saveLabel="Save comment"
-            placeholder="Add comment..."
-            isPending={commentMutation.isPending}
-          />
-        ),
+        cell: ({ row }) =>
+          !editable ? (
+            <ReadOnlyText value={row.original.user_comment} />
+          ) : (
+            <InlineTextCell
+              value={row.original.user_comment}
+              onSave={(val) =>
+                commentMutation.mutate({
+                  hostId: row.original.id,
+                  user_comment: val,
+                })
+              }
+              saveLabel="Save comment"
+              placeholder="Add comment..."
+              isPending={commentMutation.isPending}
+            />
+          ),
         size: 200,
       },
       {
@@ -195,7 +217,7 @@ export function HostsTable({
         size: 120,
       },
     ],
-    [hostnameMutation, commentMutation],
+    [hostnameMutation, commentMutation, editable],
   );
 
   const table = useReactTable({
@@ -228,67 +250,67 @@ export function HostsTable({
 
   return (
     <TooltipProvider>
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full">
-        <thead>
-          {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id} className="border-b border-border bg-card">
-              {selectable && (
-                <th className="w-10 px-3 py-3">
-                  <input
-                    type="checkbox"
-                    aria-label="Select all hosts"
-                    checked={
-                      hosts.length > 0 &&
-                      hosts.every((h) => selectedIds?.includes(h.id))
-                    }
-                    onChange={toggleAll}
-                    className="rounded border-border cursor-pointer"
-                  />
-                </th>
-              )}
-              {hg.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className="px-4 py-3 text-left text-xs font-emphasis uppercase tracking-wider text-muted-foreground"
-                  style={{ width: header.getSize() }}
-                >
-                  {flexRender(
-                    header.column.columnDef.header,
-                    header.getContext(),
-                  )}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr
-              key={row.id}
-              className="border-b border-border hover:bg-accent/50 transition-colors"
-            >
-              {selectable && (
-                <td className="w-10 px-3 py-3">
-                  <input
-                    type="checkbox"
-                    aria-label={`Select host ${row.original.ip}`}
-                    checked={selectedIds?.includes(row.original.id) ?? false}
-                    onChange={() => toggleId(row.original.id)}
-                    className="rounded border-border cursor-pointer"
-                  />
-                </td>
-              )}
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-4 py-3">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full">
+          <thead>
+            {table.getHeaderGroups().map((hg) => (
+              <tr key={hg.id} className="border-b border-border bg-card">
+                {selectable && (
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all hosts"
+                      checked={
+                        hosts.length > 0 &&
+                        hosts.every((h) => selectedIds?.includes(h.id))
+                      }
+                      onChange={toggleAll}
+                      className="rounded border-border cursor-pointer"
+                    />
+                  </th>
+                )}
+                {hg.headers.map((header) => (
+                  <th
+                    key={header.id}
+                    className="px-4 py-3 text-left text-xs font-emphasis uppercase tracking-wider text-muted-foreground"
+                    style={{ width: header.getSize() }}
+                  >
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.map((row) => (
+              <tr
+                key={row.id}
+                className="border-b border-border hover:bg-accent/50 transition-colors"
+              >
+                {selectable && (
+                  <td className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select host ${row.original.ip}`}
+                      checked={selectedIds?.includes(row.original.id) ?? false}
+                      onChange={() => toggleId(row.original.id)}
+                      className="rounded border-border cursor-pointer"
+                    />
+                  </td>
+                )}
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id} className="px-4 py-3">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </TooltipProvider>
   );
 }

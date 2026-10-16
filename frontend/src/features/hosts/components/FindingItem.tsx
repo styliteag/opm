@@ -7,6 +7,7 @@ import { AcceptRiskDialog } from "@/features/alerts/components/triage/AcceptRisk
 import { useTriage } from "@/features/alerts/hooks/useTriage";
 import { useTriageActions } from "@/features/alerts/hooks/useTriageActions";
 import type { HostFinding } from "@/features/hosts/lib/hostFindings";
+import { useHasRole } from "@/lib/roles";
 import { TOOL_LABELS, TRIAGE_ACTIONS } from "@/lib/terminology";
 import type { VulnerabilitySeverity } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,9 @@ export function FindingItem({ finding }: { finding: HostFinding }) {
   const triage = useTriage();
   const risk = useAcceptFindingRisk();
   const hasAlert = finding.openAlertIds.length > 0;
+  // Snooze: analyst+, Accept risk: operator+ (backend deps); hidden below.
+  const canSnooze = useHasRole("analyst");
+  const canAcceptRisk = useHasRole("operator");
   const hasDetails = Boolean(
     finding.description || finding.solution || finding.findingId,
   );
@@ -111,7 +115,7 @@ export function FindingItem({ finding }: { finding: HostFinding }) {
             </span>
           </span>
         </button>
-        {hasAlert && (
+        {hasAlert && canSnooze && (
           <div className="flex shrink-0 gap-1.5">
             <Button
               variant="outline"
@@ -123,15 +127,17 @@ export function FindingItem({ finding }: { finding: HostFinding }) {
               <Clock />
               {TRIAGE_ACTIONS.snooze.label}
             </Button>
-            <Button
-              variant="outline"
-              size="xs"
-              title={TRIAGE_ACTIONS.acceptRisk.description}
-              onClick={() => setRiskOpen(true)}
-            >
-              <ShieldCheck />
-              {TRIAGE_ACTIONS.acceptRisk.label}
-            </Button>
+            {canAcceptRisk && (
+              <Button
+                variant="outline"
+                size="xs"
+                title={TRIAGE_ACTIONS.acceptRisk.description}
+                onClick={() => setRiskOpen(true)}
+              >
+                <ShieldCheck />
+                {TRIAGE_ACTIONS.acceptRisk.label}
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -163,7 +169,7 @@ export function FindingItem({ finding }: { finding: HostFinding }) {
         </div>
       )}
 
-      {hasAlert && (
+      {hasAlert && canAcceptRisk && (
         <AcceptRiskDialog
           open={riskOpen}
           onOpenChange={setRiskOpen}

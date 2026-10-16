@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { breadcrumbSegments } from "./breadcrumbs";
+import { breadcrumbSegments, hostIdFromPath } from "./breadcrumbs";
 
 describe("breadcrumbSegments", () => {
   it("labels the root as Home", () => {
@@ -27,5 +27,26 @@ describe("breadcrumbSegments", () => {
     expect(
       breadcrumbSegments("/settings/scan-profiles/scripts/custom_http-title"),
     ).toEqual(["Settings", "Scan profiles", "Scripts", "custom_http-title"]);
+  });
+
+  it("replaces the last segment with a resolved label", () => {
+    expect(breadcrumbSegments("/hosts/42", "db01.example.com")).toEqual([
+      "Hosts",
+      "db01.example.com",
+    ]);
+    expect(breadcrumbSegments("/hosts/42", undefined)).toEqual(["Hosts", "42"]);
+  });
+});
+
+describe("hostIdFromPath", () => {
+  it("extracts the id from a host detail path", () => {
+    expect(hostIdFromPath("/hosts/42")).toBe(42);
+    expect(hostIdFromPath("/hosts/42/")).toBe(42);
+  });
+
+  it("returns null for other paths", () => {
+    expect(hostIdFromPath("/hosts")).toBeNull();
+    expect(hostIdFromPath("/networks/3")).toBeNull();
+    expect(hostIdFromPath("/hosts/abc")).toBeNull();
   });
 });

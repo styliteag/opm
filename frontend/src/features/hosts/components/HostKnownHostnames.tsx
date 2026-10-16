@@ -6,6 +6,7 @@ import {
   useHostCachedHostnames,
   useRefreshHostHostnames,
 } from "@/features/hostname-lookup/hooks/useHostnameLookup";
+import { useHasRole } from "@/lib/roles";
 
 interface HostKnownHostnamesProps {
   hostId: number;
@@ -28,6 +29,8 @@ interface HostKnownHostnamesProps {
 export function HostKnownHostnames({ hostId }: HostKnownHostnamesProps) {
   const { data, isLoading } = useHostCachedHostnames(hostId);
   const refresh = useRefreshHostHostnames(hostId);
+  // Manual refresh is operator+ (inventory bug #16 fix); hidden below.
+  const canRefresh = useHasRole("operator");
   const [expanded, setExpanded] = useState(false);
 
   const hasCacheRow = data !== undefined && data.source !== null;
@@ -85,27 +88,29 @@ export function HostKnownHostnames({ hostId }: HostKnownHostnamesProps) {
               cached {new Date(data.queried_at).toLocaleDateString()}
             </span>
           )}
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label="Refresh hostname lookup"
-            aria-disabled={refresh.isPending}
-            onClick={handleRefresh}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                handleRefresh(e as unknown as React.MouseEvent);
-              }
-            }}
-            className="flex items-center gap-1 rounded-sm border border-border/60 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-60"
-            data-disabled={refresh.isPending}
-          >
-            <RefreshCw
-              className={`h-3 w-3 ${refresh.isPending ? "animate-spin" : ""}`}
-              aria-hidden="true"
-            />
-            Refresh
-          </span>
+          {canRefresh && (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label="Refresh hostname lookup"
+              aria-disabled={refresh.isPending}
+              onClick={handleRefresh}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleRefresh(e as unknown as React.MouseEvent);
+                }
+              }}
+              className="flex items-center gap-1 rounded-sm border border-border/60 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-60"
+              data-disabled={refresh.isPending}
+            >
+              <RefreshCw
+                className={`h-3 w-3 ${refresh.isPending ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+              Refresh
+            </span>
+          )}
         </span>
       </button>
       {hasCacheRow && expanded && (
@@ -120,8 +125,8 @@ export function HostKnownHostnames({ hostId }: HostKnownHostnamesProps) {
           ) : (
             <>
               <p className="mb-2 text-xs text-muted-foreground">
-                These are the vhosts nuclei will fan out over when SNI
-                fan-out is enabled on this host&apos;s network.
+                These are the vhosts nuclei will fan out over when SNI fan-out
+                is enabled on this host&apos;s network.
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {data?.hostnames.map((hostname) => (
@@ -141,8 +146,8 @@ export function HostKnownHostnames({ hostId }: HostKnownHostnamesProps) {
         <div className="border-t border-border/40 px-4 py-2">
           <p className="text-xs text-muted-foreground">
             No cached hostnames yet. Click Refresh to enqueue a reverse-IP
-            lookup; the scanner picks it up on its next poll (~10 s) and
-            the panel refreshes with the results.
+            lookup; the scanner picks it up on its next poll (~10 s) and the
+            panel refreshes with the results.
           </p>
         </div>
       )}

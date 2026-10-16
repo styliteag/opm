@@ -54,7 +54,7 @@ export function ScanConfigViewer({ entry, onClose }: ScanConfigViewerProps) {
     <Dialog open={entry !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Scan Config · {entry?.name}</DialogTitle>
+          <DialogTitle>Scan profile · {entry?.name}</DialogTitle>
           <DialogDescription>
             Read-only overview of the uploaded scan configuration XML.
           </DialogDescription>

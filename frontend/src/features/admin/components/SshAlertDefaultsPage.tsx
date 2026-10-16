@@ -1,24 +1,9 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  KeyRound,
-  RotateCcw,
-  Save,
-  ShieldAlert,
-  ShieldCheck,
-} from "lucide-react";
+import { RotateCcw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -45,6 +30,8 @@ interface ToggleItem {
   key: keyof Omit<SSHAlertDefaults, "ssh_version_threshold">;
   label: string;
   help: string;
+  /** Technical detail, shown as secondary text (ADR 0010). */
+  detail?: string;
 }
 
 interface ToggleGroup {
@@ -55,46 +42,45 @@ interface ToggleGroup {
 
 const TOGGLE_GROUPS: ToggleGroup[] = [
   {
-    title: "Authentication",
-    description: "How clients are allowed to authenticate with the SSH server.",
+    title: "Login",
+    description: "How people and tools may log in to the SSH server.",
     items: [
       {
         key: "ssh_insecure_auth",
-        label: "Insecure Authentication",
-        help:
-          "Alerts when the server accepts password or keyboard-interactive login. Public-key authentication only is recommended.",
+        label: "Password login allowed",
+        help: "Alerts when the server accepts passwords instead of keys only.",
+        detail: "Password or keyboard-interactive authentication.",
       },
     ],
   },
   {
     title: "Encryption",
-    description:
-      "Weak algorithms that are no longer considered secure.",
+    description: "Outdated methods that are no longer considered secure.",
     items: [
       {
         key: "ssh_weak_cipher",
-        label: "Weak Ciphers",
-        help:
-          "Alerts when the server offers symmetric ciphers such as 3DES, RC4, or CBC modes.",
+        label: "Weak encryption",
+        help: "Alerts when the server still offers outdated encryption.",
+        detail: "Ciphers such as 3DES, RC4, or CBC modes.",
       },
       {
         key: "ssh_weak_kex",
-        label: "Weak Key Exchange",
-        help:
-          "Alerts on deprecated key exchange methods such as diffie-hellman-group1-sha1 or MD5-based variants.",
+        label: "Weak key exchange",
+        help: "Alerts when the server still offers an outdated way to agree on the connection key.",
+        detail:
+          "Key exchange (KEX) methods such as diffie-hellman-group1-sha1 or MD5-based variants.",
       },
     ],
   },
   {
-    title: "Change Monitoring",
-    description:
-      "Detects SSH configuration regressions between two scans.",
+    title: "Changes over time",
+    description: "Compares each scan with the previous one.",
     items: [
       {
         key: "ssh_config_regression",
-        label: "Configuration Regression",
-        help:
-          "Alerts when a host shows a weaker configuration compared to the last scan — e.g. a newly allowed weak cipher or a downgraded SSH version.",
+        label: "Setup got weaker",
+        help: "Alerts when a host's SSH setup is weaker than in the last scan.",
+        detail: "E.g. a newly allowed weak cipher or a downgraded SSH version.",
       },
     ],
   },
@@ -105,17 +91,12 @@ export function SshAlertDefaultsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <KeyRound className="h-6 w-6 text-primary" aria-hidden />
-        <div>
-          <h1 className="text-2xl font-strong text-foreground">
-            SSH Alert Defaults
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Global defaults for SSH security alerts. Applied to every network
-            that does not define its own values in its alert profile.
-          </p>
-        </div>
+      <div>
+        <h2 className="text-lg font-strong text-foreground">SSH defaults</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Which SSH weaknesses raise an alert, for every network without its own
+          SSH settings. Changes save instantly.
+        </p>
       </div>
 
       <div className="max-w-3xl space-y-6">
@@ -149,8 +130,8 @@ function OverridesBanner() {
       <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
         <p className="text-muted-foreground">
-          No network currently overrides the SSH defaults. All networks
-          use the values below.
+          No network currently overrides the SSH defaults. All networks use the
+          values below.
         </p>
       </div>
     );
@@ -177,8 +158,8 @@ function OverridesBanner() {
         <div className="flex-1">
           <p className="text-foreground">
             <span className="font-emphasis">{count}</span>{" "}
-            {count === 1 ? "network overrides" : "networks override"}{" "}
-            these defaults.{" "}
+            {count === 1 ? "network overrides" : "networks override"} these
+            defaults.{" "}
             <Link
               to="/networks"
               search={{ filter: "ssh-override" }}
@@ -188,8 +169,8 @@ function OverridesBanner() {
             </Link>
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            &ldquo;Apply to all&rdquo; removes the SSH keys from every alert
-            profile; other settings such as email recipients are kept.
+            &ldquo;Apply to all&rdquo; removes the networks&rsquo; own SSH
+            settings; other settings such as email recipients are kept.
           </p>
         </div>
         <Button
@@ -204,33 +185,17 @@ function OverridesBanner() {
         </Button>
       </div>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmOpen}
         onOpenChange={(open) => !open && setConfirmOpen(false)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove SSH overrides?</AlertDialogTitle>
-            <AlertDialogDescription>
-              SSH keys will be removed from the alert profile of {count}{" "}
-              {count === 1 ? "network" : "networks"}. Afterwards all networks
-              will use the global defaults. Email recipients and other settings
-              remain unchanged. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={applyAll.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirm}
-              disabled={applyAll.isPending}
-            >
-              {applyAll.isPending ? "Applying..." : "Yes, apply"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Use the defaults on every network?"
+        description={`The own SSH settings of ${count} ${
+          count === 1 ? "network are" : "networks are"
+        } removed, so all networks use the values below. Email recipients and other settings stay. This cannot be undone.`}
+        confirmLabel={applyAll.isPending ? "Applying..." : "Apply to all"}
+        pending={applyAll.isPending}
+        onConfirm={handleConfirm}
+      />
     </>
   );
 }
@@ -254,7 +219,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
     mutation.mutate(
       { [key]: updated[key] },
       {
-        onSuccess: () => toast.success("SSH default updated"),
+        onSuccess: () => toast.success("Saved"),
         onError: (e) => {
           toast.error(e.message);
           setForm(form); // revert
@@ -265,9 +230,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
 
   const validateVersion = (value: string): boolean => {
     if (!VERSION_REGEX.test(value)) {
-      setVersionError(
-        "Format e.g. 8.0 or 8.0.0 — digits and dots only.",
-      );
+      setVersionError("Format e.g. 8.0 or 8.0.0 — digits and dots only.");
       return false;
     }
     setVersionError(null);
@@ -279,6 +242,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
     if (versionError) validateVersion(value);
   };
 
+  // Saves on blur / Enter like the toggles save on click — no Save button.
   const handleVersionSave = () => {
     if (!validateVersion(versionDraft)) return;
     if (versionDraft === form.ssh_version_threshold) return;
@@ -287,7 +251,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
       {
         onSuccess: () => {
           setForm({ ...form, ssh_version_threshold: versionDraft });
-          toast.success("SSH minimum version updated");
+          toast.success("Saved");
         },
         onError: (e) => toast.error(e.message),
       },
@@ -320,23 +284,18 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">OpenSSH Version</CardTitle>
+          <CardTitle className="text-sm">Version</CardTitle>
           <CardDescription className="text-xs">
-            Minimum version below which an alert is triggered.{" "}
-            <span className="text-yellow-400">
-              Applies to OpenSSH servers only.
-            </span>{" "}
-            Dropbear, libssh, and other implementations are not
-            version-checked.
+            Alerts when the SSH server is older than a minimum version. Only
+            OpenSSH servers are checked; Dropbear, libssh, and others are not.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <ToggleRow
             item={{
               key: "ssh_outdated_version",
-              label: "Report Outdated OpenSSH Version",
-              help:
-                "When enabled, an alert is generated whenever the OpenSSH version falls below the minimum threshold set below.",
+              label: "Outdated SSH version",
+              help: "Alerts when the OpenSSH version is below the minimum set below.",
             }}
             checked={form.ssh_outdated_version}
             disabled={mutation.isPending}
@@ -348,7 +307,7 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
               htmlFor="ssh-min-version"
               className="text-sm font-normal text-foreground"
             >
-              Minimum Version (OpenSSH only)
+              Minimum version
             </Label>
             <div className="mt-2 flex items-start gap-2">
               <div className="flex-1">
@@ -357,7 +316,11 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
                   type="text"
                   value={versionDraft}
                   onChange={(e) => handleVersionChange(e.target.value)}
-                  onBlur={() => validateVersion(versionDraft)}
+                  onBlur={handleVersionSave}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleVersionSave();
+                  }}
+                  disabled={mutation.isPending}
                   className="w-32 font-mono"
                   placeholder="8.0.0"
                   aria-invalid={versionError !== null}
@@ -380,19 +343,6 @@ function SshAlertDefaultsForm({ data }: { data: SSHAlertDefaults }) {
                   </p>
                 )}
               </div>
-              <Button
-                size="sm"
-                onClick={handleVersionSave}
-                disabled={
-                  mutation.isPending ||
-                  versionError !== null ||
-                  versionDraft === form.ssh_version_threshold
-                }
-                className="gap-1.5"
-              >
-                <Save className="h-3.5 w-3.5" />
-                Save
-              </Button>
             </div>
           </div>
         </CardContent>
@@ -441,6 +391,9 @@ function ToggleRow({ item, checked, disabled, onToggle }: ToggleRowProps) {
         </button>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">{item.help}</p>
+      {item.detail && (
+        <p className="mt-0.5 text-[11px] text-text-quaternary">{item.detail}</p>
+      )}
     </div>
   );
 }

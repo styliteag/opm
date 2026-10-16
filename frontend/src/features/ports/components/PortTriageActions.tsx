@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ExpectedReasonDialog } from "@/features/alerts/components/triage/ExpectedReasonDialog";
 import { ExpectedSplitButton } from "@/features/alerts/components/triage/ExpectedSplitButton";
 import { useTriage } from "@/features/alerts/hooks/useTriage";
+import { useHasRole } from "@/lib/roles";
 import { TRIAGE_ACTIONS } from "@/lib/terminology";
 
 interface PortTriageActionsProps {
@@ -14,21 +15,30 @@ interface PortTriageActionsProps {
   target: string;
 }
 
-/** Expected ▾ + Snooze for a port that still needs a decision. */
+/**
+ * Expected ▾ + Snooze for a port that still needs a decision. Snooze needs
+ * analyst+, Expected operator+; controls the role can't use are hidden.
+ */
 export function PortTriageActions({
   alertIds,
   target,
 }: PortTriageActionsProps) {
   const triage = useTriage();
+  const canTriage = useHasRole("analyst");
+  const canDecide = useHasRole("operator");
   const [reasonOpen, setReasonOpen] = useState(false);
+
+  if (!canTriage) return null;
 
   return (
     <div className="inline-flex items-center gap-1.5">
-      <ExpectedSplitButton
-        disabled={triage.pending}
-        onExpected={(scope) => triage.markExpected({ alertIds, scope })}
-        onExpectedWithReason={() => setReasonOpen(true)}
-      />
+      {canDecide && (
+        <ExpectedSplitButton
+          disabled={triage.pending}
+          onExpected={(scope) => triage.markExpected({ alertIds, scope })}
+          onExpectedWithReason={() => setReasonOpen(true)}
+        />
+      )}
       <Button
         variant="outline"
         size="sm"

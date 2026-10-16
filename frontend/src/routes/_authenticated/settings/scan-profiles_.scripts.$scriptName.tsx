@@ -1,12 +1,13 @@
 import { useState, useCallback } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Pencil, Save, RotateCcw } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, Copy, Pencil, Save, RotateCcw } from "lucide-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { StreamLanguage } from "@codemirror/language";
 import { lua } from "@codemirror/legacy-modes/mode/lua";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
@@ -14,6 +15,8 @@ import {
   useNseScriptDetail,
   useNseMutations,
 } from "@/features/nse/hooks/useNse";
+import { scriptActions } from "@/features/nse/lib/scriptKind";
+import { useHasRole } from "@/lib/roles";
 import { useThemeStore } from "@/stores/theme.store";
 
 export const Route = createFileRoute(
@@ -25,13 +28,14 @@ export const Route = createFileRoute(
 function NseEditorPage() {
   const { scriptName } = Route.useParams();
   const { data, isLoading, error, refetch } = useNseScriptDetail(scriptName);
-  const { updateScript, restoreScript } = useNseMutations();
+  const { updateScript, restoreScript, cloneScript } = useNseMutations();
+  const canManage = useHasRole("operator");
+  const navigate = useNavigate();
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
 
   const [editing, setEditing] = useState(false);
   const [editedSource, setEditedSource] = useState("");
-
-  const isCustom = scriptName.startsWith("custom_");
+  const [restoreOpen, setRestoreOpen] = useState(false);
 
   const handleStartEdit = () => {
     setEditedSource(data?.content ?? "");
@@ -63,11 +67,27 @@ function NseEditorPage() {
     restoreScript.mutate(scriptName, {
       onSuccess: () => {
         toast.success("Script restored to original");
+        setRestoreOpen(false);
         setEditing(false);
         refetch();
       },
       onError: (err) => {
         toast.error(err instanceof Error ? err.message : "Restore failed");
+      },
+    });
+  };
+
+  const handleClone = () => {
+    cloneScript.mutate(scriptName, {
+      onSuccess: (clone) => {
+        toast.success(`Cloned as "${clone.name}"`);
+        void navigate({
+          to: "/settings/scan-profiles/scripts/$scriptName",
+          params: { scriptName: clone.name },
+        });
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : "Clone failed");
       },
     });
   };
@@ -79,6 +99,8 @@ function NseEditorPage() {
   if (isLoading) return <LoadingState rows={10} />;
   if (error) return <ErrorState message={error.message} onRetry={refetch} />;
   if (!data) return <ErrorState message="Script not found" />;
+
+  const actions = scriptActions(data, canManage);
 
   return (
     <div className="space-y-6">
@@ -93,21 +115,35 @@ function NseEditorPage() {
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="text-xl font-strong text-foreground">Script editor</h1>
+            <h2 className="text-xl font-strong text-foreground">
+              Script editor
+            </h2>
             <p className="mt-0.5 font-mono text-sm text-primary">{data.name}</p>
           </div>
         </div>
-        {isCustom && (
+        {actions.clone && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClone}
+            disabled={cloneScript.isPending}
+            title="Create an editable custom copy of this built-in script"
+          >
+            <Copy className="h-4 w-4 mr-1.5" />
+            {cloneScript.isPending ? "Cloning..." : "Clone to edit"}
+          </Button>
+        )}
+        {actions.edit && (
           <div className="flex items-center gap-2">
-            {data.cloned_from && !editing && (
+            {actions.restore && !editing && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleRestore}
+                onClick={() => setRestoreOpen(true)}
                 disabled={restoreScript.isPending}
               >
                 <RotateCcw className="h-4 w-4 mr-1.5" />
-                {restoreScript.isPending ? "Restoring..." : "Restore Original"}
+                {restoreScript.isPending ? "Restoring..." : "Restore original"}
               </Button>
             )}
             {editing ? (
@@ -218,6 +254,15 @@ function NseEditorPage() {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={restoreOpen}
+        onOpenChange={setRestoreOpen}
+        title="Restore original script?"
+        description={`Your changes to "${data.name}" are replaced with the built-in version of ${data.cloned_from ?? "this script"}.`}
+        confirmLabel="Restore original"
+        onConfirm={handleRestore}
+        pending={restoreScript.isPending}
+      />
     </div>
   );
 }

@@ -6,16 +6,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/data-display/EmptyState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { LoadingState } from "@/components/data-display/LoadingState";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { useNetworks } from "@/features/dashboard/hooks/useDashboardData";
@@ -23,6 +14,7 @@ import { HostsTable } from "@/features/hosts/components/HostsTable";
 import { useHostMutations, useHosts } from "@/features/hosts/hooks/useHosts";
 import { exportHostsCsv } from "@/features/hosts/lib/exportHosts";
 import { Pager } from "@/features/ports/components/ListControls";
+import { useHasRole } from "@/lib/roles";
 
 const PAGE_SIZE = 50;
 
@@ -42,6 +34,8 @@ export function HostsTab({ initialSearch, initialNetworkId }: HostsTabProps) {
   const [selected, setSelected] = useState<number[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Editing and deleting hosts are operator+ on the backend; hidden below.
+  const canEdit = useHasRole("operator");
 
   const hosts = useHosts({
     ip_search: search || undefined,
@@ -123,7 +117,7 @@ export function HostsTab({ initialSearch, initialNetworkId }: HostsTabProps) {
         </Button>
       </div>
 
-      {selected.length > 0 && (
+      {canEdit && selected.length > 0 && (
         <div className="flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2">
           <span className="text-sm text-destructive">
             {selected.length} selected
@@ -159,8 +153,9 @@ export function HostsTab({ initialSearch, initialNetworkId }: HostsTabProps) {
         <>
           <HostsTable
             hosts={list}
-            selectedIds={selected}
-            onSelectChange={setSelected}
+            selectedIds={canEdit ? selected : undefined}
+            onSelectChange={canEdit ? setSelected : undefined}
+            editable={canEdit}
             sorting={sorting}
             onSortingChange={(s) => {
               setSorting(s);
@@ -179,35 +174,15 @@ export function HostsTab({ initialSearch, initialNetworkId }: HostsTabProps) {
         </>
       )}
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmOpen}
-        onOpenChange={(open) => !open && setConfirmOpen(false)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {selected.length} host{selected.length === 1 ? "" : "s"}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              The host records (hostname, comment) are removed permanently.
-              Their open ports stay; a later scan that finds them creates the
-              hosts again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkDelete.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={bulkDelete.isPending}
-              onClick={handleDelete}
-            >
-              {bulkDelete.isPending ? "Deleting…" : "Delete permanently"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setConfirmOpen}
+        title={`Delete ${selected.length} host${selected.length === 1 ? "" : "s"}?`}
+        description="The host records (hostname, comment) are removed permanently. Their open ports stay; a later scan that finds them creates the hosts again."
+        confirmLabel={bulkDelete.isPending ? "Deleting…" : "Delete permanently"}
+        pending={bulkDelete.isPending}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

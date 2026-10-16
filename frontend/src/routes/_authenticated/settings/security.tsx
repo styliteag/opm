@@ -28,9 +28,9 @@ function SecuritySettingsPage() {
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-emphasis text-foreground">
+          <h3 className="text-lg font-emphasis text-foreground">
             Two-factor authentication
-          </h2>
+          </h3>
         </CardHeader>
         <CardContent>
           {isLoading || !user ? (

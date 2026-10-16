@@ -1,12 +1,9 @@
-import { RULE_SOURCE_BADGES } from "@/lib/alert-types";
+import { ruleSourceLabel } from "../lib/ruleLabels";
 
 export function SourceBadge({ source }: { source: string }) {
-  const badge = RULE_SOURCE_BADGES[source] ?? RULE_SOURCE_BADGES.port;
   return (
-    <span
-      className={`rounded px-1.5 py-0.5 text-[10px] font-strong uppercase ${badge.className}`}
-    >
-      {badge.label}
+    <span className="whitespace-nowrap rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] font-emphasis text-muted-foreground">
+      {ruleSourceLabel(source)}
     </span>
   );
 }

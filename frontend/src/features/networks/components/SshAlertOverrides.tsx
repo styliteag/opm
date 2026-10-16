@@ -27,31 +27,31 @@ const TOGGLES: SshOverrideToggle[] = [
   {
     field: "ssh_override_insecure_auth",
     defaultsKey: "ssh_insecure_auth",
-    label: "Insecure Authentication",
-    help: "Password / keyboard-interactive allowed.",
+    label: "Password login allowed",
+    help: "Password / keyboard-interactive authentication offered.",
   },
   {
     field: "ssh_override_weak_cipher",
     defaultsKey: "ssh_weak_cipher",
-    label: "Weak Ciphers",
+    label: "Weak encryption",
     help: "3DES, RC4, CBC modes, etc.",
   },
   {
     field: "ssh_override_weak_kex",
     defaultsKey: "ssh_weak_kex",
-    label: "Weak Key Exchange",
+    label: "Weak key exchange",
     help: "diffie-hellman-group1-sha1 and similar.",
   },
   {
     field: "ssh_override_outdated_version",
     defaultsKey: "ssh_outdated_version",
-    label: "Outdated OpenSSH Version",
+    label: "Outdated SSH version",
     help: "Checked against the minimum version below.",
   },
   {
     field: "ssh_override_config_regression",
     defaultsKey: "ssh_config_regression",
-    label: "Configuration Regression",
+    label: "Setup got weaker",
     help: "Degradation compared to the last scan.",
   },
 ];

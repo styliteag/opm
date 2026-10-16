@@ -37,7 +37,10 @@ describe("parseAlertSourceKey", () => {
 
   it("preserves the `nse:` prefix in NSE OIDs", () => {
     expect(
-      parseAlertSourceKey("nse", "nse:3:194.59.156.71:53:udp:nse:dns-recursion"),
+      parseAlertSourceKey(
+        "nse",
+        "nse:3:194.59.156.71:53:udp:nse:dns-recursion",
+      ),
     ).toEqual({
       source: "nse",
       networkId: 3,

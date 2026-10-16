@@ -18,7 +18,14 @@ const SEGMENT_LABELS: Record<string, string> = {
   edit: "Edit",
 };
 
-export function breadcrumbSegments(pathname: string): string[] {
+/**
+ * Path segments as readable labels. `lastLabel` replaces the final segment
+ * (e.g. a host's name instead of its numeric id) once it is known.
+ */
+export function breadcrumbSegments(
+  pathname: string,
+  lastLabel?: string,
+): string[] {
   const segments = pathname
     .split("/")
     .filter(Boolean)
@@ -26,7 +33,14 @@ export function breadcrumbSegments(pathname: string): string[] {
       const decoded = safeDecode(seg);
       return SEGMENT_LABELS[decoded] ?? decoded;
     });
-  return segments.length === 0 ? ["Home"] : segments;
+  if (segments.length === 0) return ["Home"];
+  return lastLabel ? [...segments.slice(0, -1), lastLabel] : segments;
+}
+
+/** Host id of a `/hosts/$hostId` path, otherwise null. */
+export function hostIdFromPath(pathname: string): number | null {
+  const match = /^\/hosts\/(\d+)\/?$/.exec(pathname);
+  return match ? Number(match[1]) : null;
 }
 
 function safeDecode(segment: string): string {

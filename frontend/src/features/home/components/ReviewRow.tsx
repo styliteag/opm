@@ -25,6 +25,10 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 interface ReviewRowProps {
   group: PortGroup;
   mode: HomeQueueMode;
+  /** Snooze, Reopen, Assign, select (analyst+). */
+  canTriage: boolean;
+  /** Expected (operator+). */
+  canDecide: boolean;
   active: boolean;
   selected: boolean;
   disabled: boolean;
@@ -44,6 +48,8 @@ function stop(e: React.SyntheticEvent) {
 export function ReviewRow({
   group,
   mode,
+  canTriage,
+  canDecide,
   active,
   selected,
   disabled,
@@ -73,14 +79,18 @@ export function ReviewRow({
         active ? "bg-accent/60" : "hover:bg-accent/40",
       )}
     >
-      <input
-        type="checkbox"
-        aria-label={`Select ${target}`}
-        checked={selected}
-        onChange={onToggleSelect}
-        onClick={stop}
-        className="h-3.5 w-3.5 rounded border-border bg-background accent-primary"
-      />
+      {canTriage ? (
+        <input
+          type="checkbox"
+          aria-label={`Select ${target}`}
+          checked={selected}
+          onChange={onToggleSelect}
+          onClick={stop}
+          className="h-3.5 w-3.5 rounded border-border bg-background accent-primary"
+        />
+      ) : (
+        <span aria-hidden className="h-3.5 w-0" />
+      )}
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <SeverityBadge severity={group.severity} />
@@ -119,13 +129,15 @@ export function ReviewRow({
         </p>
       </div>
       <div className="flex items-center gap-1.5" onClick={stop}>
-        {mode === "inbox" ? (
+        {!canTriage ? null : mode === "inbox" ? (
           <>
-            <ExpectedSplitButton
-              disabled={disabled}
-              onExpected={onExpected}
-              onExpectedWithReason={onExpectedWithReason}
-            />
+            {canDecide && (
+              <ExpectedSplitButton
+                disabled={disabled}
+                onExpected={onExpected}
+                onExpectedWithReason={onExpectedWithReason}
+              />
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -149,7 +161,10 @@ export function ReviewRow({
             {TRIAGE_ACTIONS.reopen.label}
           </Button>
         )}
-        <RowOverflowMenu onOpenDetails={onOpenDetails} onAssign={onAssign} />
+        <RowOverflowMenu
+          onOpenDetails={onOpenDetails}
+          onAssign={canTriage ? onAssign : undefined}
+        />
       </div>
     </li>
   );
@@ -160,9 +175,9 @@ function RowOverflowMenu({
   onAssign,
 }: {
   onOpenDetails: () => void;
-  onAssign: (userId: number | null) => void;
+  /** Omitted when the role can't assign; the submenu is hidden then. */
+  onAssign?: (userId: number | null) => void;
 }) {
-  const users = useUsers();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -172,24 +187,43 @@ function RowOverflowMenu({
         <MoreHorizontal />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onClick={onOpenDetails}>Open details</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>{TRIAGE_ACTIONS.assign.label}</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-56">
-            <DropdownMenuItem onClick={() => onAssign(null)}>Unassign</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {(users.data?.users ?? []).map((user) => (
-              <DropdownMenuItem key={user.id} onClick={() => onAssign(user.id)}>
-                {user.email}
-              </DropdownMenuItem>
-            ))}
-            {users.isLoading && (
-              <DropdownMenuItem disabled>Loading users…</DropdownMenuItem>
-            )}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+        <DropdownMenuItem onClick={onOpenDetails}>
+          Open details
+        </DropdownMenuItem>
+        {onAssign && <AssignSubmenu onAssign={onAssign} />}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function AssignSubmenu({
+  onAssign,
+}: {
+  onAssign: (userId: number | null) => void;
+}) {
+  const users = useUsers();
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          {TRIAGE_ACTIONS.assign.label}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="w-56">
+          <DropdownMenuItem onClick={() => onAssign(null)}>
+            Unassign
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {(users.data?.users ?? []).map((user) => (
+            <DropdownMenuItem key={user.id} onClick={() => onAssign(user.id)}>
+              {user.email}
+            </DropdownMenuItem>
+          ))}
+          {users.isLoading && (
+            <DropdownMenuItem disabled>Loading users…</DropdownMenuItem>
+          )}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    </>
   );
 }

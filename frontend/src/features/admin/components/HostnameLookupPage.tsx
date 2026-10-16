@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorState } from "@/components/data-display/ErrorState";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import {
   useDeleteHostnameCacheEntry,
@@ -88,15 +89,16 @@ export function HostnameLookupPage() {
   const refreshEntry = useRefreshCacheEntry();
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | HostnameLookupStatus>(
-    "all",
-  );
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | HostnameLookupStatus
+  >("all");
   const [importStrategy, setImportStrategy] = useState<"skip" | "overwrite">(
     "skip",
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState<HostnameLookupEntry | null>(null);
   const [editText, setEditText] = useState("");
+  const [pendingDeleteIp, setPendingDeleteIp] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("ip");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -137,9 +139,9 @@ export function HostnameLookupPage() {
         case "source":
           return mul * a.source.localeCompare(b.source);
         case "queried":
-          return mul * ((a.queried_at ?? "").localeCompare(b.queried_at ?? ""));
+          return mul * (a.queried_at ?? "").localeCompare(b.queried_at ?? "");
         case "expires":
-          return mul * ((a.expires_at ?? "").localeCompare(b.expires_at ?? ""));
+          return mul * (a.expires_at ?? "").localeCompare(b.expires_at ?? "");
         default:
           return 0;
       }
@@ -191,9 +193,7 @@ export function HostnameLookupPage() {
       await refetchCache();
       await refetchStatus();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Import failed",
-      );
+      toast.error(err instanceof Error ? err.message : "Import failed");
     }
   }
 
@@ -239,17 +239,17 @@ export function HostnameLookupPage() {
     }
   }
 
-  async function deleteEntryByIp(ip: string) {
-    if (
-      !window.confirm(
-        `Delete hostname cache row for ${ip}? The next filler run will re-query this IP.`,
-      )
-    ) {
-      return;
-    }
+  function deleteEntryByIp(ip: string) {
+    setPendingDeleteIp(ip);
+  }
+
+  async function confirmDeleteEntry() {
+    if (pendingDeleteIp === null) return;
+    const ip = pendingDeleteIp;
     try {
       await deleteEntry.mutateAsync(ip);
       toast.success(`Deleted cache row for ${ip}`);
+      setPendingDeleteIp(null);
       await refetchCache();
       await refetchStatus();
     } catch (err) {
@@ -263,13 +263,17 @@ export function HostnameLookupPage() {
         <div className="flex items-center gap-3">
           <Globe className="h-6 w-6 text-primary" aria-hidden />
           <div>
-            <h1 className="text-2xl font-strong text-foreground">
-              Hostname Lookup Cache
-            </h1>
+            <h2 className="text-xl font-strong text-foreground">
+              Hostname lookups
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Cached reverse-IP vhost lists for nuclei SNI fan-out. Populated
-              by the scanner via HackerTarget / RapidDNS. Use per-row
-              Refresh to enqueue a manual re-lookup.
+              Website names found for each IP, so the web vulnerability check
+              can test every site hosted on a shared server.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Reverse-IP vhost cache for nuclei SNI fan-out, filled by the
+              scanner via HackerTarget / RapidDNS. Per-row Refresh queues a
+              manual re-lookup.
             </p>
           </div>
         </div>
@@ -303,7 +307,7 @@ export function HostnameLookupPage() {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div>
-            <CardTitle>Cache entries</CardTitle>
+            <CardTitle>Lookups per IP</CardTitle>
             <CardDescription>
               {cache
                 ? `${filteredEntries.length} of ${cache.entry_count} entries shown`
@@ -363,9 +367,7 @@ export function HostnameLookupPage() {
             <Select
               value={statusFilter}
               onChange={(e) =>
-                setStatusFilter(
-                  e.target.value as "all" | HostnameLookupStatus,
-                )
+                setStatusFilter(e.target.value as "all" | HostnameLookupStatus)
               }
               className="w-auto"
               aria-label="Status filter"
@@ -398,6 +400,16 @@ export function HostnameLookupPage() {
         </CardContent>
       </Card>
 
+      <ConfirmDialog
+        open={pendingDeleteIp !== null}
+        onOpenChange={(open) => !open && setPendingDeleteIp(null)}
+        title="Delete hostname lookup?"
+        description={`The saved names for ${pendingDeleteIp ?? ""} are removed. The next lookup run queries this IP again.`}
+        confirmLabel="Delete"
+        onConfirm={() => void confirmDeleteEntry()}
+        pending={deleteEntry.isPending}
+      />
+
       <Dialog
         open={editing !== null}
         onOpenChange={(open) => !open && closeEditDialog()}
@@ -407,10 +419,9 @@ export function HostnameLookupPage() {
             <DialogTitle>Edit hostname cache for {editing?.ip}</DialogTitle>
             <DialogDescription>
               One hostname per line. Whitespace and duplicates are stripped.
-              Saving marks the row as <code>source=manual</code> with an
-              8-week TTL so the filler won&apos;t overwrite it. Leave empty
-              to mark this IP as &quot;nothing to scan&quot; (stored as
-              no_results).
+              Saving marks the row as <code>source=manual</code> with an 8-week
+              TTL so the filler won&apos;t overwrite it. Leave empty to mark
+              this IP as &quot;nothing to scan&quot; (stored as no_results).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -425,7 +436,10 @@ export function HostnameLookupPage() {
               disabled={updateEntry.isPending}
             />
             <p className="text-[11px] text-muted-foreground">
-              {editText.split(/\r?\n/).filter((h) => h.trim().length > 0).length}{" "}
+              {
+                editText.split(/\r?\n/).filter((h) => h.trim().length > 0)
+                  .length
+              }{" "}
               non-empty line(s)
             </p>
           </div>
@@ -437,10 +451,7 @@ export function HostnameLookupPage() {
             >
               Cancel
             </Button>
-            <Button
-              onClick={saveEdit}
-              disabled={updateEntry.isPending}
-            >
+            <Button onClick={saveEdit} disabled={updateEntry.isPending}>
               {updateEntry.isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
@@ -463,17 +474,17 @@ function StatusOverview({ status }: StatusOverviewProps) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <StatCard
-        title="Cache coverage"
+        title="Hosts looked up"
         primary={`${status.enriched_hosts} / ${status.total_hosts}`}
-        secondary={`${status.coverage_percent.toFixed(1)}% of hosts enriched`}
+        secondary={`${status.coverage_percent.toFixed(1)}% of hosts`}
       />
       <StatCard
-        title="Total vhosts"
+        title="Names found"
         primary={status.total_vhosts.toLocaleString()}
-        secondary={`across ${status.entries_by_status.success} success rows`}
+        secondary={`vhosts across ${status.entries_by_status.success} IPs`}
       />
       <StatCard
-        title="HackerTarget budget"
+        title="Daily lookup budget"
         primary={
           hackertargetBudget
             ? `${hackertargetBudget.used} / ${hackertargetBudget.limit}`
@@ -481,7 +492,7 @@ function StatusOverview({ status }: StatusOverviewProps) {
         }
         secondary={
           hackertargetBudget
-            ? `${hackertargetBudget.remaining} calls remaining today`
+            ? `${hackertargetBudget.remaining} HackerTarget calls left today`
             : "no data"
         }
       />
@@ -545,11 +556,7 @@ function SortHeader({
   align?: "right";
 }) {
   const active = sortKey === field;
-  const Icon = active
-    ? sortDir === "asc"
-      ? ArrowUp
-      : ArrowDown
-    : ArrowUpDown;
+  const Icon = active ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
   return (
     <th className={`px-3 py-2 ${align === "right" ? "text-right" : ""}`}>
       <button
@@ -580,12 +587,49 @@ function EntriesTable({
       <table className="w-full text-sm">
         <thead className="bg-card/60 text-left text-xs font-emphasis uppercase tracking-wider text-muted-foreground">
           <tr>
-            <SortHeader label="IP" field="ip" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
-            <SortHeader label="Status" field="status" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
-            <SortHeader label="Vhosts" field="vhosts" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} align="right" />
-            <SortHeader label="Source" field="source" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
-            <SortHeader label="Queried" field="queried" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
-            <SortHeader label="Expires" field="expires" sortKey={sortKey} sortDir={sortDir} onToggleSort={onToggleSort} />
+            <SortHeader
+              label="IP"
+              field="ip"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onToggleSort={onToggleSort}
+            />
+            <SortHeader
+              label="Status"
+              field="status"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onToggleSort={onToggleSort}
+            />
+            <SortHeader
+              label="Vhosts"
+              field="vhosts"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onToggleSort={onToggleSort}
+              align="right"
+            />
+            <SortHeader
+              label="Source"
+              field="source"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onToggleSort={onToggleSort}
+            />
+            <SortHeader
+              label="Queried"
+              field="queried"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onToggleSort={onToggleSort}
+            />
+            <SortHeader
+              label="Expires"
+              field="expires"
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onToggleSort={onToggleSort}
+            />
             <th className="px-3 py-2 text-right">Actions</th>
           </tr>
         </thead>
@@ -614,7 +658,13 @@ interface EntryRowProps {
   searchTerm: string;
 }
 
-function EntryRow({ entry, onEdit, onDelete, onRefresh, searchTerm }: EntryRowProps) {
+function EntryRow({
+  entry,
+  onEdit,
+  onDelete,
+  onRefresh,
+  searchTerm,
+}: EntryRowProps) {
   const [expanded, setExpanded] = useState(false);
   const canExpand = entry.hostnames.length > 0;
   const sourceClass =
@@ -624,7 +674,9 @@ function EntryRow({ entry, onEdit, onDelete, onRefresh, searchTerm }: EntryRowPr
   const matchedHostname = useMemo(() => {
     if (!searchTerm) return null;
     if (entry.ip.toLowerCase().includes(searchTerm)) return null;
-    return entry.hostnames.find((h) => h.toLowerCase().includes(searchTerm)) ?? null;
+    return (
+      entry.hostnames.find((h) => h.toLowerCase().includes(searchTerm)) ?? null
+    );
   }, [searchTerm, entry.ip, entry.hostnames]);
 
   return (
@@ -655,9 +707,7 @@ function EntryRow({ entry, onEdit, onDelete, onRefresh, searchTerm }: EntryRowPr
         </td>
         <td className={`px-3 py-2 text-xs ${sourceClass}`}>{entry.source}</td>
         <td className="px-3 py-2 text-xs text-muted-foreground">
-          {entry.queried_at
-            ? new Date(entry.queried_at).toLocaleString()
-            : "—"}
+          {entry.queried_at ? new Date(entry.queried_at).toLocaleString() : "—"}
         </td>
         <td className="px-3 py-2 text-xs text-muted-foreground">
           {entry.expires_at

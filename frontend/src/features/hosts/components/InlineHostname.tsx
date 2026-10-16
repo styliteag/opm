@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { patchApi } from "@/lib/api";
+import { useHasRole } from "@/lib/roles";
 
 export function InlineHostname({
   hostId,
@@ -19,6 +20,8 @@ export function InlineHostname({
   const [draft, setDraft] = useState(hostname ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
+  // PATCH /api/hosts/{id} is operator+; others get a plain heading.
+  const canEdit = useHasRole("operator");
 
   const save = useMutation({
     mutationFn: (value: string) =>
@@ -87,6 +90,12 @@ export function InlineHostname({
           <X className="h-4 w-4" />
         </Button>
       </div>
+    );
+  }
+
+  if (!canEdit) {
+    return (
+      <h1 className="text-2xl font-strong text-foreground">{hostname ?? ip}</h1>
     );
   }
 

@@ -45,12 +45,12 @@ export function SeverityRuleFormDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {mode.kind === "add" ? "Add severity rule" : "Edit severity rule"}
+            {mode.kind === "add" ? "Add finding rule" : "Edit finding rule"}
           </DialogTitle>
           <DialogDescription>
-            Overrides the severity reported by GVM, NSE, or nuclei for findings
-            matching this OID. Network-scoped rules take precedence over global
-            rules.
+            Changes how severe a vulnerability finding counts for alerts. Set it
+            to info with a reason to accept the risk. A rule for one network
+            wins over a rule for all networks.
           </DialogDescription>
         </DialogHeader>
         <SeverityRuleFormBody mode={mode} onClose={onClose} />
@@ -85,7 +85,7 @@ function SeverityRuleFormBody({
   const onSave = () => {
     const trimmed = oid.trim();
     if (!trimmed) {
-      toast.error("OID is required");
+      toast.error("Finding ID is required");
       return;
     }
     create.mutate(
@@ -110,7 +110,7 @@ function SeverityRuleFormBody({
     <>
       <div className="space-y-4 py-2">
         <div>
-          <Label htmlFor="rule-oid">OID</Label>
+          <Label htmlFor="rule-oid">Finding ID</Label>
           <Input
             id="rule-oid"
             value={oid}
@@ -120,8 +120,10 @@ function SeverityRuleFormBody({
             className="font-mono text-xs"
           />
           <p className="mt-1 text-[11px] text-muted-foreground">
-            GVM uses numeric OIDs; NSE uses <code>nse:&lt;script-name&gt;</code>;
-            nuclei uses <code>&lt;template-id&gt;:&lt;matcher-name&gt;</code>.
+            Shown on each finding. Deep scan (GVM) uses numeric OIDs;
+            vulnerability scripts (NSE) use <code>nse:&lt;script-name&gt;</code>
+            ; web checks (nuclei) use{" "}
+            <code>&lt;template-id&gt;:&lt;matcher-name&gt;</code>.
           </p>
         </div>
 
@@ -131,11 +133,13 @@ function SeverityRuleFormBody({
             id="rule-scope"
             value={networkId == null ? "" : String(networkId)}
             onChange={(e) =>
-              setNetworkId(e.target.value === "" ? null : Number(e.target.value))
+              setNetworkId(
+                e.target.value === "" ? null : Number(e.target.value),
+              )
             }
             disabled={isEdit}
           >
-            <option value="">All networks (global)</option>
+            <option value="">Everywhere (all networks)</option>
             {networks.map((n) => (
               <option key={n.id} value={n.id}>
                 {n.name}
@@ -145,7 +149,7 @@ function SeverityRuleFormBody({
           <p className="mt-1 text-[11px] text-muted-foreground">
             {isEdit
               ? "Scope is fixed for an existing rule — delete and re-add to change it."
-              : "Network scope overrides the global rule for that network only."}
+              : "A rule for one network wins over a rule for all networks."}
           </p>
         </div>
 

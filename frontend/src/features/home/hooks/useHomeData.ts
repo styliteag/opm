@@ -9,6 +9,7 @@ import {
 import { useExecutiveOverview } from "@/features/overview/hooks/useExecutiveOverview";
 import {
   failedNetworkScans,
+  groupFindings,
   groupPortAlerts,
   importantFindings,
   offlineScanners,
@@ -42,7 +43,7 @@ export function useHomeData(mode: HomeQueueMode) {
     );
     return {
       groups: groupPortAlerts(list),
-      findings: importantFindings(list),
+      findings: groupFindings(importantFindings(list)),
       offline: offlineScanners(scanners.data?.scanners ?? []),
       failedScans: failedNetworkScans(
         latestScans.data?.latest_scans ?? [],

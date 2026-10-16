@@ -27,6 +27,21 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 /**
+ * Buttons, links and other focusable controls handle Enter/Space themselves;
+ * a shortcut on those keys would hijack the native activation.
+ */
+export function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.closest(
+      'button, a[href], summary, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"]',
+    ) !== null
+  );
+}
+
+const ACTIVATION_KEYS = new Set(["enter", " "]);
+
+/**
  * Registers global keyboard shortcuts for the lifetime of the component.
  * Pass a memoized array — the listener re-subscribes when the array identity
  * changes. Shortcuts with modifier keys held are ignored so browser and OS
@@ -43,6 +58,12 @@ export function useKeyboardShortcuts(
       if (event.defaultPrevented) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isEditableTarget(event.target)) return;
+      if (
+        ACTIVATION_KEYS.has(event.key.toLowerCase()) &&
+        isInteractiveTarget(event.target)
+      ) {
+        return;
+      }
 
       const match = shortcuts.find(
         (shortcut) => shortcut.key.toLowerCase() === event.key.toLowerCase(),
