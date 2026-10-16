@@ -106,27 +106,14 @@ async def upsert_global_open_port(
     return new_port, True
 
 
-async def get_global_open_ports(
-    db: AsyncSession,
-    *,
-    port_min: int | None = None,
-    port_max: int | None = None,
-    ip_range: IPRange | None = None,
-    service: str | None = None,
-    sort_by: str = "last_seen_at",
-    sort_dir: str = "desc",
-    offset: int = 0,
-    limit: int | None = 50,
-) -> list[GlobalOpenPort]:
-    """
-    Get global open ports with optional filtering and pagination.
-
-    ``limit=None`` returns every matching row (callers that filter on derived
-    fields paginate in Python afterwards).
-    """
-    query = select(GlobalOpenPort)
-
-    filters = []
+def _build_filters(
+    port_min: int | None,
+    port_max: int | None,
+    ip_range: IPRange | None,
+    service: str | None,
+) -> list[ColumnElement[bool]]:
+    """SQL filters shared by the global ports list and count queries."""
+    filters: list[ColumnElement[bool]] = []
 
     if port_min is not None:
         filters.append(GlobalOpenPort.port >= port_min)
@@ -148,6 +135,46 @@ async def get_global_open_ports(
                 )
             )
 
+    return filters
+
+
+async def count_global_open_ports(
+    db: AsyncSession,
+    *,
+    port_min: int | None = None,
+    port_max: int | None = None,
+    ip_range: IPRange | None = None,
+    service: str | None = None,
+) -> int:
+    """Count global open ports matching the SQL-level filters."""
+    query = select(func.count()).select_from(GlobalOpenPort)
+    filters = _build_filters(port_min, port_max, ip_range, service)
+    if filters:
+        query = query.where(and_(*filters))
+    result = await db.execute(query)
+    return int(result.scalar_one())
+
+
+async def get_global_open_ports(
+    db: AsyncSession,
+    *,
+    port_min: int | None = None,
+    port_max: int | None = None,
+    ip_range: IPRange | None = None,
+    service: str | None = None,
+    sort_by: str = "last_seen_at",
+    sort_dir: str = "desc",
+    offset: int = 0,
+    limit: int | None = 50,
+) -> list[GlobalOpenPort]:
+    """
+    Get global open ports with optional filtering and pagination.
+
+    ``limit=None`` returns every matching row (callers that filter on derived
+    fields paginate in Python afterwards).
+    """
+    query = select(GlobalOpenPort)
+    filters = _build_filters(port_min, port_max, ip_range, service)
     if filters:
         query = query.where(and_(*filters))
 

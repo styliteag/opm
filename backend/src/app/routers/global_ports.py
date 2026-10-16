@@ -150,7 +150,16 @@ async def list_global_open_ports(
             p for p in candidates if _matches_search(p, enrichment[p.id].hostname, search)
         ]
     if derived_filter:
+        total = len(candidates)
         candidates = candidates[offset : offset + limit]
+    else:
+        total = await global_ports_service.count_global_open_ports(
+            db,
+            port_min=port_min,
+            port_max=port_max,
+            ip_range=parsed_ip_range,
+            service=service,
+        )
 
     result_ports: list[GlobalOpenPortResponse] = []
     for port in candidates:
@@ -164,7 +173,7 @@ async def list_global_open_ports(
         port_response.alert_id = extra.alert_id
         result_ports.append(port_response)
 
-    return GlobalOpenPortListResponse(ports=result_ports)
+    return GlobalOpenPortListResponse(ports=result_ports, total=total)
 
 
 @router.get("/{port_id}", response_model=GlobalOpenPortResponse)

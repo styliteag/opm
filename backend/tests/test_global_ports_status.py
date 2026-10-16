@@ -341,3 +341,32 @@ async def test_repeated_status_returns_union_and_paginates(
     assert [p["port"] for p in resp.json()["ports"]] == [23]
     assert [p["port"] for p in union.json()["ports"]] == [22, 23]
     assert bad.status_code == 422
+
+
+async def test_total_counts_all_filtered_rows_before_pagination(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    viewer_headers: dict[str, str],
+    network_with_scan: tuple[Network, Scan],
+) -> None:
+    network, scan = network_with_scan
+    for p in (21, 22, 23, 24, 25):
+        await _port(db_session, network, p)
+    await _alert(db_session, network, scan, 22)
+    await _alert(db_session, network, scan, 25)
+
+    async def get(**params: object) -> dict:
+        query = {"sort_by": "port", "sort_dir": "asc", **params}
+        resp = await client.get("/api/global-ports", headers=viewer_headers, params=query)
+        assert resp.status_code == 200
+        return dict(resp.json())
+
+    unfiltered = await get(limit=2, offset=0)
+    filtered = await get(status="new", limit=1, offset=1)
+    beyond = await get(limit=2, offset=10)
+    none = await get(q="nomatch")
+
+    assert (len(unfiltered["ports"]), unfiltered["total"]) == (2, 5)
+    assert ([p["port"] for p in filtered["ports"]], filtered["total"]) == ([25], 2)
+    assert (beyond["ports"], beyond["total"]) == ([], 5)
+    assert (none["ports"], none["total"]) == ([], 0)

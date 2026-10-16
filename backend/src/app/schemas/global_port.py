@@ -39,6 +39,8 @@ class GlobalOpenPortListResponse(BaseModel):
     """Response schema for list of global open ports."""
 
     ports: list[GlobalOpenPortResponse]
+    # Rows matching every filter, before offset/limit
+    total: int = 0
 
 
 class PortCommentUpdateRequest(BaseModel):
