@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import type { Network, Scanner, ScanSummary } from "@/lib/types";
+import type { Network, Scanner, ScanListItem, ScanSummary } from "@/lib/types";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -112,6 +112,29 @@ describe("NetworksList", () => {
     expect(within(dmz).getByText("nmap + nuclei")).toBeInTheDocument();
     expect(within(dmz).getByText("Paused")).toBeInTheDocument();
     expect(within(dmz).getByRole("img", { name: "Last scan failed" })).toBeInTheDocument();
+  });
+
+  it("shows an active scan instead of the last run and blocks a second scan", () => {
+    renderList({
+      activeScans: [
+        {
+          id: 56,
+          network_id: 1,
+          status: "running",
+          progress_percent: 45,
+          network_name: "Office",
+          scanner_name: "dmz-1",
+        } as ScanListItem,
+      ],
+    });
+    const office = within(row("Office"));
+    expect(office.getByRole("link", { name: "Running 45%" })).toHaveAttribute(
+      "href",
+      "/scans/56",
+    );
+    expect(office.queryByText("12 open ports")).not.toBeInTheDocument();
+    expect(office.getByRole("button", { name: /Scan now/ })).toBeDisabled();
+    expect(within(row("DMZ")).getByRole("button", { name: /Scan now/ })).toBeEnabled();
   });
 
   it("drops the v3 summary cards and phase toggles", () => {

@@ -94,12 +94,14 @@ async def get_all_scans(
     pagination: Pagination,
     network_id: int | None = Query(None, ge=1),
     include_hidden: bool = Query(False),
+    scan_status: list[ScanStatus] | None = Query(None, alias="status"),
 ) -> AllScansListResponse:
-    """Get all scans with optional network filter."""
+    """Get all scans with optional network and (repeatable) status filters."""
     scan_results = await scans_service.get_all_scans(
         db,
         network_id=network_id,
         include_hidden=include_hidden,
+        statuses=scan_status,
         offset=pagination.offset,
         limit=pagination.limit,
     )

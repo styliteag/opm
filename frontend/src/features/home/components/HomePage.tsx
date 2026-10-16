@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { LoadingState } from "@/components/data-display/LoadingState";
+import { ActiveScansStrip } from "@/features/home/components/ActiveScansStrip";
 import { AlertSlideOver } from "@/features/home/components/AlertSlideOver";
 import { HomeFilterBar } from "@/features/home/components/HomeFilterBar";
 import { HomeHeader } from "@/features/home/components/HomeHeader";
@@ -15,6 +16,7 @@ import {
   type HomeQueueMode,
 } from "@/features/home/hooks/useHomeData";
 import { hasHomeFilters, type HomeFilters } from "@/features/home/lib/homeFilters";
+import { useActiveScans } from "@/features/scans/hooks/useActiveScans";
 
 interface HomePageProps {
   /** Alert shown in the slide-over (`/?alert=<id>`). */
@@ -36,6 +38,7 @@ export function HomePage({
 }: HomePageProps) {
   const [mode, setMode] = useState<HomeQueueMode>("inbox");
   const data = useHomeData(mode, filters);
+  const activeScans = useActiveScans();
   const filtered = hasHomeFilters(filters);
 
   if (data.isLoading) return <LoadingState rows={8} />;
@@ -57,6 +60,8 @@ export function HomePage({
       {mode === "inbox" && (
         <ProblemBanners offlineScanners={data.offline} failedScans={data.failedScans} />
       )}
+
+      <ActiveScansStrip scans={activeScans.data?.scans ?? []} />
 
       <ReviewQueue
         key={mode}

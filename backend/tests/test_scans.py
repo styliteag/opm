@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.network import Network
 from app.models.nse_template import NseTemplate
-from app.models.scan import ScanStatus, TriggerType
+from app.models.scan import Scan, ScanStatus, TriggerType
 from app.models.user import User
 from app.services.scans import (
     cancel_scan,
@@ -311,6 +311,41 @@ class TestScanRouter:
         )
 
         assert response.status_code == 409
+
+    async def test_list_scans_filtered_by_status(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        admin_user: User,
+        network_with_scan: tuple,
+        admin_headers: dict,
+    ):
+        """Repeated status params return only scans in those states."""
+        network, completed = network_with_scan
+        for scan_status in (ScanStatus.PLANNED, ScanStatus.RUNNING):
+            db_session.add(
+                Scan(
+                    network_id=network.id,
+                    scanner_id=network.scanner_id,
+                    status=scan_status,
+                    trigger_type=TriggerType.MANUAL,
+                )
+            )
+        await db_session.commit()
+
+        response = await client.get(
+            "/api/scans?status=planned&status=running", headers=admin_headers
+        )
+
+        assert response.status_code == 200
+        statuses = sorted(s["status"] for s in response.json()["scans"])
+        assert statuses == ["planned", "running"]
+
+        unfiltered = await client.get("/api/scans", headers=admin_headers)
+        assert len(unfiltered.json()["scans"]) == 3
+
+        bad = await client.get("/api/scans?status=bogus", headers=admin_headers)
+        assert bad.status_code == 422
 
     async def test_cancel_planned_scan(
         self,

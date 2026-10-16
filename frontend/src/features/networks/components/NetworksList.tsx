@@ -5,7 +5,8 @@ import { toast } from "sonner";
 
 import { EmptyState } from "@/components/data-display/EmptyState";
 import { buttonVariants } from "@/components/ui/button";
-import type { Network, Scanner, ScanSummary } from "@/lib/types";
+import { activeScansByNetwork } from "@/features/scans/lib/activeScans";
+import type { Network, Scanner, ScanListItem, ScanSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useNetworkMutations } from "../hooks/useNetworkDetail";
 import {
@@ -27,6 +28,8 @@ interface NetworksListProps {
   networks: Network[];
   scanners: Scanner[];
   latestScans: { network_id: number; scan: ScanSummary | null }[];
+  /** Planned/running scans; a network with one shows it instead of the last run. */
+  activeScans?: ScanListItem[];
   canOperate: boolean;
   sshOverrideOnly: boolean;
   onClearFilter: () => void;
@@ -36,10 +39,12 @@ export function NetworksList({
   networks,
   scanners,
   latestScans,
+  activeScans = [],
   canOperate,
   sshOverrideOnly,
   onClearFilter,
 }: NetworksListProps) {
+  const activeByNetwork = useMemo(() => activeScansByNetwork(activeScans), [activeScans]);
   const [sortField, setSortField] = useState<NetworkSortField>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { triggerScan } = useNetworkMutations();
@@ -145,6 +150,7 @@ export function NetworksList({
               key={network.id}
               network={network}
               lastScan={ctx.latestScans.get(network.id)}
+              activeScan={activeByNetwork.get(network.id)}
               canOperate={canOperate}
               scanPending={
                 triggerScan.isPending && triggerScan.variables === network.id

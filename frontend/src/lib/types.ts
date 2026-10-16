@@ -244,6 +244,16 @@ export interface ScanSummary {
   port_count: number;
 }
 
+/** Row of `GET /api/scans` (ScanWithNamesResponse). */
+export interface ScanListItem extends ScanSummary {
+  network_name: string;
+  scanner_name: string;
+}
+
+export interface ScanListResponse {
+  scans: ScanListItem[];
+}
+
 export interface LatestScanEntry {
   network_id: number;
   scan: ScanSummary | null;

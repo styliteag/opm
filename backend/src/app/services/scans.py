@@ -180,9 +180,10 @@ async def get_all_scans(
     offset: int = 0,
     limit: int = 50,
     include_hidden: bool = False,
+    statuses: list[ScanStatus] | None = None,
 ) -> list[tuple[Scan, int]]:
     """
-    Get all scans with port counts, optionally filtered by network_id.
+    Get all scans with port counts, optionally filtered by network_id and status.
 
     Returns scans ordered by most recent first with related network and site loaded.
     """
@@ -200,6 +201,8 @@ async def get_all_scans(
         query = query.where(Scan.network_id == network_id)
     if not include_hidden:
         query = query.where(Scan.hidden.is_(False))
+    if statuses:
+        query = query.where(Scan.status.in_(statuses))
 
     query = query.group_by(Scan.id).order_by(Scan.id.desc()).offset(offset).limit(limit)
 

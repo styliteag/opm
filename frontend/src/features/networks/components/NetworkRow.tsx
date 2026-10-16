@@ -8,7 +8,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Network, ScanSummary } from "@/lib/types";
+import { activeScanLabel } from "@/features/scans/lib/activeScans";
+import type { Network, ScanListItem, ScanSummary } from "@/lib/types";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import {
   LAST_SCAN_DOT,
@@ -23,6 +24,8 @@ import { nextRunText } from "../lib/networkList";
 interface NetworkRowProps {
   network: Network;
   lastScan: ScanSummary | null | undefined;
+  /** Queued or running scan of this network, if any. */
+  activeScan?: ScanListItem;
   canOperate: boolean;
   scanPending: boolean;
   onScanNow: (network: Network) => void;
@@ -40,6 +43,7 @@ function lastRunResult(scan: ScanSummary | null | undefined): string {
 export function NetworkRow({
   network,
   lastScan,
+  activeScan,
   canOperate,
   scanPending,
   onScanNow,
@@ -83,17 +87,34 @@ export function NetworkRow({
       </div>
 
       <div className="w-52 text-sm">
-        <p
-          className={cn(
-            "truncate",
-            state === "failed" ? "text-red-400" : "text-foreground",
-          )}
-        >
-          {lastRunResult(lastScan)}
-        </p>
-        <p className="truncate text-xs text-muted-foreground">
-          {lastRunAt ? `Last run ${formatRelativeTime(lastRunAt)}` : "Not run yet"}
-        </p>
+        {activeScan ? (
+          <>
+            <Link
+              to="/scans/$scanId"
+              params={{ scanId: String(activeScan.id) }}
+              className="block truncate text-primary hover:underline"
+            >
+              {activeScanLabel(activeScan)}
+            </Link>
+            <p className="truncate text-xs text-muted-foreground">
+              Scan #{activeScan.id} in progress
+            </p>
+          </>
+        ) : (
+          <>
+            <p
+              className={cn(
+                "truncate",
+                state === "failed" ? "text-red-400" : "text-foreground",
+              )}
+            >
+              {lastRunResult(lastScan)}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {lastRunAt ? `Last run ${formatRelativeTime(lastRunAt)}` : "Not run yet"}
+            </p>
+          </>
+        )}
       </div>
 
       <div className="w-28 text-sm">
@@ -111,7 +132,8 @@ export function NetworkRow({
           <Button
             size="sm"
             variant="outline"
-            disabled={scanPending}
+            disabled={scanPending || activeScan !== undefined}
+            title={activeScan ? "A scan of this network is already queued or running" : undefined}
             onClick={() => onScanNow(network)}
           >
             <Play />

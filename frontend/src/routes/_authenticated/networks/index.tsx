@@ -8,6 +8,7 @@ import {
   useScanners,
 } from "@/features/dashboard/hooks/useDashboardData";
 import { NetworksList } from "@/features/networks/components/NetworksList";
+import { useActiveScans } from "@/features/scans/hooks/useActiveScans";
 import { useHasRole } from "@/lib/roles";
 
 type NetworksSearch = {
@@ -26,6 +27,7 @@ function NetworksPage() {
   const networks = useNetworks();
   const scanners = useScanners();
   const latestScans = useLatestScans();
+  const activeScans = useActiveScans();
   const canOperate = useHasRole("operator");
 
   if (networks.isLoading) return <LoadingState rows={6} />;
@@ -42,6 +44,7 @@ function NetworksPage() {
       networks={networks.data?.networks ?? []}
       scanners={scanners.data?.scanners ?? []}
       latestScans={latestScans.data?.latest_scans ?? []}
+      activeScans={activeScans.data?.scans ?? []}
       canOperate={canOperate}
       sshOverrideOnly={filter === "ssh-override"}
       onClearFilter={() => void navigate({ search: {} })}
