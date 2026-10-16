@@ -72,6 +72,13 @@ in one click. Everything else is evidence on the port.** (ADR 0008)
 - Dashboard 30-day chart empty with current data; Networks page leads with a red
   offline-scanner card.
 
+## Prototype verdict (2026-10-16, decided by Claude while the user was AFK — review)
+
+Home = queue list (variant A) + Why quick picks and j/k/e/s keyboard from variant C.
+Host = port table with expandable per-port findings (variant A), decision-needed ports
+first, info findings collapsed. Details: `frontend/src/features/prototype-v4/NOTES.md`
+(deleted once Home is built; verdict kept here).
+
 ## Open questions (decide during implementation)
 
 - SSH alert types below high after ADR 0013 — which stay alerting by type?

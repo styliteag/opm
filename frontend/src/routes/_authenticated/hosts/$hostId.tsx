@@ -29,6 +29,7 @@ import { HostActivityFeed } from "@/features/hosts/components/HostActivityFeed";
 import { HostScanDialog } from "@/features/hosts/components/HostScanDialog";
 import { HostVulnerabilitiesPanel } from "@/features/hosts/components/HostVulnerabilitiesPanel";
 import { RiskSparkline } from "@/features/hosts/components/RiskSparkline";
+import { HostPrototype } from "@/features/prototype-v4/host/HostPrototype";
 import {
   useHostDetail,
   useHostRiskTrend,
@@ -42,9 +43,23 @@ import {
 } from "@/lib/risk-score";
 import { formatRelativeTime, cn } from "@/lib/utils";
 
+// PROTOTYPE (UI v4): ?variant=A|B|C swaps in the Host prototypes; remove after decision.
 export const Route = createFileRoute("/_authenticated/hosts/$hostId")({
-  component: HostDetailPage,
+  validateSearch: (search: Record<string, unknown>): { variant?: string } => ({
+    variant: typeof search.variant === "string" ? search.variant : undefined,
+  }),
+  component: HostRoute,
 });
+
+function HostRoute() {
+  const { hostId } = Route.useParams();
+  const { variant } = Route.useSearch();
+  return variant ? (
+    <HostPrototype hostId={Number(hostId)} variant={variant} />
+  ) : (
+    <HostDetailPage />
+  );
+}
 
 function HostDetailPage() {
   const { hostId } = Route.useParams();

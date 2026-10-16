@@ -16,12 +16,22 @@ import {
   useLatestScans,
   useAlertTrend,
 } from "@/features/dashboard/hooks/useDashboardData";
+import { HomePrototype } from "@/features/prototype-v4/home/HomePrototype";
 import type { Severity } from "@/lib/types";
 import { cn, parseUTC } from "@/lib/utils";
 
+// PROTOTYPE (UI v4): ?variant=A|B|C swaps in the Home prototypes; remove after decision.
 export const Route = createFileRoute("/_authenticated/")({
-  component: DashboardPage,
+  validateSearch: (search: Record<string, unknown>): { variant?: string } => ({
+    variant: typeof search.variant === "string" ? search.variant : undefined,
+  }),
+  component: HomeRoute,
 });
+
+function HomeRoute() {
+  const { variant } = Route.useSearch();
+  return variant ? <HomePrototype variant={variant} /> : <DashboardPage />;
+}
 
 const SEVERITY_STYLES: Record<Severity, { dot: string; label: string }> = {
   critical: { dot: "bg-red-500", label: "Critical" },
