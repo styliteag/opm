@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   ChevronLeft,
   ChevronRight,
+  History,
   Home,
   Network,
   Settings,
@@ -22,6 +23,8 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   /** Path prefixes (besides `href`) that keep this entry highlighted. */
   activePrefixes: string[];
+  /** Indented entries shown under this one; their paths win the highlight. */
+  children?: NavItem[];
 }
 
 // Four areas (ADR 0009). Settings is visible to everyone; its sub-nav filters by role.
@@ -37,7 +40,9 @@ const NAV_ITEMS: NavItem[] = [
     label: NAV_V4.networks,
     href: "/networks",
     icon: Network,
-    activePrefixes: ["/scans"],
+    activePrefixes: [],
+    // Scan history is per network, so it sits under Networks (ADR 0009 amendment).
+    children: [{ label: NAV_V4.scans, href: "/scans", icon: History, activePrefixes: [] }],
   },
   {
     label: NAV_V4.settings,
@@ -55,6 +60,38 @@ function isNavItemActive(item: NavItem, pathname: string): boolean {
   if (item.href === "/") return pathname === "/";
   return [item.href, ...item.activePrefixes].some((p) =>
     matchesPrefix(pathname, p),
+  );
+}
+
+function NavLink({
+  item,
+  active,
+  collapsed,
+  sub = false,
+}: {
+  item: NavItem;
+  active: boolean;
+  collapsed: boolean;
+  sub?: boolean;
+}) {
+  return (
+    <Link
+      to={item.href}
+      aria-current={active ? "page" : undefined}
+      data-nav-level={sub ? "sub" : "top"}
+      className={cn(
+        "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+        active
+          ? "bg-accent text-accent-foreground font-emphasis"
+          : "text-muted-foreground hover:text-foreground hover:bg-accent",
+        sub && !collapsed && "ml-5 py-1.5 text-xs",
+        collapsed && "justify-center px-2",
+      )}
+      title={collapsed ? item.label : undefined}
+    >
+      <item.icon className={cn("shrink-0", sub ? "h-3.5 w-3.5" : "h-4 w-4")} />
+      {!collapsed && <span>{item.label}</span>}
+    </Link>
   );
 }
 
@@ -87,27 +124,24 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-3 scrollbar-none">
-        {NAV_ITEMS.map((item) => {
-          const isActive = isNavItemActive(item, currentPath);
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-accent text-accent-foreground font-emphasis"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent",
-                collapsed && "justify-center px-2",
-              )}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
+        {NAV_ITEMS.map((item) => (
+          <div key={item.href} className="space-y-1">
+            <NavLink
+              item={item}
+              active={isNavItemActive(item, currentPath)}
+              collapsed={collapsed}
+            />
+            {item.children?.map((child) => (
+              <NavLink
+                key={child.href}
+                item={child}
+                active={isNavItemActive(child, currentPath)}
+                collapsed={collapsed}
+                sub
+              />
+            ))}
+          </div>
+        ))}
       </nav>
 
       {/* Scan Now Button */}

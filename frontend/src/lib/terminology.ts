@@ -11,13 +11,16 @@ export interface TermEntry {
   description: string;
 }
 
-export const NAV_V4: Record<"home" | "ports" | "networks" | "settings", string> =
-  {
-    home: "Home",
-    ports: "Ports",
-    networks: "Networks",
-    settings: "Settings",
-  };
+export const NAV_V4: Record<
+  "home" | "ports" | "networks" | "scans" | "settings",
+  string
+> = {
+  home: "Home",
+  ports: "Ports",
+  networks: "Networks",
+  scans: "Scans",
+  settings: "Settings",
+};
 
 export type PortStatusKey =
   | "new"

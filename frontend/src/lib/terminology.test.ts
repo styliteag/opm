@@ -10,11 +10,12 @@ import {
 } from "./terminology";
 
 describe("terminology v4", () => {
-  it("defines the four navigation areas in order", () => {
+  it("defines the navigation labels in sidebar order (Scans nests under Networks)", () => {
     expect(Object.values(NAV_V4)).toEqual([
       "Home",
       "Ports",
       "Networks",
+      "Scans",
       "Settings",
     ]);
   });

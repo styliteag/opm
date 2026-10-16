@@ -64,21 +64,27 @@ describe("Sidebar", () => {
     expect(screen.getByText("STYLiTE Orbit Monitor")).toBeInTheDocument();
   });
 
-  it("renders exactly the four v4 areas with their targets", () => {
+  it("renders the four v4 areas plus Scans nested under Networks", () => {
     render(<Sidebar />);
     const links = screen.getAllByRole("link");
     expect(links.map((l) => l.textContent)).toEqual([
       "Home",
       "Ports",
       "Networks",
+      "Scans",
       "Settings",
     ]);
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       "/",
       "/ports",
       "/networks",
+      "/scans",
       "/settings",
     ]);
+    expect(screen.getByRole("link", { name: "Scans" })).toHaveAttribute(
+      "data-nav-level",
+      "sub",
+    );
   });
 
   it("shows Settings to every role (sub-nav filters by role)", () => {
@@ -100,7 +106,8 @@ describe("Sidebar", () => {
     ["/hosts/12", "Ports"],
     ["/networks", "Networks"],
     ["/networks/4", "Networks"],
-    ["/scans/99", "Networks"],
+    ["/scans", "Scans"],
+    ["/scans/99", "Scans"],
     ["/settings/scanners/2", "Settings"],
     ["/settings/security", "Settings"],
   ])("highlights the right entry for %s", (path, label) => {
@@ -150,7 +157,6 @@ describe("Sidebar", () => {
       "Dashboard",
       "Alerts",
       "Hosts",
-      "Scans",
       "Scanners",
       "Scan Templates",
       "Alerting",
