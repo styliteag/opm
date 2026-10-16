@@ -116,12 +116,13 @@ async def get_global_open_ports(
     sort_by: str = "last_seen_at",
     sort_dir: str = "desc",
     offset: int = 0,
-    limit: int = 50,
+    limit: int | None = 50,
 ) -> list[GlobalOpenPort]:
     """
     Get global open ports with optional filtering and pagination.
 
-    Returns a list of GlobalOpenPort objects.
+    ``limit=None`` returns every matching row (callers that filter on derived
+    fields paginate in Python afterwards).
     """
     query = select(GlobalOpenPort)
 
@@ -169,7 +170,9 @@ async def get_global_open_ports(
     else:
         raise ValueError("Invalid sort_dir value")
 
-    query = query.order_by(sort_expression, GlobalOpenPort.id.asc()).offset(offset).limit(limit)
+    query = query.order_by(sort_expression, GlobalOpenPort.id.asc()).offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
 
     result = await db.execute(query)
     return list(result.scalars().all())

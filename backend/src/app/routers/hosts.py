@@ -49,6 +49,7 @@ from app.services.hostname_lookup import (
     get_cache_row_for_ip,
     get_cached_hostname_summaries_for_ips,
 )
+from app.services.port_status import match_port_rules, resolve_effective_rule
 from app.services.vulnerability_results import get_vulnerabilities_for_host
 
 router = APIRouter(prefix="/api/hosts", tags=["hosts"])
@@ -270,24 +271,6 @@ async def get_host_ports(
     return HostOpenPortListResponse(ports=result_ports)
 
 
-def _resolve_effective_rule(rules: list[PortRuleMatch]) -> str | None:
-    """Pick the winning rule type by specificity. IP-specific > port-only.
-
-    At the same specificity level, 'accepted' wins over 'critical'
-    because it represents an explicit user override.
-    """
-    if not rules:
-        return None
-    best_score = 0
-    best_type: str | None = None
-    for r in rules:
-        score = 2 if r.ip else 1
-        if score > best_score or (score == best_score and r.rule_type == "accepted"):
-            best_score = score
-            best_type = r.rule_type
-    return best_type
-
-
 @router.get("/{host_id}/overview", response_model=HostOverviewResponse)
 async def get_host_overview(
     user: CurrentUser,
@@ -301,7 +284,7 @@ async def get_host_overview(
     from app.services import networks as networks_service
     from app.services import scans as scans_service
     from app.services import ssh_results as ssh_service
-    from app.services.alert_rules import is_port_blocked, port_rule_matches_alert
+    from app.services.alert_rules import is_port_blocked
 
     host = await hosts_service.get_host_by_id(db, host_id)
     if host is None:
@@ -458,49 +441,15 @@ async def get_host_overview(
         elif not alert.dismissed:
             alert_by_port[alert.port] = (alert, "new")
 
-    def _find_matching_rules(port_ip: str, port_num: int) -> list[PortRuleMatch]:
-        matches: list[PortRuleMatch] = []
-        for rule in global_rules:
-            if not port_rule_matches_alert(rule, port_ip, port_num):
-                continue
-            criteria_ip = rule.match_criteria.get("ip")
-            matches.append(
-                PortRuleMatch(
-                    id=rule.id,
-                    scope="global",
-                    network_id=None,
-                    network_name=None,
-                    rule_type=rule.rule_type.value,
-                    description=rule.description,
-                    ip=criteria_ip,
-                )
-            )
-        for rule, nid, nname in network_rules_tuples:
-            if not port_rule_matches_alert(rule, port_ip, port_num):
-                continue
-            criteria_ip = rule.match_criteria.get("ip")
-            matches.append(
-                PortRuleMatch(
-                    id=rule.id,
-                    scope="network",
-                    network_id=nid,
-                    network_name=nname,
-                    rule_type=rule.rule_type.value,
-                    description=rule.description,
-                    ip=criteria_ip,
-                )
-            )
-        return matches
-
     latest_scan_times = await global_ports_service.get_latest_scan_times_by_network(db)
 
     enriched_ports: list[EnrichedHostPort] = []
     all_matching_rules: list[PortRuleMatch] = []
     for p in ports:
-        rules = _find_matching_rules(p.ip, p.port)
+        rules = match_port_rules(p.ip, p.port, global_rules, network_rules_tuples)
         all_matching_rules.extend(rules)
         # Determine effective rule by specificity (IP-specific > port-only)
-        rule_status = _resolve_effective_rule(rules)
+        rule_status = resolve_effective_rule(rules)
         # Alert status
         alert_info = alert_by_port.get(p.port)
         alert_id: int | None = None

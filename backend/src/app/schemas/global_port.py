@@ -1,8 +1,12 @@
 """Schemas for global open port endpoints."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
+
+# Ports page triage status (UI v4), see services/port_status.py
+PortStatus = Literal["new", "review", "expected", "snoozed", "critical"]
 
 
 class GlobalOpenPortResponse(BaseModel):
@@ -21,6 +25,12 @@ class GlobalOpenPortResponse(BaseModel):
     seen_by_networks: list[int]
     user_comment: str | None = None
     is_stale: bool = False
+    host_id: int | None = None
+    # Triage enrichment — populated by the list endpoint only
+    hostname: str | None = None
+    status: PortStatus | None = None
+    why: str | None = None
+    alert_id: int | None = None
 
     model_config = {"from_attributes": True}
 

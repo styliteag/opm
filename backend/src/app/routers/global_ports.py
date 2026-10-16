@@ -9,8 +9,10 @@ from app.schemas.global_port import (
     GlobalOpenPortListResponse,
     GlobalOpenPortResponse,
     PortCommentUpdateRequest,
+    PortStatus,
 )
 from app.services import global_open_ports as global_ports_service
+from app.services import port_status as port_status_service
 
 router = APIRouter(prefix="/api/global-ports", tags=["global-ports"])
 
@@ -59,10 +61,17 @@ async def list_global_open_ports(
     staleness: str = Query("all", pattern="^(all|active|stale)$"),
     sort_by: str = Query("last_seen_at"),
     sort_dir: str = Query("desc"),
+    port_status: PortStatus | None = Query(None, alias="status"),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=10000),
 ) -> GlobalOpenPortListResponse:
-    """List global open ports (deduplicated across all scans)."""
+    """List global open ports (deduplicated across all scans).
+
+    Each row carries the Ports-page triage fields (``status``, ``why``,
+    ``alert_id``, ``host_id``, ``hostname``). Filtering on ``status`` or
+    ``staleness`` happens on derived values, so those requests load the
+    full SQL-filtered set and paginate after filtering.
+    """
     if port_min is not None and port_max is not None and port_min > port_max:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -79,6 +88,7 @@ async def list_global_open_ports(
                 detail=str(exc),
             ) from exc
 
+    derived_filter = port_status is not None or staleness != "all"
     try:
         ports = await global_ports_service.get_global_open_ports(
             db,
@@ -88,8 +98,8 @@ async def list_global_open_ports(
             service=service,
             sort_by=sort_by.lower(),
             sort_dir=sort_dir.lower(),
-            offset=offset,
-            limit=limit,
+            offset=0 if derived_filter else offset,
+            limit=None if derived_filter else limit,
         )
     except ValueError as exc:
         raise HTTPException(
@@ -99,7 +109,8 @@ async def list_global_open_ports(
 
     latest_scan_times = await global_ports_service.get_latest_scan_times_by_network(db)
 
-    result_ports: list[GlobalOpenPortResponse] = []
+    stale_by_id: dict[int, bool] = {}
+    candidates = []
     for port in ports:
         is_stale = global_ports_service.compute_port_staleness(
             port.last_seen_at,
@@ -110,8 +121,25 @@ async def list_global_open_ports(
             continue
         if staleness == "stale" and not is_stale:
             continue
+        stale_by_id[port.id] = is_stale
+        candidates.append(port)
+
+    enrichment = await port_status_service.enrich_global_ports(db, candidates)
+    if port_status is not None:
+        candidates = [p for p in candidates if enrichment[p.id].status == port_status]
+    if derived_filter:
+        candidates = candidates[offset : offset + limit]
+
+    result_ports: list[GlobalOpenPortResponse] = []
+    for port in candidates:
+        extra = enrichment[port.id]
         port_response = GlobalOpenPortResponse.model_validate(port)
-        port_response.is_stale = is_stale
+        port_response.is_stale = stale_by_id[port.id]
+        port_response.host_id = extra.host_id
+        port_response.hostname = extra.hostname
+        port_response.status = extra.status
+        port_response.why = extra.why
+        port_response.alert_id = extra.alert_id
         result_ports.append(port_response)
 
     return GlobalOpenPortListResponse(ports=result_ports)
