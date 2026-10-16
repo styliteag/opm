@@ -11,6 +11,8 @@ from app.models.alert import Alert, AlertType
 from app.models.alert_rule import AlertRule, RuleType
 from app.models.network import Network
 from app.models.scan import Scan
+from app.routers.alerts.list import _export_status_label
+from app.services.alert_policy import NO_POLICY, POLICY_ALLOWED_GLOBAL, PolicyState
 
 CSV = "/api/alerts/export/csv"
 PDF = "/api/alerts/export/pdf"
@@ -107,3 +109,23 @@ async def test_pdf_export_accepts_policy_filters(
     )
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/pdf"
+
+
+async def test_csv_status_column_uses_v4_wording(
+    client: AsyncClient, viewer_headers: dict[str, str], alerts: dict[str, Alert]
+) -> None:
+    resp = await client.get(CSV, headers=viewer_headers)
+    reader = csv.reader(io.StringIO(resp.text))
+    header = next(reader)
+    status_col = header.index("Status")
+    by_ip = {row[1]: row[status_col] for row in reader if row}
+
+    assert by_ip == {"10.0.0.1": "Open", "10.0.0.2": "Snoozed", "10.0.0.3": "Expected"}
+
+
+def test_export_status_label() -> None:
+    allowed = PolicyState(POLICY_ALLOWED_GLOBAL, 1, "global")
+    assert _export_status_label(False, allowed) == "Open"
+    assert _export_status_label(True, allowed) == "Expected"
+    assert _export_status_label(True, NO_POLICY) == "Snoozed"
+    assert _export_status_label(False, NO_POLICY) == "Open"

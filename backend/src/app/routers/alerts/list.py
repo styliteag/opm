@@ -167,8 +167,11 @@ async def _export_alerts(
     ip: str | None,
     port: int | None,
     search: str | None,
-) -> list[tuple[Alert, str | None]]:
-    """Alerts for CSV/PDF export, filtered exactly like ``GET /api/alerts/``."""
+) -> tuple[list[tuple[Alert, str | None]], dict[int, alert_policy_service.PolicyState]]:
+    """Alerts for CSV/PDF export, filtered exactly like ``GET /api/alerts/``.
+
+    Also returns each alert's policy state for the Status column.
+    """
     candidates = await alerts_service.get_alerts(
         db,
         alert_type=alert_type,
@@ -184,9 +187,21 @@ async def _export_alerts(
         limit=None if policy_state is not None else _EXPORT_LIMIT,
     )
     if policy_state is None:
-        return candidates
-    filtered, _ = await _filter_by_policy_state(db, candidates, policy_state)
-    return filtered[:_EXPORT_LIMIT]
+        policy_by_id = await alert_policy_service.compute_policy_states(
+            db, [alert for alert, _ in candidates]
+        )
+        return candidates, policy_by_id
+    filtered, policy_by_id = await _filter_by_policy_state(db, candidates, policy_state)
+    return filtered[:_EXPORT_LIMIT], policy_by_id
+
+
+def _export_status_label(dismissed: bool, policy: alert_policy_service.PolicyState) -> str:
+    """v4 glossary wording: Open, Expected (dismissed + accepted rule), Snoozed."""
+    if not dismissed:
+        return "Open"
+    if policy.policy_state != alert_policy_service.POLICY_NONE:
+        return "Expected"
+    return "Snoozed"
 
 
 @router.get("/", response_model=AlertListResponse)
@@ -482,7 +497,7 @@ async def export_alerts_csv(
 ) -> StreamingResponse:
     """Export alerts as CSV with optional filters."""
     # Get all alerts with filters (no pagination for export)
-    alerts = await _export_alerts(
+    alerts, policy_by_id = await _export_alerts(
         db,
         alert_type=alert_type,
         source=source,
@@ -502,7 +517,9 @@ async def export_alerts_csv(
             alert.ip,
             alert.port,
             network_name or "",
-            "Dismissed" if alert.dismissed else "Open",
+            _export_status_label(
+                alert.dismissed, policy_by_id.get(alert.id, alert_policy_service.NO_POLICY)
+            ),
             alert.created_at.isoformat(),
         ]
         for alert, network_name in alerts
@@ -526,7 +543,7 @@ async def export_alerts_pdf(
 ) -> StreamingResponse:
     """Export alerts as PDF with optional filters."""
     # Get all alerts with filters (no pagination for export)
-    alerts = await _export_alerts(
+    alerts, policy_by_id = await _export_alerts(
         db,
         alert_type=alert_type,
         source=source,
@@ -541,19 +558,23 @@ async def export_alerts_pdf(
 
     total_alerts = len(alerts)
     by_type: dict[str, int] = {}
-    dismissed_count = 0
+    status_labels = {
+        alert.id: _export_status_label(
+            alert.dismissed, policy_by_id.get(alert.id, alert_policy_service.NO_POLICY)
+        )
+        for alert, _ in alerts
+    }
+    status_counts = Counter(status_labels.values())
     for alert, _ in alerts:
         by_type[alert.alert_type.value] = by_type.get(alert.alert_type.value, 0) + 1
-        if alert.dismissed:
-            dismissed_count += 1
-    open_count = total_alerts - dismissed_count
 
     buffer, doc = new_pdf_buffer()
     with build_pdf("Alerts Report") as (elements, styles):
         summary_lines = [
             f"<b>Total alerts:</b> {total_alerts}",
-            f"<b>Open:</b> {open_count}",
-            f"<b>Dismissed:</b> {dismissed_count}",
+            f"<b>Open:</b> {status_counts['Open']}",
+            f"<b>Expected:</b> {status_counts['Expected']}",
+            f"<b>Snoozed:</b> {status_counts['Snoozed']}",
         ]
         if by_type:
             summary_lines.append("<b>By type:</b>")
@@ -573,7 +594,7 @@ async def export_alerts_pdf(
                 alert.ip,
                 str(alert.port),
                 network_name or "",
-                "Dismissed" if alert.dismissed else "Open",
+                status_labels[alert.id],
                 alert.created_at.strftime("%Y-%m-%d %H:%M"),
             ]
             for alert, network_name in alerts

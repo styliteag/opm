@@ -35,7 +35,7 @@ Legend: ✅ present · ✂️ intentionally removed (decision cited) · ⚠️ g
 | Alerts: bulk Delete | Home queue selection bar → "Delete…" with confirm modal, operator+ | ✅ |
 | Alerts: keyboard j/k/a/m/s | Home queue j/k move · x select · e Expected · s Snooze · Enter details | ✅ (keys renamed with the verbs) |
 | Alerts: SSH context, matching rules, scan presence, activity | Alert slide-over (`/?alert=<id>`): scan presence, details, SSH summary, matching rules, activity, comments | ✅ |
-| Alerts: CSV/PDF export | Home options → Export CSV / Export PDF (authenticated download) | ✅ (see bug #7) |
+| Alerts: CSV/PDF export | Home options → Export CSV / Export PDF (authenticated download) | ✅ (open / snoozed / expected scopes) |
 | Hosts list (inline hostname/comment, bulk delete) | Ports → Hosts tab `/ports?tab=hosts`: search, network filter, sort, inline edit, bulk delete with ConfirmDialog | ✅ |
 | Hosts: Global Ports view | Ports tab `/ports` (default): status filter, search, network, service chips, Why column, inline Expected/Snooze | ✅. The v3 stale filter is now a "Stale" badge on the row and has no filter (**later**) |
 | Host detail: header, stats, ports, alerts tabs | `/hosts/$id`: header with "N to review · N important findings", Scan again, port table with status + Why | ✅ (ADR 0008) |
@@ -100,7 +100,7 @@ inside ✅ rows: Organization logo/policy URL fields and the orphaned hosts PDF 
 | 4 | PhaseCards Tool select dead | ✅ fixed: `PhaseCards.tsx` follows the engine, no per-phase tool select |
 | 5 | No "manual / no schedule" | ✅ fixed: "Manual only" preset (`schedulePresets.ts`) |
 | 6 | PhasePills inside card link | ✅ fixed: pills removed from the list (ADR 0011) |
-| 7 | Alerts export: Muted vs Allowed identical | ⚠️ **later**, still open: `exportAlerts.ts` maps the Home view to `dismissed=true/false`, so Expected and Snoozed alerts export together. Home has no separate Expected/Snoozed view, so the export matches the view. Fix needs a backend `queue_state` param on `/api/alerts/export/*`. |
+| 7 | Alerts export: Muted vs Allowed identical | ✅ fixed after the audit: export endpoints take `queue_state` / `policy_state`; Home menu exports open, or Snoozed and Expected separately (`exportAlerts.ts`, `HomeHeader.tsx`). |
 | 8 | Scanner delete / key regenerate without confirm | ✅ fixed: `ScannerActionConfirm.tsx` |
 | 9 | Deletes without confirm (users, severity rules, NSE profiles, port rules) | ✅ fixed: shared `ConfirmDialog` in all four |
 | 10 | Hidden scans unreachable | ✅ fixed: Network → Scans "Show hidden scans (N)"; scan detail Hide/Show |
@@ -174,7 +174,8 @@ the URL, so no tab mapping is needed.
 
 ## 6. Release-gate verdict
 
-No blockers. Before the 3.0.0 release, decide the Organization logo/policy URL cut and the
-"To decide" wording. The later items can go in 3.0.x: alert-queue filters, the SSH
-report and hosts PDF export entry points, the bug #7 export split, breadcrumbs, date
+No blockers. "To decide" is now a glossary term (New + To review). The Organization
+logo/policy URL inputs were removed because nothing reads them (API fields kept, reversible) —
+flagged for the user's review before the 3.0.0 release. The later items can go in 3.0.x: alert-queue filters, the SSH
+report and hosts PDF export entry points, breadcrumbs, date
 formatting and aria labels.
