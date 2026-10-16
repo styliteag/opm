@@ -302,3 +302,42 @@ async def test_q_and_network_combine_with_status(
     )
 
     assert [r["port"] for r in rows] == [443]
+
+
+async def test_repeated_status_returns_union_and_paginates(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    viewer_headers: dict[str, str],
+    network_with_scan: tuple[Network, Scan],
+) -> None:
+    network, scan = network_with_scan
+    for p in (21, 22, 23, 24):
+        await _port(db_session, network, p)
+    await _rule(db_session, "21", RuleType.ACCEPTED, description="ftp ok")
+    await _alert(db_session, network, scan, 22)
+    await _alert(db_session, network, scan, 24, dismissed=True)
+
+    resp = await client.get(
+        "/api/global-ports",
+        headers=viewer_headers,
+        params=[
+            ("sort_by", "port"),
+            ("sort_dir", "asc"),
+            ("status", "new"),
+            ("status", "review"),
+            ("limit", "1"),
+            ("offset", "1"),
+        ],
+    )
+    union = await client.get(
+        "/api/global-ports",
+        headers=viewer_headers,
+        params=[("sort_by", "port"), ("sort_dir", "asc"), ("status", "new"), ("status", "review")],
+    )
+    bad = await client.get(
+        "/api/global-ports", headers=viewer_headers, params=[("status", "new"), ("status", "x")]
+    )
+
+    assert [p["port"] for p in resp.json()["ports"]] == [23]
+    assert [p["port"] for p in union.json()["ports"]] == [22, 23]
+    assert bad.status_code == 422

@@ -68,7 +68,7 @@ async def list_global_open_ports(
     staleness: str = Query("all", pattern="^(all|active|stale)$"),
     sort_by: str = Query("last_seen_at"),
     sort_dir: str = Query("desc"),
-    port_status: PortStatus | None = Query(None, alias="status"),
+    port_statuses: list[PortStatus] | None = Query(None, alias="status"),
     network_id: int | None = Query(None),
     q: str | None = Query(None),
     offset: int = Query(0, ge=0),
@@ -77,7 +77,8 @@ async def list_global_open_ports(
     """List global open ports (deduplicated across all scans).
 
     Each row carries the Ports-page triage fields (``status``, ``why``,
-    ``alert_id``, ``host_id``, ``hostname``). ``network_id`` keeps ports seen
+    ``alert_id``, ``host_id``, ``hostname``). ``status`` may repeat
+    (``?status=new&status=review``) and returns the union. ``network_id`` keeps ports seen
     by that network; ``q`` matches ip, hostname, or service_guess
     (case-insensitive substring). Filtering on ``status``, ``staleness``,
     ``network_id`` or ``q`` happens on derived values, so those requests load
@@ -101,7 +102,7 @@ async def list_global_open_ports(
             ) from exc
 
     derived_filter = (
-        port_status is not None or staleness != "all" or network_id is not None or bool(search)
+        bool(port_statuses) or staleness != "all" or network_id is not None or bool(search)
     )
     try:
         ports = await global_ports_service.get_global_open_ports(
@@ -141,8 +142,9 @@ async def list_global_open_ports(
         candidates.append(port)
 
     enrichment = await port_status_service.enrich_global_ports(db, candidates)
-    if port_status is not None:
-        candidates = [p for p in candidates if enrichment[p.id].status == port_status]
+    if port_statuses:
+        wanted = set(port_statuses)
+        candidates = [p for p in candidates if enrichment[p.id].status in wanted]
     if search:
         candidates = [
             p for p in candidates if _matches_search(p, enrichment[p.id].hostname, search)
