@@ -5,6 +5,7 @@ from ipaddress import ip_address, ip_network
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import CurrentUser, DbSession
+from app.models.global_open_port import GlobalOpenPort
 from app.schemas.global_port import (
     GlobalOpenPortListResponse,
     GlobalOpenPortResponse,
@@ -50,6 +51,12 @@ def parse_ip_range(value: str) -> IPRange:
     return (start_ip.version, start_ip, end_ip)
 
 
+def _matches_search(port: GlobalOpenPort, hostname: str | None, search: str) -> bool:
+    """Case-insensitive substring match on ip, hostname, or service_guess."""
+    fields = (port.ip, hostname, port.service_guess)
+    return any(search in value.lower() for value in fields if value)
+
+
 @router.get("", response_model=GlobalOpenPortListResponse)
 async def list_global_open_ports(
     user: CurrentUser,
@@ -62,16 +69,21 @@ async def list_global_open_ports(
     sort_by: str = Query("last_seen_at"),
     sort_dir: str = Query("desc"),
     port_status: PortStatus | None = Query(None, alias="status"),
+    network_id: int | None = Query(None),
+    q: str | None = Query(None),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=10000),
 ) -> GlobalOpenPortListResponse:
     """List global open ports (deduplicated across all scans).
 
     Each row carries the Ports-page triage fields (``status``, ``why``,
-    ``alert_id``, ``host_id``, ``hostname``). Filtering on ``status`` or
-    ``staleness`` happens on derived values, so those requests load the
-    full SQL-filtered set and paginate after filtering.
+    ``alert_id``, ``host_id``, ``hostname``). ``network_id`` keeps ports seen
+    by that network; ``q`` matches ip, hostname, or service_guess
+    (case-insensitive substring). Filtering on ``status``, ``staleness``,
+    ``network_id`` or ``q`` happens on derived values, so those requests load
+    the full SQL-filtered set and paginate after filtering.
     """
+    search = q.strip().lower() if q else ""
     if port_min is not None and port_max is not None and port_min > port_max:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -88,7 +100,9 @@ async def list_global_open_ports(
                 detail=str(exc),
             ) from exc
 
-    derived_filter = port_status is not None or staleness != "all"
+    derived_filter = (
+        port_status is not None or staleness != "all" or network_id is not None or bool(search)
+    )
     try:
         ports = await global_ports_service.get_global_open_ports(
             db,
@@ -121,12 +135,18 @@ async def list_global_open_ports(
             continue
         if staleness == "stale" and not is_stale:
             continue
+        if network_id is not None and network_id not in (port.seen_by_networks or []):
+            continue
         stale_by_id[port.id] = is_stale
         candidates.append(port)
 
     enrichment = await port_status_service.enrich_global_ports(db, candidates)
     if port_status is not None:
         candidates = [p for p in candidates if enrichment[p.id].status == port_status]
+    if search:
+        candidates = [
+            p for p in candidates if _matches_search(p, enrichment[p.id].hostname, search)
+        ]
     if derived_filter:
         candidates = candidates[offset : offset + limit]
 

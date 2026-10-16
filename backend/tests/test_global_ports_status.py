@@ -231,3 +231,74 @@ async def test_status_filter_rejects_unknown_value(
         "/api/global-ports", headers=viewer_headers, params={"status": "bogus"}
     )
     assert resp.status_code == 422
+
+
+async def test_network_filter_paginates_after_filtering(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    viewer_headers: dict[str, str],
+    network_with_scan: tuple[Network, Scan],
+    network_factory: NetworkFactory,
+    scanner: Scanner,
+) -> None:
+    network, _scan = network_with_scan
+    other = await network_factory.create(scanner, name="Other", cidr="10.9.0.0/24")
+    for p in (21, 22, 23):
+        await _port(db_session, network, p)
+    for p in (24, 25):
+        await _port(db_session, other, p)
+
+    page = await _list(client, viewer_headers, network_id=other.id, limit=1, offset=1)
+    in_first = await _list(client, viewer_headers, network_id=network.id)
+    unknown = await _list(client, viewer_headers, network_id=99999)
+
+    assert [p["port"] for p in page] == [25]
+    assert [p["port"] for p in in_first] == [21, 22, 23]
+    assert unknown == []
+
+
+async def test_q_matches_ip_hostname_and_service(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    viewer_headers: dict[str, str],
+    network_with_scan: tuple[Network, Scan],
+) -> None:
+    network, _scan = network_with_scan
+    host = Host(ip="10.1.1.1", hostname="Mail01.Example.test", seen_by_networks=[network.id])
+    db_session.add(host)
+    await db_session.commit()
+    await db_session.refresh(host)
+    await _port(db_session, network, 25, ip="10.1.1.1", host=host)
+    ssh = await _port(db_session, network, 22, ip="10.2.2.2")
+    ssh.service_guess = "OpenSSH"
+    await _port(db_session, network, 80, ip="10.3.3.3")
+    await db_session.commit()
+
+    def ports(rows: list[dict]) -> list[int]:
+        return [r["port"] for r in rows]
+
+    assert ports(await _list(client, viewer_headers, q="10.3.3")) == [80]
+    assert ports(await _list(client, viewer_headers, q="mail01")) == [25]
+    assert ports(await _list(client, viewer_headers, q="  openssh ")) == [22]
+    assert ports(await _list(client, viewer_headers, q="   ")) == [22, 25, 80]
+    assert ports(await _list(client, viewer_headers, q="nomatch")) == []
+
+
+async def test_q_and_network_combine_with_status(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    viewer_headers: dict[str, str],
+    network_with_scan: tuple[Network, Scan],
+) -> None:
+    network, scan = network_with_scan
+    for p in (22, 80, 443):
+        await _port(db_session, network, p)
+    await _port(db_session, network, 8080, ip="10.5.5.5")
+    await _alert(db_session, network, scan, 80)
+    await _alert(db_session, network, scan, 443)
+
+    rows = await _list(
+        client, viewer_headers, status="new", q=IP, network_id=network.id, limit=1, offset=1
+    )
+
+    assert [r["port"] for r in rows] == [443]
