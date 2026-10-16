@@ -113,6 +113,82 @@ def _severity_counts_from_alerts(alerts: list[Alert]) -> dict[str, int]:
     return dict(counts)
 
 
+_QUEUE_STATE_PATTERN = "^(inbox|out_of_inbox)$"
+_POLICY_STATE_PATTERN = "^(none|allowed|allowed_network|allowed_global)$"
+_EXPORT_LIMIT = 10000
+
+
+def _resolve_queue_state(queue_state: str | None, dismissed: bool | None) -> bool | None:
+    """Fold ``queue_state`` into the ``dismissed`` filter; 400 on a conflict."""
+    if queue_state is None:
+        return dismissed
+    queue_dismissed = queue_state == alert_policy_service.QUEUE_OUT_OF_INBOX
+    if dismissed is not None and dismissed != queue_dismissed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="queue_state conflicts with dismissed",
+        )
+    return queue_dismissed
+
+
+async def _filter_by_policy_state(
+    db: AsyncSession,
+    candidates: list[tuple[Alert, str | None]],
+    policy_state: str,
+) -> tuple[list[tuple[Alert, str | None]], dict[int, alert_policy_service.PolicyState]]:
+    """Keep alerts whose derived policy state matches the filter.
+
+    Also returns the computed policy state per alert id for row enrichment.
+
+    Rule criteria are JSON (port ranges), so the policy dimension is matched
+    in Python over the full candidate set before pagination — per-page
+    matching would break totals and page boundaries.
+    """
+    policy_by_id = await alert_policy_service.compute_policy_states(
+        db, [alert for alert, _ in candidates]
+    )
+    filtered = [
+        (alert, name)
+        for alert, name in candidates
+        if alert_policy_service.policy_filter_matches(policy_by_id[alert.id], policy_state)
+    ]
+    return filtered, policy_by_id
+
+
+async def _export_alerts(
+    db: AsyncSession,
+    *,
+    alert_type: AlertType | None,
+    source: str | None,
+    network_id: int | None,
+    dismissed: bool | None,
+    queue_state: str | None,
+    policy_state: str | None,
+    ip: str | None,
+    port: int | None,
+    search: str | None,
+) -> list[tuple[Alert, str | None]]:
+    """Alerts for CSV/PDF export, filtered exactly like ``GET /api/alerts/``."""
+    candidates = await alerts_service.get_alerts(
+        db,
+        alert_type=alert_type,
+        source=source,
+        network_id=network_id,
+        dismissed=_resolve_queue_state(queue_state, dismissed),
+        ip=ip,
+        port=port,
+        search=search,
+        start_date=None,
+        end_date=None,
+        offset=0,
+        limit=None if policy_state is not None else _EXPORT_LIMIT,
+    )
+    if policy_state is None:
+        return candidates
+    filtered, _ = await _filter_by_policy_state(db, candidates, policy_state)
+    return filtered[:_EXPORT_LIMIT]
+
+
 @router.get("/", response_model=AlertListResponse)
 async def list_alerts(
     user: CurrentUser,
@@ -122,10 +198,8 @@ async def list_alerts(
     source: str | None = Query(None, max_length=10),
     network_id: int | None = Query(None, ge=1),
     dismissed: bool | None = Query(None),
-    queue_state: str | None = Query(None, pattern="^(inbox|out_of_inbox)$"),
-    policy_state: str | None = Query(
-        None, pattern="^(none|allowed|allowed_network|allowed_global)$"
-    ),
+    queue_state: str | None = Query(None, pattern=_QUEUE_STATE_PATTERN),
+    policy_state: str | None = Query(None, pattern=_POLICY_STATE_PATTERN),
     ip: str | None = Query(None),
     port: int | None = Query(None, ge=1, le=65535),
     search: str | None = Query(None, max_length=200),
@@ -141,20 +215,10 @@ async def list_alerts(
             detail="start_date cannot be after end_date",
         )
 
-    if queue_state is not None:
-        queue_dismissed = queue_state == alert_policy_service.QUEUE_OUT_OF_INBOX
-        if dismissed is not None and dismissed != queue_dismissed:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="queue_state conflicts with dismissed",
-            )
-        dismissed = queue_dismissed
+    dismissed = _resolve_queue_state(queue_state, dismissed)
 
     policy_filtered: list[tuple[Alert, str | None]] | None = None
     if policy_state is not None:
-        # Rule criteria are JSON (port ranges), so the policy dimension is
-        # matched in Python over the full candidate set before pagination —
-        # per-page matching would break totals and page boundaries.
         candidates = await alerts_service.get_alerts(
             db,
             alert_type=alert_type,
@@ -171,16 +235,9 @@ async def list_alerts(
             offset=0,
             limit=None,
         )
-        policy_by_id = await alert_policy_service.compute_policy_states(
-            db, [alert for alert, _ in candidates]
+        policy_filtered, policy_by_id = await _filter_by_policy_state(
+            db, candidates, policy_state
         )
-        policy_filtered = [
-            (alert, name)
-            for alert, name in candidates
-            if alert_policy_service.policy_filter_matches(
-                policy_by_id[alert.id], policy_state
-            )
-        ]
         total = len(policy_filtered)
         alerts = policy_filtered[
             pagination.offset : pagination.offset + pagination.limit
@@ -417,25 +474,25 @@ async def export_alerts_csv(
     source: str | None = Query(None, max_length=10),
     network_id: int | None = Query(None, ge=1),
     dismissed: bool | None = Query(None),
+    queue_state: str | None = Query(None, pattern=_QUEUE_STATE_PATTERN),
+    policy_state: str | None = Query(None, pattern=_POLICY_STATE_PATTERN),
     ip: str | None = Query(None),
     port: int | None = Query(None, ge=1, le=65535),
     search: str | None = Query(None, max_length=200),
 ) -> StreamingResponse:
     """Export alerts as CSV with optional filters."""
     # Get all alerts with filters (no pagination for export)
-    alerts = await alerts_service.get_alerts(
+    alerts = await _export_alerts(
         db,
         alert_type=alert_type,
         source=source,
         network_id=network_id,
         dismissed=dismissed,
+        queue_state=queue_state,
+        policy_state=policy_state,
         ip=ip,
         port=port,
         search=search,
-        start_date=None,
-        end_date=None,
-        offset=0,
-        limit=10000,  # Large limit for export
     )
 
     headers = ["Alert Type", "IP", "Port", "Network", "Status", "Created At"]
@@ -461,25 +518,25 @@ async def export_alerts_pdf(
     source: str | None = Query(None, max_length=10),
     network_id: int | None = Query(None, ge=1),
     dismissed: bool | None = Query(None),
+    queue_state: str | None = Query(None, pattern=_QUEUE_STATE_PATTERN),
+    policy_state: str | None = Query(None, pattern=_POLICY_STATE_PATTERN),
     ip: str | None = Query(None),
     port: int | None = Query(None, ge=1, le=65535),
     search: str | None = Query(None, max_length=200),
 ) -> StreamingResponse:
     """Export alerts as PDF with optional filters."""
     # Get all alerts with filters (no pagination for export)
-    alerts = await alerts_service.get_alerts(
+    alerts = await _export_alerts(
         db,
         alert_type=alert_type,
         source=source,
         network_id=network_id,
         dismissed=dismissed,
+        queue_state=queue_state,
+        policy_state=policy_state,
         ip=ip,
         port=port,
         search=search,
-        start_date=None,
-        end_date=None,
-        offset=0,
-        limit=10000,  # Large limit for export
     )
 
     total_alerts = len(alerts)

@@ -2,20 +2,24 @@ import { downloadAuthenticated } from "@/lib/download";
 
 export type AlertExportFormat = "csv" | "pdf";
 
-/**
- * Downloads the alert export. The export endpoint predates queue_state, so
- * the queue maps onto its dismissed param.
- */
+/** Which alerts to export, in glossary terms. */
+export type AlertExportScope = "open" | "snoozed" | "expected";
+
+// Snoozed and Expected are both dismissed; only the policy state (a matching
+// Expected rule) tells them apart, so the export filters on it explicitly.
+const SCOPE_PARAMS: Record<AlertExportScope, Record<string, string>> = {
+  open: { queue_state: "inbox" },
+  snoozed: { queue_state: "out_of_inbox", policy_state: "none" },
+  expected: { policy_state: "allowed" },
+};
+
 export async function exportAlerts(
   format: AlertExportFormat,
-  filters: { dismissed?: boolean } = {},
+  scope: AlertExportScope,
 ): Promise<void> {
-  const params = new URLSearchParams();
-  if (filters.dismissed !== undefined)
-    params.set("dismissed", String(filters.dismissed));
-  const qs = params.toString();
+  const qs = new URLSearchParams(SCOPE_PARAMS[scope]).toString();
   await downloadAuthenticated(
-    `/api/alerts/export/${format}${qs ? `?${qs}` : ""}`,
-    `alerts.${format}`,
+    `/api/alerts/export/${format}?${qs}`,
+    `alerts-${scope}.${format}`,
   );
 }

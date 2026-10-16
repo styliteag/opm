@@ -10,8 +10,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { exportAlerts } from "@/features/alerts/lib/exportAlerts";
+import type { AlertExportScope } from "@/features/alerts/lib/exportAlerts";
 import type { HomeQueueMode } from "@/features/home/hooks/useHomeData";
 import { homeTitle, plural } from "@/features/home/lib/homeCopy";
+
+const OPEN_EXPORTS: { scope: AlertExportScope; label: string }[] = [
+  { scope: "open", label: "open" },
+];
+const HANDLED_EXPORTS: { scope: AlertExportScope; label: string }[] = [
+  { scope: "snoozed", label: "snoozed" },
+  { scope: "expected", label: "expected" },
+];
 
 interface HomeHeaderProps {
   mode: HomeQueueMode;
@@ -48,16 +57,16 @@ export function HomeHeader({ mode, onModeChange, portCount, findingCount }: Home
             Show snoozed &amp; handled
           </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => void exportAlerts("csv", { dismissed: mode === "handled" })}
-          >
-            Export CSV
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => void exportAlerts("pdf", { dismissed: mode === "handled" })}
-          >
-            Export PDF
-          </DropdownMenuItem>
+          {(mode === "handled" ? HANDLED_EXPORTS : OPEN_EXPORTS).map(({ scope, label }) =>
+            (["csv", "pdf"] as const).map((format) => (
+              <DropdownMenuItem
+                key={`${scope}-${format}`}
+                onClick={() => void exportAlerts(format, scope)}
+              >
+                Export {label} ({format.toUpperCase()})
+              </DropdownMenuItem>
+            )),
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
