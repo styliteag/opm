@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-16
+
 ### Added
 
 - **Frontend**: sidebar sub-entries open with their section. The Settings pages (Scanners, Rules, Scan profiles, Users, Organization, System, Account — still filtered by role) moved from the Settings page's own left menu into the sidebar as indented entries under Settings, and the Scans entry under Networks likewise appears only inside Networks/Scans; elsewhere the sidebar shows just the four main entries. Only the open sub-page is marked current, and the Settings pages use the full content width.
