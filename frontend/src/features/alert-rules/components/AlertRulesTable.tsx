@@ -14,7 +14,6 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  ExternalLink,
   Trash2,
   Power,
   PowerOff,
@@ -73,14 +72,6 @@ function SortableHeader({
 
 function scopeFor(rule: PortRule): "global" | "network" {
   return rule.network_id === null ? "global" : "network";
-}
-
-function alertsSearchFor(rule: PortRule): Record<string, unknown> {
-  const params: Record<string, unknown> = { dismissed: true };
-  if (rule.source) params.source = rule.source;
-  if (rule.port && /^\d+$/.test(rule.port)) params.port = Number(rule.port);
-  if (rule.network_id) params.network_id = rule.network_id;
-  return params;
 }
 
 export function AlertRulesTable({
@@ -323,14 +314,6 @@ export function AlertRulesTable({
         id: "actions",
         cell: ({ row }) => (
           <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-all">
-            <Link
-              to="/alerts"
-              search={alertsSearchFor(row.original)}
-              className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-              title="View matching alerts"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
             <button
               onClick={() => onDeleteRef.current(row.original)}
               disabled={isDeleting}

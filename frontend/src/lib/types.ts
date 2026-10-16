@@ -112,7 +112,6 @@ export interface ExecutiveOverviewResponse {
 export type QueueState = "inbox" | "out_of_inbox";
 export type PolicyState = "none" | "allowed_network" | "allowed_global";
 export type PolicyFilter = PolicyState | "allowed";
-export type AlertStatusPreset = "open" | "muted" | "allowed";
 
 export interface AlertListResponse {
   alerts: Alert[];
@@ -120,11 +119,29 @@ export interface AlertListResponse {
   severity_counts: Record<string, number>;
 }
 
-export interface DismissSuggestion {
+/** "Expected" match: the alert's host only, or every host in the scope. */
+export type AcceptMatch = "host" | "all_hosts";
+
+export interface AlertBulkAcceptRequest {
+  alert_ids: number[];
+  reason?: string | null;
+  match?: AcceptMatch;
+}
+
+export interface AlertBulkAcceptResponse {
+  accepted_count: number;
+  dismissed_ids: number[];
+  missing_ids: number[];
+  errors: string[];
+}
+
+export interface AlertBulkDismissResponse {
+  dismissed_ids: number[];
+  missing_ids: number[];
+}
+
+export interface AlertAcceptRiskRequest {
   reason: string;
-  frequency: number;
-  last_used: string | null;
-  same_port: boolean;
 }
 
 export interface AlertComment {

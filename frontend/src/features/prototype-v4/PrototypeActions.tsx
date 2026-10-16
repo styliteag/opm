@@ -1,6 +1,6 @@
-// PROTOTYPE (UI v4) — small pieces reused by Home variants (actions, banners).
+// PROTOTYPE (UI v4) — stub action buttons reused by the Host variants (phase 3 input).
 import { useState } from "react";
-import { Check, ChevronDown, Clock, ServerOff } from "lucide-react";
+import { Check, ChevronDown, Clock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-import { WHY_QUICK_PICKS, stubAction } from "../protoData";
+import { WHY_QUICK_PICKS, stubAction } from "./protoData";
 
 export function ExpectedButton({
   target,
@@ -84,28 +84,5 @@ export function WhyPicker({ onPick }: { onPick?: (why: string) => void }) {
         </button>
       ))}
     </div>
-  );
-}
-
-export function OfflineBanner({ names }: { names: string[] }) {
-  if (names.length === 0) return null;
-  return (
-    <div className="flex items-center gap-2 rounded-md border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-sm text-orange-300">
-      <ServerOff className="h-4 w-4" />
-      {names.length} scanner{names.length > 1 ? "s" : ""} offline: {names.join(", ")}
-    </div>
-  );
-}
-
-export function StatusDot({ status }: { status: "red" | "amber" | "green" }) {
-  return (
-    <span
-      className={cn(
-        "inline-block h-2 w-2 shrink-0 rounded-full",
-        status === "red" && "bg-red-500",
-        status === "amber" && "bg-yellow-500",
-        status === "green" && "bg-emerald-500",
-      )}
-    />
   );
 }

@@ -1,21 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { AlertsInbox } from "@/features/alerts/components/AlertsInbox";
-
-interface AlertsSearch {
-  source?: string;
-  search?: string;
-}
-
+// UI v4 cut-over: the alerts inbox became the Home queue (ADR 0009).
 export const Route = createFileRoute("/_authenticated/alerts/")({
-  validateSearch: (search: Record<string, unknown>): AlertsSearch => ({
-    source: typeof search.source === "string" ? search.source : undefined,
-    search: typeof search.search === "string" ? search.search : undefined,
-  }),
-  component: AlertsPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/" });
+  },
 });
-
-function AlertsPage() {
-  const { source, search } = Route.useSearch();
-  return <AlertsInbox initialSource={source} initialSearch={search} />;
-}

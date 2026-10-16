@@ -22,17 +22,12 @@ interface AssignAlertDropdownProps {
   alertId: number;
   currentUserId: number | null;
   currentUserEmail: string | null;
-  /** Controlled open state (keyboard shortcut S in the inbox). */
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
 }
 
 export function AssignAlertDropdown({
   alertId,
   currentUserId,
   currentUserEmail,
-  open,
-  onOpenChange,
 }: AssignAlertDropdownProps) {
   const qc = useQueryClient();
 
@@ -56,12 +51,10 @@ export function AssignAlertDropdown({
   });
 
   return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
-          <UserCircle className="h-3.5 w-3.5 mr-1.5" />
-          {currentUserEmail ?? "Assign"}
-        </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+        <UserCircle className="h-3.5 w-3.5 mr-1.5" />
+        {currentUserEmail ?? "Assign"}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         {currentUserId && (

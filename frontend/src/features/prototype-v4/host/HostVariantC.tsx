@@ -6,7 +6,7 @@ import { useState } from "react";
 import { formatRelativeTime } from "@/lib/utils";
 
 import { findingsByPort, isImportant, portStatus, portWhy } from "../protoData";
-import { ExpectedButton, SnoozeButton, WhyPicker } from "../home/HomeShared";
+import { ExpectedButton, SnoozeButton, WhyPicker } from "../PrototypeActions";
 import { FindingRow, HostHeader, PortStatusPill } from "./HostShared";
 import type { HostData } from "./types";
 

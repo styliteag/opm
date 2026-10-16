@@ -1,11 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
-import { fetchApi, patchApi, postApi, putApi, deleteApi } from "@/lib/api";
+import { fetchApi } from "@/lib/api";
 import type {
   AlertListResponse,
   AlertComment,
-  AlertStatusPreset,
-  DismissSuggestion,
   PolicyFilter,
   QueueState,
   Severity,
@@ -27,25 +25,6 @@ interface AlertFilters {
   sort_dir?: "asc" | "desc";
   offset?: number;
   limit?: number;
-}
-
-/**
- * Maps the inbox status presets (glossary terms) to the server-side
- * queue/policy predicates from the alert-state-action-matrix.
- */
-export function statusPresetFilters(
-  status: AlertStatusPreset | undefined,
-): Pick<AlertFilters, "queue_state" | "policy_state"> {
-  switch (status) {
-    case "open":
-      return { queue_state: "inbox" };
-    case "muted":
-      return { queue_state: "out_of_inbox", policy_state: "none" };
-    case "allowed":
-      return { policy_state: "allowed" };
-    default:
-      return {};
-  }
 }
 
 function buildAlertParams(filters: AlertFilters): string {
@@ -86,89 +65,4 @@ export function useAlertComments(alertId: number) {
     },
     enabled: alertId > 0,
   });
-}
-
-export function useDismissSuggestions(port?: number) {
-  return useQuery({
-    queryKey: ["alerts", "dismiss-suggestions", port],
-    queryFn: () => {
-      const params = port ? `?port=${port}` : "";
-      return fetchApi<{ suggestions: DismissSuggestion[] }>(
-        `/api/alerts/dismiss-suggestions${params}`,
-      );
-    },
-  });
-}
-
-export function useAlertMutations() {
-  const qc = useQueryClient();
-
-  const dismiss = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      putApi(`/api/alerts/${id}/dismiss`, { reason }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  const reopen = useMutation({
-    mutationFn: (id: number) => putApi(`/api/alerts/${id}/reopen`, {}),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  const bulkDismiss = useMutation({
-    mutationFn: (data: { alert_ids: number[]; reason: string }) =>
-      postApi("/api/alerts/bulk-dismiss", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  const bulkAcceptGlobal = useMutation({
-    mutationFn: (data: { alert_ids: number[]; reason: string }) =>
-      postApi("/api/alerts/bulk-accept-global", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  const bulkAcceptNetwork = useMutation({
-    mutationFn: (data: {
-      alert_ids: number[];
-      network_id: number;
-      reason: string;
-    }) => postApi("/api/alerts/bulk-accept-network", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  const assign = useMutation({
-    // Backend contract is AlertAssignRequest.user_id — the previous
-    // assigned_to_user_id key was silently dropped and always unassigned.
-    mutationFn: ({ id, userId }: { id: number; userId: number | null }) =>
-      patchApi(`/api/alerts/${id}/assign`, { user_id: userId }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: number) => deleteApi(`/api/alerts/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  const overrideSeverity = useMutation({
-    mutationFn: ({ id, severity }: { id: number; severity: Severity | null }) =>
-      patchApi(`/api/alerts/${id}/severity`, { severity }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  const bulkDelete = useMutation({
-    mutationFn: (data: { alert_ids: number[] }) =>
-      postApi("/api/alerts/bulk-delete", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
-  });
-
-  return {
-    dismiss,
-    reopen,
-    bulkDismiss,
-    bulkAcceptGlobal,
-    bulkAcceptNetwork,
-    assign,
-    remove,
-    overrideSeverity,
-    bulkDelete,
-  };
 }

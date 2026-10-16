@@ -17,8 +17,8 @@ export function HostAlertsTab({ alerts }: { alerts: HostAlertSummary[] }) {
           {alerts.map((alert) => (
             <Link
               key={alert.id}
-              to="/alerts/$alertId"
-              params={{ alertId: String(alert.id) }}
+              to="/"
+              search={{ alert: alert.id }}
               className="flex items-center gap-3 px-5 py-3 hover:bg-accent/50 transition-colors"
             >
               <SeverityBadge

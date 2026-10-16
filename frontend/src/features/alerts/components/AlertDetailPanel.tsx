@@ -1,85 +1,47 @@
-import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowLeft,
-  BellOff,
-  MessageSquare,
-  RotateCcw,
-  ShieldAlert,
-  ExternalLink,
-  ShieldCheck,
-} from "lucide-react";
-import { toast } from "sonner";
+import { ExternalLink, MessageSquare, ShieldAlert } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { SeverityBadge } from "@/components/data-display/SeverityBadge";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
-import { DismissModal } from "@/features/alerts/components/DismissModal";
-import { AcceptModal } from "@/features/alerts/components/AcceptModal";
 import { AssignAlertDropdown } from "@/features/alerts/components/AssignAlertDropdown";
 import { CommentInput } from "@/features/alerts/components/CommentInput";
 import { ScanPresenceChart } from "@/features/alerts/components/ScanPresenceChart";
 import { AlertActivityFeed } from "@/features/alerts/components/AlertActivityFeed";
+import { AlertTriageBar } from "@/features/alerts/components/triage/AlertTriageBar";
+import { useAlertComments } from "@/features/alerts/hooks/useAlerts";
 import {
-  useAlertComments,
-  useAlertMutations,
-} from "@/features/alerts/hooks/useAlerts";
+  alertDisplayTitle,
+  alertToolLabel,
+} from "@/features/alerts/lib/alertDisplayTitle";
 import { fetchAlert, fetchAlertTimeline } from "@/lib/api-client-helpers";
-import { ALERT_ACTIONS } from "@/lib/terminology";
+import { PORT_STATUS } from "@/lib/terminology";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 
 interface AlertDetailPanelProps {
   alertId: number;
-  /** Standalone page shows a back link; the inbox split view does not. */
-  showBackLink?: boolean;
-  /** External open-state for the Allow dialog (keyboard shortcut A). */
-  allowOpen?: boolean;
-  onAllowOpenChange?: (open: boolean) => void;
-  /** External open-state for the Mute dialog (keyboard shortcut M). */
-  muteOpen?: boolean;
-  onMuteOpenChange?: (open: boolean) => void;
-  /** External open-state for the assign control (keyboard shortcut S). */
-  assignOpen?: boolean;
-  onAssignOpenChange?: (open: boolean) => void;
+  /** Called after a triage action took the alert out of (or back into) the queue. */
+  onResolved?: () => void;
 }
 
-export function AlertDetailPanel({
-  alertId,
-  showBackLink = false,
-  allowOpen,
-  onAllowOpenChange,
-  muteOpen,
-  onMuteOpenChange,
-  assignOpen,
-  onAssignOpenChange,
-}: AlertDetailPanelProps) {
-  const [internalMuteOpen, setInternalMuteOpen] = useState(false);
-  const [internalAllowOpen, setInternalAllowOpen] = useState(false);
-
-  const dismissOpen = muteOpen ?? internalMuteOpen;
-  const setDismissOpen = onMuteOpenChange ?? setInternalMuteOpen;
-  const acceptOpen = allowOpen ?? internalAllowOpen;
-  const setAcceptOpen = onAllowOpenChange ?? setInternalAllowOpen;
-
+export function AlertDetailPanel({ alertId, onResolved }: AlertDetailPanelProps) {
   const comments = useAlertComments(alertId);
-  const { reopen, overrideSeverity } = useAlertMutations();
 
   const alertQuery = useQuery({
     queryKey: ["alerts", alertId],
     queryFn: () => fetchAlert(alertId),
+    enabled: alertId > 0,
   });
   const alert = alertQuery.data;
 
   const timelineQuery = useQuery({
     queryKey: ["alerts", alertId, "timeline"],
     queryFn: () => fetchAlertTimeline(alertId),
-    enabled: !alertQuery.isLoading,
+    enabled: alertId > 0 && !alertQuery.isLoading,
   });
 
   if (alertQuery.isLoading) return <LoadingState rows={6} />;
@@ -93,83 +55,43 @@ export function AlertDetailPanel({
   if (!alert) return <ErrorState message={`Alert #${alertId} not found`} />;
 
   const commentList = comments.data ?? [];
-  const allowedRule = alert.matching_rules.find(
+  const expectedRule = alert.matching_rules.find(
     (rule) => rule.rule_type === "accepted",
   );
+  const tool = alertToolLabel(alert);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start gap-4">
-        {showBackLink && (
-          <Link
-            to="/alerts"
-            className="mt-1 rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-        )}
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <SeverityBadge severity={alert.severity} />
-            {alert.dismissed && !allowedRule && (
-              <Badge variant="outline">Muted</Badge>
-            )}
-            {allowedRule && (
-              <Badge variant="outline">Allowed ({allowedRule.scope})</Badge>
-            )}
-          </div>
-          <h1 className="mt-2 text-xl font-strong text-foreground">
-            {alert.message}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Alert #{alert.id} · Detected {formatRelativeTime(alert.created_at)}
-          </p>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <SeverityBadge severity={alert.severity_override ?? alert.severity} />
+          {alert.dismissed && !expectedRule && (
+            <Badge variant="outline">{PORT_STATUS.snoozed.label}</Badge>
+          )}
+          {expectedRule && (
+            <Badge variant="outline">
+              {PORT_STATUS.expected.label} ({expectedRule.scope})
+            </Badge>
+          )}
+          <span className="text-xs text-muted-foreground">
+            {tool.label}
+            {tool.tool && <> · {tool.tool}</>}
+          </span>
         </div>
-        <div className="flex gap-2">
+        <h2 className="text-xl font-strong text-foreground">
+          {alertDisplayTitle(alert)}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Alert #{alert.id} · Detected {formatRelativeTime(alert.created_at)}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <AlertTriageBar alert={alert} onResolved={onResolved} />
           <AssignAlertDropdown
             alertId={alert.id}
             currentUserId={alert.assigned_to_user_id}
             currentUserEmail={alert.assigned_to_email}
-            open={assignOpen}
-            onOpenChange={onAssignOpenChange}
           />
-          {alert.dismissed ? (
-            <Button
-              variant="outline"
-              size="sm"
-              title={ALERT_ACTIONS.reopen.description}
-              onClick={() =>
-                reopen.mutate(alert.id, {
-                  onSuccess: () => toast.success("Alert reopened"),
-                  onError: (e) => toast.error(e.message),
-                })
-              }
-            >
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-              {ALERT_ACTIONS.reopen.label}
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                title={ALERT_ACTIONS.allow.description}
-                onClick={() => setAcceptOpen(true)}
-              >
-                <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-                {ALERT_ACTIONS.allow.label}
-              </Button>
-              <Button
-                size="sm"
-                title={ALERT_ACTIONS.mute.description}
-                onClick={() => setDismissOpen(true)}
-              >
-                <BellOff className="mr-1.5 h-3.5 w-3.5" />
-                {ALERT_ACTIONS.mute.label}
-              </Button>
-            </>
-          )}
         </div>
       </div>
 
@@ -181,18 +103,18 @@ export function AlertDetailPanel({
       )}
 
       {/* Details Grid */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2 space-y-6">
+      <div className="space-y-6">
+        <div className="space-y-6">
           {/* Alert Info */}
           <div className="rounded-lg border border-border bg-card p-5">
             <h3 className="text-sm font-strong text-foreground mb-3">
               Details
             </h3>
             <dl className="grid grid-cols-2 gap-3">
-              <div>
-                <dt className="text-xs text-muted-foreground">Type</dt>
-                <dd className="mt-0.5 text-sm text-foreground">
-                  {alert.type.replace(/_/g, " ")}
+              <div className="col-span-2">
+                <dt className="text-xs text-muted-foreground">Message</dt>
+                <dd className="mt-0.5 whitespace-pre-line break-words text-sm text-foreground">
+                  {alert.message}
                 </dd>
               </div>
               <div>
@@ -251,51 +173,10 @@ export function AlertDetailPanel({
                   {alert.assigned_to_email ?? "Unassigned"}
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs text-muted-foreground flex items-center gap-1">
-                  <ShieldAlert className="h-3 w-3" />
-                  Severity Override
-                </dt>
-                <dd className="mt-0.5">
-                  <Select
-                    value={alert.severity_override ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value || null;
-                      overrideSeverity.mutate(
-                        {
-                          id: alert.id,
-                          severity: val as
-                            | "critical"
-                            | "high"
-                            | "medium"
-                            | "info"
-                            | null,
-                        },
-                        {
-                          onSuccess: () =>
-                            toast.success(
-                              val
-                                ? `Severity overridden to ${val}`
-                                : "Severity reset to auto",
-                            ),
-                          onError: (err) => toast.error(err.message),
-                        },
-                      );
-                    }}
-                    disabled={overrideSeverity.isPending}
-                  >
-                    <option value="">Auto (computed)</option>
-                    <option value="critical">Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="info">Info</option>
-                  </Select>
-                </dd>
-              </div>
               {alert.dismiss_reason && (
                 <div className="col-span-2">
                   <dt className="text-xs text-muted-foreground">
-                    Mute Reason
+                    Why
                   </dt>
                   <dd className="mt-0.5 text-sm text-foreground">
                     {alert.dismiss_reason}
@@ -380,18 +261,20 @@ export function AlertDetailPanel({
                 {alert.related_ssh_alert_count === 1 ? "alert" : "alerts"} found
                 for this host
                 {alert.related_ssh_alerts_dismissed
-                  ? " (all muted)"
+                  ? " (all handled)"
                   : " (some active)"}
                 .
               </p>
-              <Link
-                to="/alerts"
-                search={{ source: "ssh", search: alert.ip }}
-                className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors"
-              >
-                <ShieldAlert className="h-3.5 w-3.5" />
-                View SSH alerts for {alert.ip}
-              </Link>
+              {alert.host_id && (
+                <Link
+                  to="/hosts/$hostId"
+                  params={{ hostId: String(alert.host_id) }}
+                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  View SSH findings for {alert.ip}
+                </Link>
+              )}
             </div>
           )}
 
@@ -402,9 +285,9 @@ export function AlertDetailPanel({
                 Vulnerability Context
               </h3>
               <p className="text-sm text-muted-foreground mb-3">
-                This alert was generated by an NSE vulnerability scan. The
-                host&apos;s Vulnerabilities tab shows all findings including
-                script output and CVE identifiers.
+                Found by {tool.label.toLowerCase()} ({tool.tool}). The host
+                page shows all findings including script output and CVE
+                identifiers.
               </p>
               <Link
                 to="/hosts/$hostId"
@@ -440,7 +323,7 @@ export function AlertDetailPanel({
                     <StatusBadge
                       label={
                         rule.rule_type === "accepted"
-                          ? "allowed"
+                          ? PORT_STATUS.expected.label
                           : rule.rule_type
                       }
                       variant={
@@ -462,7 +345,7 @@ export function AlertDetailPanel({
           </div>
         </div>
 
-        {/* Comments Sidebar */}
+        {/* Comments */}
         <div className="rounded-lg border border-border bg-card p-5">
           <div className="flex items-center gap-2 mb-4">
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
@@ -497,26 +380,6 @@ export function AlertDetailPanel({
           <CommentInput alertId={alert.id} />
         </div>
       </div>
-
-      <DismissModal
-        alertIds={[alert.id]}
-        port={alert.port ?? undefined}
-        open={dismissOpen}
-        onOpenChange={setDismissOpen}
-      />
-
-      <AcceptModal
-        alertIds={[alert.id]}
-        open={acceptOpen}
-        onOpenChange={setAcceptOpen}
-        defaultScope={alert.network_id ? "network" : "global"}
-        defaultNetworkId={alert.network_id ?? undefined}
-        networks={
-          alert.network_id && alert.network_name
-            ? [{ id: alert.network_id, name: alert.network_name }]
-            : []
-        }
-      />
     </div>
   );
 }

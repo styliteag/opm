@@ -1,5 +1,8 @@
 # PROTOTYPE — UI v4 Home + Host detail (throwaway)
 
+> Home was built for real in phase 2 (`features/home/`); its prototype variants are
+> deleted. Only the Host variants remain until phase 3.
+
 **Questions:**
 1. Which Home layout answers "which ports are new, and are they okay?" fastest?
 2. How should a ports-first host page show status, Why, and per-port findings?
@@ -12,7 +15,6 @@ Dev stack running (`just dev-up`), then:
 
 | Page | URL |
 |---|---|
-| Home | http://localhost:5173/?variant=A (B, C) |
 | Host | http://localhost:5173/hosts/82?variant=A (B, C) — any host id works |
 
 Without `?variant` the existing v3 page renders. ←/→ or the pink bottom bar switch
