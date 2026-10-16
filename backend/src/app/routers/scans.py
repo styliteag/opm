@@ -268,7 +268,11 @@ async def cancel_scan(
     db: DbSession,
     scan_id: int,
 ) -> ScanCancelResponse:
-    """Cancel a running scan (admin only)."""
+    """Cancel a planned or running scan (operator+).
+
+    A planned scan has not been claimed yet; scanners only claim PLANNED scans,
+    so cancelling it simply keeps it from ever starting.
+    """
     scan = await scans_service.get_scan_by_id(db, scan_id)
     if scan is None:
         raise HTTPException(
@@ -276,10 +280,10 @@ async def cancel_scan(
             detail="Scan not found",
         )
 
-    if scan.status != ScanStatus.RUNNING:
+    if scan.status not in (ScanStatus.PLANNED, ScanStatus.RUNNING):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Scan is not running",
+            detail="Scan is not planned or running",
         )
 
     scan = await scans_service.cancel_scan(db, scan, admin.id)

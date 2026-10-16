@@ -80,7 +80,7 @@ async def cancel_scan(
     scan: Scan,
     cancelled_by: int,
 ) -> Scan:
-    """Cancel a running scan and set cancellation metadata."""
+    """Cancel a planned or running scan and set cancellation metadata."""
     scan.status = ScanStatus.CANCELLED
     scan.cancelled_at = datetime.now(timezone.utc)
     scan.cancelled_by = cancelled_by

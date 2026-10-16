@@ -312,6 +312,28 @@ class TestScanRouter:
 
         assert response.status_code == 409
 
+    async def test_cancel_planned_scan(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        admin_user: User,
+        network_with_scan: tuple,
+        admin_headers: dict,
+    ):
+        """A planned scan (not yet claimed by a scanner) can be cancelled."""
+        network, scan = network_with_scan
+        scan.status = ScanStatus.PLANNED
+        await db_session.commit()
+
+        response = await client.post(
+            f"/api/scans/{scan.id}/cancel", headers=admin_headers
+        )
+
+        assert response.status_code == 200
+        await db_session.refresh(scan)
+        assert scan.status == ScanStatus.CANCELLED
+        assert scan.cancelled_by == admin_user.id
+
     async def test_update_scan_visibility(
         self,
         client: AsyncClient,
