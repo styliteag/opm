@@ -40,7 +40,13 @@ from app.services import networks as networks_service
 from app.services import ssh_results as ssh_service
 from app.services import users as users_service
 from app.services.alert_queries import _build_alert_filters, count_alerts
-from app.services.alert_rules import port_rule_matches_alert, ssh_rule_matches_alert
+from app.services.alert_rules import (
+    FINDING_SOURCES,
+    finding_identifier_from_key,
+    finding_rule_matches_alert,
+    port_rule_matches_alert,
+    ssh_rule_matches_alert,
+)
 from app.services.alert_severity import TYPE_SEVERITY, lightweight_severity
 
 from .detail import _severity_override_value, compute_alert_severity
@@ -323,6 +329,9 @@ async def list_alerts(
 
     for resp in alert_responses:
         matches: list[PortRuleMatch] = []
+        resp_oid = finding_identifier_from_key(
+            resp.source, resp.network_id, resp.ip, resp.port, resp.source_key
+        )
         for rule in all_global_rules:
             if rule.source != resp.source:
                 continue
@@ -331,6 +340,9 @@ async def list_alerts(
                     continue
             elif resp.source == "ssh":
                 if not ssh_rule_matches_alert(rule, resp.ip, resp.port, resp.type.value):
+                    continue
+            elif resp.source in FINDING_SOURCES:
+                if not finding_rule_matches_alert(rule, resp.ip, resp.port, resp_oid):
                     continue
             else:
                 continue
@@ -355,6 +367,9 @@ async def list_alerts(
                         continue
                 elif resp.source == "ssh":
                     if not ssh_rule_matches_alert(rule, resp.ip, resp.port, resp.type.value):
+                        continue
+                elif resp.source in FINDING_SOURCES:
+                    if not finding_rule_matches_alert(rule, resp.ip, resp.port, resp_oid):
                         continue
                 else:
                     continue

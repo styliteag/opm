@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Backend**: accepting a GVM, nuclei, or NSE alert (`POST /api/alerts/bulk-accept-global` / `bulk-accept-network`) wrote an accept rule with criteria `{"ip": <host>}` only, and the GVM/nuclei/NSE alert generators never consulted accept rules at all — so the accept was a plain dismiss: the next scan re-raised the same finding (generator dedupe only looks at undismissed alerts), while the stored rule read as "every finding of this source on this host is accepted" in the rules list and hit counts. Accept now writes `{"ip", "port", "oid"}` with the finding identifier parsed from the alert's `source_key` (prefix-stripped, so IPv6 hosts and composite nuclei `template:matcher` / NSE `nse:script` identifiers survive), and `_generate_gvm_alerts` / `_generate_nuclei_alerts` / `_generate_nse_alerts` skip findings matched by an enabled accepted rule of their source (global or the scan's network). The new matcher `finding_rule_matches_alert` in `services/alert_rules.py` requires the `oid` criterion, so legacy IP-only finding rules stay inert instead of suddenly silencing every finding on the host. Alert policy state, `matching_rules` on the alert list/detail, and rule hit counts recognise the new finding rules. No migration; 5 tests in `test_finding_accept.py` (two OIDs on one host: accepting one keeps the other alerting, for GVM, nuclei, and NSE).
+
 ## [2.4.0] - 2026-07-15
 
 ### Added

@@ -15,7 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.alert import Alert
 from app.models.alert_rule import AlertRule, RuleType
 from app.services import alert_rules as alert_rules_service
-from app.services.alert_rules import port_rule_matches_alert, ssh_rule_matches_alert
+from app.services.alert_rules import (
+    FINDING_SOURCES,
+    finding_identifier,
+    finding_rule_matches_alert,
+    port_rule_matches_alert,
+    ssh_rule_matches_alert,
+)
 
 QUEUE_INBOX = "inbox"
 QUEUE_OUT_OF_INBOX = "out_of_inbox"
@@ -54,6 +60,8 @@ def _rule_matches(rule: AlertRule, alert: Alert) -> bool:
         return port_rule_matches_alert(rule, alert.ip, alert.port)
     if alert.source == "ssh":
         return ssh_rule_matches_alert(rule, alert.ip, alert.port, alert.alert_type.value)
+    if alert.source in FINDING_SOURCES:
+        return finding_rule_matches_alert(rule, alert.ip, alert.port, finding_identifier(alert))
     return False
 
 

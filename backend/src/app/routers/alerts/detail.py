@@ -20,6 +20,9 @@ from app.services import networks as networks_service
 from app.services import ssh_results as ssh_service
 from app.services import users as users_service
 from app.services.alert_rules import (
+    FINDING_SOURCES,
+    finding_identifier,
+    finding_rule_matches_alert,
     is_port_blocked,
     port_rule_matches_alert,
     ssh_rule_matches_alert,
@@ -149,6 +152,7 @@ async def get_alert(
 
     # Matching alert rules (unified)
     all_global_rules = await alert_rules_service.get_global_rules(db)
+    alert_oid = finding_identifier(alert)
     matches: list[PortRuleMatch] = []
     for rule in all_global_rules:
         if rule.source != alert.source:
@@ -158,6 +162,9 @@ async def get_alert(
                 continue
         elif alert.source == "ssh":
             if not ssh_rule_matches_alert(rule, alert.ip, alert.port, alert.alert_type.value):
+                continue
+        elif alert.source in FINDING_SOURCES:
+            if not finding_rule_matches_alert(rule, alert.ip, alert.port, alert_oid):
                 continue
         else:
             continue
@@ -185,6 +192,9 @@ async def get_alert(
                     continue
             elif alert.source == "ssh":
                 if not ssh_rule_matches_alert(rule, alert.ip, alert.port, alert.alert_type.value):
+                    continue
+            elif alert.source in FINDING_SOURCES:
+                if not finding_rule_matches_alert(rule, alert.ip, alert.port, alert_oid):
                     continue
             else:
                 continue

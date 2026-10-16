@@ -26,6 +26,7 @@ from app.services import alerts as alerts_service
 from app.services import networks as networks_service
 from app.services import ssh_results as ssh_service
 from app.services.alert_events import emit_event
+from app.services.alert_rules import finding_identifier
 from app.services.alerts import (
     DEFAULT_SSH_VERSION_THRESHOLD,
     _extract_weak_algorithms,
@@ -35,6 +36,29 @@ from app.services.alerts import (
 from .detail import _severity_override_value, compute_alert_severity
 
 router = APIRouter()
+
+
+def _accept_criteria(alert: Alert) -> dict[str, str | None] | None:
+    """Build accept-rule match criteria for one alert.
+
+    Finding sources (GVM/nuclei/NSE) are keyed on the finding identifier so
+    accepting one finding never covers other findings on the same host.
+    Returns None when a finding alert carries no usable identifier.
+    """
+    if alert.source == "port" and alert.port is not None:
+        return {"ip": alert.ip, "port": str(alert.port)}
+    if alert.source == "ssh":
+        criteria: dict[str, str | None] = {"ip": alert.ip, "alert_type": alert.alert_type.value}
+        if alert.port is not None:
+            criteria["port"] = str(alert.port)
+        return criteria
+    oid = finding_identifier(alert)
+    if oid is None:
+        return None
+    criteria = {"ip": alert.ip, "oid": oid}
+    if alert.port is not None:
+        criteria["port"] = str(alert.port)
+    return criteria
 
 
 @router.put("/{alert_id}/dismiss", response_model=AlertResponse)
@@ -382,14 +406,10 @@ async def bulk_accept_global(
     rules_to_create: list[tuple[str, dict[str, str | None]]] = []
     seen_keys: set[str] = set()
     for alert in alerts:
-        if alert.source == "port" and alert.port is not None:
-            criteria: dict[str, str | None] = {"ip": alert.ip, "port": str(alert.port)}
-        elif alert.source == "ssh":
-            criteria = {"ip": alert.ip, "alert_type": alert.alert_type.value}
-            if alert.port is not None:
-                criteria["port"] = str(alert.port)
-        else:
-            criteria = {"ip": alert.ip}
+        criteria = _accept_criteria(alert)
+        if criteria is None:
+            errors.append(f"Alert {alert.id} has no finding identifier, no rule created")
+            continue
 
         key = f"{alert.source}:{_json.dumps(criteria, sort_keys=True)}"
         if key not in seen_keys:
@@ -496,14 +516,10 @@ async def bulk_accept_network(
         seen_keys: set[str] = set()
         rules_to_create: list[tuple[str, dict[str, str | None]]] = []
         for alert in network_alerts:
-            if alert.source == "port" and alert.port is not None:
-                criteria: dict[str, str | None] = {"ip": alert.ip, "port": str(alert.port)}
-            elif alert.source == "ssh":
-                criteria = {"ip": alert.ip, "alert_type": alert.alert_type.value}
-                if alert.port is not None:
-                    criteria["port"] = str(alert.port)
-            else:
-                criteria = {"ip": alert.ip}
+            criteria = _accept_criteria(alert)
+            if criteria is None:
+                errors.append(f"Alert {alert.id} has no finding identifier, no rule created")
+                continue
             key = f"{alert.source}:{_json.dumps(criteria, sort_keys=True)}"
             if key not in seen_keys:
                 seen_keys.add(key)

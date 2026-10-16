@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert
@@ -357,6 +357,101 @@ async def is_nse_accepted(
     return False
 
 
+# ---------------------------------------------------------------------------
+# Finding sources (GVM / nuclei / NSE)
+# ---------------------------------------------------------------------------
+
+FINDING_SOURCES = ("gvm", "nuclei", "nse")
+
+
+def finding_identifier_from_key(
+    source: str,
+    network_id: int | None,
+    ip: str,
+    port: int | None,
+    source_key: str | None,
+) -> str | None:
+    """Extract the finding identifier (OID / template / nse:script) from a source_key.
+
+    Keys are ``{source}:{network_id}:{ip}:{port|host}:{protocol}:{oid}``. IPv6
+    addresses and composite OIDs both contain colons, so the known prefix is
+    stripped instead of splitting.
+    """
+    if source not in FINDING_SOURCES or not source_key:
+        return None
+    port_part = str(port) if port is not None else "host"
+    prefix = f"{source}:{network_id}:{ip}:{port_part}:"
+    if not source_key.startswith(prefix):
+        return None
+    _protocol, sep, oid = source_key[len(prefix) :].partition(":")
+    return oid if sep and oid else None
+
+
+def finding_identifier(alert: Alert) -> str | None:
+    """Return the finding identifier of a GVM/nuclei/NSE alert, else None."""
+    return finding_identifier_from_key(
+        alert.source, alert.network_id, alert.ip, alert.port, alert.source_key
+    )
+
+
+def finding_rule_matches_alert(
+    rule: AlertRule,
+    ip: str,
+    port: int | None,
+    oid: str | None,
+) -> bool:
+    """Check if a finding-source rule matches one finding.
+
+    The ``oid`` criterion is mandatory: rules without it (written by the
+    pre-fix accept path as ``{"ip": ...}``) match nothing, so they can never
+    silence every finding on a host.
+    """
+    criteria = rule.match_criteria
+    rule_oid = criteria.get("oid")
+    if rule_oid is None or oid is None or rule_oid != oid:
+        return False
+
+    rule_ip = criteria.get("ip")
+    if rule_ip is not None and rule_ip != ip:
+        return False
+
+    rule_port_str = criteria.get("port")
+    if rule_port_str is not None:
+        if port is None:
+            return False
+        parsed = _parse_port_range(str(rule_port_str))
+        if parsed is None or not (parsed[0] <= port <= parsed[1]):
+            return False
+
+    return True
+
+
+async def get_accepted_finding_rules(
+    db: AsyncSession,
+    source: str,
+    network_id: int,
+) -> list[AlertRule]:
+    """Enabled ACCEPTED rules of *source* that apply to *network_id* (global + network)."""
+    stmt = select(AlertRule).where(
+        AlertRule.source == source,
+        AlertRule.rule_type == RuleType.ACCEPTED,
+        AlertRule.enabled.is_(True),
+        or_(AlertRule.network_id.is_(None), AlertRule.network_id == network_id),
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+def is_finding_accepted(
+    rules: list[AlertRule],
+    ip: str,
+    port: int | None,
+    oid: str,
+) -> bool:
+    """Return True when any of *rules* accepts this finding."""
+    return any(finding_rule_matches_alert(rule, ip, port, oid) for rule in rules)
+
+
 async def is_ssh_accepted(
     db: AsyncSession,
     ip: str,
@@ -472,6 +567,10 @@ async def compute_rule_hit_counts(
                 matched = port_rule_matches_alert(rule, alert.ip, alert.port)
             elif rule.source == "ssh":
                 matched = ssh_rule_matches_alert(rule, alert.ip, alert.port, alert_type_str)
+            elif rule.source in FINDING_SOURCES and "oid" in rule.match_criteria:
+                matched = finding_rule_matches_alert(
+                    rule, alert.ip, alert.port, finding_identifier(alert)
+                )
             elif rule.source == "nse":
                 matched = nse_rule_matches_alert(rule, alert.ip, alert.port, alert_type_str)
 

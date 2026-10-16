@@ -12,6 +12,7 @@ from app.models.scanner import Scanner
 from app.models.vulnerability import Vulnerability
 from app.schemas.nse import NseResultsSubmission, NseScriptResultPayload
 from app.schemas.vulnerability import VulnerabilityResultData, VulnerabilitySeverityLabel
+from app.services.alert_rules import get_accepted_finding_rules, is_finding_accepted
 from app.services.severity_rules import resolve_overrides as _resolve_severity_overrides
 from app.services.vulnerability_results import _severity_below_threshold
 
@@ -215,10 +216,13 @@ async def _generate_nse_alerts(
     overrides = await _resolve_severity_overrides(
         db, scan.network_id, [finding.oid for finding in findings]
     )
+    accepted_rules = await get_accepted_finding_rules(db, "nse", scan.network_id)
     alertable: list[tuple[VulnerabilityResultData, str]] = []
     candidate_keys: list[str] = []
     for finding in findings:
         if not finding.description.strip():
+            continue
+        if is_finding_accepted(accepted_rules, finding.ip, finding.port, finding.oid):
             continue
         has_override = finding.oid in overrides
         if not has_override and not _has_native_alert_signal(finding):
