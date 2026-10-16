@@ -86,6 +86,9 @@ export function NetworksList({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-strong text-foreground">Networks</h1>
+        <Link to="/scans" className="ml-auto text-sm text-primary hover:underline">
+          Recent scans
+        </Link>
         {canOperate && (
           <Link to="/networks/new" className={buttonVariants({ size: "sm" })}>
             <Plus />

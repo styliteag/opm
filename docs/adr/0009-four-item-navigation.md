@@ -32,3 +32,10 @@ Account security moves into a proper user menu in the header.
 - Every v3 route gets a redirect (same practice as v3 cut-over) so bookmarks survive.
 - Settings becomes one hub with a left sub-navigation instead of nested hub tabs with
   duplicated h1s.
+
+## Amendment (2026-10-16)
+
+Users still need a cross-network scan history. `/scans` is a "Recent scans" page again,
+but stays out of the sidebar: it is linked from Home (network status strip and the Scans in
+progress strip) and the Networks page header. Running and queued scans additionally show on
+Home and in the Networks list.

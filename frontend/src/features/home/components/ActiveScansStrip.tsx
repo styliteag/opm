@@ -16,6 +16,12 @@ export function ActiveScansStrip({ scans }: ActiveScansStripProps) {
       <h2 className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-emphasis uppercase tracking-wider text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
         Scans in progress ({scans.length})
+        <Link
+          to="/scans"
+          className="ml-auto normal-case tracking-normal text-primary hover:underline"
+        >
+          All scans
+        </Link>
       </h2>
       <ul className="divide-y divide-border">
         {scans.map((scan) => (

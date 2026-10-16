@@ -35,6 +35,9 @@ export function NetworkStatusStrip({ networks }: { networks: NetworkStatusEntry[
           {n.name}
         </Link>
       ))}
+      <Link to="/scans" className="ml-auto text-primary hover:underline">
+        Recent scans →
+      </Link>
     </section>
   );
 }
