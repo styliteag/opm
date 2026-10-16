@@ -62,6 +62,9 @@ services:
       VITE_DEV_ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       VITE_DEV_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       TZ: ${TZ:-Europe/Berlin}
+      # Route-tree generator temp dir must sit on the same mount as src/,
+      # otherwise renaming routeTree.gen.ts fails with EXDEV.
+      TSR_TMP_DIR: /app/src/.tanstack-tmp
     ports:
       - "5173:5173"
     volumes:

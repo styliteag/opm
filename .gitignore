@@ -75,3 +75,6 @@ tmp/
 .mini-wiki/
 skills-lock.json
 .claude/settings.local.json
+
+# TanStack route generator temp dir (compose-dev TSR_TMP_DIR)
+frontend/src/.tanstack-tmp/
