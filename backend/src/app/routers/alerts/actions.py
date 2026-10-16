@@ -12,6 +12,7 @@ from app.models.alert_event import AlertEventType
 from app.models.alert_rule import RuleType as AlertRuleType
 from app.schemas.alert import (
     AcceptMatch,
+    AlertAcceptRiskRequest,
     AlertBulkAcceptRequest,
     AlertBulkAcceptResponse,
     AlertBulkDismissResponse,
@@ -22,6 +23,7 @@ from app.schemas.alert import (
     DismissRequest,
 )
 from app.services import alert_comments as alert_comments_service
+from app.services import alert_risk as alert_risk_service
 from app.services import alert_rules as alert_rules_service
 from app.services import alerts as alerts_service
 from app.services import networks as networks_service
@@ -292,6 +294,65 @@ async def dismiss_alert(
         severity_override=_severity_override_value(alert),
         related_ssh_alert_count=ssh_alert_count,
         related_ssh_alerts_dismissed=ssh_all_acked,
+    )
+
+
+@router.post(
+    "/{alert_id}/accept-risk",
+    response_model=AlertResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def accept_alert_risk(
+    user: OperatorUser,
+    db: DbSession,
+    alert_id: int,
+    request: AlertAcceptRiskRequest,
+) -> AlertResponse:
+    """Accept the risk of a finding alert (GVM/nuclei/NSE severity rule, SSH accept rule)."""
+    alert_with_network = await alerts_service.get_alert_with_network_name(db, alert_id)
+    if alert_with_network is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Alert not found",
+        )
+
+    alert, network_name = alert_with_network
+    if not alert_risk_service.accept_risk_supported(alert):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Use Expected for port alerts",
+        )
+
+    accepted = await alert_risk_service.accept_risk(
+        db, alert, reason=request.reason, user_id=user.id
+    )
+    if accepted is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Alert has no finding identifier",
+        )
+    await db.commit()
+
+    severity = await compute_alert_severity(
+        db, accepted.alert_type, accepted.ip, accepted.port or 0, accepted.severity_override
+    )
+
+    return AlertResponse(
+        id=accepted.id,
+        type=accepted.alert_type,
+        source=accepted.source,
+        source_key=accepted.source_key,
+        network_id=accepted.network_id,
+        network_name=network_name,
+        global_open_port_id=accepted.global_open_port_id,
+        ip=accepted.ip,
+        port=accepted.port,
+        message=accepted.message,
+        dismissed=accepted.dismissed,
+        dismiss_reason=accepted.dismiss_reason,
+        created_at=accepted.created_at,
+        severity=severity,
+        severity_override=_severity_override_value(accepted),
     )
 
 

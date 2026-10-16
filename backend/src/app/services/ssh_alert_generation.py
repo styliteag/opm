@@ -126,7 +126,7 @@ async def generate_ssh_alerts_for_scan(
 
         # Check for insecure authentication methods
         if AlertType.SSH_INSECURE_AUTH in enabled_types and not await is_ssh_accepted(
-            db, ip, port, AlertType.SSH_INSECURE_AUTH.value
+            db, ip, port, AlertType.SSH_INSECURE_AUTH.value, scan.network_id
         ):
             if ssh_result.password_enabled or ssh_result.keyboard_interactive_enabled:
                 # Build alert message with details about which auth methods are enabled
@@ -162,7 +162,7 @@ async def generate_ssh_alerts_for_scan(
 
         # Check for weak ciphers
         if AlertType.SSH_WEAK_CIPHER in enabled_types and not await is_ssh_accepted(
-            db, ip, port, AlertType.SSH_WEAK_CIPHER.value
+            db, ip, port, AlertType.SSH_WEAK_CIPHER.value, scan.network_id
         ):
             weak_ciphers = _extract_weak_algorithms(ssh_result.supported_ciphers)
             if weak_ciphers:
@@ -191,7 +191,7 @@ async def generate_ssh_alerts_for_scan(
 
         # Check for weak key exchange algorithms
         if AlertType.SSH_WEAK_KEX in enabled_types and not await is_ssh_accepted(
-            db, ip, port, AlertType.SSH_WEAK_KEX.value
+            db, ip, port, AlertType.SSH_WEAK_KEX.value, scan.network_id
         ):
             weak_kex = _extract_weak_algorithms(ssh_result.kex_algorithms)
             if weak_kex:
@@ -220,7 +220,7 @@ async def generate_ssh_alerts_for_scan(
 
         # Check for outdated SSH version
         if AlertType.SSH_OUTDATED_VERSION in enabled_types and not await is_ssh_accepted(
-            db, ip, port, AlertType.SSH_OUTDATED_VERSION.value
+            db, ip, port, AlertType.SSH_OUTDATED_VERSION.value, scan.network_id
         ):
             # Get version threshold from alert_config or use default
             version_threshold = DEFAULT_SSH_VERSION_THRESHOLD

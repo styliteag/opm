@@ -112,6 +112,20 @@ class AlertBulkAcceptRequest(BaseModel):
         return stripped or None
 
 
+class AlertAcceptRiskRequest(BaseModel):
+    """Request schema for accepting the risk of a finding alert (reason required)."""
+
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def _reason_required(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("reason is required for accepting a risk")
+        return stripped
+
+
 class AlertBulkAcceptResponse(BaseModel):
     """Response schema for bulk accept results."""
 

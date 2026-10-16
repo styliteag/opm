@@ -463,9 +463,12 @@ async def is_ssh_accepted(
     ip: str,
     port: int | None,
     alert_type: str | None = None,
+    network_id: int | None = None,
 ) -> bool:
-    """Check if an SSH alert is accepted by global alert rules."""
+    """Check if an SSH alert is accepted by global rules (plus *network_id*'s rules)."""
     rules = await get_global_rules(db, source="ssh")
+    if network_id is not None:
+        rules = [*rules, *await get_rules_by_network_id(db, network_id, source="ssh")]
     for rule in rules:
         if not rule.enabled or rule.rule_type != RuleType.ACCEPTED:
             continue
