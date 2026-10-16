@@ -147,7 +147,7 @@ describe("PortsTable", () => {
     fireEvent.click(screen.getByRole("button", { name: /Add why/ }));
     expect(screen.getAllByLabelText("Why is this port open?")).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: /Old/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit why: Old" }));
     const inputs = screen.getAllByLabelText("Why is this port open?");
     expect(inputs).toHaveLength(1);
     expect(inputs[0]).toHaveValue("Old");

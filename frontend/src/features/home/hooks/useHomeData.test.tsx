@@ -46,4 +46,24 @@ describe("useHomeAlerts", () => {
     expect(url).toContain(expected);
     expect(url).toContain("limit=200");
   });
+
+  it("passes the network and search filters to the alerts API", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ alerts: [], total: 0, severity_counts: {} }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const { result } = renderHook(
+      () => useHomeAlerts("inbox", { network_id: 4, search: "db01" }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const params = new URL(mockFetch.mock.calls[0][0] as string, "http://x").searchParams;
+    expect(params.get("network_id")).toBe("4");
+    expect(params.get("search")).toBe("db01");
+    expect(params.get("queue_state")).toBe("inbox");
+  });
 });

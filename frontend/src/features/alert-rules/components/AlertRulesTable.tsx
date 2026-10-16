@@ -269,6 +269,8 @@ export function AlertRulesTable({
             <InlineTextCell
               value={row.original.description}
               placeholder="Add reason..."
+              editLabel="Edit why"
+              saveLabel="Save why"
               onSave={(v) =>
                 updateRuleRef.current.mutate({
                   rule: row.original,

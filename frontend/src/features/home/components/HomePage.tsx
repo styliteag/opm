@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ErrorState } from "@/components/data-display/ErrorState";
 import { LoadingState } from "@/components/data-display/LoadingState";
 import { AlertSlideOver } from "@/features/home/components/AlertSlideOver";
+import { HomeFilterBar } from "@/features/home/components/HomeFilterBar";
 import { HomeHeader } from "@/features/home/components/HomeHeader";
 import { ImportantFindings } from "@/features/home/components/ImportantFindings";
 import { NetworkStatusStrip } from "@/features/home/components/NetworkStatusStrip";
@@ -13,18 +14,29 @@ import {
   useHomeData,
   type HomeQueueMode,
 } from "@/features/home/hooks/useHomeData";
+import { hasHomeFilters, type HomeFilters } from "@/features/home/lib/homeFilters";
 
 interface HomePageProps {
   /** Alert shown in the slide-over (`/?alert=<id>`). */
   selectedAlertId?: number;
+  /** Network + search filter (`/?network_id=&search=`). */
+  filters: HomeFilters;
+  onFiltersChange: (filters: HomeFilters) => void;
   onOpenAlert: (alertId: number) => void;
   onCloseAlert: () => void;
 }
 
 /** Home (ADR 0009): new-port review queue, important findings, network status. */
-export function HomePage({ selectedAlertId, onOpenAlert, onCloseAlert }: HomePageProps) {
+export function HomePage({
+  selectedAlertId,
+  filters,
+  onFiltersChange,
+  onOpenAlert,
+  onCloseAlert,
+}: HomePageProps) {
   const [mode, setMode] = useState<HomeQueueMode>("inbox");
-  const data = useHomeData(mode);
+  const data = useHomeData(mode, filters);
+  const filtered = hasHomeFilters(filters);
 
   if (data.isLoading) return <LoadingState rows={8} />;
   if (data.error)
@@ -37,7 +49,10 @@ export function HomePage({ selectedAlertId, onOpenAlert, onCloseAlert }: HomePag
         onModeChange={setMode}
         portCount={data.groups.length}
         findingCount={data.findings.length}
+        filtered={filtered}
       />
+
+      <HomeFilterBar value={filters} networks={data.networks} onChange={onFiltersChange} />
 
       {mode === "inbox" && (
         <ProblemBanners offlineScanners={data.offline} failedScans={data.failedScans} />
@@ -47,6 +62,7 @@ export function HomePage({ selectedAlertId, onOpenAlert, onCloseAlert }: HomePag
         key={mode}
         groups={data.groups}
         mode={mode}
+        filtered={filtered}
         onOpenDetails={onOpenAlert}
         keyboardEnabled={selectedAlertId === undefined}
       />

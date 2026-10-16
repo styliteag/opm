@@ -27,14 +27,22 @@ interface HomeHeaderProps {
   onModeChange: (mode: HomeQueueMode) => void;
   portCount: number;
   findingCount: number;
+  /** A network or search filter narrows the queue. */
+  filtered?: boolean;
 }
 
-export function HomeHeader({ mode, onModeChange, portCount, findingCount }: HomeHeaderProps) {
+export function HomeHeader({
+  mode,
+  onModeChange,
+  portCount,
+  findingCount,
+  filtered = false,
+}: HomeHeaderProps) {
   return (
     <header className="flex items-start justify-between gap-4">
       <div className="space-y-1">
         <h1 className="text-2xl font-strong tracking-tight text-foreground">
-          {homeTitle(mode, portCount)}
+          {homeTitle(mode, portCount, filtered)}
         </h1>
         <p className="text-sm text-muted-foreground">
           {mode === "handled"

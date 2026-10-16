@@ -75,6 +75,10 @@ function setAlerts(alerts: Alert[], extra: Record<string, unknown> = {}) {
     offline: [],
     failedScans: [],
     networkStatus: [],
+    networks: [
+      { id: 1, name: "LAN" },
+      { id: 2, name: "DMZ" },
+    ],
     total: alerts.length,
     loaded: alerts.length,
     isLoading: false,
@@ -118,12 +122,19 @@ function renderHome(props: Partial<Parameters<typeof HomePage>[0]> = {}) {
   });
   const onOpenAlert = vi.fn();
   const onCloseAlert = vi.fn();
+  const onFiltersChange = vi.fn();
   render(
     <QueryClientProvider client={qc}>
-      <HomePage onOpenAlert={onOpenAlert} onCloseAlert={onCloseAlert} {...props} />
+      <HomePage
+        filters={{}}
+        onFiltersChange={onFiltersChange}
+        onOpenAlert={onOpenAlert}
+        onCloseAlert={onCloseAlert}
+        {...props}
+      />
     </QueryClientProvider>,
   );
-  return { onOpenAlert, onCloseAlert };
+  return { onOpenAlert, onCloseAlert, onFiltersChange };
 }
 
 describe("HomePage", () => {
@@ -190,6 +201,25 @@ describe("HomePage", () => {
       screen.getByRole("heading", { name: "All open ports are explained" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Every open port has a reason")).toBeInTheDocument();
+  });
+
+  it("network filter reports the chosen network", () => {
+    const { onFiltersChange } = renderHome();
+    fireEvent.change(screen.getByRole("combobox", { name: "Network" }), {
+      target: { value: "2" },
+    });
+    expect(onFiltersChange).toHaveBeenCalledWith({ network_id: 2 });
+  });
+
+  it("a filtered empty queue says nothing matches instead of all explained", () => {
+    setAlerts([]);
+    renderHome({ filters: { search: "nope" } });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "No new open ports match the filters",
+    );
+    expect(screen.getByText("No new open ports match these filters.")).toBeInTheDocument();
+    expect(screen.queryByText("Every open port has a reason")).not.toBeInTheDocument();
+    expect(screen.getByRole("searchbox")).toHaveValue("nope");
   });
 
   it("shows scanner and scan problem banners only when present", () => {

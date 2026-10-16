@@ -7,6 +7,7 @@ import {
   useScanners,
 } from "@/features/dashboard/hooks/useDashboardData";
 import { useExecutiveOverview } from "@/features/overview/hooks/useExecutiveOverview";
+import type { HomeFilters } from "@/features/home/lib/homeFilters";
 import {
   failedNetworkScans,
   groupFindings,
@@ -21,16 +22,21 @@ export const HOME_ALERT_LIMIT = 200;
 export type HomeQueueMode = "inbox" | "handled";
 
 /** Alerts for the Home queue: the inbox, or snoozed & handled alerts. */
-export function useHomeAlerts(mode: HomeQueueMode) {
-  return useAlerts({
-    queue_state: mode === "inbox" ? "inbox" : "out_of_inbox",
-    limit: HOME_ALERT_LIMIT,
-  });
+export function useHomeAlerts(mode: HomeQueueMode, filters: HomeFilters = {}) {
+  return useAlerts(
+    {
+      queue_state: mode === "inbox" ? "inbox" : "out_of_inbox",
+      network_id: filters.network_id,
+      search: filters.search,
+      limit: HOME_ALERT_LIMIT,
+    },
+    { keepPrevious: true },
+  );
 }
 
 /** Everything Home renders, derived from existing endpoints. */
-export function useHomeData(mode: HomeQueueMode) {
-  const alerts = useHomeAlerts(mode);
+export function useHomeData(mode: HomeQueueMode, filters: HomeFilters = {}) {
+  const alerts = useHomeAlerts(mode, filters);
   const scanners = useScanners();
   const latestScans = useLatestScans();
   const networks = useNetworks();
@@ -55,6 +61,7 @@ export function useHomeData(mode: HomeQueueMode) {
   return {
     ...derived,
     networkStatus: overview.data?.networks ?? [],
+    networks: networks.data?.networks ?? [],
     total: alerts.data?.total ?? 0,
     loaded: alerts.data?.alerts.length ?? 0,
     isLoading: alerts.isLoading,

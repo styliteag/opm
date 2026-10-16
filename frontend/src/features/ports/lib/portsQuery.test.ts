@@ -4,6 +4,7 @@ import {
   buildPortsParams,
   hasNextPage,
   parsePortSearch,
+  STALENESS_OPTIONS,
   STATUS_VIEWS,
 } from "./portsQuery";
 
@@ -99,6 +100,27 @@ describe("buildPortsParams", () => {
       }),
     );
     expect(p).toMatchObject({ ip_range: "10.0.0.0/8", service: "ssh" });
+  });
+});
+
+describe("staleness filter", () => {
+  const staleness = (qs: string) => new URLSearchParams(qs).get("staleness");
+
+  it("omits the param for All (the backend default)", () => {
+    expect(staleness(buildPortsParams({ view: "all", page: 0 }))).toBeNull();
+    expect(
+      staleness(buildPortsParams({ view: "all", page: 0, staleness: "all" })),
+    ).toBeNull();
+  });
+
+  it.each(["active", "stale"] as const)("sends staleness=%s", (value) => {
+    expect(
+      staleness(buildPortsParams({ view: "all", page: 0, staleness: value })),
+    ).toBe(value);
+  });
+
+  it("offers All / Active / Stale", () => {
+    expect(STALENESS_OPTIONS.map((o) => o.label)).toEqual(["All", "Active", "Stale"]);
   });
 });
 

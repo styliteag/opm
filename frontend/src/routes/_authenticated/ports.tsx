@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { HubTabs } from "@/components/layout/HubTabs";
 import { HostsTab } from "@/features/ports/components/HostsTab";
+import { PortsHeader } from "@/features/ports/components/PortsHeader";
 import { PortsTab } from "@/features/ports/components/PortsTab";
 
 type PortsTabKey = "ports" | "hosts";
@@ -34,12 +35,7 @@ function PortsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-strong text-foreground">Ports</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Which ports are open, which are new, and why.
-        </p>
-      </div>
+      <PortsHeader />
 
       <HubTabs
         tabs={TABS}

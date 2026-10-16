@@ -47,6 +47,7 @@ import {
   type HostnameLookupEntry,
   type HostnameLookupStatus,
 } from "@/features/hostname-lookup/hooks/useHostnameLookup";
+import { formatDate } from "@/lib/utils";
 
 const STATUS_LABELS: Record<HostnameLookupStatus, string> = {
   success: "Success",
@@ -707,12 +708,10 @@ function EntryRow({
         </td>
         <td className={`px-3 py-2 text-xs ${sourceClass}`}>{entry.source}</td>
         <td className="px-3 py-2 text-xs text-muted-foreground">
-          {entry.queried_at ? new Date(entry.queried_at).toLocaleString() : "—"}
+          {entry.queried_at ? formatDate(entry.queried_at) : "—"}
         </td>
         <td className="px-3 py-2 text-xs text-muted-foreground">
-          {entry.expires_at
-            ? new Date(entry.expires_at).toLocaleDateString()
-            : "—"}
+          {entry.expires_at ? formatDate(entry.expires_at) : "—"}
         </td>
         <td className="px-3 py-2 text-right">
           <div className="flex items-center justify-end gap-1">

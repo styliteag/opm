@@ -7,6 +7,7 @@ import {
   useRefreshHostHostnames,
 } from "@/features/hostname-lookup/hooks/useHostnameLookup";
 import { useHasRole } from "@/lib/roles";
+import { formatDate, formatRelativeTime } from "@/lib/utils";
 
 interface HostKnownHostnamesProps {
   hostId: number;
@@ -84,8 +85,8 @@ export function HostKnownHostnames({ hostId }: HostKnownHostnamesProps) {
           )}
           {data?.source ? <span>{data.source}</span> : null}
           {data?.queried_at && (
-            <span title={new Date(data.queried_at).toLocaleString()}>
-              cached {new Date(data.queried_at).toLocaleDateString()}
+            <span title={formatDate(data.queried_at)}>
+              cached {formatRelativeTime(data.queried_at)}
             </span>
           )}
           {canRefresh && (

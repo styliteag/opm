@@ -8,6 +8,8 @@ interface InlineTextCellProps {
   value: string | null;
   onSave: (value: string) => void;
   saveLabel?: string;
+  /** Accessible name of the cell and its input, e.g. "Edit hostname". */
+  editLabel?: string;
   placeholder?: string;
   isPending?: boolean;
   className?: string;
@@ -17,6 +19,7 @@ export function InlineTextCell({
   value,
   onSave,
   saveLabel = "Save change",
+  editLabel = "Edit",
   placeholder = "Add comment...",
   isPending = false,
   className,
@@ -77,12 +80,13 @@ export function InlineTextCell({
           onBlur={() => handleSave()}
           className="text-sm text-foreground bg-transparent border-b-2 border-primary outline-none focus:ring-ring"
           disabled={isPending}
-          aria-label={saveLabel}
+          aria-label={editLabel}
         />
         <Button
           variant="ghost"
           size="icon"
           className="h-7 w-7"
+          aria-label={saveLabel}
           onMouseDown={(e) => {
             e.preventDefault();
             handleSave();
@@ -94,6 +98,7 @@ export function InlineTextCell({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
+          aria-label="Cancel"
           onMouseDown={(e) => {
             e.preventDefault();
             handleCancel();
@@ -110,6 +115,7 @@ export function InlineTextCell({
       ref={cellRef}
       role="button"
       tabIndex={0}
+      aria-label={editLabel}
       className={cn(
         "group/cell flex items-center gap-1 cursor-pointer",
         className,

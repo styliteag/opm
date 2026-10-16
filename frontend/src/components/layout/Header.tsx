@@ -1,4 +1,4 @@
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronDown,
   LogOut,
@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { useHostDetail } from "@/features/hosts/hooks/useHosts";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,51 +21,7 @@ import {
 import { useAuthStore } from "@/stores/auth.store";
 import { useThemeStore } from "@/stores/theme.store";
 
-import { breadcrumbSegments, hostIdFromPath } from "./breadcrumbs";
-
-function Breadcrumbs() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hostId = hostIdFromPath(pathname);
-  return hostId === null ? (
-    <BreadcrumbTrail segments={breadcrumbSegments(pathname)} />
-  ) : (
-    <HostBreadcrumbs pathname={pathname} hostId={hostId} />
-  );
-}
-
-/** Host pages show the hostname (or IP) from the shared host query, not the id. */
-function HostBreadcrumbs({
-  pathname,
-  hostId,
-}: {
-  pathname: string;
-  hostId: number;
-}) {
-  const { data } = useHostDetail(hostId);
-  const label = data ? (data.host.hostname ?? data.host.ip) : undefined;
-  return <BreadcrumbTrail segments={breadcrumbSegments(pathname, label)} />;
-}
-
-function BreadcrumbTrail({ segments }: { segments: string[] }) {
-  return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm">
-      {segments.map((segment, i) => (
-        <span key={i} className="flex items-center gap-1.5">
-          {i > 0 && <span className="text-muted-foreground">/</span>}
-          <span
-            className={
-              i === segments.length - 1
-                ? "font-emphasis text-foreground"
-                : "text-muted-foreground"
-            }
-          >
-            {segment}
-          </span>
-        </span>
-      ))}
-    </nav>
-  );
-}
+import { Breadcrumbs } from "./BreadcrumbNav";
 
 const NEXT_THEME = { dark: "light", light: "system", system: "dark" } as const;
 const THEME_ICON = { dark: Moon, light: Sun, system: SunMoon } as const;

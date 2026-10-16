@@ -23,10 +23,7 @@ describe('ApiKeyDisplay', () => {
     const onDismiss = vi.fn()
     render(<ApiKeyDisplay apiKey="key123" onDismiss={onDismiss} />)
 
-    // Find the dismiss button (X icon)
-    const buttons = screen.getAllByRole('button')
-    const dismissBtn = buttons.find((b) => b.title === '' || b.getAttribute('class')?.includes('ghost'))
-    if (dismissBtn) fireEvent.click(dismissBtn)
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
 
     expect(onDismiss).toHaveBeenCalled()
   })

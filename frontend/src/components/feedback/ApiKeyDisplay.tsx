@@ -30,6 +30,7 @@ export function ApiKeyDisplay({ apiKey, onDismiss }: ApiKeyDisplayProps) {
               variant="ghost"
               size="icon"
               onClick={onDismiss}
+              aria-label="Dismiss"
               className="h-6 w-6"
             >
               <X className="h-3.5 w-3.5" />

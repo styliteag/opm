@@ -4,8 +4,11 @@ import { Route as AlertRedirect } from "@/routes/_authenticated/alerts/$alertId"
 import { Route as AlertsRedirect } from "@/routes/_authenticated/alerts/index";
 import { Route as HomeRoute } from "@/routes/_authenticated/index";
 
-type Validate = (search: Record<string, unknown>) => { alert?: number };
-type BeforeLoad = (ctx: { params: Record<string, string> }) => unknown;
+type Validate = (search: Record<string, unknown>) => Record<string, unknown>;
+type BeforeLoad = (ctx: {
+  params: Record<string, string>;
+  search?: Record<string, unknown>;
+}) => unknown;
 
 function thrown(fn: () => unknown): { options?: { to?: string; search?: unknown } } {
   try {
@@ -29,6 +32,14 @@ describe("Home route search", () => {
     expect(validate({ alert: "-1" })).toEqual({});
     expect(validate({})).toEqual({});
   });
+
+  it("keeps the queue filters next to the alert id", () => {
+    expect(validate({ alert: "3", search: "db01", network_id: "2" })).toEqual({
+      alert: 3,
+      search: "db01",
+      network_id: 2,
+    });
+  });
 });
 
 describe("v3 alert redirects", () => {
@@ -40,7 +51,16 @@ describe("v3 alert redirects", () => {
 
   it("/alerts redirects to Home", () => {
     const beforeLoad = AlertsRedirect.options.beforeLoad as unknown as BeforeLoad;
-    const redirect = thrown(() => beforeLoad({ params: {} }));
-    expect(redirect.options).toMatchObject({ to: "/" });
+    const redirect = thrown(() => beforeLoad({ params: {}, search: {} }));
+    expect(redirect.options).toMatchObject({ to: "/", search: {} });
+  });
+
+  it("/alerts?search=&source= keeps the search on Home and drops the source", () => {
+    const validate = AlertsRedirect.options.validateSearch as unknown as Validate;
+    const search = validate({ search: "10.0.0.5", source: "ssh" });
+    expect(search).toEqual({ search: "10.0.0.5" });
+    const beforeLoad = AlertsRedirect.options.beforeLoad as unknown as BeforeLoad;
+    const redirect = thrown(() => beforeLoad({ params: {}, search }));
+    expect(redirect.options).toMatchObject({ to: "/", search: { search: "10.0.0.5" } });
   });
 });

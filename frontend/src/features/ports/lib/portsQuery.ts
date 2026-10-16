@@ -34,9 +34,19 @@ export const SERVICE_CHIPS: readonly { label: string; value: string }[] = [
   { label: "DNS", value: "domain" },
 ];
 
+/** Stale = missing from the latest scan of every network it is in (backend `staleness`). */
+export type PortsStaleness = "all" | "active" | "stale";
+
+export const STALENESS_OPTIONS: readonly { key: PortsStaleness; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "active", label: "Active" },
+  { key: "stale", label: "Stale" },
+];
+
 export interface PortsFilter {
   view: PortsView;
   page: number;
+  staleness?: PortsStaleness;
   networkId?: number;
   search?: string;
   service?: string;
@@ -83,6 +93,8 @@ export function buildPortsParams(filter: PortsFilter): string {
   }
   if (search.q) params.set("q", search.q);
   if (filter.service) params.set("service", filter.service);
+  if (filter.staleness && filter.staleness !== "all")
+    params.set("staleness", filter.staleness);
   params.set("sort_by", "ip");
   params.set("sort_dir", "asc");
   params.set("offset", String(filter.page * PORTS_PAGE_SIZE));

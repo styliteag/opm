@@ -41,6 +41,7 @@ export function WhyCell({
   return (
     <button
       type="button"
+      aria-label={value ? `Edit why: ${value}` : "Add why"}
       onClick={onEdit}
       className={cn(
         "group/why flex max-w-full cursor-pointer items-center gap-1 rounded-sm text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

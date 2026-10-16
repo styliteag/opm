@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { fetchApi } from "@/lib/api";
 import type {
@@ -46,11 +46,16 @@ function buildAlertParams(filters: AlertFilters): string {
   return params.toString();
 }
 
-export function useAlerts(filters: AlertFilters) {
+/** `keepPrevious` keeps the last page on screen while a new filter loads. */
+export function useAlerts(
+  filters: AlertFilters,
+  options: { keepPrevious?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["alerts", filters],
     queryFn: () =>
       fetchApi<AlertListResponse>(`/api/alerts/?${buildAlertParams(filters)}`),
+    placeholderData: options.keepPrevious ? keepPreviousData : undefined,
   });
 }
 

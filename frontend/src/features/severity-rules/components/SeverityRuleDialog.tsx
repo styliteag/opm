@@ -13,6 +13,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDate } from "@/lib/utils";
 
 import {
   useSeverityRuleMutations,
@@ -210,7 +211,7 @@ function RuleEditor({
           Existing rule: set to{" "}
           <span className="font-strong">{activeRule.severity_override}</span> by{" "}
           {activeRule.created_by_username ?? "unknown"} on{" "}
-          {new Date(activeRule.created_at).toLocaleDateString()}
+          {formatDate(activeRule.created_at)}
         </p>
       )}
 

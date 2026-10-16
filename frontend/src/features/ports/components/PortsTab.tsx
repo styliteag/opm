@@ -16,7 +16,9 @@ import {
   hasNextPage,
   PORTS_PAGE_SIZE,
   SERVICE_CHIPS,
+  STALENESS_OPTIONS,
   STATUS_VIEWS,
+  type PortsStaleness,
   type PortsView,
 } from "@/features/ports/lib/portsQuery";
 import { cn } from "@/lib/utils";
@@ -44,6 +46,7 @@ export function PortsTab({ initialSearch, initialNetworkId }: PortsTabProps) {
   const [view, setView] = useState<PortsView>("decide");
   const [search, setSearch] = useState(initialSearch ?? "");
   const [service, setService] = useState<string | undefined>();
+  const [staleness, setStaleness] = useState<PortsStaleness>("all");
   const [networkId, setNetworkId] = useState(initialNetworkId);
   const [page, setPage] = useState(0);
   const debouncedSearch = useDebounced(search, 300);
@@ -54,6 +57,7 @@ export function PortsTab({ initialSearch, initialNetworkId }: PortsTabProps) {
     networkId,
     search: debouncedSearch || undefined,
     service,
+    staleness,
   });
   const networks = useNetworks();
   const networkNames = useMemo(
@@ -78,6 +82,12 @@ export function PortsTab({ initialSearch, initialNetworkId }: PortsTabProps) {
           options={VIEW_OPTIONS}
           value={view}
           onChange={resetPage(setView)}
+        />
+        <SegmentedControl
+          label="Seen recently"
+          options={STALENESS_OPTIONS}
+          value={staleness}
+          onChange={resetPage(setStaleness)}
         />
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

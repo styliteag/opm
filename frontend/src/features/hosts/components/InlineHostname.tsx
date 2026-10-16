@@ -64,6 +64,7 @@ export function InlineHostname({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={() => setEditing(false)}
+          aria-label="Hostname"
           className="text-2xl font-strong text-foreground bg-transparent border-b-2 border-primary outline-none"
           disabled={save.isPending}
         />
@@ -71,6 +72,7 @@ export function InlineHostname({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
+          aria-label="Save hostname"
           onMouseDown={(e) => {
             e.preventDefault();
             save.mutate(draft);
@@ -82,6 +84,7 @@ export function InlineHostname({
           variant="ghost"
           size="icon"
           className="h-7 w-7"
+          aria-label="Cancel"
           onMouseDown={(e) => {
             e.preventDefault();
             setEditing(false);
@@ -105,7 +108,17 @@ export function InlineHostname({
       onClick={startEditing}
     >
       {hostname ?? ip}
-      <Pencil className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      <button
+        type="button"
+        aria-label="Edit hostname"
+        onClick={(e) => {
+          e.stopPropagation();
+          startEditing();
+        }}
+        className="cursor-pointer rounded-sm opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Pencil className="h-4 w-4 text-muted-foreground" />
+      </button>
     </h1>
   );
 }

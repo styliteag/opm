@@ -36,6 +36,8 @@ export function HostsTab({ initialSearch, initialNetworkId }: HostsTabProps) {
   const [exporting, setExporting] = useState(false);
   // Editing and deleting hosts are operator+ on the backend; hidden below.
   const canEdit = useHasRole("operator");
+  // The hosts export endpoints are analyst+.
+  const canExport = useHasRole("analyst");
 
   const hosts = useHosts({
     ip_search: search || undefined,
@@ -105,16 +107,18 @@ export function HostsTab({ initialSearch, initialNetworkId }: HostsTabProps) {
             </option>
           ))}
         </Select>
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          disabled={exporting}
-          onClick={handleExport}
-        >
-          <Download />
-          {exporting ? "Exporting…" : "Export CSV"}
-        </Button>
+        {canExport && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto"
+            disabled={exporting}
+            onClick={handleExport}
+          >
+            <Download />
+            {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
+        )}
       </div>
 
       {canEdit && selected.length > 0 && (

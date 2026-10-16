@@ -16,6 +16,8 @@ import { NAV_V4, TRIAGE_ACTIONS } from "@/lib/terminology";
 interface ReviewQueueProps {
   groups: PortGroup[];
   mode: HomeQueueMode;
+  /** A network or search filter is active; the empty state must not claim "all explained". */
+  filtered?: boolean;
   onOpenDetails: (alertId: number) => void;
   /** Off while the slide-over or a dialog owns the keyboard. */
   keyboardEnabled: boolean;
@@ -35,6 +37,7 @@ function severityCounts(groups: readonly PortGroup[]): Record<string, number> {
 export function ReviewQueue({
   groups,
   mode,
+  filtered = false,
   onOpenDetails,
   keyboardEnabled,
 }: ReviewQueueProps) {
@@ -83,6 +86,14 @@ export function ReviewQueue({
     onSnooze:
       inbox && canTriage ? (i) => triage.snooze(groups[i].alertIds) : undefined,
   });
+
+  if (groups.length === 0 && filtered) {
+    return (
+      <div className="rounded-lg border border-border bg-card px-6 py-12 text-center text-sm text-muted-foreground">
+        No {mode === "inbox" ? "new" : "snoozed or handled"} open ports match these filters.
+      </div>
+    );
+  }
 
   if (groups.length === 0) {
     return mode === "inbox" ? (

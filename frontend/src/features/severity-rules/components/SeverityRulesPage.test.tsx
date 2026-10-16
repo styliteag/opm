@@ -85,6 +85,12 @@ describe("SeverityRulesPage", () => {
     expect(screen.getByText("Deep vulnerability scan")).toBeInTheDocument();
   });
 
+  it("shows Created with the app date format, not the browser locale", async () => {
+    renderPage();
+    const cells = await screen.findAllByText(/^Oct 16, 2026/);
+    expect(cells).toHaveLength(RULES.length);
+  });
+
   it("keeps import/export behind advanced settings", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "Finding rules" });

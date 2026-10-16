@@ -154,6 +154,7 @@ export function HostsTable({
                       })
                     }
                     saveLabel="Save hostname"
+                    editLabel={`Edit hostname of ${row.original.ip}`}
                     placeholder="-"
                     isPending={hostnameMutation.isPending}
                   />
@@ -185,6 +186,7 @@ export function HostsTable({
                 })
               }
               saveLabel="Save comment"
+              editLabel={`Edit comment of ${row.original.ip}`}
               placeholder="Add comment..."
               isPending={commentMutation.isPending}
             />

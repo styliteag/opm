@@ -176,6 +176,7 @@ the URL, so no tab mapping is needed.
 
 No blockers. "To decide" is now a glossary term (New + To review). The Organization
 logo/policy URL inputs were removed because nothing reads them (API fields kept, reversible) —
-flagged for the user's review before the 3.0.0 release. The later items can go in 3.0.x: alert-queue filters, the SSH
-report and hosts PDF export entry points, breadcrumbs, date
-formatting and aria labels.
+flagged for the user's review before the 3.0.0 release. Update after the audit: the later items were closed in a final polish round — Home
+search + network filter (with `/alerts?search=` mapping), SSH report and hosts PDF/CSV
+exports in the Ports options menu, the stale filter, name breadcrumbs, app date format, and
+accessible names on icon-only controls. Open ⚠️ items: none.
