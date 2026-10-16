@@ -102,6 +102,39 @@ describe("Sidebar", () => {
     },
   );
 
+  it("shows the Settings pages nested under Settings only inside Settings", () => {
+    mockPathname = "/settings/rules";
+    render(<Sidebar />);
+    const labels = screen.getAllByRole("link").map((l) => l.textContent);
+    expect(labels).toEqual([
+      "Home",
+      "Ports",
+      "Networks",
+      "Settings",
+      "Scanners",
+      "Rules",
+      "Scan profiles",
+      "Users",
+      "Organization",
+      "System",
+      "Account",
+    ]);
+    expect(screen.getByRole("link", { name: "Rules" })).toHaveAttribute(
+      "data-nav-level",
+      "sub",
+    );
+    // Only the sub-page is the current page, not its section as well.
+    expect(activeLabel()).toBe("Rules");
+  });
+
+  it("filters the Settings sub-entries by role", () => {
+    setRole("viewer");
+    mockPathname = "/settings/security";
+    render(<Sidebar />);
+    const labels = screen.getAllByRole("link").map((l) => l.textContent);
+    expect(labels).toEqual(["Home", "Ports", "Networks", "Settings", "Account"]);
+  });
+
   it("shows Settings to every role (sub-nav filters by role)", () => {
     setRole("viewer");
     render(<Sidebar />);
@@ -123,8 +156,9 @@ describe("Sidebar", () => {
     ["/networks/4", "Networks"],
     ["/scans", "Scans"],
     ["/scans/99", "Scans"],
-    ["/settings/scanners/2", "Settings"],
-    ["/settings/security", "Settings"],
+    ["/settings", "Settings"],
+    ["/settings/scanners/2", "Scanners"],
+    ["/settings/security", "Account"],
   ])("highlights the right entry for %s", (path, label) => {
     mockPathname = path;
     render(<Sidebar />);

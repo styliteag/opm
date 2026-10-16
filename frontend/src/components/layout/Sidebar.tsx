@@ -1,20 +1,30 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
+  Building,
   ChevronLeft,
   ChevronRight,
+  FileCode,
   History,
   Home,
+  ListChecks,
   Network,
+  Server,
   Settings,
+  Settings2,
   ShieldAlert,
+  UserCog,
+  Users,
   Waypoints,
   Zap,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { visibleSettingsNav } from "@/features/settings/settingsNav";
 import { useHasRole } from "@/lib/roles";
 import { NAV_V4 } from "@/lib/terminology";
 import { cn } from "@/lib/utils";
+import type { UserRole } from "@/stores/auth.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { useUiStore } from "@/stores/ui.store";
 
 interface NavItem {
@@ -27,7 +37,17 @@ interface NavItem {
   children?: NavItem[];
 }
 
-// Four areas (ADR 0009). Settings is visible to everyone; its sub-nav filters by role.
+const SETTINGS_ICONS: Record<string, NavItem["icon"]> = {
+  "/settings/scanners": Server,
+  "/settings/rules": ListChecks,
+  "/settings/scan-profiles": FileCode,
+  "/settings/users": Users,
+  "/settings/organization": Building,
+  "/settings/system": Settings2,
+  "/settings/security": UserCog,
+};
+
+// Four areas (ADR 0009). Settings is visible to everyone; its sub-entries filter by role.
 const NAV_ITEMS: NavItem[] = [
   { label: NAV_V4.home, href: "/", icon: Home, activePrefixes: [] },
   {
@@ -70,6 +90,26 @@ function isNavItemActive(item: NavItem, pathname: string): boolean {
   );
 }
 
+/** Settings sub-entries the role may open, as nav items. */
+function withSettingsChildren(
+  items: NavItem[],
+  role: UserRole | undefined,
+): NavItem[] {
+  return items.map((item) =>
+    item.href === "/settings"
+      ? {
+          ...item,
+          children: visibleSettingsNav(role).map((entry) => ({
+            label: entry.label,
+            href: entry.href,
+            icon: SETTINGS_ICONS[entry.href] ?? Settings2,
+            activePrefixes: [],
+          })),
+        }
+      : item,
+  );
+}
+
 function NavLink({
   item,
   active,
@@ -108,6 +148,8 @@ export function Sidebar() {
   const openQuickScan = useUiStore((s) => s.openQuickScan);
   // Starting scans needs operator+ on the backend.
   const canScan = useHasRole("operator");
+  const role = useAuthStore((s) => s.user?.role);
+  const navItems = withSettingsChildren(NAV_ITEMS, role);
   const currentPath = useRouterState({
     select: (s) => s.location.pathname,
   });
@@ -131,27 +173,33 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-3 scrollbar-none">
-        {NAV_ITEMS.map((item) => (
-          <div key={item.href} className="space-y-1">
-            <NavLink
-              item={item}
-              active={isNavItemActive(item, currentPath)}
-              collapsed={collapsed}
-            />
-            {/* Sub-entries only show while their section is open. */}
-            {(isNavItemActive(item, currentPath) ||
-              item.children?.some((c) => isNavItemActive(c, currentPath))) &&
-              item.children?.map((child) => (
-                <NavLink
-                  key={child.href}
-                  item={child}
-                  active={isNavItemActive(child, currentPath)}
-                  collapsed={collapsed}
-                  sub
-                />
-              ))}
-          </div>
-        ))}
+        {navItems.map((item) => {
+          const ownMatch = isNavItemActive(item, currentPath);
+          const childActive =
+            item.children?.some((c) => isNavItemActive(c, currentPath)) ??
+            false;
+          return (
+            <div key={item.href} className="space-y-1">
+              {/* A section is marked current only when none of its sub-entries is. */}
+              <NavLink
+                item={item}
+                active={ownMatch && !childActive}
+                collapsed={collapsed}
+              />
+              {/* Sub-entries only show while their section is open. */}
+              {(ownMatch || childActive) &&
+                item.children?.map((child) => (
+                  <NavLink
+                    key={child.href}
+                    item={child}
+                    active={isNavItemActive(child, currentPath)}
+                    collapsed={collapsed}
+                    sub
+                  />
+                ))}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Scan Now Button */}

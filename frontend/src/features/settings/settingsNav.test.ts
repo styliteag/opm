@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 
 import {
   defaultSettingsPath,
-  isSettingsEntryActive,
   visibleSettingsNav,
 } from "./settingsNav";
 
@@ -41,14 +40,5 @@ describe("settings navigation", () => {
     expect(defaultSettingsPath("operator")).toBe("/settings/scanners");
     expect(defaultSettingsPath("viewer")).toBe("/settings/security");
     expect(defaultSettingsPath(undefined)).toBe("/settings/security");
-  });
-
-  it("treats nested pages as active without prefix collisions", () => {
-    expect(isSettingsEntryActive("/settings/scanners", "/settings/scanners/3")).toBe(true);
-    expect(isSettingsEntryActive("/settings/users", "/settings/users")).toBe(true);
-    expect(
-      isSettingsEntryActive("/settings/scan-profiles", "/settings/scan-profiles/scripts/x"),
-    ).toBe(true);
-    expect(isSettingsEntryActive("/settings/scan", "/settings/scan-profiles")).toBe(false);
   });
 });

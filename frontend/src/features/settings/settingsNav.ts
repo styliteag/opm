@@ -28,8 +28,3 @@ export function visibleSettingsNav(
 export function defaultSettingsPath(role: UserRole | undefined): string {
   return visibleSettingsNav(role)[0]?.href ?? "/settings/security";
 }
-
-/** Whether a sub-nav entry is active for the current pathname. */
-export function isSettingsEntryActive(href: string, pathname: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
