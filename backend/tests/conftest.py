@@ -133,6 +133,33 @@ async def viewer_user(db_session: AsyncSession) -> User:
 
 
 @pytest.fixture
+async def operator_user(db_session: AsyncSession) -> User:
+    """Create an operator user for testing."""
+    user = User(
+        email="operator@test.com",
+        password_hash=hash_password("operatorpass123"),
+        role=UserRole.OPERATOR,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def operator_headers(operator_user: User) -> dict[str, str]:
+    """HTTP headers with operator authentication."""
+    token = create_access_token(
+        data={
+            "sub": str(operator_user.id),
+            "email": operator_user.email,
+            "role": operator_user.role.value,
+        }
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
 def admin_token(admin_user: User) -> str:
     """Create a JWT token for the admin user."""
     return create_access_token(

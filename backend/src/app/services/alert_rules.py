@@ -67,12 +67,18 @@ async def create_rule(
     network_id: int | None = None,
     description: str | None = None,
     created_by: int | None = None,
+    require_global_description: bool = True,
 ) -> AlertRule:
     """Create a new alert rule. Returns existing rule if a duplicate exists.
 
-    For global rules (network_id=None), description is required.
+    For global rules (network_id=None), description is required unless the
+    caller opts out (Expected with an optional reason, ADR 0012).
     """
-    if network_id is None and (not description or not description.strip()):
+    if (
+        require_global_description
+        and network_id is None
+        and (not description or not description.strip())
+    ):
         raise ValueError(
             "A reason/description is required for transparency in global security rules."
         )
@@ -87,7 +93,7 @@ async def create_rule(
         source=source,
         rule_type=rule_type,
         match_criteria=match_criteria,
-        description=description.strip() if description else description,
+        description=description.strip() if description and description.strip() else None,
         created_by=created_by,
     )
     db.add(rule)

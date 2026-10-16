@@ -2,8 +2,9 @@
 
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models.alert import AlertType
 from app.schemas.host import PortRuleMatch
@@ -87,11 +88,28 @@ class AlertBulkDismissResponse(BaseModel):
     missing_ids: list[int]
 
 
+AcceptMatch = Literal["host", "all_hosts"]
+
+
 class AlertBulkAcceptRequest(BaseModel):
-    """Request schema for bulk accept operations."""
+    """Request schema for bulk accept ("Expected") operations.
+
+    ``match="host"`` keeps the alert's IP in the rule criteria; ``"all_hosts"``
+    drops it, so the rule covers every host in the alert's network
+    (bulk-accept-network) or everywhere (bulk-accept-global).
+    """
 
     alert_ids: list[int]
-    reason: str
+    reason: str | None = None
+    match: AcceptMatch = "host"
+
+    @field_validator("reason")
+    @classmethod
+    def _blank_reason_is_none(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
 
 class AlertBulkAcceptResponse(BaseModel):

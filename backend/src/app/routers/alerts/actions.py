@@ -11,6 +11,7 @@ from app.models.alert import Alert, AlertType
 from app.models.alert_event import AlertEventType
 from app.models.alert_rule import RuleType as AlertRuleType
 from app.schemas.alert import (
+    AcceptMatch,
     AlertBulkAcceptRequest,
     AlertBulkAcceptResponse,
     AlertBulkDismissResponse,
@@ -38,27 +39,74 @@ from .detail import _severity_override_value, compute_alert_severity
 router = APIRouter()
 
 
-def _accept_criteria(alert: Alert) -> dict[str, str | None] | None:
+def _accept_criteria(alert: Alert, match: AcceptMatch) -> dict[str, str | None] | None:
     """Build accept-rule match criteria for one alert.
 
-    Finding sources (GVM/nuclei/NSE) are keyed on the finding identifier so
-    accepting one finding never covers other findings on the same host.
+    ``match="host"`` pins the rule to the alert's IP; ``"all_hosts"`` omits
+    it. Finding sources (GVM/nuclei/NSE) are keyed on the finding identifier
+    so accepting one finding never covers other findings on the same host.
     Returns None when a finding alert carries no usable identifier.
     """
+    criteria: dict[str, str | None] = {} if match == "all_hosts" else {"ip": alert.ip}
     if alert.source == "port" and alert.port is not None:
-        return {"ip": alert.ip, "port": str(alert.port)}
+        criteria["port"] = str(alert.port)
+        return criteria
     if alert.source == "ssh":
-        criteria: dict[str, str | None] = {"ip": alert.ip, "alert_type": alert.alert_type.value}
+        criteria["alert_type"] = alert.alert_type.value
         if alert.port is not None:
             criteria["port"] = str(alert.port)
         return criteria
     oid = finding_identifier(alert)
     if oid is None:
         return None
-    criteria = {"ip": alert.ip, "oid": oid}
+    if match == "all_hosts":
+        return {"oid": oid}
+    criteria["oid"] = oid
     if alert.port is not None:
         criteria["port"] = str(alert.port)
     return criteria
+
+
+def _unique_criteria(
+    alerts: list[Alert], match: AcceptMatch, errors: list[str]
+) -> list[tuple[str, dict[str, str | None]]]:
+    """Deduplicate accept criteria across alerts; record alerts without criteria."""
+    rules_to_create: list[tuple[str, dict[str, str | None]]] = []
+    seen_keys: set[str] = set()
+    for alert in alerts:
+        criteria = _accept_criteria(alert, match)
+        if criteria is None:
+            errors.append(f"Alert {alert.id} has no finding identifier, no rule created")
+            continue
+        key = f"{alert.source}:{_json.dumps(criteria, sort_keys=True)}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            rules_to_create.append((alert.source, criteria))
+    return rules_to_create
+
+
+async def _dismiss_accepted(
+    db: DbSession, user_id: int, alerts: list[Alert], reason: str | None
+) -> None:
+    """Dismiss accepted alerts; with a reason, also comment and write the port comment."""
+    for alert in alerts:
+        if reason:
+            alert.dismiss_reason = reason
+    await alerts_service.dismiss_alerts(db, alerts)
+    if reason:
+        for alert in alerts:
+            await alert_comments_service.create_comment(
+                db, alert_id=alert.id, user_id=user_id, comment=reason
+            )
+            await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
+    for alert in alerts:
+        await emit_event(
+            db,
+            alert_id=alert.id,
+            event_type=AlertEventType.DISMISSED,
+            user_id=user_id,
+            description=reason,
+        )
 
 
 @router.put("/{alert_id}/dismiss", response_model=AlertResponse)
@@ -384,72 +432,35 @@ async def bulk_accept_global(
     db: DbSession,
     request: AlertBulkAcceptRequest = Body(...),
 ) -> AlertBulkAcceptResponse:
-    """Add multiple alerts to global accept list with single reason (admin only)."""
+    """Mark alerts Expected everywhere (global accept rules); reason optional."""
     if not request.alert_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="alert_ids cannot be empty",
         )
 
-    if not request.reason or not request.reason.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="reason is required for accepting",
-        )
-
     unique_ids = sorted(set(request.alert_ids))
     alerts = await alerts_service.get_alerts_by_ids(db, unique_ids)
+    reason = request.reason
 
     errors: list[str] = []
-
-    # Build unique match criteria per source
-    rules_to_create: list[tuple[str, dict[str, str | None]]] = []
-    seen_keys: set[str] = set()
-    for alert in alerts:
-        criteria = _accept_criteria(alert)
-        if criteria is None:
-            errors.append(f"Alert {alert.id} has no finding identifier, no rule created")
-            continue
-
-        key = f"{alert.source}:{_json.dumps(criteria, sort_keys=True)}"
-        if key not in seen_keys:
-            seen_keys.add(key)
-            rules_to_create.append((alert.source, criteria))
-
-    # Create global accept rules using unified alert_rules
     accepted_count = 0
-    for source, criteria in rules_to_create:
+    for source, criteria in _unique_criteria(alerts, request.match, errors):
         try:
             await alert_rules_service.create_rule(
                 db=db,
                 source=source,
                 rule_type=AlertRuleType.ACCEPTED,
                 match_criteria=criteria,
-                description=request.reason.strip(),
+                description=reason,
                 created_by=admin.id,
+                require_global_description=False,
             )
             accepted_count += 1
         except Exception as e:
             errors.append(f"Failed to accept {source} rule: {str(e)}")
 
-    # Dismiss all alerts and create comments
-    reason = request.reason.strip()
-    for alert in alerts:
-        alert.dismiss_reason = reason
-    await alerts_service.dismiss_alerts(db, alerts)
-    for alert in alerts:
-        await alert_comments_service.create_comment(
-            db, alert_id=alert.id, user_id=admin.id, comment=reason
-        )
-        await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
-    for alert in alerts:
-        await emit_event(
-            db,
-            alert_id=alert.id,
-            event_type=AlertEventType.DISMISSED,
-            user_id=admin.id,
-            description=reason,
-        )
+    await _dismiss_accepted(db, admin.id, alerts, reason)
     await db.commit()
 
     dismissed_ids = sorted(alert.id for alert in alerts)
@@ -473,21 +484,16 @@ async def bulk_accept_network(
     db: DbSession,
     request: AlertBulkAcceptRequest = Body(...),
 ) -> AlertBulkAcceptResponse:
-    """Add multiple alerts to network-specific accept list with single reason (admin only)."""
+    """Mark alerts Expected within each alert's network; reason optional."""
     if not request.alert_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="alert_ids cannot be empty",
         )
 
-    if not request.reason or not request.reason.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="reason is required for accepting",
-        )
-
     unique_ids = sorted(set(request.alert_ids))
     alerts = await alerts_service.get_alerts_by_ids(db, unique_ids)
+    reason = request.reason
 
     # Group by network_id
     alerts_by_network: dict[int, list[Alert]] = {}
@@ -512,21 +518,7 @@ async def bulk_accept_network(
             errors.append(f"Network {network_id} not found")
             continue
 
-        # Build unique criteria per alert
-        seen_keys: set[str] = set()
-        rules_to_create: list[tuple[str, dict[str, str | None]]] = []
-        for alert in network_alerts:
-            criteria = _accept_criteria(alert)
-            if criteria is None:
-                errors.append(f"Alert {alert.id} has no finding identifier, no rule created")
-                continue
-            key = f"{alert.source}:{_json.dumps(criteria, sort_keys=True)}"
-            if key not in seen_keys:
-                seen_keys.add(key)
-                rules_to_create.append((alert.source, criteria))
-
-        # Create rules for this network
-        for source, criteria in rules_to_create:
+        for source, criteria in _unique_criteria(network_alerts, request.match, errors):
             try:
                 await alert_rules_service.create_rule(
                     db=db,
@@ -534,30 +526,14 @@ async def bulk_accept_network(
                     rule_type=AlertRuleType.ACCEPTED,
                     match_criteria=criteria,
                     network_id=network_id,
-                    description=request.reason.strip(),
+                    description=reason,
+                    created_by=admin.id,
                 )
                 accepted_count += 1
             except Exception as e:
                 errors.append(f"Failed to accept {source} rule on network {network_id}: {str(e)}")
 
-    # Dismiss all alerts and create comments
-    reason = request.reason.strip()
-    for alert in alerts:
-        alert.dismiss_reason = reason
-    await alerts_service.dismiss_alerts(db, alerts)
-    for alert in alerts:
-        await alert_comments_service.create_comment(
-            db, alert_id=alert.id, user_id=admin.id, comment=reason
-        )
-        await alerts_service.propagate_dismiss_reason_to_port_and_host(db, alert, reason)
-    for alert in alerts:
-        await emit_event(
-            db,
-            alert_id=alert.id,
-            event_type=AlertEventType.DISMISSED,
-            user_id=admin.id,
-            description=reason,
-        )
+    await _dismiss_accepted(db, admin.id, alerts, reason)
     await db.commit()
 
     dismissed_ids = sorted(alert.id for alert in alerts)
