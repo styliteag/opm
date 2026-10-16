@@ -9,11 +9,13 @@ import {
   type NetworkFormData,
   type SshOverrideValue,
 } from "../networkFormSchema";
+import { buildPortSpec, parsePortSpec } from "../../lib/portPresets";
+import { parseSchedule, scheduleToValue } from "../../lib/schedulePresets";
 
 /**
- * Shared form state + payload mapping for the network wizard (create/clone)
- * and the tab editor (edit). Extracted from the former monolithic
- * NetworkForm so both UIs use the exact same defaults and payload rules.
+ * Form state + payload mapping for the one-page network form (create, edit,
+ * clone — ADR 0011). Presets (ports, schedule) are UI-only fields mapped
+ * to port_spec / scan_schedule here so the backend schema is unchanged.
  */
 
 export const SSH_ALERT_CONFIG_KEYS = [
@@ -81,36 +83,74 @@ export function buildSshOverridesPayload(
   return out;
 }
 
+/** Phase-level port overrides the one-page form no longer shows (ADR 0011). */
+const REMOVED_PORT_SCAN_KEYS = ["port_range", "exclude_ports"] as const;
+
+/**
+ * Ports the scanner actually uses: a non-empty port_scan `port_range`
+ * override replaces port_spec (scanner orchestration), so the form shows
+ * that. The phase's `exclude_ports` was never read by the scanner; it is
+ * shown as an exclusion so saving makes the user's intent effective.
+ */
+function sourcePorts(source: Network): ReturnType<typeof parsePortSpec> {
+  const config =
+    source.phases?.find((p) => p.name === "port_scan")?.config ?? {};
+  const override =
+    typeof config.port_range === "string" ? config.port_range.trim() : "";
+  const parsed = parsePortSpec(override || source.port_spec);
+  const deadExclude =
+    typeof config.exclude_ports === "string" ? config.exclude_ports.trim() : "";
+  if (!deadExclude) return parsed;
+  return {
+    ...parsed,
+    exclude: [parsed.exclude, deadExclude].filter(Boolean).join(","),
+  };
+}
+
+const CREATE_DEFAULTS = {
+  scanner_type: "masscan",
+  scan_protocol: "tcp",
+  port_preset: "all",
+  port_spec: "",
+  exclude_ports: "",
+  scan_rate: 1000,
+  scan_timeout: 60,
+  port_timeout: 1500,
+  schedule_mode: "manual",
+  schedule_time: "02:00",
+  schedule_day: "mon",
+  scan_schedule: "",
+  host_discovery_enabled: true,
+  gvm_keep_reports: true,
+  ssh_probe_enabled: true,
+  nuclei_enabled: false,
+  nuclei_sni_enabled: false,
+  nuclei_tags: "cve,exposure,misconfig,tech",
+  nuclei_exclude_tags: "fuzz,dos,intrusive",
+  email_recipients: "",
+  ssh_override_insecure_auth: "inherit",
+  ssh_override_weak_cipher: "inherit",
+  ssh_override_weak_kex: "inherit",
+  ssh_override_outdated_version: "inherit",
+  ssh_override_config_regression: "inherit",
+  ssh_override_version_threshold: "",
+} as const;
+
 export function buildNetworkDefaults(
   source: Network | undefined,
   options: { cloneName?: boolean } = {},
 ): NetworkFormData {
   if (!source) {
-    return {
-      scanner_type: "masscan",
-      scan_protocol: "tcp",
-      port_spec: "1-65535",
-      scan_rate: 1000,
-      scan_timeout: 60,
-      port_timeout: 1500,
-      gvm_keep_reports: true,
-      ssh_probe_enabled: true,
-      nuclei_enabled: false,
-      nuclei_sni_enabled: false,
-      nuclei_tags: "cve,exposure,misconfig,tech",
-      nuclei_exclude_tags: "fuzz,dos,intrusive",
-      ssh_override_insecure_auth: "inherit",
-      ssh_override_weak_cipher: "inherit",
-      ssh_override_weak_kex: "inherit",
-      ssh_override_outdated_version: "inherit",
-      ssh_override_config_regression: "inherit",
-      ssh_override_version_threshold: "",
-    } as NetworkFormData;
+    return { ...CREATE_DEFAULTS } as unknown as NetworkFormData;
   }
+  const ports = sourcePorts(source);
+  const schedule = parseSchedule(source.scan_schedule);
   return {
     name: options.cloneName ? `Copy of ${source.name}` : source.name,
     cidr: source.cidr,
-    port_spec: source.port_spec,
+    port_preset: ports.preset,
+    port_spec: ports.preset === "custom" ? ports.include : "",
+    exclude_ports: ports.exclude,
     scanner_id: source.scanner_id,
     scanner_type: source.scanner_type as "masscan" | "nmap" | "greenbone",
     scan_protocol: source.scan_protocol as "tcp" | "udp" | "both",
@@ -120,7 +160,11 @@ export function buildNetworkDefaults(
         ? Math.round(source.scan_timeout / 60)
         : undefined,
     port_timeout: source.port_timeout ?? undefined,
-    scan_schedule: source.scan_schedule ?? undefined,
+    schedule_mode: schedule.mode,
+    schedule_time: schedule.time,
+    schedule_day: schedule.day,
+    scan_schedule: schedule.custom,
+    host_discovery_enabled: source.host_discovery_enabled ?? true,
     nse_profile_id: source.nse_profile_id ?? undefined,
     gvm_keep_reports: source.gvm_keep_reports ?? true,
     gvm_alert_severity:
@@ -158,6 +202,15 @@ export function buildNetworkDefaults(
   } as NetworkFormData;
 }
 
+function cleanPortScanPhase(phase: ScanPhase, tool: string): ScanPhase {
+  const config = Object.fromEntries(
+    Object.entries(phase.config).filter(
+      ([key]) => !(REMOVED_PORT_SCAN_KEYS as readonly string[]).includes(key),
+    ),
+  );
+  return { ...phase, tool, config };
+}
+
 export interface NetworkPayloadContext {
   isGreenbone: boolean;
   phases: ScanPhase[] | null;
@@ -178,6 +231,11 @@ export function buildNetworkPayload(
 ): Record<string, unknown> {
   const {
     email_recipients,
+    port_preset,
+    exclude_ports,
+    schedule_mode,
+    schedule_time,
+    schedule_day,
     ssh_override_insecure_auth: _a,
     ssh_override_weak_cipher: _b,
     ssh_override_weak_kex: _c,
@@ -197,11 +255,21 @@ export function buildNetworkPayload(
   const nucleiActive = !isGreenbone && rest.nuclei_enabled;
   const payload: Record<string, unknown> = {
     ...rest,
+    port_spec: buildPortSpec(port_preset, rest.port_spec, exclude_ports),
+    // null = Manual only; the key is always present so an update clears it.
+    scan_schedule: scheduleToValue({
+      mode: schedule_mode,
+      time: schedule_time,
+      day: schedule_day,
+      custom: rest.scan_schedule ?? "",
+    }),
     scan_timeout: rest.scan_timeout != null ? rest.scan_timeout * 60 : null,
+    // Explicit null so "None" clears an existing profile on update.
+    nse_profile_id: rest.nse_profile_id ?? null,
     phases: isGreenbone
       ? null
       : (phases?.map((p) =>
-          p.name === "port_scan" ? { ...p, tool: rest.scanner_type } : p,
+          p.name === "port_scan" ? cleanPortScanPhase(p, rest.scanner_type) : p,
         ) ?? null),
     gvm_scan_config: isGreenbone ? gvmScanConfig : null,
     gvm_port_list: isGreenbone && gvmPortList ? gvmPortList : null,
@@ -280,7 +348,9 @@ export function useNetworkFormState(
   useEffect(() => {
     if (isGreenbone && watchedNucleiEnabled) {
       form.setValue("nuclei_enabled", false, { shouldDirty: true });
-      toast.info("Nuclei disabled — not supported for Greenbone scanners");
+      toast.info(
+        "Web vulnerability check turned off — a deep vulnerability scan already covers it",
+      );
     }
   }, [isGreenbone, watchedNucleiEnabled, form]);
 

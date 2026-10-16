@@ -35,6 +35,7 @@ import { Route as AuthenticatedScannersScannerIdRouteImport } from './routes/_au
 import { Route as AuthenticatedNseResultsRouteImport } from './routes/_authenticated/nse/results'
 import { Route as AuthenticatedNseProfilesRouteImport } from './routes/_authenticated/nse/profiles'
 import { Route as AuthenticatedNseLibraryRouteImport } from './routes/_authenticated/nse/library'
+import { Route as AuthenticatedNetworksNewRouteImport } from './routes/_authenticated/networks/new'
 import { Route as AuthenticatedNetworksNetworkIdRouteImport } from './routes/_authenticated/networks/$networkId'
 import { Route as AuthenticatedHostsHostIdRouteImport } from './routes/_authenticated/hosts/$hostId'
 import { Route as AuthenticatedAlertsAlertIdRouteImport } from './routes/_authenticated/alerts/$alertId'
@@ -51,6 +52,7 @@ import { Route as AuthenticatedSettingsScannersIndexRouteImport } from './routes
 import { Route as AuthenticatedSettingsUsersUserIdRouteImport } from './routes/_authenticated/settings/users/$userId'
 import { Route as AuthenticatedSettingsScannersScannerIdRouteImport } from './routes/_authenticated/settings/scanners/$scannerId'
 import { Route as AuthenticatedNseEditorScriptNameRouteImport } from './routes/_authenticated/nse/editor.$scriptName'
+import { Route as AuthenticatedNetworksNetworkIdEditRouteImport } from './routes/_authenticated/networks/$networkId_.edit'
 import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users_.$userId'
 import { Route as AuthenticatedSettingsScanProfilesScriptsScriptNameRouteImport } from './routes/_authenticated/settings/scan-profiles_.scripts.$scriptName'
 
@@ -196,6 +198,12 @@ const AuthenticatedNseLibraryRoute = AuthenticatedNseLibraryRouteImport.update({
   path: '/nse/library',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedNetworksNewRoute =
+  AuthenticatedNetworksNewRouteImport.update({
+    id: '/networks/new',
+    path: '/networks/new',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedNetworksNetworkIdRoute =
   AuthenticatedNetworksNetworkIdRouteImport.update({
     id: '/networks/$networkId',
@@ -290,6 +298,12 @@ const AuthenticatedNseEditorScriptNameRoute =
     path: '/nse/editor/$scriptName',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedNetworksNetworkIdEditRoute =
+  AuthenticatedNetworksNetworkIdEditRouteImport.update({
+    id: '/networks/$networkId_/edit',
+    path: '/networks/$networkId/edit',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminUsersUserIdRoute =
   AuthenticatedAdminUsersUserIdRouteImport.update({
     id: '/admin/users_/$userId',
@@ -324,6 +338,7 @@ export interface FileRoutesByFullPath {
   '/alerts/$alertId': typeof AuthenticatedAlertsAlertIdRoute
   '/hosts/$hostId': typeof AuthenticatedHostsHostIdRoute
   '/networks/$networkId': typeof AuthenticatedNetworksNetworkIdRoute
+  '/networks/new': typeof AuthenticatedNetworksNewRoute
   '/nse/library': typeof AuthenticatedNseLibraryRoute
   '/nse/profiles': typeof AuthenticatedNseProfilesRoute
   '/nse/results': typeof AuthenticatedNseResultsRoute
@@ -341,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/scans/': typeof AuthenticatedScansIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/networks/$networkId/edit': typeof AuthenticatedNetworksNetworkIdEditRoute
   '/nse/editor/$scriptName': typeof AuthenticatedNseEditorScriptNameRoute
   '/settings/scanners/$scannerId': typeof AuthenticatedSettingsScannersScannerIdRoute
   '/settings/users/$userId': typeof AuthenticatedSettingsUsersUserIdRoute
@@ -368,6 +384,7 @@ export interface FileRoutesByTo {
   '/alerts/$alertId': typeof AuthenticatedAlertsAlertIdRoute
   '/hosts/$hostId': typeof AuthenticatedHostsHostIdRoute
   '/networks/$networkId': typeof AuthenticatedNetworksNetworkIdRoute
+  '/networks/new': typeof AuthenticatedNetworksNewRoute
   '/nse/library': typeof AuthenticatedNseLibraryRoute
   '/nse/profiles': typeof AuthenticatedNseProfilesRoute
   '/nse/results': typeof AuthenticatedNseResultsRoute
@@ -385,6 +402,7 @@ export interface FileRoutesByTo {
   '/scans': typeof AuthenticatedScansIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/networks/$networkId/edit': typeof AuthenticatedNetworksNetworkIdEditRoute
   '/nse/editor/$scriptName': typeof AuthenticatedNseEditorScriptNameRoute
   '/settings/scanners/$scannerId': typeof AuthenticatedSettingsScannersScannerIdRoute
   '/settings/users/$userId': typeof AuthenticatedSettingsUsersUserIdRoute
@@ -415,6 +433,7 @@ export interface FileRoutesById {
   '/_authenticated/alerts/$alertId': typeof AuthenticatedAlertsAlertIdRoute
   '/_authenticated/hosts/$hostId': typeof AuthenticatedHostsHostIdRoute
   '/_authenticated/networks/$networkId': typeof AuthenticatedNetworksNetworkIdRoute
+  '/_authenticated/networks/new': typeof AuthenticatedNetworksNewRoute
   '/_authenticated/nse/library': typeof AuthenticatedNseLibraryRoute
   '/_authenticated/nse/profiles': typeof AuthenticatedNseProfilesRoute
   '/_authenticated/nse/results': typeof AuthenticatedNseResultsRoute
@@ -432,6 +451,7 @@ export interface FileRoutesById {
   '/_authenticated/scans/': typeof AuthenticatedScansIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/admin/users_/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/_authenticated/networks/$networkId_/edit': typeof AuthenticatedNetworksNetworkIdEditRoute
   '/_authenticated/nse/editor/$scriptName': typeof AuthenticatedNseEditorScriptNameRoute
   '/_authenticated/settings/scanners/$scannerId': typeof AuthenticatedSettingsScannersScannerIdRoute
   '/_authenticated/settings/users/$userId': typeof AuthenticatedSettingsUsersUserIdRoute
@@ -462,6 +482,7 @@ export interface FileRouteTypes {
     | '/alerts/$alertId'
     | '/hosts/$hostId'
     | '/networks/$networkId'
+    | '/networks/new'
     | '/nse/library'
     | '/nse/profiles'
     | '/nse/results'
@@ -479,6 +500,7 @@ export interface FileRouteTypes {
     | '/scans/'
     | '/settings/'
     | '/admin/users/$userId'
+    | '/networks/$networkId/edit'
     | '/nse/editor/$scriptName'
     | '/settings/scanners/$scannerId'
     | '/settings/users/$userId'
@@ -506,6 +528,7 @@ export interface FileRouteTypes {
     | '/alerts/$alertId'
     | '/hosts/$hostId'
     | '/networks/$networkId'
+    | '/networks/new'
     | '/nse/library'
     | '/nse/profiles'
     | '/nse/results'
@@ -523,6 +546,7 @@ export interface FileRouteTypes {
     | '/scans'
     | '/settings'
     | '/admin/users/$userId'
+    | '/networks/$networkId/edit'
     | '/nse/editor/$scriptName'
     | '/settings/scanners/$scannerId'
     | '/settings/users/$userId'
@@ -552,6 +576,7 @@ export interface FileRouteTypes {
     | '/_authenticated/alerts/$alertId'
     | '/_authenticated/hosts/$hostId'
     | '/_authenticated/networks/$networkId'
+    | '/_authenticated/networks/new'
     | '/_authenticated/nse/library'
     | '/_authenticated/nse/profiles'
     | '/_authenticated/nse/results'
@@ -569,6 +594,7 @@ export interface FileRouteTypes {
     | '/_authenticated/scans/'
     | '/_authenticated/settings/'
     | '/_authenticated/admin/users_/$userId'
+    | '/_authenticated/networks/$networkId_/edit'
     | '/_authenticated/nse/editor/$scriptName'
     | '/_authenticated/settings/scanners/$scannerId'
     | '/_authenticated/settings/users/$userId'
@@ -766,6 +792,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNseLibraryRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/networks/new': {
+      id: '/_authenticated/networks/new'
+      path: '/networks/new'
+      fullPath: '/networks/new'
+      preLoaderRoute: typeof AuthenticatedNetworksNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/networks/$networkId': {
       id: '/_authenticated/networks/$networkId'
       path: '/networks/$networkId'
@@ -878,6 +911,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNseEditorScriptNameRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/networks/$networkId_/edit': {
+      id: '/_authenticated/networks/$networkId_/edit'
+      path: '/networks/$networkId/edit'
+      fullPath: '/networks/$networkId/edit'
+      preLoaderRoute: typeof AuthenticatedNetworksNetworkIdEditRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/users_/$userId': {
       id: '/_authenticated/admin/users_/$userId'
       path: '/admin/users/$userId'
@@ -953,6 +993,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAlertsAlertIdRoute: typeof AuthenticatedAlertsAlertIdRoute
   AuthenticatedHostsHostIdRoute: typeof AuthenticatedHostsHostIdRoute
   AuthenticatedNetworksNetworkIdRoute: typeof AuthenticatedNetworksNetworkIdRoute
+  AuthenticatedNetworksNewRoute: typeof AuthenticatedNetworksNewRoute
   AuthenticatedNseLibraryRoute: typeof AuthenticatedNseLibraryRoute
   AuthenticatedNseProfilesRoute: typeof AuthenticatedNseProfilesRoute
   AuthenticatedNseResultsRoute: typeof AuthenticatedNseResultsRoute
@@ -964,6 +1005,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedScannersIndexRoute: typeof AuthenticatedScannersIndexRoute
   AuthenticatedScansIndexRoute: typeof AuthenticatedScansIndexRoute
   AuthenticatedAdminUsersUserIdRoute: typeof AuthenticatedAdminUsersUserIdRoute
+  AuthenticatedNetworksNetworkIdEditRoute: typeof AuthenticatedNetworksNetworkIdEditRoute
   AuthenticatedNseEditorScriptNameRoute: typeof AuthenticatedNseEditorScriptNameRoute
 }
 
@@ -988,6 +1030,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAlertsAlertIdRoute: AuthenticatedAlertsAlertIdRoute,
   AuthenticatedHostsHostIdRoute: AuthenticatedHostsHostIdRoute,
   AuthenticatedNetworksNetworkIdRoute: AuthenticatedNetworksNetworkIdRoute,
+  AuthenticatedNetworksNewRoute: AuthenticatedNetworksNewRoute,
   AuthenticatedNseLibraryRoute: AuthenticatedNseLibraryRoute,
   AuthenticatedNseProfilesRoute: AuthenticatedNseProfilesRoute,
   AuthenticatedNseResultsRoute: AuthenticatedNseResultsRoute,
@@ -999,6 +1042,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedScannersIndexRoute: AuthenticatedScannersIndexRoute,
   AuthenticatedScansIndexRoute: AuthenticatedScansIndexRoute,
   AuthenticatedAdminUsersUserIdRoute: AuthenticatedAdminUsersUserIdRoute,
+  AuthenticatedNetworksNetworkIdEditRoute:
+    AuthenticatedNetworksNetworkIdEditRoute,
   AuthenticatedNseEditorScriptNameRoute: AuthenticatedNseEditorScriptNameRoute,
 }
 

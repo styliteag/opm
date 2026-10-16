@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { postApi, deleteApi } from "@/lib/api";
 import {
   SSH_ALERT_TYPES,
@@ -16,22 +17,10 @@ import {
   getAlertTypeLabel,
 } from "@/lib/alert-types";
 
-type RuleSource = "port" | "ssh" | "nse";
+import type { PortRule } from "../hooks/useNetworkDetail";
+import { RULE_TYPE_LABELS, ruleTarget } from "../lib/networkLabels";
 
-interface PortRule {
-  id: number;
-  network_id: number | null;
-  rule_type: "accepted" | "critical";
-  match_criteria: {
-    port?: number;
-    ip?: string;
-    alert_type?: string;
-    script_name?: string;
-  };
-  source?: string;
-  description: string | null;
-  created_at: string;
-}
+type RuleSource = "port" | "ssh" | "nse";
 
 interface PortRulesEditorProps {
   networkId: number;
@@ -47,6 +36,7 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
   const [alertType, setAlertType] = useState("");
   const [scriptName, setScriptName] = useState("");
   const [description, setDescription] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<PortRule | null>(null);
 
   const qc = useQueryClient();
 
@@ -72,6 +62,7 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["networks", networkId, "rules"] });
       toast.success("Rule removed");
+      setPendingDelete(null);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -82,7 +73,7 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
     <div className="rounded-lg border border-border">
       <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
         <h3 className="text-sm font-strong text-foreground">
-          Alert Rules ({rules.length})
+          Rules ({rules.length})
         </h3>
         <Button
           variant="outline"
@@ -90,7 +81,7 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
           onClick={() => setShowAdd(!showAdd)}
         >
           <Plus className="h-3.5 w-3.5 mr-1" />
-          Add Rule
+          Add rule
         </Button>
       </div>
 
@@ -109,8 +100,8 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                 }}
               >
                 <option value="port">Port</option>
-                <option value="ssh">SSH</option>
-                <option value="nse">NSE</option>
+                <option value="ssh">SSH check</option>
+                <option value="nse">Vulnerability scripts (NSE)</option>
               </Select>
             </div>
             <div>
@@ -196,13 +187,13 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                   setRuleType(e.target.value as "accepted" | "critical")
                 }
               >
-                <option value="accepted">Accepted</option>
-                <option value="critical">Critical</option>
+                <option value="accepted">{RULE_TYPE_LABELS.accepted}</option>
+                <option value="critical">{RULE_TYPE_LABELS.critical}</option>
               </Select>
             </div>
             <div className="flex-1 min-w-[120px]">
               <Label htmlFor={`port-rule-${networkId}-description`}>
-                Description
+                Why
               </Label>
               <Input
                 id={`port-rule-${networkId}-description`}
@@ -237,7 +228,8 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
 
       {rules.length === 0 && !showAdd ? (
         <div className="p-5 text-sm text-muted-foreground">
-          No alert rules configured.
+          No rules for this network. Ports marked Expected from Home or the
+          Ports list with "all hosts in this network" show up here.
         </div>
       ) : (
         <div className="divide-y divide-border">
@@ -273,7 +265,7 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                     </span>
                   )}
                   <StatusBadge
-                    label={rule.rule_type}
+                    label={RULE_TYPE_LABELS[rule.rule_type]}
                     variant={
                       rule.rule_type === "accepted" ? "success" : "danger"
                     }
@@ -286,8 +278,8 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeRule.mutate(rule.id)}
-                  className="rounded p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                  onClick={() => setPendingDelete(rule)}
+                  className="rounded p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-all cursor-pointer"
                   title="Remove rule"
                   aria-label={`Remove rule for ${rule.match_criteria.ip ?? "any IP"}:${rule.match_criteria.port ?? "any port"}`}
                 >
@@ -298,6 +290,19 @@ export function PortRulesEditor({ networkId, rules }: PortRulesEditorProps) {
           })}
         </div>
       )}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title={`Remove rule for ${pendingDelete ? ruleTarget(pendingDelete) : ""}?`}
+        description={
+          pendingDelete?.rule_type === "accepted"
+            ? "Future scans alert on this port again."
+            : "This port no longer alerts as critical."
+        }
+        confirmLabel="Remove rule"
+        pending={removeRule.isPending}
+        onConfirm={() => pendingDelete && removeRule.mutate(pendingDelete.id)}
+      />
     </div>
   );
 }

@@ -7,11 +7,29 @@ import type {
   ScanSummary,
 } from "@/lib/types";
 
-interface PortRule {
+export interface HostDiscoveryScan {
+  id: number;
+  network_id: number;
+  scanner_id: number;
+  status: string;
+  trigger_type: string;
+  started_at: string | null;
+  completed_at: string | null;
+  hosts_discovered: number;
+  error_message: string | null;
+}
+
+export interface PortRule {
   id: number;
   network_id: number | null;
   rule_type: "accepted" | "critical";
-  match_criteria: { port: number; ip?: string };
+  match_criteria: {
+    port?: number;
+    ip?: string;
+    alert_type?: string;
+    script_name?: string;
+  };
+  source?: string;
   description: string | null;
   created_at: string;
 }
@@ -34,6 +52,7 @@ export function useNetworkDetail(networkId: number) {
   });
 }
 
+/** Scan history of one network, hidden scans included (the API does not filter them). */
 export function useNetworkScans(networkId: number) {
   return useQuery({
     queryKey: ["networks", networkId, "scans"],
@@ -41,6 +60,18 @@ export function useNetworkScans(networkId: number) {
       fetchApi<{ scans: ScanSummary[] }>(`/api/networks/${networkId}/scans`),
     enabled: networkId > 0,
     refetchInterval: 10_000,
+  });
+}
+
+export function useHostDiscoveryScans(networkId: number) {
+  return useQuery({
+    queryKey: ["networks", networkId, "host-discovery-scans"],
+    queryFn: () =>
+      fetchApi<{ scans: HostDiscoveryScan[] }>(
+        `/api/networks/${networkId}/host-discovery-scans`,
+      ),
+    enabled: networkId > 0,
+    refetchInterval: 15_000,
   });
 }
 
@@ -73,16 +104,23 @@ export function useNetworkMutations() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["networks"] }),
   });
 
+  // Scan lists live under both roots: /api/scans and /api/networks/{id}/scans.
+  const invalidateScans = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ["scans"] }),
+      qc.invalidateQueries({ queryKey: ["networks"] }),
+    ]);
+
   const triggerScan = useMutation({
     mutationFn: (networkId: number) =>
       postApi(`/api/networks/${networkId}/scan`, {}),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["scans"] }),
+    onSuccess: invalidateScans,
   });
 
   const triggerDiscovery = useMutation({
     mutationFn: (networkId: number) =>
       postApi(`/api/networks/${networkId}/discover-hosts`, {}),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["scans"] }),
+    onSuccess: invalidateScans,
   });
 
   return { create, update, remove, triggerScan, triggerDiscovery };

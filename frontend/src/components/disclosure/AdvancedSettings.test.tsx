@@ -59,4 +59,25 @@ describe("AdvancedSettings", () => {
       screen.queryByText("Rate 1000 pps · timeout 60 min"),
     ).not.toBeInTheDocument();
   });
+
+  it("supports controlled open state", () => {
+    const changes: boolean[] = [];
+    const { rerender } = render(
+      <AdvancedSettings open={false} onOpenChange={(o) => changes.push(o)}>
+        <p>Rate limit</p>
+      </AdvancedSettings>,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show advanced settings" }),
+    );
+    expect(changes).toEqual([true]);
+    // Parent has not flipped the prop yet: still closed.
+    expect(screen.queryByText("Rate limit")).not.toBeInTheDocument();
+    rerender(
+      <AdvancedSettings open onOpenChange={(o) => changes.push(o)}>
+        <p>Rate limit</p>
+      </AdvancedSettings>,
+    );
+    expect(screen.getByText("Rate limit")).toBeInTheDocument();
+  });
 });

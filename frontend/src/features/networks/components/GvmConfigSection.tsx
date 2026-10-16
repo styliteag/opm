@@ -169,7 +169,7 @@ export function GvmConfigSection({
       <div>
         <Label htmlFor="gvm_alert_severity">Alert threshold</Label>
         <Select id="gvm_alert_severity" {...register("gvm_alert_severity")}>
-          <option value="">Default (medium)</option>
+          <option value="">Default (high)</option>
           <option value="info">Info</option>
           <option value="low">Low</option>
           <option value="medium">Medium</option>

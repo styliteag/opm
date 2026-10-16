@@ -45,19 +45,20 @@ export function NucleiSummaryCard({ summary, scanStatus }: NucleiSummaryCardProp
     <div className={`rounded-lg border ${borderColor} ${bgColor} p-4`}>
       <div className="flex items-center gap-2 text-sm font-emphasis text-teal-300">
         <Shield className="h-4 w-4" />
-        Nuclei Scan
+        Web vulnerability check
+        <span className="text-xs font-normal text-muted-foreground">nuclei</span>
       </div>
 
       {isTimeout && (
         <div className="mt-2 flex items-center gap-2 rounded-md border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Timed out — results may be incomplete. Increase the nuclei timeout in network settings.
+          Timed out — results may be incomplete. Raise the nuclei timeout in the network's advanced settings.
         </div>
       )}
       {isError && (
         <div className="mt-2 flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
           <XCircle className="h-3.5 w-3.5 shrink-0" />
-          Nuclei scan failed — check engine logs for details.
+          The web vulnerability check failed — see the engine logs under advanced.
         </div>
       )}
 

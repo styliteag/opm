@@ -120,6 +120,15 @@ describe("Sidebar", () => {
     expect(screen.getByText("Scan Now")).toBeInTheDocument();
   });
 
+  it.each(["viewer", "analyst"] as const)(
+    "hides Scan Now for %s (backend requires operator)",
+    (role) => {
+      setRole(role);
+      render(<Sidebar />);
+      expect(screen.queryByText("Scan Now")).not.toBeInTheDocument();
+    },
+  );
+
   it("opens quick scan modal when Scan Now is clicked", () => {
     render(<Sidebar />);
     fireEvent.click(screen.getByText("Scan Now"));

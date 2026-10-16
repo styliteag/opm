@@ -11,10 +11,15 @@ import {
   DataTable,
   type DataTableColumn,
 } from "@/components/data-display/DataTable";
-import { useScanners } from "@/features/dashboard/hooks/useDashboardData";
+import {
+  useNetworks,
+  useScanners,
+} from "@/features/dashboard/hooks/useDashboardData";
 import { useScannerMutations } from "@/features/scanners/hooks/useScanners";
 import { CreateScannerModal } from "@/features/scanners/components/CreateScannerModal";
 import { ApiKeyDisplay } from "@/components/feedback/ApiKeyDisplay";
+import { ScannerActionConfirm } from "@/features/scanners/components/ScannerActionConfirm";
+import type { ScannerActionTarget } from "@/features/scanners/lib/scannerConfirmCopy";
 import {
   formatRelativeTime,
   formatScannerVersion,
@@ -29,8 +34,33 @@ export const Route = createFileRoute("/_authenticated/settings/scanners/")({
 function ScannersPage() {
   const { data, isLoading, error, refetch } = useScanners();
   const { regenerateKey, remove } = useScannerMutations();
+  const networks = useNetworks();
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [confirm, setConfirm] = useState<ScannerActionTarget | null>(null);
+
+  const runConfirmed = () => {
+    if (!confirm) return;
+    const { action, scanner } = confirm;
+    if (action === "regenerate") {
+      regenerateKey.mutate(scanner.id, {
+        onSuccess: (res) => {
+          setRevealedKey(res.api_key);
+          setConfirm(null);
+          toast.success("API key regenerated");
+        },
+        onError: (e) => toast.error(e.message),
+      });
+    } else {
+      remove.mutate(scanner.id, {
+        onSuccess: () => {
+          setConfirm(null);
+          toast.success("Scanner deleted");
+        },
+        onError: (e) => toast.error(e.message),
+      });
+    }
+  };
 
   const scannerList = data?.scanners ?? [];
   const onlineCount = scannerList.filter((s) =>
@@ -178,28 +208,19 @@ function ScannersPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() =>
-                        regenerateKey.mutate(scanner.id, {
-                          onSuccess: (res) => {
-                            setRevealedKey(res.api_key);
-                            toast.success("API key regenerated");
-                          },
-                          onError: (e) => toast.error(e.message),
-                        })
+                        setConfirm({ action: "regenerate", scanner })
                       }
                       className="rounded p-1 text-muted-foreground hover:text-primary transition-colors"
                       title="Regenerate API key"
+                      aria-label={`Regenerate API key for ${scanner.name}`}
                     >
                       <Key className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() =>
-                        remove.mutate(scanner.id, {
-                          onSuccess: () => toast.success("Scanner deleted"),
-                          onError: (e) => toast.error(e.message),
-                        })
-                      }
+                      onClick={() => setConfirm({ action: "delete", scanner })}
                       className="rounded p-1 text-muted-foreground hover:text-red-400 transition-colors"
                       title="Delete scanner"
+                      aria-label={`Delete scanner ${scanner.name}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -212,6 +233,18 @@ function ScannersPage() {
           rowKey={(s) => s.id}
         />
       )}
+
+      <ScannerActionConfirm
+        target={confirm}
+        networkCount={
+          (networks.data?.networks ?? []).filter(
+            (n) => n.scanner_id === confirm?.scanner.id,
+          ).length
+        }
+        pending={regenerateKey.isPending || remove.isPending}
+        onCancel={() => setConfirm(null)}
+        onConfirm={runConfirmed}
+      />
 
       <CreateScannerModal
         open={createOpen}

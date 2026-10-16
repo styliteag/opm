@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useHasRole } from "@/lib/roles";
 import { NAV_V4 } from "@/lib/terminology";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui.store";
@@ -61,6 +62,8 @@ export function Sidebar() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const openQuickScan = useUiStore((s) => s.openQuickScan);
+  // Starting scans needs operator+ on the backend.
+  const canScan = useHasRole("operator");
   const currentPath = useRouterState({
     select: (s) => s.location.pathname,
   });
@@ -108,12 +111,14 @@ export function Sidebar() {
       </nav>
 
       {/* Scan Now Button */}
-      <div className="border-t border-border p-3">
-        <Button onClick={openQuickScan} className="w-full" title="Quick Scan">
-          <Zap className="h-4 w-4" />
-          {!collapsed && <span>Scan Now</span>}
-        </Button>
-      </div>
+      {canScan && (
+        <div className="border-t border-border p-3">
+          <Button onClick={openQuickScan} className="w-full" title="Scan a network now">
+            <Zap className="h-4 w-4" />
+            {!collapsed && <span>Scan Now</span>}
+          </Button>
+        </div>
+      )}
 
       {/* Collapse Toggle */}
       <div className="border-t border-border p-3">

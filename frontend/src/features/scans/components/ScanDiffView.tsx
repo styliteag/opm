@@ -41,7 +41,7 @@ export function ScanDiffView({ scanId }: ScanDiffViewProps) {
   if (!hasChanges) {
     return (
       <div className="rounded-lg border border-border bg-card p-5 text-center text-sm text-muted-foreground">
-        No changes since previous scan
+        No port changes since the previous scan
       </div>
     );
   }
@@ -50,7 +50,7 @@ export function ScanDiffView({ scanId }: ScanDiffViewProps) {
     <div className="rounded-lg border border-border">
       <div className="border-b border-border bg-card px-5 py-3">
         <h3 className="text-sm font-strong text-foreground">
-          Port Changes vs Previous Scan
+          Changes since the previous scan
         </h3>
         <p className="text-xs text-muted-foreground mt-0.5">
           +{data.added_ports.length} added · -{data.removed_ports.length}{" "}

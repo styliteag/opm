@@ -5,13 +5,16 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { TOOL_LABELS } from "@/lib/terminology";
 import type { ScanPhase } from "@/lib/types";
 
+// Shown while a network has no stored phases (phases = null). The scanner
+// then runs the port scan only (orchestration._build_legacy_phases), so the
+// other phases start unchecked instead of pretending they run.
 const DEFAULT_PHASES: ScanPhase[] = [
   {
     name: "host_discovery",
-    enabled: true,
+    enabled: false,
     tool: "nmap",
     config: { aggressive: false, max_retries: 2 },
   },
@@ -19,46 +22,30 @@ const DEFAULT_PHASES: ScanPhase[] = [
     name: "port_scan",
     enabled: true,
     tool: "masscan",
-    config: {
-      port_range: "",
-      exclude_ports: "",
-      aggressive: false,
-      max_retries: 3,
-    },
+    config: { aggressive: false, max_retries: 3 },
   },
   {
     name: "vulnerability",
-    enabled: true,
+    enabled: false,
     tool: "nmap_nse",
     config: { aggressive: false, parallel: true, max_retries: 3 },
   },
 ];
 
-const PHASE_META: Record<
-  string,
-  {
-    label: string;
-    description: string;
-    tools: { value: string; label: string }[];
-  }
-> = {
+// The port-scan tool follows the network's scan engine (set on save), so
+// there is no per-phase tool choice here (inventory bug #4).
+const PHASE_META: Record<string, { label: string; description: string }> = {
   host_discovery: {
-    label: "Host Discovery",
-    description: "Find live hosts via ping sweep & ARP",
-    tools: [{ value: "nmap", label: "Nmap" }],
+    label: "Host discovery",
+    description: "Find live hosts first (nmap ping sweep & ARP)",
   },
   port_scan: {
-    label: "Port Scan",
+    label: "Port scan",
     description: "Discover open ports on live hosts",
-    tools: [
-      { value: "masscan", label: "Masscan (fast)" },
-      { value: "nmap", label: "Nmap (accurate)" },
-    ],
   },
   vulnerability: {
-    label: "Vulnerability Scan",
-    description: "Run NSE scripts against discovered ports",
-    tools: [{ value: "nmap_nse", label: "Nmap NSE" }],
+    label: TOOL_LABELS.nse,
+    description: "Run nmap NSE scripts against discovered ports",
   },
 };
 
@@ -115,7 +102,7 @@ export function PhaseCards({ phases, onChange, scannerType = "masscan" }: PhaseC
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-strong">Scan Phases</Label>
+        <Label className="text-sm font-strong">Scan phases</Label>
         <span className="text-[10px] text-muted-foreground">
           {enabledCount} of {current.length} enabled
         </span>
@@ -141,11 +128,7 @@ export function PhaseCards({ phases, onChange, scannerType = "masscan" }: PhaseC
 
 interface PhaseCardProps {
   phase: ScanPhase;
-  meta: {
-    label: string;
-    description: string;
-    tools: { value: string; label: string }[];
-  };
+  meta: { label: string; description: string };
   onToggle: (enabled: boolean) => void;
   onUpdate: (updates: Partial<ScanPhase>) => void;
 }
@@ -177,6 +160,8 @@ function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
+            aria-expanded={expanded}
+            aria-label={`${expanded ? "Hide" : "Show"} ${meta.label} options`}
             className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5"
           >
             {expanded ? (
@@ -190,56 +175,6 @@ function PhaseCard({ phase, meta, onToggle, onUpdate }: PhaseCardProps) {
 
       {phase.enabled && expanded && (
         <div className="mt-2 pt-2 border-t border-border/50 space-y-2">
-          {/* Tool selector */}
-          {meta.tools.length > 1 && (
-            <div className="flex items-center gap-2">
-              <Label className="text-[10px] w-10">Tool</Label>
-              <Select
-                value={phase.tool}
-                onChange={(e) => onUpdate({ tool: e.target.value })}
-                className="flex-1"
-              >
-                {meta.tools.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          )}
-
-          {/* Port Scan specific */}
-          {phase.name === "port_scan" && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-[10px]">Port Range Override</Label>
-                <Input
-                  value={(config.port_range as string) || ""}
-                  onChange={(e) =>
-                    onUpdate({
-                      config: { ...config, port_range: e.target.value },
-                    })
-                  }
-                  placeholder="Use network default"
-                  className="h-6 text-xs"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px]">Exclude Ports</Label>
-                <Input
-                  value={(config.exclude_ports as string) || ""}
-                  onChange={(e) =>
-                    onUpdate({
-                      config: { ...config, exclude_ports: e.target.value },
-                    })
-                  }
-                  placeholder="22,3389"
-                  className="h-6 text-xs"
-                />
-              </div>
-            </div>
-          )}
-
           {/* Vulnerability specific */}
           {phase.name === "vulnerability" && (
             <div className="flex items-center gap-2">

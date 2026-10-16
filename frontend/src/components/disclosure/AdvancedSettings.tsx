@@ -10,6 +10,9 @@ interface AdvancedSettingsProps {
   /** Short recap of the hidden values, shown next to the toggle while closed. */
   summary?: string;
   className?: string;
+  /** Controlled mode: pass both to open the section from outside (e.g. on a validation error). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -21,8 +24,15 @@ export function AdvancedSettings({
   defaultOpen = false,
   summary,
   className,
+  open: controlledOpen,
+  onOpenChange,
 }: AdvancedSettingsProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const contentId = useId();
   const Chevron = open ? ChevronDown : ChevronRight;
 
@@ -33,7 +43,7 @@ export function AdvancedSettings({
           type="button"
           aria-expanded={open}
           aria-controls={open ? contentId : undefined}
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen(!open)}
           className="inline-flex cursor-pointer items-center gap-1 rounded-md text-sm font-emphasis text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Chevron className="h-4 w-4" />

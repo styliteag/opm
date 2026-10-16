@@ -3,10 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchApi, postApi, patchApi, deleteApi } from "@/lib/api";
 import type { ScanSummary } from "@/lib/types";
 
-interface ScanListResponse {
-  scans: ScanSummary[];
-}
-
 interface NucleiPhaseSummary {
   ran: boolean;
   findings_count: number;
@@ -15,7 +11,7 @@ interface NucleiPhaseSummary {
   status?: string; // success, timeout, error
 }
 
-interface ScanDetail extends ScanSummary {
+export interface ScanDetail extends ScanSummary {
   network_name: string | null;
   scanner_name: string | null;
   open_ports: {
@@ -28,7 +24,7 @@ interface ScanDetail extends ScanSummary {
   nuclei_summary: NucleiPhaseSummary | null;
 }
 
-interface ScanLogEntry {
+export interface ScanLogEntry {
   timestamp: string;
   level: string;
   message: string;
@@ -36,20 +32,6 @@ interface ScanLogEntry {
 
 interface ScanLogsResponse {
   logs: ScanLogEntry[];
-}
-
-export function useScans(offset = 0, limit = 50, networkId?: number) {
-  const params = new URLSearchParams({
-    offset: String(offset),
-    limit: String(limit),
-  });
-  if (networkId) params.set("network_id", String(networkId));
-  return useQuery({
-    queryKey: ["scans", offset, limit, networkId],
-    queryFn: () =>
-      fetchApi<ScanListResponse>(`/api/scans?${params.toString()}`),
-    refetchInterval: 15_000,
-  });
 }
 
 export function useScanDetail(scanId: number) {
@@ -76,22 +58,38 @@ export function useScanLogs(scanId: number) {
 
 export function useScanMutations() {
   const qc = useQueryClient();
+  // Scans show up under /api/scans and under /api/networks/{id}/scans.
+  const invalidate = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ["scans"] }),
+      qc.invalidateQueries({ queryKey: ["networks"] }),
+    ]);
 
   const cancel = useMutation({
     mutationFn: (scanId: number) => postApi(`/api/scans/${scanId}/cancel`, {}),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["scans"] }),
+    onSuccess: invalidate,
   });
 
   const remove = useMutation({
     mutationFn: (scanId: number) => deleteApi(`/api/scans/${scanId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["scans"] }),
+    onSuccess: invalidate,
   });
 
   const toggleVisibility = useMutation({
     mutationFn: ({ scanId, hidden }: { scanId: number; hidden: boolean }) =>
       patchApi(`/api/scans/${scanId}/visibility`, { hidden }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["scans"] }),
+    onSuccess: invalidate,
   });
 
-  return { cancel, remove, toggleVisibility };
+  // Scan with a chosen NSE profile (inventory bug #1); target_ip null = whole network.
+  const triggerNse = useMutation({
+    mutationFn: ({ networkId, profileId }: { networkId: number; profileId: number }) =>
+      postApi<{ scan_id: number }>("/api/nse/scan", {
+        network_id: networkId,
+        template_id: profileId,
+      }),
+    onSuccess: invalidate,
+  });
+
+  return { cancel, remove, toggleVisibility, triggerNse };
 }

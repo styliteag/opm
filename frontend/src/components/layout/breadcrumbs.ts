@@ -14,6 +14,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   organization: "Organization",
   system: "System",
   security: "Account security",
+  new: "New",
+  edit: "Edit",
 };
 
 export function breadcrumbSegments(pathname: string): string[] {
