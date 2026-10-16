@@ -42,6 +42,6 @@ describe("advancedSummary", () => {
   it("drops rate and SSH for deep vulnerability scans", () => {
     expect(
       advancedSummary(values({ scanner_type: "greenbone", scan_timeout: undefined })),
-    ).toBe("Greenbone (GVM)");
+    ).toBe("Greenbone / GVM");
   });
 });

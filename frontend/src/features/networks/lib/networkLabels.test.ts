@@ -40,7 +40,7 @@ describe("scanTypeLabel / engineName", () => {
   it.each([
     ["masscan", "Port scan — fast", "masscan"],
     ["nmap", "Port scan — detailed", "nmap"],
-    ["greenbone", "Deep vulnerability scan", "Greenbone (GVM)"],
+    ["greenbone", "Deep vulnerability scan", "Greenbone / GVM"],
     ["nse", "Vulnerability scripts", "nmap NSE"],
     ["other", "other", "other"],
   ])("%s", (type, label, engine) => {

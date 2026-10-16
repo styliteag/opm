@@ -87,12 +87,12 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 - Network `scanner_type` must be `"greenbone"` with a `gvm_scan_config` (and optional `gvm_port_list`) — both are **names** of library/built-in entries, never UUIDs
 - Vulnerability results submitted to `POST /api/scanner/vulnerability-results` → stored in `vulnerabilities` table
 - Alerts generated for findings at or above the network's `gvm_alert_severity` threshold (default high when null, ADR 0013): `gvm_vulnerability` (no CVEs) and `gvm_cve_detected` (has CVEs). Threshold is edited on the Network form's Greenbone block.
-- Host detail page shows all GVM findings (including info/low) deduped by OID via `GET /api/hosts/{id}/vulnerabilities`
+- Host detail page shows all GVM/nuclei findings (including info/low) via `GET /api/hosts/{id}/vulnerabilities`, newest result per `(oid, port, protocol)`; the UI merges them per port with NSE results and SSH alerts, important (high/critical) first, info folded
 - First startup downloads GVM vulnerability feeds — takes significant time; monitor via `docker compose -f compose-gvm.yml logs -f gvmd`
 
 #### GVM Library + Scanner Mirror
 
-- **Library** (`gvm_config_library` table, admin-managed via `/admin/gvm-library`) holds user-uploaded scan config and port list XMLs with `UNIQUE(kind, name)` and a `xml_hash` column. Upload auto-extracts `<name>` from the XML; built-in names are rejected; size cap 5 MB.
+- **Library** (`gvm_config_library` table, admin-managed via Settings → Scan profiles → Deep scan library (`/settings/scan-profiles?tab=gvm`)) holds user-uploaded scan config and port list XMLs with `UNIQUE(kind, name)` and a `xml_hash` column. Upload auto-extracts `<name>` from the XML; built-in names are rejected; size cap 5 MB.
 - **Per-scanner mirror** (`gvm_scanner_metadata` table) is a live cache of what the scanner's GVM instance currently has. The `opm-scanner-gvm` agent posts full snapshots via `POST /api/scanner/gvm-metadata` on startup, every ~5 min while idle, and on-demand when `gvm_refresh: true` is piggybacked in the `/api/scanner/jobs` poll response (admin triggers via the scanner detail page).
 - **Auto-deploy before scan**: `/api/scanner/jobs/{id}/claim` returns `required_library_entries` whose names resolve via library lookup. The scanner self-checks against its own `get_scan_configs()` / `get_port_lists()`, fetches missing/drifted XML via `GET /api/scanner/gvm-library?kind=...&name=...`, imports via `gmp.import_config` / `gmp.import_port_list`. Version drift is detected via an `[OPM:hash=<sha256>]` marker embedded in the GVM `<comment>` element on import.
 - **Network resolution order** at scan claim: library → scanner-native mirror → fail fast. Built-in configs like "Full and fast" resolve via step 2 once the mirror is populated.
@@ -101,8 +101,8 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 
 - **Table** `gvm_severity_rules` (migration 023): `(oid, network_id)` unique, `network_id` nullable — null = global, set = network-scoped. Stores `severity_override` (info/low/medium/high/critical), optional `reason`, and `created_by_user_id`. Applies to both GVM OIDs and nuclei composite `template_id:matcher_name` keys (same `oid` column).
 - **Resolution order** inside the GVM, nuclei, and NSE alert generators (`app/services/vulnerability_results.py`, `app/services/nse_results.py`): network rule → global rule → native severity. The resolved severity is what the network's alert threshold is applied to (`gvm_alert_severity`, `nuclei_severity`, or the NSE default of `high`) and is stored on the resulting `Alert.severity_override`. Alert messages include a `(severity promoted from X to Y via rule)` note when a rule fired. NSE findings additionally require a CVE or `VULNERABLE` marker to alert on their native severity — keyword-inferred `WEAK`/`DEPRECATED` findings only alert when a severity rule is in place.
-- **CRUD** via `/api/gvm-severity-rules` (operator+), upserts on `(oid, network_id)`. Admin list page at `/admin/gvm-severity-rules`.
-- **UI entry points**: "Change alert severity" button on expanded GVM/nuclei rows in the host detail Vulnerabilities panel and the scan detail Vulnerabilities table. Dialog defaults to "All networks (global)" scope regardless of context; network scope is available when the caller supplies a `networkId` (scan page does, host page doesn't — a host can belong to multiple networks).
+- **CRUD** via `/api/gvm-severity-rules` (operator+), upserts on `(oid, network_id)`. List page at Settings → Rules → Finding rules (`/settings/rules?tab=findings`).
+- **UI entry points (v4)**: **Accept risk** on important findings (Home, host page) calls `POST /api/alerts/{id}/accept-risk`, which upserts a network-scoped rule lowering that finding to info (SSH findings get an accepted SSH alert rule instead). The raw "Change severity rule" dialog sits under Advanced on the host page and scan detail. Dialog defaults to "All networks (global)" scope; network scope is available when the caller supplies a `networkId` (scan page does, host page doesn't — a host can belong to multiple networks).
 - **Intended workflow**: promote a noisy-but-benign info finding (e.g. DNS recursion OID `1.3.6.1.4.1.25623.1.0.147232`) to high so it reaches the alert layer, or demote a persistent medium nuisance to info to suppress it — without changing the network-wide `gvm_alert_severity` floor.
 
 ### Nuclei (post-phase vulnerability scanning)
@@ -124,16 +124,19 @@ Alert state tracked across orthogonal dimensions. Naming differs between layers.
 
 "Accepted" is **not** stored on alert — computed by matching against `port_rules`/`global_port_rules` (`rule_type='accepted'`).
 
-| UI Label | Filter value | DB / API field | Endpoint |
-|----------|-------------|----------------|----------|
-| Pending Review | `'pending'` | `dismissed=false` | — |
-| Dismissed | `'dismissed'` | `dismissed=true` | `PUT /alerts/{id}/dismiss` |
-| Accepted | `'accepted'` | rule match (client-side) | `POST /alerts/bulk-accept-global` |
-| Blocked | `'blocked'` | `severity='critical'` | — |
-| Reopen | — | `dismissed=false` | `PUT /alerts/{id}/reopen` |
-| Revoke Rule | — | deletes port rule row | `DELETE /api/port-rules/{scope}/{id}` |
+UI v4 labels (glossary: `docs/redesign/glossary.md`; API names unchanged):
 
-**Key distinction**: Dismiss = `dismissed=true` (future scans still alert). Accept = `dismissed=true` + creates port rule (future scans won't alert).
+| UI Label | DB / API reality | Endpoint |
+|----------|------------------|----------|
+| New / in queue | port alert `dismissed=false` (`queue_state=inbox`) | `GET /api/alerts/?queue_state=inbox` |
+| Expected | accepted rule (host = IP+port, network or everywhere = `match=all_hosts`) + `dismissed=true`; optional reason → port comment ("Why") | `POST /api/alerts/bulk-accept-network` / `bulk-accept-global` |
+| Snooze | `dismissed=true`, no rule (next scan raises it again) | `POST /api/alerts/bulk-dismiss`, `PUT /alerts/{id}/dismiss` |
+| Accept risk (findings) | severity rule → info for the finding on the network (SSH: accepted SSH rule) + `dismissed=true`; reason required | `POST /api/alerts/{id}/accept-risk` |
+| Always critical | rule with `rule_type='critical'` | port/alert rules |
+| Reopen | `dismissed=false` | `PUT /alerts/{id}/reopen` |
+| Revoke | deletes the rule row | `DELETE /api/port-rules/{scope}/{id}` |
+
+**Key distinction**: Snooze = `dismissed=true` (future scans still alert). Expected = `dismissed=true` + creates accepted rule (future scans won't alert).
 
 ## Release Process
 

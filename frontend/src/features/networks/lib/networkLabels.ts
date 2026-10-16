@@ -13,7 +13,7 @@ const SCAN_TYPE_LABELS: Record<string, string> = {
 const ENGINE_NAMES: Record<string, string> = {
   masscan: "masscan",
   nmap: "nmap",
-  greenbone: "Greenbone (GVM)",
+  greenbone: "Greenbone / GVM",
   nse: "nmap NSE",
 };
 

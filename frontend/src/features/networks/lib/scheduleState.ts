@@ -194,3 +194,8 @@ export function describeSchedule(s: ScheduleState): string {
 export function describeScheduleValue(raw: string): string {
   return raw.trim() ? describeSchedule(parseValue(raw)) : "No schedule";
 }
+
+/** Schedule cell for network lists: "Manual" when unset, else readable text. */
+export function scheduleCellText(raw: string | null): string {
+  return raw?.trim() ? describeScheduleValue(raw) : "Manual";
+}

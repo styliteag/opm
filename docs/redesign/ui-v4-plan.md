@@ -81,6 +81,28 @@ with 9+ networks), Home C (one-at-a-time — slow for 10+ items; possible later 
 mode"), Host B (split view hides the port overview), Host C (no single port table). The
 prototype code (`features/prototype-v4/`) was deleted in phase 3; this section is the record.
 
+## Implementation status (2026-10-16, built autonomously while the user was AFK)
+
+All phases 0–5 built on `ui-v4`, each verified with `just check`-equivalent commands and a
+read-only browser walk-through; phase 6 parity audit in [ui-v4-parity.md](ui-v4-parity.md).
+
+| Phase | Result |
+|---|---|
+| 0 Foundations | 4-item sidebar, user menu, Settings hub with role-filtered sub-nav, all v2/v3 redirects, `AdvancedSettings`, v4 terminology |
+| 1 Backend | finding accept rules scoped to the finding (bug fix), Expected scope + optional reason, Accept risk endpoint, default finding threshold high, operator-only hostname refresh / SSH recheck, ports list status/why/network/q/total, host findings per port |
+| 2 Home | grouped new-port queue, important findings, slide-over details, keyboard |
+| 3 Ports + Host | ports-first list and host page with per-port merged findings |
+| 4 Networks | one-page form, network detail with Scans tab, scan detail, Quick Scan NSE fix |
+| 5 Settings + polish | plain wording, ConfirmDialog everywhere, role-aware controls, pager totals |
+| 6 Cut-over | dev route-tree fix, parity audit, docs |
+
+Commits: phases up to the shell landed as signed commits; later work is queued as tree
+snapshots under `refs/v4-queue/*` because 1Password commit signing became unavailable
+mid-session — replay with the session's `commit-queue/replay.sh` once unlocked.
+
+Not done on purpose (needs the user): merge to `main`, `just release major`, moving the
+story into COMPLETED-FEATURES.md (done at merge time, like v3).
+
 ## Open questions (decide during implementation)
 
 - SSH alert types below high after ADR 0013 — which stay alerting by type?

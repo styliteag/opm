@@ -23,6 +23,7 @@ The v3 terms are listed under "Retired terms" so old docs and bookmarks stay rea
 |---------|---------|------------------|
 | **New** | First seen in the latest scan and not yet decided. | open port alert with `dismissed=false`, first-seen in latest scan |
 | **To review** | Open, no Expected rule, not new. | no matching accepted rule |
+| **To decide** (filter) | New + To review together — the Ports page default view. | `status=new&status=review` on `GET /api/global-ports` |
 | **Expected** | Covered by an Expected rule; the reason is shown next to it. | matching `port_rules` / `global_port_rules` / alert rules with `rule_type='accepted'` |
 | **Snoozed** | Hidden until the next scan raises it again. | `dismissed=true` without rule |
 | **Why** | The one reason/comment on a port; Expected writes it. | port comment (`GlobalOpenPort` / host port comment) |

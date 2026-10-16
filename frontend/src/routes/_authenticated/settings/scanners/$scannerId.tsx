@@ -29,6 +29,7 @@ import {
 } from "@/features/gvm-library/hooks/useGvmLibrary";
 import { useScannerDetail } from "@/features/scanners/hooks/useScanners";
 import { scannerKindBadge } from "@/features/scanners/lib/scannerKind";
+import { scheduleCellText } from "@/features/networks/lib/scheduleState";
 import { useHasRole } from "@/lib/roles";
 import {
   formatRelativeTime,
@@ -83,7 +84,7 @@ const networkColumns: DataTableColumn<ScannerNetworkInfo>[] = [
     header: "Schedule",
     render: (n) => (
       <span className="text-sm text-muted-foreground">
-        {n.scan_schedule ?? "Manual"}
+        {scheduleCellText(n.scan_schedule)}
       </span>
     ),
   },
