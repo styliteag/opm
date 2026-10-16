@@ -201,7 +201,7 @@ async def get_host_hostnames(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def refresh_host_hostname_lookup(
-    user: CurrentUser,
+    user: OperatorUser,
     db: DbSession,
     host_id: int,
 ) -> HostnameLookupRefreshResponse:
@@ -213,10 +213,10 @@ async def refresh_host_hostname_lookup(
     marks the row completed. The 202 response carries the queue row id
     so the UI can correlate the click with the eventual completion.
 
-    Any authenticated user can trigger a refresh on a host they can
-    see (same auth gate as ``GET /api/hosts/{host_id}``). Per-IP rate
-    limiting is intentionally not enforced here — the cache write is
-    idempotent and the budget counter prevents real abuse.
+    Operator+ only: every refresh spends third-party lookup budget
+    (HackerTarget / RapidDNS), so viewers must not be able to trigger it.
+    Per-IP rate limiting is intentionally not enforced here — the cache
+    write is idempotent and the budget counter caps the spend.
     """
     host = await hosts_service.get_host_by_id(db, host_id)
     if host is None:

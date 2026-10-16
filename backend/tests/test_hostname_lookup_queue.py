@@ -429,28 +429,43 @@ class TestHostRefreshEndpoint:
         response = await client.post("/api/hosts/1/hostname-lookup/refresh")
         assert response.status_code in (401, 403)
 
-    async def test_unknown_host_returns_404(
+    async def test_viewer_is_forbidden(
         self,
         client: AsyncClient,
         viewer_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        """Refresh spends third-party lookup budget — operator+ only."""
+        host = await _create_host(db_session, ip="10.0.0.43")
+
+        response = await client.post(
+            f"/api/hosts/{host.id}/hostname-lookup/refresh",
+            headers=viewer_headers,
+        )
+        assert response.status_code == 403
+
+    async def test_unknown_host_returns_404(
+        self,
+        client: AsyncClient,
+        operator_headers: dict[str, str],
     ) -> None:
         response = await client.post(
             "/api/hosts/99999/hostname-lookup/refresh",
-            headers=viewer_headers,
+            headers=operator_headers,
         )
         assert response.status_code == 404
 
     async def test_enqueues_pending_row(
         self,
         client: AsyncClient,
-        viewer_headers: dict[str, str],
+        operator_headers: dict[str, str],
         db_session: AsyncSession,
     ) -> None:
         host = await _create_host(db_session, ip="10.0.0.42")
 
         response = await client.post(
             f"/api/hosts/{host.id}/hostname-lookup/refresh",
-            headers=viewer_headers,
+            headers=operator_headers,
         )
         assert response.status_code == 202
         body = response.json()

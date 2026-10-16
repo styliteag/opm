@@ -562,7 +562,7 @@ async def export_ssh_security_csv(
 
 @router.post("/ssh/hosts/{host_ip}/recheck", response_model=dict)
 async def trigger_ssh_recheck(
-    user: CurrentUser,
+    user: OperatorUser,
     db: DbSession,
     host_ip: str,
     port: int = Query(22, ge=1, le=65535, description="SSH port to recheck"),
