@@ -1,4 +1,4 @@
-"""STYLiTE Orbit Monitor Scanner Agent - Main entry point."""
+"""STYLiTE Orbit Port Monitor Scanner Agent - Main entry point."""
 
 from __future__ import annotations
 
@@ -154,7 +154,7 @@ def main() -> None:
     can_gvm = kind in ("gvm", "unified")
     can_standard = kind in ("standard", "unified")
     logger.info(
-        "STYLiTE Orbit Monitor Scanner v%s (%s) starting...",
+        "STYLiTE Orbit Port Monitor Scanner v%s (%s) starting...",
         version,
         kind,
     )

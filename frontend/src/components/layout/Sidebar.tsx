@@ -166,7 +166,7 @@ export function Sidebar() {
         <ShieldAlert className="h-6 w-6 text-primary shrink-0" />
         {!collapsed && (
           <span className="text-sm font-strong tracking-tight text-foreground">
-            STYLiTE Orbit Monitor
+            STYLiTE Orbit Port Monitor
           </span>
         )}
       </div>

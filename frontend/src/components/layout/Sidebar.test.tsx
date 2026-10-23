@@ -61,7 +61,7 @@ describe("Sidebar", () => {
 
   it("renders the app name", () => {
     render(<Sidebar />);
-    expect(screen.getByText("STYLiTE Orbit Monitor")).toBeInTheDocument();
+    expect(screen.getByText("STYLiTE Orbit Port Monitor")).toBeInTheDocument();
   });
 
   it("renders exactly the four v4 areas outside the Networks section", () => {
@@ -194,7 +194,7 @@ describe("Sidebar", () => {
   it("hides labels when collapsed", () => {
     useUiStore.setState({ sidebarCollapsed: true, quickScanModalOpen: false });
     render(<Sidebar />);
-    expect(screen.queryByText("STYLiTE Orbit Monitor")).not.toBeInTheDocument();
+    expect(screen.queryByText("STYLiTE Orbit Port Monitor")).not.toBeInTheDocument();
     expect(screen.queryByText("Ports")).not.toBeInTheDocument();
     expect(screen.getByTitle("Ports")).toBeInTheDocument();
   });

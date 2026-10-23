@@ -1,4 +1,4 @@
-"""STYLiTE Orbit Monitor Backend - FastAPI Application."""
+"""STYLiTE Orbit Port Monitor Backend - FastAPI Application."""
 
 import logging
 from collections.abc import AsyncIterator
@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Log version at startup
     version_str = get_version()
-    logger.info(f"STYLiTE Orbit Monitor Backend v{version_str} starting...")
+    logger.info(f"STYLiTE Orbit Port Monitor Backend v{version_str} starting...")
 
     # Initialize database schema from models (migrations and admin user
     # are handled by startup scripts before workers start)
@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="STYLiTE Orbit Monitor",
+    title="STYLiTE Orbit Port Monitor",
     description="Distributed network port scanning and monitoring system",
     version=get_version(),
     lifespan=lifespan,

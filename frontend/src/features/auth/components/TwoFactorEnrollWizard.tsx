@@ -49,7 +49,7 @@ export function TwoFactorEnrollWizard() {
   const downloadBackupCodes = () => {
     const blob = new Blob(
       [
-        'STYLiTE Orbit Monitor — 2FA Backup Codes',
+        'STYLiTE Orbit Port Monitor — 2FA Backup Codes',
         '',
         'Store these in a safe place. Each code can be used once.',
         '',

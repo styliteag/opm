@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Frontend/Backend/Scanner**: rebrand from "STYLiTE Orbit Monitor" to "STYLiTE Orbit Port Monitor". The new name appears in the browser title, sidebar, login page, 2FA backup-code download, the FastAPI title (`/docs`), alert email subjects and summary heading, the TOTP issuer (new 2FA enrollments only; existing authenticator entries keep their old label and keep working), and the backend/scanner startup log lines. Package descriptions in `backend/pyproject.toml` and `scanner/pyproject.toml`, the SBOMs, the license files (`LICENSE` Licensed Work, `LICENSING.md`, `THIRD-PARTY-NOTICES.md`, `scanner/LICENSE-GVM.md`), scripts, and all documentation follow. The short name `opm`, the Docker images (`styliteag/opm`, `styliteag/opm-scanner`, `styliteag/opm-scanner-gvm`), the repository URL, and the DB defaults are unchanged.
+
 ## [3.0.0] - 2026-10-16
 
 ### Added

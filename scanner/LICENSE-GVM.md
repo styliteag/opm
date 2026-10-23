@@ -1,6 +1,6 @@
 # GVM agent licensing (GPL exception)
 
-STYLiTE Orbit Monitor as a whole is licensed under the Business Source License
+STYLiTE Orbit Port Monitor as a whole is licensed under the Business Source License
 1.1 (see the repository root [`LICENSE`](../LICENSE)). The **GVM scanner agent**
 is the one exception, for licence-compatibility reasons described below.
 

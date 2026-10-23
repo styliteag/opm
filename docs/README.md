@@ -1,12 +1,12 @@
-# STYLiTE Orbit Monitor Documentation
+# STYLiTE Orbit Port Monitor Documentation
 
-Welcome to the STYLiTE Orbit Monitor documentation. This guide covers the API reference, scanner deployment, and development resources.
+Welcome to the STYLiTE Orbit Port Monitor documentation. This guide covers the API reference, scanner deployment, and development resources.
 
 ## Table of Contents
 
 ### API Reference
 
-Complete API documentation for integrating with STYLiTE Orbit Monitor.
+Complete API documentation for integrating with STYLiTE Orbit Port Monitor.
 
 - [API Overview](api/overview.md) - Base URL, error handling, pagination, and authentication patterns
 - [Authentication](api/authentication.md) - User and scanner authentication flows

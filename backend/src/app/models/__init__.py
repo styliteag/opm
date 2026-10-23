@@ -1,4 +1,4 @@
-"""SQLAlchemy models for STYLiTE Orbit Monitor."""
+"""SQLAlchemy models for STYLiTE Orbit Port Monitor."""
 
 from app.models.alert import Alert
 from app.models.alert_comment import AlertComment

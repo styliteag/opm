@@ -21,7 +21,7 @@ else
 fi
 
 # Log version at startup
-echo "Starting STYLiTE Orbit Monitor version: ${VERSION}"
+echo "Starting STYLiTE Orbit Port Monitor version: ${VERSION}"
 
 # Wait for database to be ready before starting backend
 echo "Waiting for database to be ready..."

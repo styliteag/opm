@@ -1,4 +1,4 @@
-# AGENTS.md - STYLiTE Orbit Monitor
+# AGENTS.md - STYLiTE Orbit Port Monitor
 
 Read this file fully before making changes.
 

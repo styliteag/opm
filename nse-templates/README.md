@@ -1,4 +1,4 @@
-# NSE Scripts for STYLiTE Orbit Monitor
+# NSE Scripts for STYLiTE Orbit Port Monitor
 
 Nmap Scripting Engine (NSE) scripts for vulnerability detection, automatically synchronized from upstream [nmap/nmap](https://github.com/nmap/nmap).
 
@@ -33,7 +33,7 @@ python3 tools/build-manifest.py
 {
   "name": "opm-nse",
   "version": "0.1.0",
-  "description": "NSE scripts for STYLiTE Orbit Monitor",
+  "description": "NSE scripts for STYLiTE Orbit Port Monitor",
   "scripts": {
     "vulners.nse": {
       "name": "vulners",
@@ -44,6 +44,6 @@ python3 tools/build-manifest.py
 }
 ```
 
-## Usage in STYLiTE Orbit Monitor
+## Usage in STYLiTE Orbit Port Monitor
 
 In the NSE Scanner UI, go to **Repositories** and add this repo.

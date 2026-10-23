@@ -1,4 +1,4 @@
-# STYLiTE Orbit Monitor
+# STYLiTE Orbit Port Monitor
 
 Distributed network port scanning and monitoring system for security purposes with multi-site scanner support, alerting, and web dashboard.
 
@@ -112,7 +112,7 @@ Key variables:
 
 ## Running a Scanner Agent
 
-The scanner agent can be deployed on a different host to connect to your main STYLiTE Orbit Monitor server. This enables distributed scanning from multiple locations.
+The scanner agent can be deployed on a different host to connect to your main STYLiTE Orbit Port Monitor server. This enables distributed scanning from multiple locations.
 
 ### Prerequisites
 
@@ -311,7 +311,7 @@ For comprehensive documentation, see the [docs folder](docs/README.md):
 
 ## License
 
-STYLiTE Orbit Monitor is **source-available** under the **Business Source
+STYLiTE Orbit Port Monitor is **source-available** under the **Business Source
 License 1.1 (BSL 1.1)** — see [`LICENSE`](LICENSE) and [`LICENSING.md`](LICENSING.md).
 
 - ✅ Read, build, modify, and run it to scan/monitor your **own** organization's networks.

@@ -1,6 +1,6 @@
 # CLAUDE.md — Operating Manual
 
-STYLiTE Orbit Monitor (opm) — distributed network port scanning + monitoring.
+STYLiTE Orbit Port Monitor (opm) — distributed network port scanning + monitoring.
 FastAPI + SQLAlchemy 2.0 async + Alembic + MariaDB 11 · React 19 + TanStack Router/Query + Tailwind v4 · Python scanner agents (masscan/nmap/NSE/nuclei/GVM) · Docker Compose.
 
 Domain encyclopedia (GVM library/mirror, nuclei, severity rules, alert-state terminology): @AGENTS.md

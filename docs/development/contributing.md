@@ -1,6 +1,6 @@
-# Contributing to STYLiTE Orbit Monitor
+# Contributing to STYLiTE Orbit Port Monitor
 
-This guide covers code standards, commit conventions, and the pull request process for contributing to STYLiTE Orbit Monitor.
+This guide covers code standards, commit conventions, and the pull request process for contributing to STYLiTE Orbit Port Monitor.
 
 ## Code Style
 

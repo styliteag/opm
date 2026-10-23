@@ -1179,7 +1179,7 @@
     },
     {
       "bom-ref": "opm-backend==0.1.0",
-      "description": "Backend API for STYLiTE Orbit Monitor",
+      "description": "Backend API for STYLiTE Orbit Port Monitor",
       "externalReferences": [
         {
           "comment": "PackageSource: Local",

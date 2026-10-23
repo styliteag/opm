@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-STYLiTE Orbit Monitor is distributed under the Business Source License 1.1
+STYLiTE Orbit Port Monitor is distributed under the Business Source License 1.1
 (see [`LICENSE`](LICENSE)). It bundles and depends on third-party software under
 their own licenses. This file summarizes those components and the obligations
 they carry. It is informational and maintained best-effort; the authoritative

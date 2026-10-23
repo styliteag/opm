@@ -758,7 +758,7 @@
     },
     {
       "bom-ref": "opm-scanner==0.1.0",
-      "description": "Scanner agent for STYLiTE Orbit Monitor",
+      "description": "Scanner agent for STYLiTE Orbit Port Monitor",
       "externalReferences": [
         {
           "comment": "PackageSource: Local",

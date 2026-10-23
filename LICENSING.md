@@ -1,6 +1,6 @@
 # Licensing
 
-STYLiTE Orbit Monitor is **source-available** software, licensed under the
+STYLiTE Orbit Port Monitor is **source-available** software, licensed under the
 **Business Source License 1.1 (BSL 1.1)**. See [`LICENSE`](LICENSE) for the full
 legal text. This page is a plain-language summary — the `LICENSE` file governs in
 case of any conflict.
@@ -33,7 +33,7 @@ case of any conflict.
 
 | Use case | Allowed under BSL? |
 | --- | --- |
-| Offer Orbit Monitor to **third parties** as a hosted / managed / multi-tenant service | ❌ Needs a commercial license |
+| Offer Orbit Port Monitor to **third parties** as a hosted / managed / multi-tenant service | ❌ Needs a commercial license |
 | Scan and monitor **your customers'** networks with it as a paid service (MSP use) | ❌ Needs a commercial license |
 | Resell, sublicense, rent, or redistribute it for a fee | ❌ Needs a commercial license |
 | Embed it in a paid product you sell to others | ❌ Needs a commercial license |

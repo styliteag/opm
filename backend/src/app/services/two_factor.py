@@ -20,7 +20,7 @@ from app.core.security import (
 from app.models.user import User
 from app.models.user_backup_code import UserBackupCode
 
-_TOTP_ISSUER = "STYLiTE Orbit Monitor"
+_TOTP_ISSUER = "STYLiTE Orbit Port Monitor"
 _BACKUP_CODE_COUNT = 10
 _BACKUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I
 _BACKUP_CODE_LENGTH = 10
