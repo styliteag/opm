@@ -2,6 +2,10 @@
 
 Features documented in [USERSTORYS.md](USERSTORYS.md) that are not yet built.
 
+## Release (from omon, 2026-10-26)
+
+- [ ] **Old tag rolls back `latest`** — `.github/workflows/release.yml` always pushes `:latest` for `opm`, `opm-scanner` and `opm-scanner-gvm` (Docker Hub and GHCR). A hotfix tag on an older series (e.g. `1.2.5` after `1.3.0`) or "Re-run jobs" on an old tag's run moves `latest` back; anything that follows `latest` (watchtower, `compose pull`) then runs old code on a database migrated by the newer release. Fix as in omon (commit fda060d): checkout with `fetch-depth: 0` + `fetch-tags: true`; add the `:latest` tags only if `$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)` equals the built version.
+
 ## Scanner Engines
 
 - [ ] **RustScan Engine** — Fast port discovery with automatic Nmap handoff for service detection
