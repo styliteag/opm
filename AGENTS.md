@@ -32,7 +32,7 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 ### Type Checking
 
 - Strict mypy: always specify type params (`dict[str, Any]` not `dict`)
-- Use `from jose.exceptions import JWTError` not `jwt.JWTError` for type stub compatibility
+- JWT via PyJWT: `import jwt`, `from jwt.exceptions import PyJWTError`
 - Use `collections.abc.AsyncGenerator` (not `typing.AsyncGenerator`)
 
 ### Auth & Security
@@ -62,7 +62,7 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 
 - TanStack Router file-based routing in `src/routes/` (NOT `src/pages/`)
 - Feature modules in `src/features/` — each has `components/`, `hooks/`, optionally `schemas/`
-- API layer in `src/lib/` — `api.ts` (fetch wrapper), `api-client.ts` (typed functions)
+- API layer: `src/lib/api.ts` (fetch wrapper) + hand-written types in `src/lib/types.ts`; `api-client.ts` is dormant except `extractErrorMessage`
 - Auth token in `localStorage` under `opm-auth-token`
 - `@/*` resolves to `src/*` — always use `@/` prefix for imports
 - `import type` for type-only imports
@@ -99,9 +99,9 @@ All dev via Docker Compose. Do not restart unless specific reason — hot-reload
 
 #### GVM / Nuclei Severity Rules (per-OID alert overrides)
 
-- **Table** `gvm_severity_rules` (migration 023): `(oid, network_id)` unique, `network_id` nullable — null = global, set = network-scoped. Stores `severity_override` (info/low/medium/high/critical), optional `reason`, and `created_by_user_id`. Applies to both GVM OIDs and nuclei composite `template_id:matcher_name` keys (same `oid` column).
+- **Table** `severity_rules` (migration 023, renamed in 024): `(oid, network_id)` unique, `network_id` nullable — null = global, set = network-scoped. Stores `severity_override` (info/low/medium/high/critical), optional `reason`, and `created_by_user_id`. Applies to both GVM OIDs and nuclei composite `template_id:matcher_name` keys (same `oid` column).
 - **Resolution order** inside the GVM, nuclei, and NSE alert generators (`app/services/vulnerability_results.py`, `app/services/nse_results.py`): network rule → global rule → native severity. The resolved severity is what the network's alert threshold is applied to (`gvm_alert_severity`, `nuclei_severity`, or the NSE default of `high`) and is stored on the resulting `Alert.severity_override`. Alert messages include a `(severity promoted from X to Y via rule)` note when a rule fired. NSE findings additionally require a CVE or `VULNERABLE` marker to alert on their native severity — keyword-inferred `WEAK`/`DEPRECATED` findings only alert when a severity rule is in place.
-- **CRUD** via `/api/gvm-severity-rules` (operator+), upserts on `(oid, network_id)`. List page at Settings → Rules → Finding rules (`/settings/rules?tab=findings`).
+- **CRUD** via `/api/severity-rules` (operator+), upserts on `(oid, network_id)`. List page at Settings → Rules → Finding rules (`/settings/rules?tab=findings`).
 - **UI entry points (v4)**: **Accept risk** on important findings (Home, host page) calls `POST /api/alerts/{id}/accept-risk`, which upserts a network-scoped rule lowering that finding to info (SSH findings get an accepted SSH alert rule instead). The raw "Change severity rule" dialog sits under Advanced on the host page and scan detail. Dialog defaults to "All networks (global)" scope; network scope is available when the caller supplies a `networkId` (scan page does, host page doesn't — a host can belong to multiple networks).
 - **Intended workflow**: promote a noisy-but-benign info finding (e.g. DNS recursion OID `1.3.6.1.4.1.25623.1.0.147232`) to high so it reaches the alert layer, or demote a persistent medium nuisance to info to suppress it — without changing the network-wide `gvm_alert_severity` floor.
 
@@ -160,11 +160,9 @@ For any UI change: navigate to page, verify, screenshot if helpful. Frontend sto
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 
-**IMPORTANT: This project has a knowledge graph. ALWAYS use the
-code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
-the codebase.** The graph is faster, cheaper (fewer tokens), and gives
-you structural context (callers, dependents, test coverage) that file
-scanning cannot.
+This project has a code-review-graph knowledge graph. Use its MCP tools
+before Grep/Glob/Read for exploration: they are cheaper and give
+structural context (callers, dependents, test coverage).
 
 ### When to use graph tools FIRST
 

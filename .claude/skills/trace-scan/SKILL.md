@@ -81,7 +81,7 @@ Alert generation is backend-side, after result processing. Check in this order:
    `DB "SELECT ip, port, protocol FROM open_ports WHERE scan_id=<ID> LIMIT 20;"`
 2. **Dedup:** alerts dedupe on `(alert_type, ip, port)` while not dismissed — an existing open alert suppresses a new one. `DB "SELECT id,alert_type,ip,port,dismissed,severity FROM alerts WHERE ip='<IP>' ORDER BY id DESC LIMIT 10;"`
 3. **Accept rules:** an accepted port rule (network `port_rules` or `global_port_rules`, `rule_type='accepted'`) suppresses future alerts by design. "Accepted" is computed, not stored on the alert.
-4. **Severity threshold:** GVM/nuclei findings below the network's threshold (`gvm_alert_severity` / `nuclei_severity`, default medium) are stored but never alert. Resolution order: network severity rule → global severity rule → native severity (`severity_rules` table; nuclei keys are composite `template_id:matcher_name`). NSE additionally requires a CVE or `VULNERABLE` marker unless a severity rule exists.
+4. **Severity threshold:** GVM/nuclei findings below the network's threshold (`gvm_alert_severity` / `nuclei_severity`, default high) are stored but never alert. Resolution order: network severity rule → global severity rule → native severity (`severity_rules` table; nuclei keys are composite `template_id:matcher_name`). NSE additionally requires a CVE or `VULNERABLE` marker unless a severity rule exists.
 5. **Cancelled scans store partial results but alert generation only runs for completed scans.**
 6. **Email:** alert stored but no mail ⇒ check network `alert_config.email_recipients`, `ALERT_EMAIL_RECIPIENTS` env, SMTP settings, and backend logs from `email_alerts`.
 
